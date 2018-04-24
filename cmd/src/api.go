@@ -26,7 +26,7 @@ Examples:
 
   Specify query variables:
 
-    	$ echo '<query>' | src api 'var1=val1' 'var2=val2'
+    	$ echo '<query>' | src api -vars '{"var1":"val1, "var2":"val2"}'
 
   Searching for "Router" and getting result count:
 
@@ -71,15 +71,6 @@ Examples:
 			if err := json.Unmarshal([]byte(*varsFlag), &vars); err != nil {
 				return err
 			}
-		}
-		for _, arg := range flagSet.Args() {
-			idx := strings.Index(arg, "=")
-			if idx == -1 {
-				return &usageError{fmt.Errorf("parsing argument %q expected 'variable=value' syntax (missing equals)", arg)}
-			}
-			key := arg[:idx]
-			value := arg[idx+1:]
-			vars[key] = value
 		}
 
 		// Handle the get-curl flag now.
