@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -40,7 +39,7 @@ Examples:
 	handler := func(args []string) error {
 		flagSet.Parse(args)
 
-		dec := json.NewDecoder(bytes.NewBufferString(*verifyJsonFlag))
+		dec := json.NewDecoder(strings.NewReader(*verifyJsonFlag))
 
 		var verifyList []VerifyEmailJson
 		if err := dec.Decode(&verifyList); err != nil {
