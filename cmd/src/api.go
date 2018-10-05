@@ -123,8 +123,25 @@ func gqlURL(endpoint string) string {
 	return endpoint + "/.api/graphql"
 }
 
+// authenticationHeader returns the header name and header value required to authenticate a request,
+// or `"", ""` if one calls this function when the config has no AccessToken information
+func authenticationHeader(cfg *config) (string, string) {
+	if cfg.AccessToken == "" {
+		return "", ""
+	}
+
+	var headerValue string
+	if cfg.RunAs != "" {
+		headerValue = fmt.Sprintf("token-sudo user=\"%s\",token=\"%s\"", cfg.RunAs, cfg.AccessToken)
+	} else {
+		headerValue = "token " + cfg.AccessToken
+	}
+
+	return "Authorization", headerValue
+}
+
 // curlCmd returns the curl command to perform the given GraphQL query. Bash-only.
-func curlCmd(endpoint, accessToken, query string, vars map[string]interface{}) (string, error) {
+func curlCmd(cfg *config, query string, vars map[string]interface{}) (string, error) {
 	data, err := json.Marshal(map[string]interface{}{
 		"query":     query,
 		"variables": vars,
@@ -134,11 +151,17 @@ func curlCmd(endpoint, accessToken, query string, vars map[string]interface{}) (
 	}
 
 	s := fmt.Sprintf("curl \\\n")
-	if accessToken != "" {
-		s += fmt.Sprintf("   %s \\\n", shellquote.Join("-H", "Authorization: token "+accessToken))
+	if cfg.AccessToken != "" {
+		var headerName, headerValue string
+		headerName, headerValue = authenticationHeader(cfg)
+		if headerName == "" {
+			return "", fmt.Errorf("unable to translate config into authentication header, please file an issue")
+		}
+		authHeader := fmt.Sprintf("%s: %s", headerName, headerValue)
+		s += fmt.Sprintf("   %s \\\n", shellquote.Join("-H", authHeader))
 	}
 	s += fmt.Sprintf("   %s \\\n", shellquote.Join("-d", string(data)))
-	s += fmt.Sprintf("   %s", shellquote.Join(gqlURL(endpoint)))
+	s += fmt.Sprintf("   %s", shellquote.Join(gqlURL(cfg.Endpoint)))
 	return s, nil
 }
 
@@ -174,7 +197,7 @@ func (a *apiRequest) do() error {
 	if a.done != nil {
 		// Handle the get-curl flag now.
 		if *a.flags.getCurl {
-			curl, err := curlCmd(cfg.Endpoint, cfg.AccessToken, a.query, a.vars)
+			curl, err := curlCmd(cfg, a.query, a.vars)
 			if err != nil {
 				return err
 			}
@@ -200,7 +223,12 @@ func (a *apiRequest) do() error {
 		return err
 	}
 	if cfg.AccessToken != "" {
-		req.Header.Set("Authorization", "token "+cfg.AccessToken)
+		var headerName, headerValue string
+		headerName, headerValue = authenticationHeader(cfg)
+		if headerName == "" {
+			return fmt.Errorf("unable to translate config into authentication header, please file an issue")
+		}
+		req.Header.Set(headerName, headerValue)
 	}
 	req.Body = ioutil.NopCloser(&buf)
 

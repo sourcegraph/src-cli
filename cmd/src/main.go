@@ -20,7 +20,7 @@ Usage:
 
 The options are:
 
-	-config=$HOME/src-config.json    specifies a file containing {"accessToken": "<secret>", "endpoint": "https://sourcegraph.com"}
+	-config=$HOME/src-config.json    specifies a file containing {"accessToken": "<secret>", "endpoint": "https://sourcegraph.com", "runAs": "another-user"}
 	-endpoint=                       specifies the endpoint to use e.g. "https://sourcegraph.com" (overrides -config, if any)
 
 The commands are:
@@ -59,6 +59,9 @@ var cfg *config
 type config struct {
 	Endpoint    string `json:"endpoint"`
 	AccessToken string `json:"accessToken"`
+	// implies that the `AccessToken` is a "sudo" token
+	// and this value is the username as whom the request will run
+	RunAs string `json:"runAs"`
 }
 
 // readConfig reads the config file from the given path.
