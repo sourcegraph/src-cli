@@ -132,7 +132,7 @@ func authenticationHeader(cfg *config) (string, string) {
 
 	var headerValue string
 	if cfg.RunAs != "" {
-		headerValue = fmt.Sprintf("token-sudo user=\"%s\",token=\"%s\"", cfg.RunAs, cfg.AccessToken)
+		headerValue = fmt.Sprintf(`token-sudo user="%s",token="%s"`, cfg.RunAs, cfg.AccessToken)
 	} else {
 		headerValue = "token " + cfg.AccessToken
 	}
