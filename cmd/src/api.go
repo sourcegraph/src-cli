@@ -15,6 +15,10 @@ import (
 	"github.com/mattn/go-isatty"
 )
 
+const (
+	authHeaderMissingAccessTokenError = `unable to translate config into authentication header, please file an issue https://github.com/sourcegraph/sourcegraph/issues/new/choose`
+)
+
 func init() {
 	usage := `
 Exit codes:
@@ -155,7 +159,7 @@ func curlCmd(cfg *config, query string, vars map[string]interface{}) (string, er
 		var headerName, headerValue string
 		headerName, headerValue = authenticationHeader(cfg)
 		if headerName == "" {
-			return "", fmt.Errorf("unable to translate config into authentication header, please file an issue")
+			return "", fmt.Errorf(authHeaderMissingAccessTokenError)
 		}
 		authHeader := fmt.Sprintf("%s: %s", headerName, headerValue)
 		s += fmt.Sprintf("   %s \\\n", shellquote.Join("-H", authHeader))
@@ -226,7 +230,7 @@ func (a *apiRequest) do() error {
 		var headerName, headerValue string
 		headerName, headerValue = authenticationHeader(cfg)
 		if headerName == "" {
-			return fmt.Errorf("unable to translate config into authentication header, please file an issue")
+			return fmt.Errorf(authHeaderMissingAccessTokenError)
 		}
 		req.Header.Set(headerName, headerValue)
 	}
