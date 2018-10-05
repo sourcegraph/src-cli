@@ -156,8 +156,7 @@ func curlCmd(cfg *config, query string, vars map[string]interface{}) (string, er
 
 	s := fmt.Sprintf("curl \\\n")
 	if cfg.AccessToken != "" {
-		var headerName, headerValue string
-		headerName, headerValue = authenticationHeader(cfg)
+		headerName, headerValue := authenticationHeader(cfg)
 		if headerName == "" {
 			return "", fmt.Errorf(authHeaderMissingAccessTokenError)
 		}
@@ -227,8 +226,7 @@ func (a *apiRequest) do() error {
 		return err
 	}
 	if cfg.AccessToken != "" {
-		var headerName, headerValue string
-		headerName, headerValue = authenticationHeader(cfg)
+		headerName, headerValue := authenticationHeader(cfg)
 		if headerName == "" {
 			return fmt.Errorf(authHeaderMissingAccessTokenError)
 		}
