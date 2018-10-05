@@ -16,11 +16,12 @@ Usage:
 
 The commands are:
 
-	list       lists users
-	get        gets a user
-	create     creates a user account
-	delete     deletes a user account
-	tag        add/remove a tag on a user
+	list          lists users
+	get           gets a user
+	create        creates a user account
+	delete        deletes a user account
+	tag           add/remove a tag on a user
+	verify-emails verify user emails in bulk
 
 Use "src users [command] -h" for more information about a command.
 `
