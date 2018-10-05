@@ -11,6 +11,14 @@ import (
 	"strings"
 )
 
+const (
+	AccessTokenEnvVar = "SRC_ACCESS_TOKEN"
+	ConfigEnvVar      = "SRC_CONFIG"
+	ConfigFilename    = "src-config.json"
+	DefaultEndpoint   = "https://sourcegraph.com"
+	EndpointEnvVar    = "SRC_ENDPOINT"
+)
+
 const usageText = `src is a tool that provides access to Sourcegraph instances.
 For more information, see https://github.com/sourcegraph/src-cli
 
@@ -21,7 +29,21 @@ Usage:
 The options are:
 
 	-config=$HOME/src-config.json    specifies a file containing {"accessToken": "<secret>", "endpoint": "https://sourcegraph.com"}
+      You can use "${}" syntax to reference environment variables, even on Windows,
+      but you may wish to use single-quotes to protect that syntax from shell expansion:
+
+      -config=${UserProfile}/src-config.json or
+      -config='${TMPDIR}/my-config.json'
+
+      [Environment Variables]
+      $SRC_CONFIG       can point to the config file
+                        although the -config option is always authoritative
+      $SRC_ACCESS_TOKEN can specify, or supersede, the access token
+
 	-endpoint=                       specifies the endpoint to use e.g. "https://sourcegraph.com" (overrides -config, if any)
+      [Environment Variables]
+      $SRC_ENDPOINT     can specify, or supersede, the value in -config
+                        although the -endpoint option is always authoritative
 
 The commands are:
 
@@ -61,16 +83,22 @@ type config struct {
 	AccessToken string `json:"accessToken"`
 }
 
-// readConfig reads the config file from the given path.
+// readConfig reads the config file from the given path, plus any in-scope environment variables
 func readConfig() (*config, error) {
 	cfgPath := *configPath
-	userSpecified := *configPath != ""
+	userSpecified := cfgPath != ""
 	if !userSpecified {
-		user, err := user.Current()
+		if cfgEnvPath := os.Getenv(ConfigEnvVar); cfgEnvPath != "" {
+			cfgPath = cfgEnvPath
+			userSpecified = true
+		}
+	}
+	if !userSpecified {
+		currentUser, err := user.Current()
 		if err != nil {
 			return nil, err
 		}
-		cfgPath = filepath.Join(user.HomeDir, "src-config.json")
+		cfgPath = filepath.Join(currentUser.HomeDir, ConfigFilename)
 	}
 	data, err := ioutil.ReadFile(os.ExpandEnv(cfgPath))
 	if err != nil && (!os.IsNotExist(err) || userSpecified) {
@@ -84,14 +112,18 @@ func readConfig() (*config, error) {
 	}
 
 	// Apply config overrides.
-	if envToken := os.Getenv("SRC_ACCESS_TOKEN"); envToken != "" {
+	if envToken := os.Getenv(AccessTokenEnvVar); envToken != "" {
 		cfg.AccessToken = envToken
 	}
-	if *endpoint != "" {
-		cfg.Endpoint = strings.TrimSuffix(*endpoint, "/")
+	userEndpoint := *endpoint
+	if envEndpoint := os.Getenv(EndpointEnvVar); userEndpoint == "" && envEndpoint != "" {
+		userEndpoint = envEndpoint
+	}
+	if userEndpoint != "" {
+		cfg.Endpoint = strings.TrimSuffix(userEndpoint, "/")
 	}
 	if cfg.Endpoint == "" {
-		cfg.Endpoint = "https://sourcegraph.com"
+		cfg.Endpoint = DefaultEndpoint
 	}
 	return &cfg, nil
 }

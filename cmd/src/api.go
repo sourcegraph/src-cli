@@ -308,6 +308,9 @@ func nullInt(n int) *int {
 	return &n
 }
 
+// If the provided `s` is empty, `nil` is returned instead.
+// No trimming or other alteration is done to the provided,
+// nor returned, string
 func nullString(s string) *string {
 	if s == "" {
 		return nil
