@@ -281,10 +281,7 @@ func (testCase *FlagTestCaseInput) setUp() []func() error {
 		cleanup := pushSetenv(ConfigEnvVar, configFilename)
 		cleanupFuncs = append(cleanupFuncs, cleanup)
 		cleanupFuncs = append(cleanupFuncs, func() error {
-			if e := os.Remove(configFilename); e != nil {
-				return e
-			}
-			return nil
+			return os.Remove(configFilename)
 		})
 	}
 
@@ -297,10 +294,7 @@ func (testCase *FlagTestCaseInput) setUp() []func() error {
 			// cheat and piggy back on this cleanup
 			configPath = oldConfigPath
 
-			if e := os.Remove(configFilename); e != nil {
-				return e
-			}
-			return nil
+			return os.Remove(configFilename)
 		})
 	}
 
