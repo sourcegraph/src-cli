@@ -1,13 +1,31 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"flag"
 	"fmt"
-	"strings"
+	"log"
+	"text/template"
 )
 
 const SubCommand = "verify-emails"
+
+// input = `[]VerifyEmailJson`
+// be careful if you change the vars format, since the vars need to match below
+const setEmailVerifiedTemplate = `
+mutation VerifyUserEmails(
+{{- range $idx, $_ := . -}}
+$user{{ printf "%09d" $idx }} ID!, $email{{ printf "%09d" $idx }} String!, 
+{{- end -}}
+) {
+{{- range $idx, $_ := . }}
+  verify{{ printf "%09d" $idx }}: setUserEmailVerified(user: $user{{ printf "%09d" $idx }}, email: $email{{ printf "%09d" $idx }}, verified: true) {
+    alwaysNil
+  }
+{{- end }}
+}
+`
 
 type VerifyEmailJson struct {
 	ID    string `json:"ID"`
@@ -36,6 +54,12 @@ Examples:
 		apiFlags = newAPIFlags(flagSet)
 	)
 
+	graphQlTemplate := template.New("setUserEmailVerifiedQL")
+	if _, err := graphQlTemplate.Parse(setEmailVerifiedTemplate); err != nil {
+		log.Fatal(`setVerifiedEmail template failed to parse;
+please file an issue at https://github.com/sourcegraph/sourcegraph/issues/new/choose`, err)
+	}
+
 	handler := func(args []string) error {
 		flagSet.Parse(args)
 
@@ -46,33 +70,19 @@ Examples:
 
 		vars := map[string]interface{}{}
 
-		// translate the provided index of `verifyList` into variables for its `id` and `email` payload
-		indexToKeys := func(idx int) (string, string) {
-			return fmt.Sprintf("id%09d", idx), fmt.Sprintf("email%09d", idx)
-		}
-
 		for idx, verifyObj := range verifyList {
-			idKey, emailKey := indexToKeys(idx)
-			vars[idKey] = verifyObj.ID
+			// be careful if you change the template, since these keys need to match
+			userKey := fmt.Sprintf("user%09d", idx)
+			emailKey := fmt.Sprintf("email%09d", idx)
+			vars[userKey] = verifyObj.ID
 			vars[emailKey] = verifyObj.Email
 		}
 
-		query := `mutation VerifyUserEmails(`
-		for k := range vars {
-			varType := "String!"
-			if strings.HasPrefix(k, "id") {
-				varType = "ID!"
-			}
-			query += fmt.Sprintf("$%s: %s,", k, varType)
+		queryBuf := new(bytes.Buffer)
+		if err := graphQlTemplate.Execute(queryBuf, verifyList); err != nil {
+			return err
 		}
-		query += ") {"
-		for idx := range verifyList {
-			idKey, emailKey := indexToKeys(idx)
-			query += fmt.Sprintf(`verify%09d: setUserEmailVerified(user: $%s, email: $%s, verified: true) {
-alwaysNil
-}`, idx, idKey, emailKey)
-		}
-		query += "}"
+		query := queryBuf.String()
 
 		var result struct {
 			VerifyUserEmails struct{}
