@@ -39,10 +39,8 @@ Examples:
 	handler := func(args []string) error {
 		flagSet.Parse(args)
 
-		dec := json.NewDecoder(strings.NewReader(*verifyJsonFlag))
-
 		var verifyList []VerifyEmailJson
-		if err := dec.Decode(&verifyList); err != nil {
+		if err := json.Unmarshal([]byte(*verifyJsonFlag), &verifyList); err != nil {
 			return err
 		}
 
