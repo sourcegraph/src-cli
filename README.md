@@ -57,7 +57,7 @@ Consult `src -h` and `src api -h` for usage information.
 
 Some Sourcegraph instances will be configured to require authentication. You can do so via the environment:
 
-```sh
+```bash
 SRC_ACCESS_TOKEN="secret" src ...
 ```
 
@@ -87,7 +87,7 @@ _N.B._ be careful not to leave that field in place when using a _non_ `sudo` sco
 
 If you want to develop the CLI, you can install it with `go get`:
 
-```
+```bash
 go get -u github.com/sourcegraph/src-cli/cmd/src
 ```
 
