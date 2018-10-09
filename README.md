@@ -12,7 +12,7 @@ It currently provides the ability to:
   - You can easily convert a `src api` command into a curl command with `src api -get-curl`.
 - **Manage repositories, users, and organizations** using the `src repos`, `src users`, and `src orgs` commands.
 
-If there is something you'd like to see Sourcegraph be able to do from the CLI, let us know! :)
+If there is something you'd like to see Sourcegraph be able to do from the CLI, [let us know!](https://github.com/sourcegraph/sourcegraph/issues/new/choose) :)
 
 ## Installation
 
@@ -32,7 +32,7 @@ chmod +x /usr/local/bin/src
 
 ### Windows:
 
-Note: Windows support is still rough around the edges, but is available. If you encounter issues, please let us know by filing an issue :)
+Note: Windows support is still rough around the edges, but is available. If you encounter issues, please let us know by [filing an issue](https://github.com/sourcegraph/sourcegraph/issues/new/choose) :)
 
 Run in PowerShell as administrator:
 
