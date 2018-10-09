@@ -2,6 +2,7 @@ package main
 
 import (
 	"io/ioutil"
+	"log"
 	"os"
 	"testing"
 )
@@ -310,14 +311,21 @@ func writeTempConfigFile(contents string, t *testing.T) os.File {
 	if tmpErr != nil {
 		t.Fatal(tmpErr)
 	}
-	tmpFile.WriteString(contents)
-	tmpFile.Close()
+	filename := tmpFile.Name()
+	if _, err := tmpFile.WriteString(contents); err != nil {
+		log.Fatalf(`unable to write contents to "%s": %v`, filename, err)
+	}
+	if err := tmpFile.Close(); err != nil {
+		log.Fatalf(`unable to close "%s": %v`, filename, err)
+	}
 	return *tmpFile
 }
 
 func pushSetenv(envName, envValue string) func() error {
 	existingEnvValue := os.Getenv(envName)
-	os.Setenv(envName, envValue)
+	if err := os.Setenv(envName, envValue); err != nil {
+		log.Fatal(err)
+	}
 	return func() error {
 		return os.Setenv(envName, existingEnvValue)
 	}
