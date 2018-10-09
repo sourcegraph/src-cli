@@ -9,8 +9,6 @@ import (
 	"text/template"
 )
 
-const SubCommand = "verify-emails"
-
 // input = `[]VerifyEmailJson`
 // be careful if you change the vars format, since the vars need to match below
 const setEmailVerifiedTemplate = `
@@ -38,11 +36,11 @@ Examples:
 
   Verify one or more user account(s):
 
-    	$ src users ` + SubCommand + ` -verify-json='[{"ID": "ID1", "Email": "email1"},...]'
+    	$ src users emails verify-json='[{"ID": "ID1", "Email": "email1"},...]'
 
 `
 
-	flagSet := flag.NewFlagSet(SubCommand, flag.ExitOnError)
+	flagSet := flag.NewFlagSet("emails", flag.ExitOnError)
 	usageFunc := func() {
 		fmt.Fprintf(flag.CommandLine.Output(), "Usage of 'src users %s':\n", flagSet.Name())
 		flagSet.PrintDefaults()

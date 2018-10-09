@@ -21,7 +21,7 @@ The commands are:
 	create        creates a user account
 	delete        deletes a user account
 	tag           add/remove a tag on a user
-	verify-emails verify user emails in bulk
+	emails        actions related to user emails
 
 Use "src users [command] -h" for more information about a command.
 `
