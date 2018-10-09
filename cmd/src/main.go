@@ -29,21 +29,7 @@ Usage:
 The options are:
 
 	-config=$HOME/src-config.json    specifies a file containing {"accessToken": "<secret>", "endpoint": "https://sourcegraph.com"}
-      You can use "${}" syntax to reference environment variables, even on Windows,
-      but you may wish to use single-quotes to protect that syntax from shell expansion:
-
-      -config=${UserProfile}/src-config.json or
-      -config='${TMPDIR}/my-config.json'
-
-      [Environment Variables]
-      $SRC_CONFIG       can point to the config file
-                        although the -config option is always authoritative
-      $SRC_ACCESS_TOKEN can specify, or supersede, the access token
-
 	-endpoint=                       specifies the endpoint to use e.g. "https://sourcegraph.com" (overrides -config, if any)
-      [Environment Variables]
-      $SRC_ENDPOINT     can specify, or supersede, the value in -config
-                        although the -endpoint option is always authoritative
 
 The commands are:
 
