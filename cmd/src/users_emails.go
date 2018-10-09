@@ -59,7 +59,9 @@ please file an issue at https://github.com/sourcegraph/sourcegraph/issues/new/ch
 	}
 
 	handler := func(args []string) error {
-		flagSet.Parse(args)
+		if err := flagSet.Parse(args); err != nil {
+			return err
+		}
 
 		var verifyList []VerifyEmailJson
 		if err := json.Unmarshal([]byte(*verifyJsonFlag), &verifyList); err != nil {
