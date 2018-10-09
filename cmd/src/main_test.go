@@ -334,6 +334,6 @@ func pushSetenv(envName, envValue string) func() error {
 func assertEquals(actual, wanted string, t *testing.T) {
 	t.Helper()
 	if actual != wanted {
-		t.Logf("Wanted \"%s\" but got \"%s\"", wanted, actual)
+		t.Fatalf(`Wanted "%s" but got "%s"`, wanted, actual)
 	}
 }
