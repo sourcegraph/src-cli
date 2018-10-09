@@ -9,22 +9,6 @@ import (
 	"text/template"
 )
 
-// input = `[]VerifyEmailJson`
-// be careful if you change the vars format, since the vars need to match below
-const setEmailVerifiedTemplate = `
-mutation VerifyUserEmails(
-{{- range $idx, $_ := . -}}
-$user{{ printf "%09d" $idx }} ID!, $email{{ printf "%09d" $idx }} String!, 
-{{- end -}}
-) {
-{{- range $idx, $_ := . }}
-  verify{{ printf "%09d" $idx }}: setUserEmailVerified(user: $user{{ printf "%09d" $idx }}, email: $email{{ printf "%09d" $idx }}, verified: true) {
-    alwaysNil
-  }
-{{- end }}
-}
-`
-
 type VerifyEmailJson struct {
 	ID    string `json:"ID"`
 	Email string `json:"Email"`
@@ -52,12 +36,6 @@ Examples:
 		apiFlags = newAPIFlags(flagSet)
 	)
 
-	graphQlTemplate := template.New("setUserEmailVerifiedQL")
-	if _, err := graphQlTemplate.Parse(setEmailVerifiedTemplate); err != nil {
-		log.Fatal(`setVerifiedEmail template failed to parse;
-please file an issue at https://github.com/sourcegraph/sourcegraph/issues/new/choose`, err)
-	}
-
 	handler := func(args []string) error {
 		if err := flagSet.Parse(args); err != nil {
 			return err
@@ -68,6 +46,29 @@ please file an issue at https://github.com/sourcegraph/sourcegraph/issues/new/ch
 			return err
 		}
 
+		graphQlTemplate := template.New("setUserEmailVerifiedQL")
+		if _, err := graphQlTemplate.Parse(`
+mutation VerifyUserEmails(
+{{- range $idx, $_ := . -}}
+$user{{ printf "%09d" $idx }} ID!, $email{{ printf "%09d" $idx }} String!, 
+{{- end -}}
+) {
+{{- range $idx, $_ := . }}
+  verify{{ printf "%09d" $idx }}: setUserEmailVerified(user: $user{{ printf "%09d" $idx }}, email: $email{{ printf "%09d" $idx }}, verified: true) {
+    alwaysNil
+  }
+{{- end }}
+}
+`); err != nil {
+			log.Fatal(`setUserVerifiedEmail template failed to parse;
+please file an issue at https://github.com/sourcegraph/sourcegraph/issues/new/choose`, err)
+		}
+		queryBuf := new(bytes.Buffer)
+		if err := graphQlTemplate.Execute(queryBuf, verifyList); err != nil {
+			return err
+		}
+		query := queryBuf.String()
+
 		vars := map[string]interface{}{}
 
 		for idx, verifyObj := range verifyList {
@@ -77,12 +78,6 @@ please file an issue at https://github.com/sourcegraph/sourcegraph/issues/new/ch
 			vars[userKey] = verifyObj.ID
 			vars[emailKey] = verifyObj.Email
 		}
-
-		queryBuf := new(bytes.Buffer)
-		if err := graphQlTemplate.Execute(queryBuf, verifyList); err != nil {
-			return err
-		}
-		query := queryBuf.String()
 
 		var result struct {
 			VerifyUserEmails struct{}
