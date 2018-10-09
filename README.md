@@ -63,13 +63,25 @@ SRC_ACCESS_TOKEN="secret" src ...
 
 Or via the configuration file (`~/src-config.json`):
 
-```sh
+```json
 	{"accessToken": "secret"}
 ```
 
 See `src -h` for more information on specifying access tokens.
 
 To acquire the access token, visit your Sourcegraph instance (or https://sourcegraph.com), click your profile picture, and select **access tokens** in the left hand menu.
+
+### Sudo Tokens
+
+If an access token has the `site-admin:sudo` scope, then one may perform an action as a user other than the one who created the access token. To enable this functionality, add the additional `"runAs": ""` property to your `src-config.json`.
+
+```json
+	{"accessToken": "secret", "runAs": "other-username"}
+```
+
+This extra field is optional, even with `sudo` tokens; without that field the `sudo` token will behave just like a traditional access token.
+
+_N.B._ be careful not to leave that field in place when using a _non_ `sudo` scoped token, as that will cause authentication failures.
 
 ## Development
 
