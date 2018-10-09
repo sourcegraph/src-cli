@@ -125,20 +125,20 @@ func gqlURL(endpoint string) string {
 	return endpoint + "/.api/graphql"
 }
 
-// authenticationHeader returns the header name and header value required to authenticate a request,
-// or `"", ""` if one calls this function when the config has no AccessToken information
-func authenticationHeader(cfg *config) (string, string) {
+// authorizationHeaderValue returns the header value required to authenticate a request,
+// or `""` if one calls this function when the config has no AccessToken information
+func authorizationHeaderValue(cfg *config) string {
 	if cfg.AccessToken == "" {
-		return "", ""
+		return ""
 	}
 
-	var headerValue string
+	var result string
 	if cfg.RunAs != "" {
-		headerValue = fmt.Sprintf(`token-sudo user="%s",token="%s"`, cfg.RunAs, cfg.AccessToken)
+		result = fmt.Sprintf(`token-sudo user="%s",token="%s"`, cfg.RunAs, cfg.AccessToken)
 	} else {
-		headerValue = "token " + cfg.AccessToken
+		result = "token " + cfg.AccessToken
 	}
-	return "Authorization", headerValue
+	return result
 }
 
 // curlCmd returns the curl command to perform the given GraphQL query. Bash-only.
@@ -153,8 +153,9 @@ func curlCmd(cfg *config, query string, vars map[string]interface{}) (string, er
 
 	s := fmt.Sprintf("curl \\\n")
 	if cfg.AccessToken != "" {
-		headerName, headerValue := authenticationHeader(cfg)
-		if headerName == "" {
+		headerName := "Authorization"
+		headerValue := authorizationHeaderValue(cfg)
+		if headerValue == "" {
 			panic("failed to create authentication header from configuration")
 		}
 		authHeader := fmt.Sprintf("%s: %s", headerName, headerValue)
@@ -223,8 +224,9 @@ func (a *apiRequest) do() error {
 		return err
 	}
 	if cfg.AccessToken != "" {
-		headerName, headerValue := authenticationHeader(cfg)
-		if headerName == "" {
+		headerName := "Authorization"
+		headerValue := authorizationHeaderValue(cfg)
+		if headerValue == "" {
 			panic("failed to create authentication header from configuration")
 		}
 		req.Header.Set(headerName, headerValue)
