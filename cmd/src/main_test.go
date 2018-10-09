@@ -44,7 +44,7 @@ func TestReadConfig(parentT *testing.T) {
 		}
 		expected := config{
 			AccessToken: "",
-			Endpoint:    DefaultEndpoint,
+			Endpoint:    defaultEndpoint,
 		}
 		testCase.Run(func() {
 			runAndAssert(expected, t)
@@ -60,7 +60,7 @@ func TestReadConfig(parentT *testing.T) {
 		}
 		expected := config{
 			AccessToken: "abcdef-ghi",
-			Endpoint:    DefaultEndpoint,
+			Endpoint:    defaultEndpoint,
 		}
 		testCase.Run(func() {
 			runAndAssert(expected, t)
@@ -75,7 +75,7 @@ func TestReadConfig(parentT *testing.T) {
 		}
 		expected := config{
 			AccessToken: "secret-file-value",
-			Endpoint:    DefaultEndpoint,
+			Endpoint:    defaultEndpoint,
 		}
 		testCase.Run(func() {
 			runAndAssert(expected, t)
@@ -91,7 +91,7 @@ func TestReadConfig(parentT *testing.T) {
 		}
 		expected := config{
 			AccessToken: "secret-value-here",
-			Endpoint:    DefaultEndpoint,
+			Endpoint:    defaultEndpoint,
 		}
 		testCase.Run(func() {
 			runAndAssert(expected, t)
@@ -108,7 +108,7 @@ func TestReadConfig(parentT *testing.T) {
 		}
 		expected := config{
 			AccessToken: "supersede-access-token",
-			Endpoint:    DefaultEndpoint,
+			Endpoint:    defaultEndpoint,
 		}
 		testCase.Run(func() {
 			runAndAssert(expected, t)
@@ -125,7 +125,7 @@ func TestReadConfig(parentT *testing.T) {
 		}
 		expected := config{
 			AccessToken: "this-access-token",
-			Endpoint:    DefaultEndpoint,
+			Endpoint:    defaultEndpoint,
 		}
 		testCase.Run(func() {
 			runAndAssert(expected, t)
@@ -143,7 +143,7 @@ func TestReadConfig(parentT *testing.T) {
 		}
 		expected := config{
 			AccessToken: "highest-priority-access-token",
-			Endpoint:    DefaultEndpoint,
+			Endpoint:    defaultEndpoint,
 		}
 		testCase.Run(func() {
 			runAndAssert(expected, t)
@@ -160,7 +160,7 @@ func TestReadConfig(parentT *testing.T) {
 		}
 		expected := config{
 			AccessToken: "flag-config-should-win",
-			Endpoint:    DefaultEndpoint,
+			Endpoint:    defaultEndpoint,
 		}
 		testCase.Run(func() {
 			runAndAssert(expected, t)
@@ -233,9 +233,9 @@ func TestReadConfig(parentT *testing.T) {
 	})
 
 	parentT.Run("ensure env-vars do not leak", func(t *testing.T) {
-		assertEquals(os.Getenv(AccessTokenEnvVar), "", t)
-		assertEquals(os.Getenv(ConfigEnvVar), "", t)
-		assertEquals(os.Getenv(EndpointEnvVar), "", t)
+		assertEquals(os.Getenv(accessTokenEnvVar), "", t)
+		assertEquals(os.Getenv(configEnvVar), "", t)
+		assertEquals(os.Getenv(endpointEnvVar), "", t)
 	})
 }
 
@@ -258,11 +258,11 @@ func (testCase *FlagTestCaseInput) setUp() []func() error {
 	var cleanupFuncs []func() error
 
 	if testCase.accessTokenEnv != "" {
-		cleanup := pushSetenv(AccessTokenEnvVar, testCase.accessTokenEnv)
+		cleanup := pushSetenv(accessTokenEnvVar, testCase.accessTokenEnv)
 		cleanupFuncs = append(cleanupFuncs, cleanup)
 	}
 	if testCase.endpointEnv != "" {
-		cleanup := pushSetenv(EndpointEnvVar, testCase.endpointEnv)
+		cleanup := pushSetenv(endpointEnvVar, testCase.endpointEnv)
 		cleanupFuncs = append(cleanupFuncs, cleanup)
 	}
 
@@ -278,7 +278,7 @@ func (testCase *FlagTestCaseInput) setUp() []func() error {
 	if testCase.configJsonEnvContents != "" {
 		configFile := writeTempConfigFile(testCase.configJsonEnvContents, testCase.testState)
 		configFilename := configFile.Name()
-		cleanup := pushSetenv(ConfigEnvVar, configFilename)
+		cleanup := pushSetenv(configEnvVar, configFilename)
 		cleanupFuncs = append(cleanupFuncs, cleanup)
 		cleanupFuncs = append(cleanupFuncs, func() error {
 			return os.Remove(configFilename)

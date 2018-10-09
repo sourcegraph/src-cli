@@ -12,11 +12,11 @@ import (
 )
 
 const (
-	AccessTokenEnvVar = "SRC_ACCESS_TOKEN"
-	ConfigEnvVar      = "SRC_CONFIG"
-	ConfigFilename    = "src-config.json"
-	DefaultEndpoint   = "https://sourcegraph.com"
-	EndpointEnvVar    = "SRC_ENDPOINT"
+	accessTokenEnvVar = "SRC_ACCESS_TOKEN"
+	configEnvVar      = "SRC_CONFIG"
+	configFilename    = "src-config.json"
+	defaultEndpoint   = "https://sourcegraph.com"
+	endpointEnvVar    = "SRC_ENDPOINT"
 )
 
 const usageText = `src is a tool that provides access to Sourcegraph instances.
@@ -88,7 +88,7 @@ func readConfig() (*config, error) {
 	cfgPath := *configPath
 	userSpecified := cfgPath != ""
 	if !userSpecified {
-		if cfgEnvPath := os.Getenv(ConfigEnvVar); cfgEnvPath != "" {
+		if cfgEnvPath := os.Getenv(configEnvVar); cfgEnvPath != "" {
 			cfgPath = cfgEnvPath
 			userSpecified = true
 		}
@@ -98,7 +98,7 @@ func readConfig() (*config, error) {
 		if err != nil {
 			return nil, err
 		}
-		cfgPath = filepath.Join(currentUser.HomeDir, ConfigFilename)
+		cfgPath = filepath.Join(currentUser.HomeDir, configFilename)
 	}
 	data, err := ioutil.ReadFile(os.ExpandEnv(cfgPath))
 	if err != nil && (!os.IsNotExist(err) || userSpecified) {
@@ -112,18 +112,18 @@ func readConfig() (*config, error) {
 	}
 
 	// Apply config overrides.
-	if envToken := os.Getenv(AccessTokenEnvVar); envToken != "" {
+	if envToken := os.Getenv(accessTokenEnvVar); envToken != "" {
 		cfg.AccessToken = envToken
 	}
 	userEndpoint := *endpoint
-	if envEndpoint := os.Getenv(EndpointEnvVar); userEndpoint == "" && envEndpoint != "" {
+	if envEndpoint := os.Getenv(endpointEnvVar); userEndpoint == "" && envEndpoint != "" {
 		userEndpoint = envEndpoint
 	}
 	if userEndpoint != "" {
 		cfg.Endpoint = strings.TrimSuffix(userEndpoint, "/")
 	}
 	if cfg.Endpoint == "" {
-		cfg.Endpoint = DefaultEndpoint
+		cfg.Endpoint = defaultEndpoint
 	}
 	return &cfg, nil
 }
