@@ -71,25 +71,12 @@ type config struct {
 
 // readConfig reads the config file from the given path, plus any in-scope environment variables
 func readConfig() (*config, error) {
-	cfgPath := *configPath
-	userSpecified := cfgPath != ""
-	if !userSpecified {
-		if cfgEnvPath := os.Getenv(configEnvVar); cfgEnvPath != "" {
-			cfgPath = cfgEnvPath
-			userSpecified = true
-		}
-	}
-	if !userSpecified {
-		currentUser, err := user.Current()
-		if err != nil {
-			return nil, err
-		}
-		cfgPath = filepath.Join(currentUser.HomeDir, configFilename)
-	}
+	cfgPath := getConfigFilename()
 	data, err := ioutil.ReadFile(os.ExpandEnv(cfgPath))
-	if err != nil && (!os.IsNotExist(err) || userSpecified) {
+	if err != nil && (!os.IsNotExist(err)) {
 		return nil, err
 	}
+
 	var cfg config
 	if err == nil {
 		if err := json.Unmarshal(data, &cfg); err != nil {
@@ -101,10 +88,8 @@ func readConfig() (*config, error) {
 	if envToken := os.Getenv(accessTokenEnvVar); envToken != "" {
 		cfg.AccessToken = envToken
 	}
-	userEndpoint := *endpoint
-	if envEndpoint := os.Getenv(endpointEnvVar); userEndpoint == "" && envEndpoint != "" {
-		userEndpoint = envEndpoint
-	}
+
+	userEndpoint := getEndpointUrl()
 	if userEndpoint != "" {
 		cfg.Endpoint = strings.TrimSuffix(userEndpoint, "/")
 	}
@@ -112,4 +97,32 @@ func readConfig() (*config, error) {
 		cfg.Endpoint = defaultEndpoint
 	}
 	return &cfg, nil
+}
+
+func getConfigFilename() string {
+	result := *configPath
+	if result == "" {
+		if cfgEnvPath := os.Getenv(configEnvVar); cfgEnvPath != "" {
+			result = cfgEnvPath
+		}
+	}
+	if result == "" {
+		currentUser, err := user.Current()
+		if err != nil {
+			log.Printf("unable to get the current user: %v", err)
+			return ""
+		}
+		result = filepath.Join(currentUser.HomeDir, configFilename)
+	}
+	return result
+}
+
+func getEndpointUrl() string {
+	result := *endpoint
+	if result == "" {
+		if envEndpoint := os.Getenv(endpointEnvVar); envEndpoint != "" {
+			result = envEndpoint
+		}
+	}
+	return result
 }
