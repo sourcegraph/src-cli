@@ -138,7 +138,6 @@ func authenticationHeader(cfg *config) (string, string) {
 	} else {
 		headerValue = "token " + cfg.AccessToken
 	}
-
 	return "Authorization", headerValue
 }
 
