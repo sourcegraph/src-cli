@@ -34,10 +34,10 @@ Examples:
 		}
 
 		query := `mutation DeleteRepository($repoID: ID!){
-		deleteRepository(repository: $repoID) {
-			alwaysNil
-		}
-	}`
+   deleteRepository(repository: $repoID) {
+	   alwaysNil
+    }
+}`
 		var result struct{}
 		return (&apiRequest{
 			query: query,
