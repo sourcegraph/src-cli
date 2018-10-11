@@ -72,5 +72,4 @@ Examples:
 		handler:   deleteRepositories,
 		usageFunc: printUsage,
 	})
-
 }
