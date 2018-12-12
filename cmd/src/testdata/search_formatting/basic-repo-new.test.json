@@ -14,7 +14,7 @@
         }
       ],
       "label": {
-        "text": "[github.com/golang/build](/github.com/golang/build)"
+        "html": "<p><a href=\"/github.com/golang/build\" rel=\"nofollow\">github.com/golang/build</a></p>\n"
       }
     },
     {
@@ -28,7 +28,7 @@
         }
       ],
       "label": {
-        "text": "[github.com/golang/crypto](/github.com/golang/crypto)"
+        "html": "<p><a href=\"/github.com/golang/crypto\" rel=\"nofollow\">github.com/golang/crypto</a></p>\n"
       }
     },
     {
@@ -42,7 +42,7 @@
         }
       ],
       "label": {
-        "text": "[github.com/golang/net](/github.com/golang/net)"
+        "html": "<p><a href=\"/github.com/golang/net\" rel=\"nofollow\">github.com/golang/net</a></p>\n"
       }
     },
     {
@@ -56,7 +56,7 @@
         }
       ],
       "label": {
-        "text": "[github.com/golang/protobuf](/github.com/golang/protobuf)"
+        "html": "<p><a href=\"/github.com/golang/protobuf\" rel=\"nofollow\">github.com/golang/protobuf</a></p>\n"
       }
     }
   ],
