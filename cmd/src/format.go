@@ -87,7 +87,7 @@ func parseTemplate(text string) (*template.Template, error) {
 		"searchHighlightPreview":            searchTemplateFuncs["searchHighlightPreview"],
 		"searchHighlightDiffPreview":        searchTemplateFuncs["searchHighlightDiffPreview"],
 		"searchMaxRepoNameLength":           searchTemplateFuncs["searchMaxRepoNameLength"],
-		"markdownToPlainText":               searchTemplateFuncs["markdownToPlainText"],
+		"htmlToPlainText":                   searchTemplateFuncs["htmlToPlainText"],
 		"buildVersionHasNewSearchInterface": searchTemplateFuncs["buildVersionHasNewSearchInterface"],
 		"renderResult":                      searchTemplateFuncs["renderResult"],
 	})

@@ -15,9 +15,10 @@ import (
 	"time"
 
 	isatty "github.com/mattn/go-isatty"
-	"github.com/russross/blackfriday"
 	"jaytaylor.com/html2text"
 )
+
+var dateRegex = regexp.MustCompile("(\\w{4}-\\w{2}-\\w{2})")
 
 func init() {
 	usage := `
@@ -136,15 +137,13 @@ Other tips:
 					}
 				}
 				label {
-					text
-				}
-				detail {
-					text
+					html
 				}
 				url
 				matches {
 					url
 					body {
+						html
 						text
 					}
 					highlights {
@@ -177,7 +176,7 @@ Other tips:
 			  url
 			}
 			label {
-				text
+				html
 			}
 		  }
 
@@ -397,25 +396,8 @@ func searchHighlightDiffPreview(diffPreview interface{}) string {
 	return strings.Join(final, "\n")
 }
 
-func renderResult(searchResult map[string]interface{}) string {
-	searchResultBody := searchResult["body"].(map[string]interface{})
-	text := searchResultBody["text"].(string)
-	plainText := markdownToPlainText(text)
-	highlights := searchResult["highlights"]
-	isDiff := strings.HasPrefix(text, "```diff") && strings.HasSuffix(text, "```")
-	if _, ok := highlights.([]interface{}); ok {
-		if isDiff {
-			// We special case diffs because we want to display them with color.
-			return searchHighlightDiffPreview(map[string]interface{}{"value": plainText, "highlights": highlights.([]interface{})})
-		}
-		return searchHighlightPreview(map[string]interface{}{"value": plainText, "highlights": highlights.([]interface{})}, "", "")
-	}
-	return text
-}
-
-func markdownToPlainText(input string) string {
-	renderedHTML := blackfriday.Run([]byte(input))
-	text, err := html2text.FromString(string(renderedHTML), html2text.Options{OmitLinks: true})
+func htmlToPlainText(input string) string {
+	text, err := html2text.FromString(input, html2text.Options{OmitLinks: true})
 	text = html.UnescapeString(text)
 	if err != nil {
 		return input
@@ -424,13 +406,8 @@ func markdownToPlainText(input string) string {
 }
 
 // Checks the Sourcegraph instance's build version date to determine if the new search result interface exists.
-func buildVersionHasNewSearchInterface(buildVersion interface{}) bool {
-	dateRegex, err := regexp.Compile("(\\w{4}-\\w{2}-\\w{2})")
-	if err != nil {
-		return false
-	}
-
-	buildDate := dateRegex.FindString(buildVersion.(string))
+func buildVersionHasNewSearchInterface(buildVersion string) bool {
+	buildDate := dateRegex.FindString(buildVersion)
 	t, err := time.Parse("2006-01-02", buildDate)
 	if err != nil {
 		return false
@@ -510,14 +487,27 @@ var searchTemplateFuncs = map[string]interface{}{
 		}
 		return max
 	},
-	"markdownToPlainText": func(input string) string {
-		return markdownToPlainText(input)
+	"htmlToPlainText": func(input string) string {
+		return htmlToPlainText(input)
 	},
 	"buildVersionHasNewSearchInterface": func(input string) bool {
 		return buildVersionHasNewSearchInterface(input)
 	},
-	"renderResult": func(input map[string]interface{}) string {
-		return renderResult(input)
+	"renderResult": func(searchResult map[string]interface{}) string {
+		searchResultBody := searchResult["body"].(map[string]interface{})
+		html := searchResultBody["html"].(string)
+		markdown := searchResultBody["text"].(string)
+		plainText := htmlToPlainText(html)
+		highlights := searchResult["highlights"]
+		isDiff := strings.HasPrefix(markdown, "```diff") && strings.HasSuffix(markdown, "```")
+		if _, ok := highlights.([]interface{}); ok {
+			if isDiff {
+				// We special case diffs because we want to display them with color.
+				return searchHighlightDiffPreview(map[string]interface{}{"value": plainText, "highlights": highlights.([]interface{})})
+			}
+			return searchHighlightPreview(map[string]interface{}{"value": plainText, "highlights": highlights.([]interface{})}, "", "")
+		}
+		return markdown
 	},
 }
 
@@ -584,7 +574,7 @@ const searchResultsTemplate = `{{- /* ignore this line for template formatting s
 			{{- color "nc" -}}
 
 			{{- /* Repository > author name "commit subject" (time ago) */ -}}
-			{{- color "search-commit-subject"}}{{(markdownToPlainText .label.text)}}{{color "nc" -}}
+			{{- color "search-commit-subject"}}{{(htmlToPlainText .label.html)}}{{color "nc" -}}
 			{{- "\n" -}}
 			{{- color "search-border"}}{{"--------------------------------------------------------------------------------\n"}}{{color "nc"}}
 			{{- $matches := .matches -}}
@@ -625,7 +615,7 @@ const searchResultsTemplate = `{{- /* ignore this line for template formatting s
 		{{- /* Repository (type:repo) result rendering for Sourcegraph instances after 2.13.x. */ -}}
 		{{- if and (eq .__typename "Repository") (buildVersionHasNewSearchInterface $.Site.BuildVersion) -}}
 			{{- /* Link to the result */ -}}
-			{{- color "success"}}{{padRight (markdownToPlainText .label.text) (searchMaxRepoNameLength $.Results) " "}}{{color "nc" -}}
+			{{- color "success"}}{{padRight (htmlToPlainText .label.html) (searchMaxRepoNameLength $.Results) " "}}{{color "nc" -}}
 			{{- color "search-border"}}{{" ("}}{{color "nc" -}}
 			{{- color "search-repository"}}{{$.SourcegraphEndpoint}}{{.url}}{{color "nc" -}}
 			{{- color "search-border"}}{{")\n"}}{{color "nc" -}}
