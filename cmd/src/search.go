@@ -176,6 +176,9 @@ Other tips:
 			  serviceType
 			  url
 			}
+			label {
+				text
+			}
 		  }
 
 		  query ($query: String!) {
@@ -331,14 +334,81 @@ func searchHighlightPreview(preview interface{}, start, end string) string {
 	return applyHighlights(value, highlights, start, end)
 }
 
-func renderGenericResult(searchResult map[string]interface{}) string {
-	// Takes in an item in searchResult.Results.Results, which is the result object.
+func searchHighlightDiffPreview(diffPreview interface{}) string {
+	p := diffPreview.(map[string]interface{})
+	diff := p["value"].(string)
+
+	useColordiff, err := strconv.ParseBool(os.Getenv("COLORDIFF"))
+	if err != nil {
+		useColordiff = true
+	}
+	if colorDisabled || !useColordiff {
+		// Only highlight the matches.
+		return searchHighlightPreview(diffPreview, "", "")
+	}
+	path, err := exec.LookPath("colordiff")
+	if err != nil {
+		// colordiff not installed; only highlight the matches.
+		return searchHighlightPreview(diffPreview, "", "")
+	}
+
+	// First highlight the matches, but use a special "end of match" token
+	// instead of no color (so that we don't terminate colors that colordiff
+	// adds).
+	uniqueStartOfMatchToken := "pXRdMhZbgnPL355429nsO4qFgX86LfXTSmqH4Nr3#*(@)!*#()@!APPJB8ZRutvZ5fdL01273i6OdzLDm0UMC9372891skfJTl2c52yR1v"
+	uniqueEndOfMatchToken := "v1Ry25c2lTJfks1982739CMU0mDLzdO6i37210Ldf5ZvtuRZ8BJPPA!@)(#*!)@(*#3rN4HqmSTXfL68XgFq4Osn924553LPngbZhMdRXp"
+	diff = searchHighlightPreview(diffPreview, uniqueStartOfMatchToken, uniqueEndOfMatchToken)
+
+	// Now highlight our diff with colordiff.
+	var buf bytes.Buffer
+	cmd := exec.Command(path)
+	cmd.Stdin = strings.NewReader(diff)
+	cmd.Stdout = &buf
+	if err := cmd.Run(); err != nil {
+		fmt.Println("warning: colordiff failed to colorize diff:", err)
+		return diff
+	}
+	colorized := buf.String()
+	var final []string
+	for _, line := range strings.Split(colorized, "\n") {
+		// fmt.Println("LINE", line)
+		// Find where the start-of-match token is in the line.
+		somToken := strings.Index(line, uniqueStartOfMatchToken)
+
+		// Find which ANSI codes are to the left of our start-of-match token.
+		indices := ansiRegexp.FindAllStringIndex(line, -1)
+		matches := ansiRegexp.FindAllString(line, -1)
+		var left []string
+		for k, index := range indices {
+			if index[0] < somToken && index[1] < somToken {
+				left = append(left, matches[k])
+			}
+		}
+
+		// Replace our start-of-match token with the color we wish.
+		line = strings.Replace(line, uniqueStartOfMatchToken, ansiColors["search-match"], -1)
+
+		// Replace our end-of-match token with the color terminator,
+		// and start all colors that were previously started to the left.
+		line = strings.Replace(line, uniqueEndOfMatchToken, ansiColors["nc"]+strings.Join(left, ""), -1)
+
+		final = append(final, line)
+	}
+	return strings.Join(final, "\n")
+}
+
+func renderResult(searchResult map[string]interface{}) string {
 	searchResultBody := searchResult["body"].(map[string]interface{})
-	text := markdownToPlainText(searchResultBody["text"].(string))
+	text := searchResultBody["text"].(string)
+	plainText := markdownToPlainText(text)
 	highlights := searchResult["highlights"]
+	isDiff := strings.HasPrefix(text, "```diff") && strings.HasSuffix(text, "```")
 	if _, ok := highlights.([]interface{}); ok {
-		highlightedPreview := searchHighlightPreview(map[string]interface{}{"value": text, "highlights": highlights.([]interface{})}, "", "")
-		return highlightedPreview
+		if isDiff {
+			// We special case diffs because we want to display them with color.
+			return searchHighlightDiffPreview(map[string]interface{}{"value": plainText, "highlights": highlights.([]interface{})})
+		}
+		return searchHighlightPreview(map[string]interface{}{"value": plainText, "highlights": highlights.([]interface{})}, "", "")
 	}
 	return text
 }
@@ -353,8 +423,8 @@ func markdownToPlainText(input string) string {
 	return text
 }
 
-// Checks if buildVersion's date is after the new search result interface was merged.
-func buildVersionIsAfterNewSearch(buildVersion interface{}) bool {
+// Checks the Sourcegraph instance's build version date to determine if the new search result interface exists.
+func buildVersionHasNewSearchInterface(buildVersion interface{}) bool {
 	dateRegex, err := regexp.Compile("(\\w{4}-\\w{2}-\\w{2})")
 	if err != nil {
 		return false
@@ -426,66 +496,7 @@ var searchTemplateFuncs = map[string]interface{}{
 		return searchHighlightPreview(preview, "", "")
 	},
 	"searchHighlightDiffPreview": func(diffPreview interface{}) string {
-		p := diffPreview.(map[string]interface{})
-		diff := p["value"].(string)
-
-		useColordiff, err := strconv.ParseBool(os.Getenv("COLORDIFF"))
-		if err != nil {
-			useColordiff = true
-		}
-		if colorDisabled || !useColordiff {
-			// Only highlight the matches.
-			return searchHighlightPreview(diffPreview, "", "")
-		}
-		path, err := exec.LookPath("colordiff")
-		if err != nil {
-			// colordiff not installed; only highlight the matches.
-			return searchHighlightPreview(diffPreview, "", "")
-		}
-
-		// First highlight the matches, but use a special "end of match" token
-		// instead of no color (so that we don't terminate colors that colordiff
-		// adds).
-		uniqueStartOfMatchToken := "pXRdMhZbgnPL355429nsO4qFgX86LfXTSmqH4Nr3#*(@)!*#()@!APPJB8ZRutvZ5fdL01273i6OdzLDm0UMC9372891skfJTl2c52yR1v"
-		uniqueEndOfMatchToken := "v1Ry25c2lTJfks1982739CMU0mDLzdO6i37210Ldf5ZvtuRZ8BJPPA!@)(#*!)@(*#3rN4HqmSTXfL68XgFq4Osn924553LPngbZhMdRXp"
-		diff = searchHighlightPreview(diffPreview, uniqueStartOfMatchToken, uniqueEndOfMatchToken)
-
-		// Now highlight our diff with colordiff.
-		var buf bytes.Buffer
-		cmd := exec.Command(path)
-		cmd.Stdin = strings.NewReader(diff)
-		cmd.Stdout = &buf
-		if err := cmd.Run(); err != nil {
-			fmt.Println("warning: colordiff failed to colorize diff:", err)
-			return diff
-		}
-		colorized := buf.String()
-
-		var final []string
-		for _, line := range strings.Split(colorized, "\n") {
-			// Find where the start-of-match token is in the line.
-			somToken := strings.Index(line, uniqueStartOfMatchToken)
-
-			// Find which ANSI codes are to the left of our start-of-match token.
-			indices := ansiRegexp.FindAllStringIndex(line, -1)
-			matches := ansiRegexp.FindAllString(line, -1)
-			var left []string
-			for k, index := range indices {
-				if index[0] < somToken && index[1] < somToken {
-					left = append(left, matches[k])
-				}
-			}
-
-			// Replace our start-of-match token with the color we wish.
-			line = strings.Replace(line, uniqueStartOfMatchToken, ansiColors["search-match"], 1)
-
-			// Replace our end-of-match token with the color terminator,
-			// and start all colors that were previously started to the left.
-			line = strings.Replace(line, uniqueEndOfMatchToken, ansiColors["nc"]+strings.Join(left, ""), 1)
-
-			final = append(final, line)
-		}
-		return strings.Join(final, "\n")
+		return searchHighlightDiffPreview(diffPreview)
 	},
 	"searchMaxRepoNameLength": func(results []map[string]interface{}) int {
 		max := 0
@@ -502,11 +513,11 @@ var searchTemplateFuncs = map[string]interface{}{
 	"markdownToPlainText": func(input string) string {
 		return markdownToPlainText(input)
 	},
-	"buildVersionIsAfterNewSearch": func(input string) bool {
-		return buildVersionIsAfterNewSearch(input)
+	"buildVersionHasNewSearchInterface": func(input string) bool {
+		return buildVersionHasNewSearchInterface(input)
 	},
-	"renderGenericResult": func(input map[string]interface{}) string {
-		return renderGenericResult(input)
+	"renderResult": func(input map[string]interface{}) string {
+		return renderResult(input)
 	},
 }
 
@@ -564,8 +575,8 @@ const searchResultsTemplate = `{{- /* ignore this line for template formatting s
 			{{- end -}}
 		{{- end -}}
 
-		{{- /* Commit (type:diff, type:commit) result rendering. */ -}}
-		{{- if and (eq .__typename "CommitSearchResult") (buildVersionIsAfterNewSearch $.Site.BuildVersion) -}}
+		{{- /* Commit (type:diff, type:commit) result rendering for Sourcegraph instances after 2.13.x. */ -}}
+		{{- if and (eq .__typename "CommitSearchResult") (buildVersionHasNewSearchInterface $.Site.BuildVersion) -}}
 			{{- /* Link to the result */ -}}
 			{{- color "search-border"}}{{"("}}{{color "nc" -}}
 			{{- color "search-link"}}{{$.SourcegraphEndpoint}}{{.url}}{{color "nc" -}}
@@ -576,23 +587,14 @@ const searchResultsTemplate = `{{- /* ignore this line for template formatting s
 			{{- color "search-commit-subject"}}{{(markdownToPlainText .label.text)}}{{color "nc" -}}
 			{{- "\n" -}}
 			{{- color "search-border"}}{{"--------------------------------------------------------------------------------\n"}}{{color "nc"}}
-			{{- if .messagePreview -}}
-				{{- /* type:commit rendering */ -}}
-				{{- $matches := .matches -}}
-				{{- range $index, $match := $matches -}}
-					{{- color "search-border"}}{{color "nc"}}{{indent (renderGenericResult $match) "  "}}
-				{{- end -}}
-			{{- end -}}
-			{{- if .diffPreview -}}
-				{{- /* type:diff rendering */ -}}
-				{{- $matches := .matches -}}
-				{{- range $index, $match := $matches -}}
-					{{- color "search-border"}}{{color "nc"}}{{indent (searchHighlightDiffPreview $match) "  "}}
-				{{- end -}}
+			{{- $matches := .matches -}}
+			{{- range $index, $match := $matches -}}
+				{{- color "search-border"}}{{color "nc"}}{{indent (renderResult $match) "  "}}
 			{{- end -}}
 		{{- end -}}
 
-		{{- if and (eq .__typename "CommitSearchResult") (not (buildVersionIsAfterNewSearch $.Site.BuildVersion)) -}}
+		{{- /* Commit (type:diff, type:commit) result rendering for Sourcegraph instances on and before 2.13.x. */ -}}
+		{{- if and (eq .__typename "CommitSearchResult") (not (buildVersionHasNewSearchInterface $.Site.BuildVersion)) -}}
 			{{- /* Link to the result */ -}}
 			{{- color "search-border"}}{{"("}}{{color "nc" -}}
 			{{- color "search-link"}}{{$.SourcegraphEndpoint}}{{.commit.url}}{{color "nc" -}}
@@ -620,10 +622,20 @@ const searchResultsTemplate = `{{- /* ignore this line for template formatting s
 			{{- end -}}
 		{{- end -}}
 
-		{{- /* Repository (type:repo) result rendering. */ -}}
-		{{- if eq .__typename "Repository" -}}
+		{{- /* Repository (type:repo) result rendering for Sourcegraph instances after 2.13.x. */ -}}
+		{{- if and eq .__typename "Repository" (buildVersionHasNewSearchInterface $.Site.BuildVersion) -}}
 			{{- /* Link to the result */ -}}
-			{{- color "success"}}{{padRight .name (searchMaxRepoNameLength $.Results) " "}}{{color "nc" -}}
+			{{- color "success"}}{{padRight (markdownToPlainText .label.text) (searchMaxRepoNameLength $.Results) " "}}{{color "nc" -}}
+			{{- color "search-border"}}{{" ("}}{{color "nc" -}}
+			{{- color "search-repository"}}{{$.SourcegraphEndpoint}}{{.url}}{{color "nc" -}}
+			{{- color "search-border"}}{{")\n"}}{{color "nc" -}}
+			{{- color "nc" -}}
+		{{- end -}}
+
+		{{- /* Repository (type:repo) result rendering for Sourcegraph instances on and before 2.13.x. */ -}}
+		{{- if and eq .__typename "Repository" (not (buildVersionHasNewSearchInterface $.Site.BuildVersion))-}}
+			{{- /* Link to the result */ -}}
+			{{- color "success"}}{{padRight (markdownToPlainText .label.text) (searchMaxRepoNameLength $.Results) " "}}{{color "nc" -}}
 			{{- color "search-border"}}{{" ("}}{{color "nc" -}}
 			{{- color "search-repository"}}{{$.SourcegraphEndpoint}}{{.url}}{{color "nc" -}}
 			{{- color "search-border"}}{{")\n"}}{{color "nc" -}}
