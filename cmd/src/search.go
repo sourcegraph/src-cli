@@ -623,7 +623,7 @@ const searchResultsTemplate = `{{- /* ignore this line for template formatting s
 		{{- end -}}
 
 		{{- /* Repository (type:repo) result rendering for Sourcegraph instances after 2.13.x. */ -}}
-		{{- if and eq .__typename "Repository" (buildVersionHasNewSearchInterface $.Site.BuildVersion) -}}
+		{{- if and (eq .__typename "Repository") (buildVersionHasNewSearchInterface $.Site.BuildVersion) -}}
 			{{- /* Link to the result */ -}}
 			{{- color "success"}}{{padRight (markdownToPlainText .label.text) (searchMaxRepoNameLength $.Results) " "}}{{color "nc" -}}
 			{{- color "search-border"}}{{" ("}}{{color "nc" -}}
@@ -633,9 +633,9 @@ const searchResultsTemplate = `{{- /* ignore this line for template formatting s
 		{{- end -}}
 
 		{{- /* Repository (type:repo) result rendering for Sourcegraph instances on and before 2.13.x. */ -}}
-		{{- if and eq .__typename "Repository" (not (buildVersionHasNewSearchInterface $.Site.BuildVersion))-}}
+		{{- if and (eq .__typename "Repository") (not (buildVersionHasNewSearchInterface $.Site.BuildVersion)) -}}
 			{{- /* Link to the result */ -}}
-			{{- color "success"}}{{padRight (markdownToPlainText .label.text) (searchMaxRepoNameLength $.Results) " "}}{{color "nc" -}}
+			{{- color "success"}}{{padRight .name (searchMaxRepoNameLength $.Results) " "}}{{color "nc" -}}
 			{{- color "search-border"}}{{" ("}}{{color "nc" -}}
 			{{- color "search-repository"}}{{$.SourcegraphEndpoint}}{{.url}}{{color "nc" -}}
 			{{- color "search-border"}}{{")\n"}}{{color "nc" -}}
