@@ -1,0 +1,69 @@
+{
+  "SourcegraphEndpoint": "https://sourcegraph.com",
+  "Query": "repogroup:goteam type:repo golang max:4",
+  "Site": { "BuildVersion": "aaaaa_2018-12-12_aaaaa" },
+  "Results": [
+    {
+            "__typename": "Repository",
+            "name": "github.com/golang/build",
+            "url": "/github.com/golang/build",
+            "externalURLs": [
+              {
+                "serviceType": "github",
+                "url": "https://github.com/golang/build"
+              }
+            ],
+            "label": {
+              "text": "[github.com/golang/build](/github.com/golang/build)"
+            }
+          },
+          {
+            "__typename": "Repository",
+            "name": "github.com/golang/crypto",
+            "url": "/github.com/golang/crypto",
+            "externalURLs": [
+              {
+                "serviceType": "github",
+                "url": "https://github.com/golang/crypto"
+              }
+            ],
+            "label": {
+              "text": "[github.com/golang/crypto](/github.com/golang/crypto)"
+            }
+          },
+          {
+            "__typename": "Repository",
+            "name": "github.com/golang/net",
+            "url": "/github.com/golang/net",
+            "externalURLs": [
+              {
+                "serviceType": "github",
+                "url": "https://github.com/golang/net"
+              }
+            ],
+            "label": {
+              "text": "[github.com/golang/net](/github.com/golang/net)"
+            }
+          },
+          {
+            "__typename": "Repository",
+            "name": "github.com/golang/protobuf",
+            "url": "/github.com/golang/protobuf",
+            "externalURLs": [
+              {
+                "serviceType": "github",
+                "url": "https://github.com/golang/protobuf"
+              }
+            ],
+            "label": {
+              "text": "[github.com/golang/protobuf](/github.com/golang/protobuf)"
+            }
+          }
+  ],
+  "LimitHit": true,
+  "Cloning": [],
+  "Missing": [],
+  "Timedout": [],
+  "ResultCount": 4,
+  "ElapsedMilliseconds": 37
+}
