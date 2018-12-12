@@ -5,13 +5,18 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"html"
 	"io"
 	"os"
 	"os/exec"
+	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
-	"github.com/mattn/go-isatty"
+	isatty "github.com/mattn/go-isatty"
+	"github.com/russross/blackfriday"
+	"jaytaylor.com/html2text"
 )
 
 func init() {
@@ -130,6 +135,24 @@ Other tips:
 						length
 					}
 				}
+				label {
+					text
+				}
+				detail {
+					text
+				}
+				url
+				matches {
+					url
+					body {
+						text
+					}
+					highlights {
+						character
+						line
+						length
+					}
+				}
 				commit {
 					repository {
 						name
@@ -154,8 +177,11 @@ Other tips:
 			  url
 			}
 		  }
-		  
+
 		  query ($query: String!) {
+			site {
+				buildVersion
+			}
 			search(query: $query) {
 			  results {
 				results{
@@ -188,10 +214,14 @@ Other tips:
 		`
 
 		var result struct {
+			Site struct {
+				BuildVersion string
+			}
 			Search struct {
 				Results searchResults
 			}
 		}
+
 		return (&apiRequest{
 			query: query,
 			vars: map[string]interface{}{
@@ -202,6 +232,7 @@ Other tips:
 				improved := searchResultsImproved{
 					SourcegraphEndpoint: cfg.Endpoint,
 					Query:               queryString,
+					Site:                result.Site,
 					searchResults:       result.Search.Results,
 				}
 
@@ -262,6 +293,7 @@ type searchResults struct {
 type searchResultsImproved struct {
 	SourcegraphEndpoint string
 	Query               string
+	Site                struct{ BuildVersion string }
 	searchResults
 }
 
@@ -297,6 +329,48 @@ func searchHighlightPreview(preview interface{}, start, end string) string {
 		highlights = append(highlights, highlight{line, character, length})
 	}
 	return applyHighlights(value, highlights, start, end)
+}
+
+func renderGenericResult(searchResult map[string]interface{}) string {
+	// Takes in an item in searchResult.Results.Results, which is the result object.
+	searchResultBody := searchResult["body"].(map[string]interface{})
+	text := markdownToPlainText(searchResultBody["text"].(string))
+	highlights := searchResult["highlights"]
+	if _, ok := highlights.([]interface{}); ok {
+		highlightedPreview := searchHighlightPreview(map[string]interface{}{"value": text, "highlights": highlights.([]interface{})}, "", "")
+		return highlightedPreview
+	}
+	return text
+}
+
+func markdownToPlainText(input string) string {
+	renderedHTML := blackfriday.Run([]byte(input))
+	text, err := html2text.FromString(string(renderedHTML), html2text.Options{OmitLinks: true})
+	text = html.UnescapeString(text)
+	if err != nil {
+		return input
+	}
+	return text
+}
+
+// Checks if buildVersion's date is after the new search result interface was merged.
+func buildVersionIsAfterNewSearch(buildVersion interface{}) bool {
+	dateRegex, err := regexp.Compile("(\\w{4}-\\w{2}-\\w{2})")
+	if err != nil {
+		return false
+	}
+
+	buildDate := dateRegex.FindString(buildVersion.(string))
+	t, err := time.Parse("2006-01-02", buildDate)
+	if err != nil {
+		return false
+	}
+	newSearchBuildDate, err := time.Parse("2006-01-02", "2018-12-10")
+	if err != nil {
+		return false
+	}
+	isAfterNewSearchDate := t.After(newSearchBuildDate)
+	return isAfterNewSearchDate
 }
 
 type highlight struct {
@@ -425,6 +499,15 @@ var searchTemplateFuncs = map[string]interface{}{
 		}
 		return max
 	},
+	"markdownToPlainText": func(input string) string {
+		return markdownToPlainText(input)
+	},
+	"buildVersionIsAfterNewSearch": func(input string) bool {
+		return buildVersionIsAfterNewSearch(input)
+	},
+	"renderGenericResult": func(input map[string]interface{}) string {
+		return renderGenericResult(input)
+	},
 }
 
 const searchResultsTemplate = `{{- /* ignore this line for template formatting sake */ -}}
@@ -441,7 +524,7 @@ const searchResultsTemplate = `{{- /* ignore this line for template formatting s
 	{{- " for " -}}{{- color "search-query"}}"{{.Query}}"{{color "nc" -}}
 	{{- " in " -}}{{color "success"}}{{msDuration .ElapsedMilliseconds}}{{color "nc" -}}
 
-{{- /* The cloning / missing / timed out repos warnings */ -}}	
+{{- /* The cloning / missing / timed out repos warnings */ -}}
 	{{- with .Cloning}}{{color "warning"}}{{"\n"}}({{len .}}) still cloning:{{color "nc"}} {{join (repoNames .) ", "}}{{end -}}
 	{{- with .Missing}}{{color "warning"}}{{"\n"}}({{len .}}) missing:{{color "nc"}} {{join (repoNames .) ", "}}{{end -}}
 	{{- with .Timedout}}{{color "warning"}}{{"\n"}}({{len .}}) timed out:{{color "nc"}} {{join (repoNames .) ", "}}{{end -}}
@@ -461,7 +544,7 @@ const searchResultsTemplate = `{{- /* ignore this line for template formatting s
 			{{- color "search-link"}}{{$.SourcegraphEndpoint}}{{.file.url}}{{color "nc" -}}
 			{{- color "search-border"}}{{")\n"}}{{color "nc" -}}
 			{{- color "nc" -}}
-	
+
 			{{- /* Repository and file name */ -}}
 			{{- color "search-repository"}}{{.repository.name}}{{color "nc" -}}
 			{{- " › " -}}
@@ -482,7 +565,34 @@ const searchResultsTemplate = `{{- /* ignore this line for template formatting s
 		{{- end -}}
 
 		{{- /* Commit (type:diff, type:commit) result rendering. */ -}}
-		{{- if eq .__typename "CommitSearchResult" -}}
+		{{- if and (eq .__typename "CommitSearchResult") (buildVersionIsAfterNewSearch $.Site.BuildVersion) -}}
+			{{- /* Link to the result */ -}}
+			{{- color "search-border"}}{{"("}}{{color "nc" -}}
+			{{- color "search-link"}}{{$.SourcegraphEndpoint}}{{.url}}{{color "nc" -}}
+			{{- color "search-border"}}{{")\n"}}{{color "nc" -}}
+			{{- color "nc" -}}
+
+			{{- /* Repository > author name "commit subject" (time ago) */ -}}
+			{{- color "search-commit-subject"}}{{(markdownToPlainText .label.text)}}{{color "nc" -}}
+			{{- "\n" -}}
+			{{- color "search-border"}}{{"--------------------------------------------------------------------------------\n"}}{{color "nc"}}
+			{{- if .messagePreview -}}
+				{{- /* type:commit rendering */ -}}
+				{{- $matches := .matches -}}
+				{{- range $index, $match := $matches -}}
+					{{- color "search-border"}}{{color "nc"}}{{indent (renderGenericResult $match) "  "}}
+				{{- end -}}
+			{{- end -}}
+			{{- if .diffPreview -}}
+				{{- /* type:diff rendering */ -}}
+				{{- $matches := .matches -}}
+				{{- range $index, $match := $matches -}}
+					{{- color "search-border"}}{{color "nc"}}{{indent (searchHighlightDiffPreview $match) "  "}}
+				{{- end -}}
+			{{- end -}}
+		{{- end -}}
+
+		{{- if and (eq .__typename "CommitSearchResult") (not (buildVersionIsAfterNewSearch $.Site.BuildVersion)) -}}
 			{{- /* Link to the result */ -}}
 			{{- color "search-border"}}{{"("}}{{color "nc" -}}
 			{{- color "search-link"}}{{$.SourcegraphEndpoint}}{{.commit.url}}{{color "nc" -}}
