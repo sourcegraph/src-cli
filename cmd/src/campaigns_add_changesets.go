@@ -157,8 +157,8 @@ func createChangesets(f *apiFlags, repoID string, externalIDs []string) ([]strin
 const addChangesetsQuery = `
 mutation AddChangesetsToCampaign($campaign: ID!, $changesets: [ID!]!) {
   addChangesetsToCampaign(campaign: $campaign, changesets: $changesets) {
-	id
-	changesets {
+    id
+    changesets {
       totalCount
     }
   }
