@@ -12,17 +12,17 @@ Add changesets for a given repository to a campaign.
 
 Usage:
 
-	src campaigns add-changesets -campaign-id <id> -repo-name <name> [external changeset IDs...]
+	src campaigns add-changesets -campaign <id> -repo-name <name> [external changeset IDs...]
 
 Examples:
 
-  Add GitHub pull requests #5662 and #5366 for repository "github.com/sourcegraph/sourcegraph" to the Sourcegraph campaign with GraphQL ID "Q2FtcGFpZ246MQ=="
+  Add GitHub pull requests #5662 and #5366 for repository "github.com/sourcegraph/sourcegraph" to the Sourcegraph campaign with GraphQL ID "Q2FtcGFpZ246MQ==":
 
-    	$ src campaigns add-changesets -campaign-id=Q2FtcGFpZ246MQ== -repo-name=github.com/sourcegraph/sourcegraph 5662 5366
+    	$ src campaigns add-changesets -campaign=Q2FtcGFpZ246MQ== -repo-name=github.com/sourcegraph/sourcegraph 5662 5366
 
   Then we can add pull requests from another repository, "github.com/sourcegraph/src-cli" to the same campaign:
 
-    	$ src campaigns add-changesets -campaign-id=Q2FtcGFpZ246MQ== -repo-name=github.com/sourcegraph/src-cli 33 41
+    	$ src campaigns add-changesets -campaign=Q2FtcGFpZ246MQ== -repo-name=github.com/sourcegraph/src-cli 33 41
 
 Notes:
 
@@ -38,7 +38,7 @@ Notes:
 		fmt.Println(usage)
 	}
 	var (
-		campaignIDFlag = flagSet.String("campaign-id", "", "ID of campaign to which to add changesets. (required)")
+		campaignIDFlag = flagSet.String("campaign", "", "ID of campaign to which to add changesets. (required)")
 		repoNameFlag   = flagSet.String("repo-name", "", "Name of repository to which the changesets belong. (required)")
 		apiFlags       = newAPIFlags(flagSet)
 	)
@@ -47,7 +47,7 @@ Notes:
 		flagSet.Parse(args)
 
 		if *campaignIDFlag == "" {
-			return &usageError{errors.New("-campaign-id must be specified")}
+			return &usageError{errors.New("-campaign must be specified")}
 		}
 
 		if *repoNameFlag == "" {
