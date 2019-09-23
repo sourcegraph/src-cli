@@ -31,7 +31,7 @@ Examples:
 		fmt.Println(usage)
 	}
 	var (
-		firstFlag  = flagSet.Int("first", 1000, "Returns the first n repositories from the list. (use -1 for unlimited)")
+		firstFlag  = flagSet.Int("first", 1000, "Returns the first n campaigns.")
 		formatFlag = flagSet.String("f", "{{.ID}}: {{.Name}}", `Format for the output, using the syntax of Go package text/template. (e.g. "{{.ID}}: {{.Name}}") or "{{.|json}}")`)
 		apiFlags   = newAPIFlags(flagSet)
 	)
