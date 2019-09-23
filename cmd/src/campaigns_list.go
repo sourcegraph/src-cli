@@ -31,9 +31,10 @@ Examples:
 		fmt.Println(usage)
 	}
 	var (
-		firstFlag  = flagSet.Int("first", 1000, "Returns the first n campaigns.")
-		formatFlag = flagSet.String("f", "{{.ID}}: {{.Name}}", `Format for the output, using the syntax of Go package text/template. (e.g. "{{.ID}}: {{.Name}}") or "{{.|json}}")`)
-		apiFlags   = newAPIFlags(flagSet)
+		firstFlag      = flagSet.Int("first", 1000, "Returns the first n campaigns.")
+		changesetsFlag = flagSet.Int("changesets", 1000, "Returns the first n changesets per campaign.")
+		formatFlag     = flagSet.String("f", "{{.ID}}: {{.Name}}", `Format for the output, using the syntax of Go package text/template. (e.g. "{{.ID}}: {{.Name}}") or "{{.|json}}")`)
+		apiFlags       = newAPIFlags(flagSet)
 	)
 
 	handler := func(args []string) error {
@@ -44,7 +45,7 @@ Examples:
 			return err
 		}
 
-		query := `query Campaigns($first: Int) {
+		query := `query Campaigns($first: Int, $changesetsFirst: Int) {
   campaigns(first: $first) {
     nodes {
       id
@@ -53,7 +54,7 @@ Examples:
       createdAt
       updatedAt
 
-      changesets {
+	  changesets(first: $changesetsFirst) {
         nodes {
           id
           state
@@ -69,7 +70,9 @@ Examples:
           createdAt
           updatedAt
         }
+
         totalCount
+		pageInfo { hasNextPage }
       }
     }
   }
@@ -101,14 +104,18 @@ Examples:
 							UpdatedAt time.Time
 						}
 						TotalCount int
+						PageInfo   struct{ HasNextPage bool }
 					}
 				}
 			}
 		}
 
 		return (&apiRequest{
-			query:  query,
-			vars:   map[string]interface{}{"first": nullInt(*firstFlag)},
+			query: query,
+			vars: map[string]interface{}{
+				"first":           nullInt(*firstFlag),
+				"changesetsFirst": nullInt(*changesetsFlag),
+			},
 			result: &result,
 			done: func() error {
 				for _, c := range result.Campaigns.Nodes {
