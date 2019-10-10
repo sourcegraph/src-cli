@@ -80,14 +80,14 @@ Examples:
 		// we need to pipe the output of gzip into the cURL command.
 
 		if *apiFlags.getCurl {
-			curl := fmt.Sprintf("gzip %s | curl \\\n", shellquote.Join(*fileFlag))
+			curl := fmt.Sprintf("gzip -c %s | curl \\\n", shellquote.Join(*fileFlag))
 			curl += fmt.Sprintf("   -X POST \\\n")
 			if cfg.AccessToken != "" {
 				curl += fmt.Sprintf("   %s \\\n", shellquote.Join("-H", "Authorization: token "+cfg.AccessToken))
 			}
 
 			curl += fmt.Sprintf("   %s \\\n", shellquote.Join("-H", "Content-Type: application/x-ndjson+lsif"))
-			curl += fmt.Sprintf("   %s \\\n", shellquote.Join("", url.String()))
+			curl += fmt.Sprintf("   %s \\\n", shellquote.Join(url.String()))
 			curl += fmt.Sprintf("   %s", shellquote.Join("--data-binary", "@-"))
 
 			fmt.Println(curl)
