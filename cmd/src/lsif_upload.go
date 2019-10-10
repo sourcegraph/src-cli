@@ -100,8 +100,8 @@ Examples:
 		}
 		defer f.Close()
 
-		// gzip compress the file reader
-		pr, ch := compressReader(f)
+		// compress the file
+		pr, ch := gzipReader(f)
 
 		// Create the HTTP request.
 		req, err := http.NewRequest("POST", url.String(), pr)
@@ -121,6 +121,7 @@ Examples:
 		}
 		defer resp.Body.Close()
 
+		// See if we had a reader error
 		if err := <-ch; err != nil {
 			return err
 		}
@@ -153,7 +154,7 @@ Examples:
 	})
 }
 
-func compressReader(r io.Reader) (io.Reader, <-chan error) {
+func gzipReader(r io.Reader) (io.Reader, <-chan error) {
 	ch := make(chan error)
 	br := bufio.NewReader(r)
 	pr, pw := io.Pipe()
@@ -161,8 +162,8 @@ func compressReader(r io.Reader) (io.Reader, <-chan error) {
 
 	go func() {
 		defer close(ch)
-		defer gw.Close()
-		defer pw.Close()
+		defer pw.Close() // must be closed 2nd
+		defer gw.Close() // must be closed 1st
 
 		if _, err := br.WriteTo(gw); err != nil {
 			ch <- err
