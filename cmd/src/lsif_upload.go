@@ -1,9 +1,11 @@
 package main
 
 import (
+	"bufio"
 	"compress/gzip"
 	"flag"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -40,10 +42,22 @@ Examples:
 	handler := func(args []string) error {
 		flagSet.Parse(args)
 
-		if *repoFlag == "" || *commitFlag == "" || *fileFlag == "" {
-			usageFunc()
-			os.Exit(2)
+		ensureSet := func(value *string, argName string) {
+			if value == nil || *value == "" {
+				fmt.Printf("src lsif: no %s supplied\n", argName)
+				fmt.Printf("Run 'src lsif help' for usage.\n")
+				os.Exit(1)
+			}
 		}
+
+		ensureSet(repoFlag, "repository")
+		ensureSet(commitFlag, "commit")
+		ensureSet(fileFlag, "dump file")
+
+		// First, build the URL which is used to both make the request
+		// and to emit a cURL command. This is a little different than
+		// the rest of the commands as it does not use a GraphQL endpoint,
+		// using the path and query string instead of the body.
 
 		qs := url.Values{}
 		qs.Add("repository", *repoFlag)
@@ -58,7 +72,13 @@ Examples:
 		}
 		url.RawQuery = qs.Encode()
 
-		// Handle the get-curl flag now.
+		// Emit a cURL command. This is also a bit different than the rest
+		// of the commands as it uploads a file rather than just sending a
+		// JSON-encoded body.
+		//
+		// Because we compress the body before sending it to the API below,
+		// we need to pipe the output of gzip into the cURL command.
+
 		if *apiFlags.getCurl {
 			curl := fmt.Sprintf("gzip %s | curl \\\n", shellquote.Join(*fileFlag))
 			curl += fmt.Sprintf("   -X POST \\\n")
@@ -80,23 +100,19 @@ Examples:
 		}
 		defer f.Close()
 
-		g, err := gzip.NewReader(f)
-		if err != nil {
-			return err
-		}
-		defer g.Close()
+		// gzip compress the file reader
+		pr, ch := compressReader(f)
 
 		// Create the HTTP request.
-		req, err := http.NewRequest("POST", url.String(), f)
+		req, err := http.NewRequest("POST", url.String(), pr)
 		if err != nil {
 			return err
-		}
-
-		if cfg.AccessToken != "" {
-			req.Header.Set("Authorization", "token "+cfg.AccessToken)
 		}
 
 		req.Header.Set("Content-Type", "application/x-ndjson+lsif")
+		if cfg.AccessToken != "" {
+			req.Header.Set("Authorization", "token "+cfg.AccessToken)
+		}
 
 		// Perform the request.
 		resp, err := http.DefaultClient.Do(req)
@@ -104,6 +120,10 @@ Examples:
 			return err
 		}
 		defer resp.Body.Close()
+
+		if err := <-ch; err != nil {
+			return err
+		}
 
 		// Our request may have failed before the reaching GraphQL endpoint, so
 		// confirm the status code. You can test this easily with e.g. an invalid
@@ -131,4 +151,23 @@ Examples:
 		handler:   handler,
 		usageFunc: usageFunc,
 	})
+}
+
+func compressReader(r io.Reader) (io.Reader, <-chan error) {
+	ch := make(chan error)
+	br := bufio.NewReader(r)
+	pr, pw := io.Pipe()
+	gw := gzip.NewWriter(pw)
+
+	go func() {
+		defer close(ch)
+		defer gw.Close()
+		defer pw.Close()
+
+		if _, err := br.WriteTo(gw); err != nil {
+			ch <- err
+		}
+	}()
+
+	return pr, ch
 }
