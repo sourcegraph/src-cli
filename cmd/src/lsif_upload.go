@@ -3,6 +3,8 @@ package main
 import (
 	"bufio"
 	"compress/gzip"
+	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -10,6 +12,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strings"
 
 	"github.com/kballard/go-shellquote"
 	"github.com/mattn/go-isatty"
@@ -39,7 +42,7 @@ Examples:
 		repoFlag        = flagSet.String("repo", "", `The name of the repository. (required)`)
 		commitFlag      = flagSet.String("commit", "", `The 40-character hash of the commit. (required)`)
 		fileFlag        = flagSet.String("file", "", `The path to the LSIF dump file. (required)`)
-		uploadTokenFlag = flagSet.String("upload-token", "", `The LSIF upload token for the given repository. (required if lsifEnforceAuth setting is enabled)`)
+		uploadTokenFlag = flagSet.String("upload-token", "", `The LSIF upload token for the given repository. When set to '!github.com' and $GITHUB_TOKEN is set, an LSIF upload token will be obtained on the fly. (required if lsifEnforceAuth setting is enabled)`)
 		rootFlag        = flagSet.String("root", "", `The path in the repository that matches the LSIF projectRoot (e.g. cmd/)`)
 		apiFlags        = newAPIFlags(flagSet)
 	)
@@ -67,7 +70,18 @@ Examples:
 		qs := url.Values{}
 		qs.Add("repository", *repoFlag)
 		qs.Add("commit", *commitFlag)
-		if *uploadTokenFlag != "" {
+		if *uploadTokenFlag == "!github.com" {
+			githubToken := os.Getenv("GITHUB_TOKEN")
+			if githubToken == "" {
+				fmt.Printf("-upload-token=!github.com requires the GITHUB_TOKEN environment variable to be set.\n")
+				os.Exit(1)
+			}
+			uploadToken, err := obtainUploadToken(githubToken, *repoFlag)
+			if err != nil {
+				return err
+			}
+			qs.Add("upload_token", uploadToken)
+		} else if *uploadTokenFlag != "" {
 			qs.Add("upload_token", *uploadTokenFlag)
 		}
 		if *rootFlag != "" {
@@ -173,4 +187,127 @@ func gzipReader(r io.Reader) (io.Reader, <-chan error) {
 	}()
 
 	return pr, ch
+}
+
+func obtainUploadToken(githubToken string, repository string) (string, error) {
+	existingTopics, err := getTopics(githubToken, repository)
+	if err != nil {
+		return "", err
+	}
+	challenge, err := getChallenge()
+	if err != nil {
+		return "", err
+	}
+	err = setTopics(githubToken, repository, append(existingTopics, challenge))
+	if err != nil {
+		return "", err
+	}
+	uploadToken, err := verify(repository)
+	if err != nil {
+		return "", err
+	}
+	err = setTopics(githubToken, repository, existingTopics)
+	if err != nil {
+		return "", err
+	}
+	return uploadToken, nil
+}
+
+func getTopics(githubToken string, repository string) ([]string, error) {
+	req, err := http.NewRequest("GET", "https://api.github.com/repos/"+strings.TrimPrefix(repository, "github.com/")+"/topics", nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Accept", "application/vnd.github.mercy-preview+json")
+	req.Header.Set("Authorization", "token "+githubToken)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("getting topics returned HTTP %d: %s", resp.StatusCode, string(body))
+	}
+	defer resp.Body.Close()
+	var topicsResp map[string][]string
+	err = json.NewDecoder(strings.NewReader(string(body))).Decode(&topicsResp)
+	if err != nil {
+		return nil, err
+	}
+	return topicsResp["names"], nil
+}
+
+func setTopics(githubToken string, repository string, topics []string) error {
+	reqBody, err := json.Marshal(map[string][]string{"names": topics})
+	if err != nil {
+		return err
+	}
+	req, err := http.NewRequest("PUT", "https://api.github.com/repos/"+strings.TrimPrefix(repository, "github.com/")+"/topics", strings.NewReader(string(reqBody)))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Accept", "application/vnd.github.mercy-preview+json")
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "token "+githubToken)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("setting topics returned HTTP %d: %s", resp.StatusCode, string(body))
+	}
+	defer resp.Body.Close()
+	return nil
+}
+
+func getChallenge() (string, error) {
+	resp, err := http.Get("https://sourcegraph.com/.api/lsif/challenge")
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	var challengeResp map[string]string
+	err = json.NewDecoder(resp.Body).Decode(&challengeResp)
+	if err != nil {
+		return "", err
+	}
+	return challengeResp["challenge"], nil
+}
+
+func verify(repository string) (string, error) {
+	u, err := url.Parse("https://sourcegraph.com/.api/lsif/verify")
+	if err != nil {
+		return "", err
+	}
+	q := u.Query()
+	q.Set("repository", repository)
+	u.RawQuery = q.Encode()
+	resp, err := http.Get(u.String())
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+	var verifyResp map[string]string
+	err = json.NewDecoder(strings.NewReader(string(body))).Decode(&verifyResp)
+	if err != nil {
+		return "", err
+	}
+	if failure, ok := verifyResp["failure"]; ok {
+		return "", errors.New(failure)
+	}
+	if uploadToken, ok := verifyResp["token"]; ok {
+		return uploadToken, nil
+	}
+	return "", fmt.Errorf("unrecognized verification response: %s", string(body))
 }
