@@ -218,7 +218,9 @@ Examples:
 		}
 
 		jobURL := string(base64.URLEncoding.EncodeToString([]byte(fmt.Sprintf(`LSIFJob:"%s"`, payload.ID))))
-		fmt.Printf("LSIF dump uploaded. Visit %s/site-admin/lsif-jobs/%s to monitor job progress.\n", cfg.Endpoint, jobURL)
+		fmt.Println("")
+		fmt.Printf("LSIF dump successfully uploaded. It will be converted asynchronously.\n")
+		fmt.Printf("To check the status of the conversion, visit %s/site-admin/lsif-jobs/%s.\n", cfg.Endpoint, jobURL)
 		return nil
 	}
 
