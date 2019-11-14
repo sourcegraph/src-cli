@@ -16,21 +16,21 @@ If there is something you'd like to see Sourcegraph be able to do from the CLI, 
 
 ## Installation
 
-### Mac OS:
+### Mac OS
 
 ```bash
 curl -L https://github.com/sourcegraph/src-cli/releases/download/latest/src_darwin_amd64 -o /usr/local/bin/src
 chmod +x /usr/local/bin/src
 ```
 
-### Linux:
+### Linux
 
 ```bash
 curl -L https://github.com/sourcegraph/src-cli/releases/download/latest/src_linux_amd64 -o /usr/local/bin/src
 chmod +x /usr/local/bin/src
 ```
 
-### Windows:
+### Windows
 
 Note: Windows support is still rough around the edges, but is available. If you encounter issues, please let us know by filing an issue :)
 
@@ -49,9 +49,9 @@ Or manually:
 - Place the file under e.g. `C:\Program Files\Sourcegraph\src.exe`
 - Add that directory to your system path to access it from any command prompt
 
-### Renaming
+### Renaming `src` (optional)
 
-Since `src` is a single static binary, you can simply rename it should you have any existing conflicts such as Bash aliases. For example, on Linux / Mac OS:
+If you have a naming conflict with the `src` command, such as a Bash alias, you can rename the static binary. For example, on Linux / Mac OS:
 
 ```sh
 mv /usr/local/bin/src /usr/local/bin/sourcegraph-cli
