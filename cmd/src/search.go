@@ -541,7 +541,7 @@ const searchResultsTemplate = `{{- /* ignore this line for template formatting s
 			{{- color "search-repository"}}{{.repository.name}}{{color "nc" -}}
 			{{- " › " -}}
 			{{- color "search-filename"}}{{.file.name}}{{color "nc" -}}
-                        {{- /* Rijnard hack deletes number of matches b/c it relies on lines and is wrong for multiline */ -}}
+                        {{- color "success"}}{{" ("}}{{len .lineMatches}}{{" matches)"}}{{color "nc" -}}
 			{{- "\n" -}}
 			{{- color "search-border"}}{{"--------------------------------------------------------------------------------\n"}}{{color "nc"}}
 
