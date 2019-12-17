@@ -107,6 +107,7 @@ Other tips:
 					name
 					path
 					url
+					content
 					commit {
 						oid
 					}
@@ -323,7 +324,7 @@ func searchHighlightPreview(preview interface{}, start, end string) string {
 		length := int(h["length"].(float64))
 		highlights = append(highlights, highlight{line, character, length})
 	}
-	return applyHighlights(value, highlights, start, end)
+	return applyHighlights(&value, highlights, start, end)
 }
 
 func searchHighlightDiffPreview(diffPreview interface{}) string {
@@ -419,20 +420,16 @@ type highlight struct {
 	length    int // the 1-indexed length of the highlight, in characters.
 }
 
-func applyHighlights(input string, highlights []highlight, start, end string) string {
+func applyHighlights(input *string, highlights []highlight, start, end string) string {
 	var result []rune
-	lines := strings.Split(input, "\n")
-	for lineNumber, line := range lines {
-		lineNumber++
+	lines := strings.Split(*input, "\n")
+	for _, highlight := range highlights {
+		line := lines[highlight.line]
 		for characterIndex, character := range []rune(line + "\n") {
-			for _, highlight := range highlights {
-				if highlight.line == lineNumber {
-					if characterIndex == highlight.character {
-						result = append(result, []rune(start)...)
-					} else if characterIndex == highlight.character+highlight.length {
-						result = append(result, []rune(end)...)
-					}
-				}
+			if characterIndex == highlight.character {
+				result = append(result, []rune(start)...)
+			} else if characterIndex == highlight.character+highlight.length {
+				result = append(result, []rune(end)...)
 			}
 			result = append(result, character)
 		}
@@ -450,17 +447,18 @@ var searchTemplateFuncs = map[string]interface{}{
 		lineNumber := lineMatches[index].(map[string]interface{})["lineNumber"]
 		return prevLineNumber.(float64) == lineNumber.(float64)-1
 	},
-	"searchHighlightMatch": func(match interface{}) string {
+	"searchHighlightMatch": func(content interface{}, match interface{}) string {
 		m := match.(map[string]interface{})
-		preview := m["preview"].(string)
+		c := fmt.Sprintf("%v", content)
 		var highlights []highlight
 		for _, offsetAndLength := range m["offsetAndLengths"].([]interface{}) {
 			ol := offsetAndLength.([]interface{})
 			offset := int(ol[0].(float64))
 			length := int(ol[1].(float64))
-			highlights = append(highlights, highlight{line: 1, character: offset, length: length})
+			line := int(m["lineNumber"].(float64))
+			highlights = append(highlights, highlight{line: line, character: offset, length: length})
 		}
-		return applyHighlights(preview, highlights, ansiColors["search-match"], ansiColors["nc"])
+		return applyHighlights(&c, highlights, ansiColors["search-match"], ansiColors["nc"])
 	},
 	"searchHighlightPreview": func(preview interface{}) string {
 		return searchHighlightPreview(preview, "", "")
@@ -543,18 +541,19 @@ const searchResultsTemplate = `{{- /* ignore this line for template formatting s
 			{{- color "search-repository"}}{{.repository.name}}{{color "nc" -}}
 			{{- " › " -}}
 			{{- color "search-filename"}}{{.file.name}}{{color "nc" -}}
-			{{- color "success"}}{{" ("}}{{len .lineMatches}}{{" matches)"}}{{color "nc" -}}
+                        {{- /* Rijnard hack deletes number of matches b/c it relies on lines and is wrong for multiline */ -}}
 			{{- "\n" -}}
 			{{- color "search-border"}}{{"--------------------------------------------------------------------------------\n"}}{{color "nc"}}
 
 			{{- /* Line matches */ -}}
 			{{- $lineMatches := .lineMatches -}}
+			{{- $content := .file.content -}}
 			{{- range $index, $match := $lineMatches -}}
 				{{- if not (searchSequentialLineNumber $lineMatches $index) -}}
 					{{- color "search-border"}}{{"  ------------------------------------------------------------------------------\n"}}{{color "nc"}}
 				{{- end -}}
 				{{- "  "}}{{color "search-line-numbers"}}{{pad (addFloat $match.lineNumber 1) 6 " "}}{{color "nc" -}}
-				{{- color "search-border"}}{{" |  "}}{{color "nc"}}{{searchHighlightMatch $match}}
+				{{- color "search-border"}}{{" |  "}}{{color "nc"}}{{searchHighlightMatch $content $match}}
 			{{- end -}}
 		{{- end -}}
 
