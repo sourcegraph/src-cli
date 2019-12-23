@@ -424,11 +424,11 @@ type highlight struct {
 // relative to the whole file, and can add lines of context around the
 // highlighted range. It makes no assumptions about the preview field in
 // LineMatches (the preview field is not used).
-func applyHighlightsForFile(fileContent *string, highlights []highlight) string {
+func applyHighlightsForFile(fileContent string, highlights []highlight) string {
 	var result []rune
 	start := ansiColors["search-match"]
 	end := ansiColors["nc"]
-	lines := strings.Split(*fileContent, "\n")
+	lines := strings.Split(fileContent, "\n")
 	for _, highlight := range highlights {
 		line := lines[highlight.line]
 		for characterIndex, character := range []rune(line + "\n") {
@@ -503,8 +503,7 @@ var searchTemplateFuncs = map[string]interface{}{
 		var highlights []highlight
 		if strings.Contains(q, "patterntype:structural") {
 			highlights = convertMatchToHighlights(m, false)
-			c := content.(string)
-			return applyHighlightsForFile(&c, highlights)
+			return applyHighlightsForFile(content.(string), highlights)
 		} else {
 			preview := m["preview"].(string)
 			highlights = convertMatchToHighlights(m, true)
