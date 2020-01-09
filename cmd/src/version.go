@@ -9,6 +9,11 @@ import (
 	"net/url"
 )
 
+// buildTag is the git tag at the time of build and is used to
+// denote the binary's current version. This value is supplied
+// as an ldflag at compile time in travis.
+var buildTag = "dev"
+
 func init() {
 	usage := `
 Examples:
@@ -21,11 +26,7 @@ Examples:
 	flagSet := flag.NewFlagSet("version", flag.ExitOnError)
 
 	handler := func(args []string) error {
-		version, err := getCurrentVersion()
-		if err != nil {
-			return err
-		}
-		fmt.Printf("Current version: %s\n", version)
+		fmt.Printf("Current version: %s\n", buildTag)
 
 		recommendedVersion, err := getRecommendedVersion()
 		if err != nil {
@@ -50,11 +51,6 @@ Examples:
 			fmt.Println(usage)
 		},
 	})
-}
-
-func getCurrentVersion() (string, error) {
-	// TODO
-	return "dev", nil
 }
 
 func getRecommendedVersion() (string, error) {
