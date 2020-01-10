@@ -28,7 +28,7 @@ chmod +x /usr/local/bin/src
 ### Linux:
 
 ```bash
-curl -L https://sourcegraph.example.com/.api/src-cli/src_linux_amd64 -o /usr/local/bin/src
+curl -L https://sourcegraph.com/.api/src-cli/src_linux_amd64 -o /usr/local/bin/src
 chmod +x /usr/local/bin/src
 ```
 
