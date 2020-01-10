@@ -16,9 +16,9 @@ If there is something you'd like to see Sourcegraph be able to do from the CLI, 
 
 ## Installation
 
-### Mac OS:
-
 > NOTE: To get the best version for _your_ Sourcegraph instance, simply replace `sourcegraph.com` in the commands below with your own Sourcegraph URL and the latest version compatible with your instance will be provided.
+
+### Mac OS:
 
 ```bash
 curl -L https://sourcegraph.com/.api/src-cli/src_darwin_amd64 -o /usr/local/bin/src
@@ -27,16 +27,12 @@ chmod +x /usr/local/bin/src
 
 ### Linux:
 
-> NOTE: To get the best version for _your_ Sourcegraph instance, simply replace `sourcegraph.com` in the commands below with your own Sourcegraph URL and the latest version compatible with your instance will be provided.
-
 ```bash
 curl -L https://sourcegraph.example.com/.api/src-cli/src_linux_amd64 -o /usr/local/bin/src
 chmod +x /usr/local/bin/src
 ```
 
 ### Windows:
-
-> NOTE: To get the best version for _your_ Sourcegraph instance, simply replace `sourcegraph.com` in the commands below with your own Sourcegraph URL and the latest version compatible with your instance will be provided.
 
 > NOTE: Windows support is still rough around the edges, but is available. If you encounter issues, please let us know by filing an issue :)
 
