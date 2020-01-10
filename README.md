@@ -16,20 +16,18 @@ If there is something you'd like to see Sourcegraph be able to do from the CLI, 
 
 ## Installation
 
-Starting with Sourcegraph 3.12, the instance tracks the _recommended_ version of the CLI tool. The following installation instructions install the latest binary compatible with your target instance. For older version of Sourcegraph, you will need to install the binary from the GitHub releases page at the following location.
-
-```
-https://github.com/sourcegraph/src-cli/releases/download/latest/<binary>
-```
-
 ### Mac OS:
 
+> NOTE: To get the best version for _your_ Sourcegraph instance, simply replace `sourcegraph.com` in the commands below with your own Sourcegraph URL and the latest version compatible with your instance will be provided.
+
 ```bash
-curl -L https://sourcegraph.example.com/.api/src-cli/src_darwin_amd64 -o /usr/local/bin/src
+curl -L https://sourcegraph.com/.api/src-cli/src_darwin_amd64 -o /usr/local/bin/src
 chmod +x /usr/local/bin/src
 ```
 
 ### Linux:
+
+> NOTE: To get the best version for _your_ Sourcegraph instance, simply replace `sourcegraph.com` in the commands below with your own Sourcegraph URL and the latest version compatible with your instance will be provided.
 
 ```bash
 curl -L https://sourcegraph.example.com/.api/src-cli/src_linux_amd64 -o /usr/local/bin/src
@@ -38,20 +36,22 @@ chmod +x /usr/local/bin/src
 
 ### Windows:
 
-Note: Windows support is still rough around the edges, but is available. If you encounter issues, please let us know by filing an issue :)
+> NOTE: To get the best version for _your_ Sourcegraph instance, simply replace `sourcegraph.com` in the commands below with your own Sourcegraph URL and the latest version compatible with your instance will be provided.
+
+> NOTE: Windows support is still rough around the edges, but is available. If you encounter issues, please let us know by filing an issue :)
 
 Run in PowerShell as administrator:
 
 ```powershell
 New-Item -ItemType Directory 'C:\Program Files\Sourcegraph'
-Invoke-WebRequest https://sourcegraph.example.com/.api/src-cli/src_windows_amd64.exe -OutFile 'C:\Program Files\Sourcegraph\src.exe'
+Invoke-WebRequest https://sourcegraph.com/.api/src-cli/src_windows_amd64.exe -OutFile 'C:\Program Files\Sourcegraph\src.exe'
 [Environment]::SetEnvironmentVariable('Path', [Environment]::GetEnvironmentVariable('Path', [EnvironmentVariableTarget]::Machine) + ';C:\Program Files\Sourcegraph', [EnvironmentVariableTarget]::Machine)
 $env:Path += ';C:\Program Files\Sourcegraph'
 ```
 
 Or manually:
 
-- [Download the latest src_windows_amd64.exe](https://sourcegraph.example.com/.api/src-cli/src_windows_amd64.exe) and rename to `src.exe`.
+- Download the latest src_windows_amd64.exe: https://sourcegraph.com/.api/src-cli/src_windows_amd64.exe and rename to `src.exe`.
 - Place the file under e.g. `C:\Program Files\Sourcegraph\src.exe`
 - Add that directory to your system path to access it from any command prompt
 
