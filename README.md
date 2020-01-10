@@ -97,3 +97,5 @@ go get -u github.com/sourcegraph/src-cli/cmd/src
 2.  `VERSION=9.9.9 ./release.sh` (replace `9.9.9` with the version you are releasing)
 3.  Travis will automatically perform the release. Once it has finished, **confirm that the curl commands fetch the latest version above**.
 4.  Update the `MinimumVersion` constant in the [src-cli package](https://github.com/sourcegraph/sourcegraph/tree/master/internal/src-cli/consts.go).
+
+**Note**: The version recommended by a Sourcegraph instance will be the highest patch version with the same major and minor version as the set minimum. This means that patch versions are reserved solely for non-breaking changes and minor bug fixes. This allows us to dynamically release fixes for older versions of src-cli without having to update the instance.
