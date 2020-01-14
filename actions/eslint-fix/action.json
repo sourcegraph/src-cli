@@ -1,0 +1,12 @@
+{
+  "scopeQuery": "repo:codeintellify|sourcegraph-vscode|javascript-typescript-langserver|sd9/sourcegraphDISABLED_FOR_NOW|contributors-extension|create|create-extension|go-imports-search|java-imports-search|lsp-client|sourcegraph-basic-code-intel|sourcegraph-code-discussions|sourcegraph-code-ownership|sourcegraph-datadog-metrics|sourcegraph-extension-samples|sourcegraph-git-extras|sourcegraph-go|sourcegraph-graphql|sourcegraph-langserver-http|sourcegraph-lightstep|sourcegraph-python|sourcegraph-typescript|coif-to-lsif|eslint-formatter-lsif|sourcegraph-jira|sourcegraph-hubspot|sourcegraph-sentry|sourcegraph-stack-traces repohasfile:yarn\\.lock",
+  "run": [
+	{
+	  "type": "docker",
+	  "image": "sqs1/eslint-fix-action",
+	  "cacheDirs": [
+		"/cache"
+	  ]
+	}
+  ]
+}

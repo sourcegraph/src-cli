@@ -1,0 +1,9 @@
+{
+  "scopeQuery": "repohasfile:^go\\.mod$$ -repo:deploy-sourcegraph- -repo:test",
+  "run": [
+	{
+	  "type": "docker",
+	  "image": "sqs1/add-lsif-to-build-pipeline-action"
+	}
+  ]
+}

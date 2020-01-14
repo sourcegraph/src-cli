@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -9,6 +10,7 @@ import (
 	"time"
 
 	humanize "github.com/dustin/go-humanize"
+	"github.com/fatih/color"
 	"github.com/sourcegraph/jsonx"
 )
 
@@ -90,6 +92,18 @@ func parseTemplate(text string) (*template.Template, error) {
 		"htmlToPlainText":                   searchTemplateFuncs["htmlToPlainText"],
 		"buildVersionHasNewSearchInterface": searchTemplateFuncs["buildVersionHasNewSearchInterface"],
 		"renderResult":                      searchTemplateFuncs["renderResult"],
+
+		// `src campaign plans create-from-patches`
+		"friendlyCampaignPlanCreatedMessage": func(campaignPlan CampaignPlan) string {
+			var buf bytes.Buffer
+			fmt.Fprintln(&buf)
+			fmt.Fprintln(&buf, color.HiGreenString("✔  Campaign plan saved."), "To preview and run the campaign (and create branches and changesets):")
+			fmt.Fprintln(&buf)
+			fmt.Fprintln(&buf, " ", color.HiCyanString("▶ Web:"), campaignPlan.PreviewURL, color.HiBlackString("or"))
+			cliCommand := fmt.Sprintf("src campaigns create -interactive -plan=%s", campaignPlan.ID)
+			fmt.Fprintln(&buf, " ", color.HiCyanString("▶ CLI:"), cliCommand)
+			return buf.String()
+		},
 	})
 	return tmpl.Parse(text)
 }

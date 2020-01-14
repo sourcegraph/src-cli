@@ -36,7 +36,7 @@ Examples:
 	}
 	var (
 		changesetsFlag = flagSet.Int("changesets", 1000, "Returns the first n changesets in the plan.")
-		formatFlag     = flagSet.String("f", "{{.PreviewURL}}", `Format for the output, using the syntax of Go package text/template. (e.g. "{{.ID}}: {{len .Changesets}} changesets") or "{{.|json}}")`)
+		formatFlag     = flagSet.String("f", "{{friendlyCampaignPlanCreatedMessage .}}", `Format for the output, using the syntax of Go package text/template. (e.g. "{{.ID}}: {{len .Changesets}} changesets") or "{{.|json}}")`)
 		apiFlags       = newAPIFlags(flagSet)
 	)
 
