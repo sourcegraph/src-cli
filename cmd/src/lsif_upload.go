@@ -198,8 +198,8 @@ Examples:
 		// confirm the status code. You can test this easily with e.g. an invalid
 		// endpoint like -endpoint=https://google.com
 		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-			if resp.StatusCode == http.StatusUnauthorized && string(body) == "Must provide github_token.\n" {
-				return fmt.Errorf("error: you have to provide -github-token with 'public_repo' scope")
+			if resp.StatusCode == http.StatusUnauthorized && strings.Contains(strings.ToLower(string(body)), "must provide github_token") {
+				return fmt.Errorf("error: you must provide -github-token=TOKEN, where TOKEN is a GitHub personal access token with 'repo' or 'public_repo' scope")
 			}
 
 			if resp.StatusCode == http.StatusUnauthorized && isatty.IsTerminal(os.Stdout.Fd()) {
@@ -217,10 +217,10 @@ Examples:
 			return err
 		}
 
-		jobURL := string(base64.URLEncoding.EncodeToString([]byte(fmt.Sprintf(`LSIFJob:"%s"`, payload.ID))))
+		jobURL := string(base64.URLEncoding.EncodeToString([]byte(fmt.Sprintf(`LSIFUpload:"%s"`, payload.ID))))
 		fmt.Println("")
 		fmt.Printf("LSIF dump successfully uploaded. It will be converted asynchronously.\n")
-		fmt.Printf("To check the status, visit %s/site-admin/lsif-jobs/%s.\n", cfg.Endpoint, jobURL)
+		fmt.Printf("To check the status, visit %s/site-admin/lsif-uploads/%s.\n", cfg.Endpoint, jobURL)
 		return nil
 	}
 
@@ -265,7 +265,7 @@ func parseRemoteURL(urlString string) (string, error) {
 		if len(parts) != 2 {
 			return "", fmt.Errorf("unrecognized remote URL: %s", urlString)
 		}
-		return strings.TrimPrefix(parts[0], "git@") + "/" + strings.TrimSuffix(parts[1], ".git"), nil
+		return strings.TrimPrefix(parts[0], "git@") + "/" + strings.TrimPrefix(strings.TrimSuffix(parts[1], ".git"), "/"), nil
 	}
 
 	remoteURL, err := url.Parse(urlString)
