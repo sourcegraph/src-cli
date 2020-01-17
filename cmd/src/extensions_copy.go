@@ -51,7 +51,7 @@ Copy an extension from Sourcegraph.com to your private registry.
 		}
 		extensionName := extensionIDParts[1]
 
-		var result struct {
+		var extensionResult struct {
 			ExtensionRegistry struct {
 				Extension struct {
 					Manifest struct {
@@ -80,7 +80,7 @@ Copy an extension from Sourcegraph.com to your private registry.
 				vars: map[string]interface{}{
 					"extensionID": extensionID,
 				},
-				result: &result,
+				result: &extensionResult,
 				flags:  apiFlags,
 			}).do()
 		})
@@ -88,13 +88,13 @@ Copy an extension from Sourcegraph.com to your private registry.
 			return err
 		}
 
-		rawManifest := []byte(result.ExtensionRegistry.Extension.Manifest.Raw)
+		rawManifest := []byte(extensionResult.ExtensionRegistry.Extension.Manifest.Raw)
 		manifest, err := updatePropertyInManifest(rawManifest, "extensionID", extensionID)
 		if err != nil {
 			return err
 		}
 
-		response, err := http.Get(result.ExtensionRegistry.Extension.Manifest.BundleURL)
+		response, err := http.Get(extensionResult.ExtensionRegistry.Extension.Manifest.BundleURL)
 		if err != nil {
 			return err
 		}
@@ -106,7 +106,7 @@ Copy an extension from Sourcegraph.com to your private registry.
 		fmt.Printf("bundle: %s\n", string(bundle[0:100]))
 		fmt.Printf("manifest: %s\n", string(manifest[0:]))
 
-		var result2 struct {
+		var publishResult struct {
 			ExtensionRegistry struct {
 				PublishExtension struct {
 					Extension struct {
@@ -140,12 +140,12 @@ Copy an extension from Sourcegraph.com to your private registry.
 				"manifest":    string(manifest),
 				"bundle":      bundle,
 			},
-			result: &result2,
+			result: &publishResult,
 			done: func() error {
 				fmt.Println("Extension published!")
 				fmt.Println()
-				fmt.Printf("\tExtension ID: %s\n\n", result2.ExtensionRegistry.PublishExtension.Extension.ExtensionID)
-				fmt.Printf("View, enable, and configure it at: %s\n", cfg.Endpoint+result2.ExtensionRegistry.PublishExtension.Extension.URL)
+				fmt.Printf("\tExtension ID: %s\n\n", publishResult.ExtensionRegistry.PublishExtension.Extension.ExtensionID)
+				fmt.Printf("View, enable, and configure it at: %s\n", cfg.Endpoint+publishResult.ExtensionRegistry.PublishExtension.Extension.URL)
 				return nil
 			},
 			flags: apiFlags,
