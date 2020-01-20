@@ -15,7 +15,7 @@ func init() {
 	usage := `
 Create a campaign plan from a set of patches (in unified diff format) to repository branches.
 
-Stdin is expected to be a JSON array of {repository: string, baseRevision: string, patch: string}. The repository value is the repository's GraphQL ID (which you can look up given a repository name using 'src repos get -name=...').
+Standard input is expected to be a JSON array of {repository: string, baseRevision: string, patch: string}. The repository value is the repository's GraphQL ID (which you can look up given a repository name using 'src repos get -name=...').
 
 Examples:
 
@@ -23,14 +23,14 @@ Examples:
 
 		$ patch=$(jq -M -R -s . < my.patch)
 		$ repo=$(src repo get -name=github.com/sourcegraph/src-cli -f '{{.ID|json}}')
-		$ echo '[{"repository": $repo, "baseRevision": "master", "patch": $patch}]' |
-    	  src campaign plans create-from-patches
+		$ echo '[{"repository": $repo, "baseRevision": "master", "patch": $patch}]' |\
+		  src campaigns plans create-from-patches
 
 `
 
 	flagSet := flag.NewFlagSet("create-from-patches", flag.ExitOnError)
 	usageFunc := func() {
-		fmt.Fprintf(flag.CommandLine.Output(), "Usage of 'src campaign plans %s':\n", flagSet.Name())
+		fmt.Fprintf(flag.CommandLine.Output(), "Usage of 'src campaigns plans %s':\n", flagSet.Name())
 		flagSet.PrintDefaults()
 		fmt.Println(usage)
 	}
