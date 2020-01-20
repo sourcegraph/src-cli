@@ -18,7 +18,7 @@ Usage:
 
 The commands are:
 
-	plan              manages campaign plans
+	plans             manages campaign plans
 	list              lists campaigns
 	add-changesets    adds changesets of a given repository to a campaign
 

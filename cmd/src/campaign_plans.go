@@ -8,24 +8,24 @@ import (
 var campaignPlansCommands commander
 
 func init() {
-	usage := `'src campaign plans' creates and previews campaign plans (which can be used to create campaigns and changesets).
+	usage := `'src campaigns plans' creates and previews campaign plans (which can be used to create campaigns and changesets).
 
 EXPERIMENTAL: Campaigns are experimental functionality on Sourcegraph and in the 'src' tool.
 
 Usage:
 
-	src campaign plans command [command options]
+	src campaigns plans command [command options]
 
 The commands are:
 
 	preview           generates preview of plan from a specification
 
-Use "src campaign plans [command] -h" for more information about a command.
+Use "src campaigns plans [command] -h" for more information about a command.
 `
 
 	flagSet := flag.NewFlagSet("plans", flag.ExitOnError)
 	handler := func(args []string) error {
-		campaignPlansCommands.run(flagSet, "src campaign plans", usage, args)
+		campaignPlansCommands.run(flagSet, "src campaigns plans", usage, args)
 		return nil
 	}
 

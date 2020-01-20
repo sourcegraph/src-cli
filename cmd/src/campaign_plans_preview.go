@@ -11,13 +11,13 @@ Examples:
 
   Preview a comby campaign:
 
-    	$ src campaign plans preview -type=comby -args='{"scopeQuery":"repo:sourcegraph/go-diff", "matchTemplate": "fmt.Errorf", "rewriteTemplate": "errors.Wrapf"}' -f '{{.|json}}'
+    	$ src campaigns plans preview -type=comby -args='{"scopeQuery":"repo:sourcegraph/go-diff", "matchTemplate": "fmt.Errorf", "rewriteTemplate": "errors.Wrapf"}' -f '{{.|json}}'
 
 `
 
 	flagSet := flag.NewFlagSet("preview", flag.ExitOnError)
 	usageFunc := func() {
-		fmt.Fprintf(flag.CommandLine.Output(), "Usage of 'src campaign plans %s':\n", flagSet.Name())
+		fmt.Fprintf(flag.CommandLine.Output(), "Usage of 'src campaigns plans %s':\n", flagSet.Name())
 		flagSet.PrintDefaults()
 		fmt.Println(usage)
 	}
