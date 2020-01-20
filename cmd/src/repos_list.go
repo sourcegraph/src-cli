@@ -16,7 +16,7 @@ Examples:
 
   Print JSON description of repositories list:
 
-		$ src repos list -f '{{.|json}}'
+    	$ src repos list -f '{{.|json}}'
 
   List *all* repositories (may be slow!):
 
