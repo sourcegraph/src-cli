@@ -49,7 +49,7 @@ func (x *actionExecutor) do(ctx context.Context, repo ActionRepo) (err error) {
 	prefix := "action-" + strings.Replace(strings.Replace(repo.Name, "/", "-", -1), "github.com-", "", -1)
 
 	// TODO(sqs): better cleanup of old log files
-	logFile, err := ioutil.TempFile("", prefix+"-log")
+	logFile, err := ioutil.TempFile(tempDirPrefix, prefix+"-log")
 	if err != nil {
 		return err
 	}
@@ -244,8 +244,14 @@ func runAction(ctx context.Context, prefix, repoID, repoName, rev string, runs [
 	return diff.PrintMultiFileDiff(fileDiffs)
 }
 
+// We use an explicit prefix for our temp directories, because otherwise Go
+// would use $TMPDIR, which is set to `/var/folders` per default on macOS. But
+// Docker for Mac doesn't have `/var/folders` in its default set of shared
+// folders, but it does have `/tmp` in there.
+const tempDirPrefix = "/tmp"
+
 func unzipToTempDir(ctx context.Context, zipFile, prefix string) (string, error) {
-	volumeDir, err := ioutil.TempDir("", prefix)
+	volumeDir, err := ioutil.TempDir(tempDirPrefix, prefix)
 	if err != nil {
 		return "", err
 	}
