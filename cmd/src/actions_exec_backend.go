@@ -92,12 +92,12 @@ func (x *actionExecutor) start(ctx context.Context) {
 	if x.opt.onUpdate != nil {
 		go func() {
 			for {
+				x.reposMu.Lock()
+				x.opt.onUpdate(x.repos)
+				x.reposMu.Unlock()
+
 				select {
 				case <-time.After(50 * time.Millisecond):
-					x.reposMu.Lock()
-					x.opt.onUpdate(x.repos)
-					x.reposMu.Unlock()
-
 					// TODO!(sqs): stop when done
 				}
 			}
