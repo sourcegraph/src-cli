@@ -22,8 +22,9 @@ type actionExecutor struct {
 	reposMu sync.Mutex
 	repos   map[ActionRepo]ActionRepoStatus
 
-	par  *parallel.Run
-	done chan struct{}
+	par           *parallel.Run
+	done          chan struct{}
+	doneEnqueuing chan struct{}
 }
 
 func newActionExecutor(action ActionFile, parallelism int, opt actionExecutorOptions) *actionExecutor {
@@ -36,7 +37,9 @@ func newActionExecutor(action ActionFile, parallelism int, opt actionExecutorOpt
 		opt:    opt,
 		repos:  map[ActionRepo]ActionRepoStatus{},
 		par:    parallel.NewRun(parallelism),
-		done:   make(chan struct{}),
+
+		done:          make(chan struct{}),
+		doneEnqueuing: make(chan struct{}),
 	}
 }
 
@@ -92,14 +95,17 @@ func (x *actionExecutor) start(ctx context.Context) {
 	if x.opt.onUpdate != nil {
 		go func() {
 			for {
+				select {
+				case <-x.done:
+					return
+				default:
+				}
+
 				x.reposMu.Lock()
 				x.opt.onUpdate(x.repos)
 				x.reposMu.Unlock()
 
-				select {
-				case <-time.After(50 * time.Millisecond):
-					// TODO!(sqs): stop when done
-				}
+				time.Sleep(50 * time.Millisecond)
 			}
 		}()
 	}
@@ -121,10 +127,12 @@ func (x *actionExecutor) start(ctx context.Context) {
 			}
 		}(repo)
 	}
-	close(x.done)
+	close(x.doneEnqueuing)
 }
 
 func (x *actionExecutor) wait() error {
-	<-x.done
-	return x.par.Wait()
+	<-x.doneEnqueuing
+	err := x.par.Wait()
+	close(x.done)
+	return err
 }
