@@ -196,9 +196,9 @@ Examples:
 		if *verbose {
 			log.Printf("# Querying %s for repositories matching %q...", cfg.Endpoint, action.ScopeQuery)
 		}
-		repos, err := actionRepos(ctx, action.ScopeQuery)
+		repos, err := actionRepos(ctx, *verbose, action.ScopeQuery)
 		if err != nil {
-			panic(err)
+			return err
 		}
 		if *verbose {
 			log.Printf("# %d repositories match.", len(repos))
@@ -268,7 +268,7 @@ type ActionRepo struct {
 	Rev  string
 }
 
-func actionRepos(ctx context.Context, scopeQuery string) ([]ActionRepo, error) {
+func actionRepos(ctx context.Context, verbose bool, scopeQuery string) ([]ActionRepo, error) {
 	query := `
 query ActionRepos($query: String!) {
 	search(query: $query, version: V1) {
@@ -332,6 +332,7 @@ query ActionRepos($query: String!) {
 		}
 
 		if repo.DefaultBranch.Name == "" {
+			log.Printf("# Skipping repository %s because we couldn't determine default branch.", repo.Name)
 			continue
 		}
 
