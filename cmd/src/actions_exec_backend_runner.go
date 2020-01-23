@@ -346,7 +346,6 @@ func repositoryZipArchiveURL(repoName, rev, token string) (*url.URL, error) {
 	if token != "" {
 		u.User = url.User(token)
 	}
-	u.Path = path.Join(u.Path, repoName+"@"+rev, "-", "raw/")
-	u.Path += "/"
+	u.Path = path.Join(u.Path, repoName+"@"+rev, "-", "raw")
 	return u, nil
 }
