@@ -40,12 +40,14 @@ type ActionFile struct {
 }
 
 type ActionFileRun struct {
-	Type               string   `json:"type"` // "command"
-	Dockerfile         string   `json:"dockerfile,omitempty"`
-	Image              string   `json:"image,omitempty"` // Docker image
-	ImageContentDigest string   // TODO!(sqs): do not allow setting
-	CacheDirs          []string `json:"cacheDirs,omitempty"`
-	Args               []string `json:"args,omitempty"`
+	Type       string   `json:"type"` // "command"
+	Dockerfile string   `json:"dockerfile,omitempty"`
+	Image      string   `json:"image,omitempty"` // Docker image
+	CacheDirs  []string `json:"cacheDirs,omitempty"`
+	Args       []string `json:"args,omitempty"`
+
+	// imageContentDigest is an internal field that should not be set by users.
+	imageContentDigest string
 }
 
 type CampaignPlanPatch struct {
@@ -68,10 +70,13 @@ Execute an action on code in repositories. The output of an action is a set of p
 
 Examples:
 
-  Execute an action:
+  Execute an action defined in ~/run-gofmt-in-dockerfile.json:
 
-    	$ src actions exec TODO
+    	$ src actions exec -f ~/run-gofmt-in-dockerfile.json
 
+  Execute an action and create a campaign plan from the patches it produced:
+
+    	$ src actions exec -f ~/run-gofmt-in-dockerfile.json | src campaign plan create-from-patches
 `
 
 	flagSet := flag.NewFlagSet("exec", flag.ExitOnError)
@@ -80,16 +85,20 @@ Examples:
 		flagSet.PrintDefaults()
 		fmt.Println(usage)
 	}
-	const stdin = "<stdin>"
-	userCacheDir, _ := userCacheDir()
-	if userCacheDir != "" {
-		userCacheDir = filepath.Join(userCacheDir, "action-exec")
+
+	cacheDir, _ := userCacheDir()
+	if cacheDir != "" {
+		cacheDir = filepath.Join(cacheDir, "action-exec")
 	}
-	displayUserCacheDir := strings.Replace(userCacheDir, os.Getenv("HOME"), "$HOME", 1)
+
+	displayUserCacheDir := strings.Replace(cacheDir, os.Getenv("HOME"), "$HOME", 1)
+
+	const stdin = "<stdin>"
+
 	var (
-		fileFlag        = flagSet.String("f", "<stdin>", `The action file. (required)`)
+		fileFlag        = flagSet.String("f", stdin, `The action file. (required)`)
 		parallelismFlag = flagSet.Int("j", runtime.GOMAXPROCS(0), "The number of parallel jobs.")
-		cacheDirFlag    = flagSet.String("cache", displayUserCacheDir, `Directory for caching results.`)
+		cacheDirFlag    = flagSet.String("cache", displayUserCacheDir, "Directory for caching results.")
 		keepLogsFlag    = flagSet.Bool("keep-logs", false, "Do not remove execution log files when done.")
 	)
 
@@ -97,7 +106,13 @@ Examples:
 		flagSet.Parse(args)
 
 		if *cacheDirFlag == displayUserCacheDir {
-			*cacheDirFlag = userCacheDir
+			*cacheDirFlag = cacheDir
+		}
+
+		if *cacheDirFlag == "" {
+			// This can only happen if `userCacheDir()` fails or the user
+			// specifies a blank string.
+			return errors.New("cache is not a valid path")
 		}
 
 		var (
@@ -194,7 +209,7 @@ Examples:
 					return id, nil
 				}
 
-				run.ImageContentDigest, err = getDockerImageContentDigest(ctx, run.Image)
+				run.imageContentDigest, err = getDockerImageContentDigest(ctx, run.Image)
 				if err != nil {
 					return err
 				}

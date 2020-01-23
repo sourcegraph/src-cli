@@ -249,19 +249,19 @@ func diffDirs(ctx context.Context, oldDir, newDir string) ([]byte, error) {
 	}
 
 	args = append(args, oldDir, newDir)
-	diffCmd := exec.CommandContext(ctx, "diff", args...)
+	cmd := exec.CommandContext(ctx, "diff", args...)
 
-	diffOut, err := diffCmd.CombinedOutput()
+	out, err := cmd.CombinedOutput()
 	// 1 just means files differ, not error
-	if err != nil && diffCmd.ProcessState.ExitCode() != 1 {
-		outputSummary := string(diffOut)
+	if err != nil && cmd.ProcessState.ExitCode() != 1 {
+		outputSummary := string(out)
 		if max := 250; len(outputSummary) >= max {
 			outputSummary = outputSummary[:max] + "..."
 		}
 		return nil, errors.Wrapf(err, "diff (output was: %q)", outputSummary)
 	}
 
-	return diffOut, nil
+	return out, nil
 }
 
 func diffSupportsFlag(ctx context.Context, flag string) (bool, error) {

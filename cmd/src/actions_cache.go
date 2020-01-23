@@ -26,21 +26,24 @@ type actionExecutionDiskCache struct {
 	dir string
 }
 
-func (c actionExecutionDiskCache) cacheFilePath(key actionExecutionCacheKey) string {
-	keyString := func(key actionExecutionCacheKey) string {
-		keyJSON, err := json.Marshal(key)
-		if err != nil {
-			panic(err)
-		}
-		b := sha256.Sum256(keyJSON)
-		return base64.RawURLEncoding.EncodeToString(b[:16])
+func (c actionExecutionDiskCache) cacheFilePath(key actionExecutionCacheKey) (string, error) {
+	keyJSON, err := json.Marshal(key)
+	if err != nil {
+		return "", errors.Wrap(err, "Failed to marshal JSON when generating action cache key")
 	}
 
-	return filepath.Join(c.dir, keyString(key)+".json")
+	b := sha256.Sum256(keyJSON)
+	keyString := base64.RawURLEncoding.EncodeToString(b[:16])
+
+	return filepath.Join(c.dir, keyString+".json"), nil
 }
 
 func (c actionExecutionDiskCache) get(ctx context.Context, key actionExecutionCacheKey) (CampaignPlanPatch, bool, error) {
-	path := c.cacheFilePath(key)
+	path, err := c.cacheFilePath(key)
+	if err != nil {
+		return CampaignPlanPatch{}, false, err
+	}
+
 	data, err := ioutil.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -67,7 +70,10 @@ func (c actionExecutionDiskCache) set(ctx context.Context, key actionExecutionCa
 		return err
 	}
 
-	path := c.cacheFilePath(key)
+	path, err := c.cacheFilePath(key)
+	if err != nil {
+		return err
+	}
 
 	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
 		return err
