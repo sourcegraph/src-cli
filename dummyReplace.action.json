@@ -1,9 +1,0 @@
-{
-  "scopeQuery": "repo:about|lint|go|conductor|makex|checkup|appmon",
-  "run": [
-	{
-	  "type": "docker",
-	  "dockerfile": "FROM alpine:3 \n CMD find . -type f | xargs -n 1 sed -i s/open/close/g"
-	}
-  ]
-}

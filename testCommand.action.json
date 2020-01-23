@@ -1,9 +1,0 @@
-{
-  "scopeQuery": "repo:go",
-  "run": [
-	{
-	  "type": "command",
-	  "args": ["sh", "-c", "echo hello > newfile"],
-	}
-  ]
-}
