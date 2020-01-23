@@ -90,10 +90,8 @@ Examples:
 
 	displayUserCacheDir := strings.Replace(cacheDir, os.Getenv("HOME"), "$HOME", 1)
 
-	const stdin = "<stdin>"
-
 	var (
-		fileFlag        = flagSet.String("f", stdin, "The action file. (required)")
+		fileFlag        = flagSet.String("f", "-", "The action file. If not given or '-' standard input is used. (Required)")
 		parallelismFlag = flagSet.Int("j", runtime.GOMAXPROCS(0), "The number of parallel jobs.")
 		cacheDirFlag    = flagSet.String("cache", displayUserCacheDir, "Directory for caching results.")
 		keepLogsFlag    = flagSet.Bool("keep-logs", false, "Do not remove execution log files when done.")
@@ -117,16 +115,8 @@ Examples:
 			actionFile []byte
 			err        error
 		)
-		if *fileFlag == stdin {
-			pipe, err := isPipe(os.Stdin)
-			if err != nil {
-				return err
-			}
 
-			if !pipe {
-				return errors.New("Cannot read from standard input since it's not a pipe")
-			}
-
+		if *fileFlag == "-" {
 			actionFile, err = ioutil.ReadAll(os.Stdin)
 		} else {
 			actionFile, err = ioutil.ReadFile(*fileFlag)
@@ -404,13 +394,4 @@ func diffStatDiagram(stat diff.Stat) string {
 		deleted *= x
 	}
 	return color.GreenString(strings.Repeat("+", int(added))) + color.RedString(strings.Repeat("-", int(deleted)))
-}
-
-func isPipe(f *os.File) (bool, error) {
-	stat, err := f.Stat()
-	if err != nil {
-		return false, errors.Wrap(err, "Could not determine whether file descriptor is a pipe or not")
-	}
-
-	return stat.Mode()&os.ModeNamedPipe != 0, nil
 }
