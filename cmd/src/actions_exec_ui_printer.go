@@ -50,8 +50,6 @@ func (p *actionUiPrinter) PrintStatus(repos map[ActionRepo]ActionRepoStatus) {
 	p.lwMu.Lock()
 	defer p.lwMu.Unlock()
 
-	_ = p.lw.Flush()
-
 	spinnerRune := spinner[p.spinnerIdx%len(spinner)]
 	p.spinnerIdx++
 
@@ -137,4 +135,6 @@ func (p *actionUiPrinter) PrintStatus(repos map[ActionRepo]ActionRepoStatus) {
 		}
 		fmt.Fprintln(w)
 	}
+
+	_ = p.lw.Flush()
 }

@@ -127,6 +127,7 @@ func (x *actionExecutor) start(ctx context.Context) {
 			}
 		}(repo)
 	}
+
 	close(x.doneEnqueuing)
 }
 
