@@ -148,54 +148,17 @@ Examples:
 			return err
 		}
 
-		// Build any Docker images.
-		for i, run := range action.Run {
-			if run.Type == "docker" && run.Dockerfile != "" {
-				if run.Image != "" {
-					return fmt.Errorf("docker run step may specify either image (%q) or dockerfile, not both", run.Image)
-				}
-
-				iidFile, err := ioutil.TempFile("", "src-actions-exec-image-id")
-				if err != nil {
-					return err
-				}
-				defer os.Remove(iidFile.Name())
-
-				if *verbose {
-					log.Printf("# Building Docker container for run step %d...", i)
-				}
-				cmd := exec.CommandContext(ctx, "docker", "build", "--iidfile", iidFile.Name(), "-")
-				cmd.Stdin = strings.NewReader(run.Dockerfile)
-				verboseCmdOutput(cmd)
-				if err := cmd.Run(); err != nil {
-					return errors.Wrap(err, "build docker image")
-				}
-				if *verbose {
-					log.Printf("# Done building Docker container for run step %d.", i)
-				}
-
-				iid, err := ioutil.ReadFile(iidFile.Name())
-				if err != nil {
-					return err
-				}
-				run.Image = string(iid)
-			}
-		}
-
-		// Set digests for Docker images so we don't cache action runs in 2 different images with
-		// the same tag.
-		for _, run := range action.Run {
-			if run.Type == "docker" && run.Image != "" {
-				run.imageContentDigest, err = getDockerImageContentDigest(ctx, run.Image)
-				if err != nil {
-					return errors.Wrap(err, "Failed to get Docker image content digest")
-				}
-			}
+		// Build Docker images etc.
+		err = prepareAction(ctx, action)
+		if err != nil {
+			return errors.Wrap(err, "Failed to prepare action")
 		}
 
 		if *verbose {
 			log.Printf("# Querying %s for repositories matching %q...", cfg.Endpoint, action.ScopeQuery)
 		}
+
+		// Query repos over which to run action
 		repos, err := actionRepos(ctx, *verbose, action.ScopeQuery)
 		if err != nil {
 			return err
@@ -218,6 +181,7 @@ Examples:
 			executor.enqueueRepo(repo)
 		}
 
+		// Execute actions
 		go executor.start(ctx)
 		if err := executor.wait(); err != nil {
 			return err
@@ -237,6 +201,55 @@ Examples:
 		handler:   handler,
 		usageFunc: usageFunc,
 	})
+}
+
+func prepareAction(ctx context.Context, action ActionFile) error {
+	// Build any Docker images.
+	for i, run := range action.Run {
+		if run.Type == "docker" && run.Dockerfile != "" {
+			if run.Image != "" {
+				return fmt.Errorf("docker run step may specify either image (%q) or dockerfile, not both", run.Image)
+			}
+
+			iidFile, err := ioutil.TempFile("", "src-actions-exec-image-id")
+			if err != nil {
+				return err
+			}
+			defer os.Remove(iidFile.Name())
+
+			if *verbose {
+				log.Printf("# Building Docker container for run step %d...", i)
+			}
+
+			cmd := exec.CommandContext(ctx, "docker", "build", "--iidfile", iidFile.Name(), "-")
+			cmd.Stdin = strings.NewReader(run.Dockerfile)
+			verboseCmdOutput(cmd)
+			if err := cmd.Run(); err != nil {
+				return errors.Wrap(err, "build docker image")
+			}
+			if *verbose {
+				log.Printf("# Done building Docker container for run step %d.", i)
+			}
+
+			iid, err := ioutil.ReadFile(iidFile.Name())
+			if err != nil {
+				return err
+			}
+			run.Image = string(iid)
+		}
+
+		// Set digests for Docker images so we don't cache action runs in 2 different images with
+		// the same tag.
+		if run.Type == "docker" && run.Image != "" {
+			var err error
+			run.imageContentDigest, err = getDockerImageContentDigest(ctx, run.Image)
+			if err != nil {
+				return errors.Wrap(err, "Failed to get Docker image content digest")
+			}
+		}
+	}
+
+	return nil
 }
 
 // getDockerImageContentDigest gets the content digest for the image. Note that this
