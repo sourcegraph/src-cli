@@ -35,7 +35,7 @@ type ActionRepoStatus struct {
 
 func (x *actionExecutor) do(ctx context.Context, repo ActionRepo) (err error) {
 	// Check if cached.
-	cacheKey := actionExecutionCacheKey{Repo: repo, Runs: x.action.Run}
+	cacheKey := actionExecutionCacheKey{Repo: repo, Runs: x.action.Steps}
 	if result, ok, err := x.opt.cache.get(ctx, cacheKey); err != nil {
 		return errors.Wrapf(err, "checking cache for %s", repo.Name)
 	} else if ok {
@@ -73,7 +73,7 @@ func (x *actionExecutor) do(ctx context.Context, repo ActionRepo) (err error) {
 	runCtx, cancel := context.WithTimeout(ctx, x.opt.timeout)
 	defer cancel()
 
-	patch, err := runAction(runCtx, prefix, repo.ID, repo.Name, repo.Rev, x.action.Run, logWriter)
+	patch, err := runAction(runCtx, prefix, repo.ID, repo.Name, repo.Rev, x.action.Steps, logWriter)
 	status := ActionRepoStatus{
 		FinishedAt: time.Now(),
 	}
@@ -111,8 +111,8 @@ func (e *errTimeoutReached) Error() string {
 	return fmt.Sprintf("Timeout reached. Execution took longer than %s.", e.timeout)
 }
 
-func runAction(ctx context.Context, prefix, repoID, repoName, rev string, runs []*ActionFileRun, logFile io.Writer) ([]byte, error) {
-	fmt.Fprintf(logFile, "# Repository %s @ %s (%d steps)\n", repoName, rev, len(runs))
+func runAction(ctx context.Context, prefix, repoID, repoName, rev string, steps []*ActionStep, logFile io.Writer) ([]byte, error) {
+	fmt.Fprintf(logFile, "# Repository %s @ %s (%d steps)\n", repoName, rev, len(steps))
 
 	zipFile, err := fetchRepositoryArchive(ctx, repoName, rev)
 	if err != nil {
@@ -126,18 +126,18 @@ func runAction(ctx context.Context, prefix, repoID, repoName, rev string, runs [
 	}
 	defer os.RemoveAll(volumeDir)
 
-	for i, run := range runs {
+	for i, step := range steps {
 		if i != 0 {
 			fmt.Fprintln(logFile)
 		}
 
 		logPrefix := fmt.Sprintf("Step %d", i)
 
-		switch run.Type {
+		switch step.Type {
 		case "command":
-			fmt.Fprintf(logFile, "# %s: command %v\n", logPrefix, run.Args)
+			fmt.Fprintf(logFile, "# %s: command %v\n", logPrefix, step.Args)
 
-			cmd := exec.CommandContext(ctx, run.Args[0], run.Args[1:]...)
+			cmd := exec.CommandContext(ctx, step.Args[0], step.Args[1:]...)
 			cmd.Dir = volumeDir
 			cmd.Stdout = logFile
 			cmd.Stderr = logFile
@@ -149,10 +149,10 @@ func runAction(ctx context.Context, prefix, repoID, repoName, rev string, runs [
 
 		case "docker":
 			var fromDockerfile string
-			if run.Dockerfile != "" {
+			if step.Dockerfile != "" {
 				fromDockerfile = " (built from inline Dockerfile)"
 			}
-			fmt.Fprintf(logFile, "# %s: docker run %v%s\n", logPrefix, run.Image, fromDockerfile)
+			fmt.Fprintf(logFile, "# %s: docker run %v%s\n", logPrefix, step.Image, fromDockerfile)
 
 			cidFile, err := ioutil.TempFile(tempDirPrefix, prefix+"-container-id")
 			if err != nil {
@@ -176,7 +176,7 @@ func runAction(ctx context.Context, prefix, repoID, repoName, rev string, runs [
 				"--workdir", workDir,
 				"--mount", fmt.Sprintf("type=bind,source=%s,target=%s", volumeDir, workDir),
 			)
-			for _, cacheDir := range run.CacheDirs {
+			for _, cacheDir := range step.CacheDirs {
 				// persistentCacheDir returns a host directory that persists across runs of this
 				// action for this repository. It is useful for (e.g.) yarn and npm caches.
 				persistentCacheDir := func(containerDir string) (string, error) {
@@ -184,7 +184,7 @@ func runAction(ctx context.Context, prefix, repoID, repoName, rev string, runs [
 					if err != nil {
 						return "", err
 					}
-					b := sha256.Sum256([]byte(fmt.Sprintf("%s:%s:%s", run.Image, repoName, rev)))
+					b := sha256.Sum256([]byte(fmt.Sprintf("%s:%s:%s", step.Image, repoName, rev)))
 					return filepath.Join(baseCacheDir, "action-exec-cache-dir",
 						base64.RawURLEncoding.EncodeToString(b[:16]),
 						strings.TrimPrefix(cacheDir, string(os.PathSeparator))), nil
@@ -199,8 +199,8 @@ func runAction(ctx context.Context, prefix, repoID, repoName, rev string, runs [
 				}
 				cmd.Args = append(cmd.Args, "--mount", fmt.Sprintf("type=bind,source=%s,target=%s", hostDir, cacheDir))
 			}
-			cmd.Args = append(cmd.Args, "--", run.Image)
-			cmd.Args = append(cmd.Args, run.Args...)
+			cmd.Args = append(cmd.Args, "--", step.Image)
+			cmd.Args = append(cmd.Args, step.Args...)
 			cmd.Dir = volumeDir
 			cmd.Stdout = logFile
 			cmd.Stderr = logFile
@@ -214,7 +214,7 @@ func runAction(ctx context.Context, prefix, repoID, repoName, rev string, runs [
 			fmt.Fprintf(logFile, "# %s: done. (%s)\n", logPrefix, elapsed)
 
 		default:
-			return nil, fmt.Errorf("unrecognized run type %q", run.Type)
+			return nil, fmt.Errorf("unrecognized run type %q", step.Type)
 		}
 	}
 

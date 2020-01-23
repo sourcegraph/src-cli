@@ -17,7 +17,7 @@ type actionExecutorOptions struct {
 }
 
 type actionExecutor struct {
-	action ActionFile
+	action Action
 	opt    actionExecutorOptions
 
 	reposMu sync.Mutex
@@ -28,7 +28,7 @@ type actionExecutor struct {
 	doneEnqueuing chan struct{}
 }
 
-func newActionExecutor(action ActionFile, parallelism int, opt actionExecutorOptions) *actionExecutor {
+func newActionExecutor(action Action, parallelism int, opt actionExecutorOptions) *actionExecutor {
 	if opt.cache == nil {
 		opt.cache = actionExecutionNoOpCache{}
 	}

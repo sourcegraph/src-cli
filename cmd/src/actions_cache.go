@@ -14,7 +14,7 @@ import (
 
 type actionExecutionCacheKey struct {
 	Repo ActionRepo
-	Runs []*ActionFileRun
+	Runs []*ActionStep
 }
 
 type actionExecutionCache interface {
