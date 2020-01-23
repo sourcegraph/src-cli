@@ -107,13 +107,13 @@ func runAction(ctx context.Context, prefix, repoID, repoName, rev string, runs [
 
 	zipFile, err := fetchRepositoryArchive(ctx, repoName, rev)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "Fetching ZIP archive failed")
 	}
 	defer os.Remove(zipFile.Name())
 
 	volumeDir, err := unzipToTempDir(ctx, zipFile.Name(), prefix)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "Unzipping the ZIP archive failed")
 	}
 	defer os.RemoveAll(volumeDir)
 
@@ -147,7 +147,7 @@ func runAction(ctx context.Context, prefix, repoID, repoName, rev string, runs [
 
 			cidFile, err := ioutil.TempFile("", prefix+"-container-id")
 			if err != nil {
-				return nil, err
+				return nil, errors.Wrap(err, "Creating a CID file failed")
 			}
 			_ = os.Remove(cidFile.Name()) // docker exits if this file exists upon `docker run` starting
 			defer func() {
@@ -218,7 +218,7 @@ func runAction(ctx context.Context, prefix, repoID, repoName, rev string, runs [
 
 	diffOut, err := diffDirs(ctx, oldDir, volumeDir)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "Generating a diff failed")
 	}
 
 	// Strip temp dir prefixes from diff.
@@ -238,20 +238,14 @@ func runAction(ctx context.Context, prefix, repoID, repoName, rev string, runs [
 }
 
 func diffDirs(ctx context.Context, oldDir, newDir string) ([]byte, error) {
-	// TODO!(sqs): these flags apparently only work on GNU diff not BSD (macOS) diff
-	args := []string{"--unified", "--new-file", "--recursive", "--color=never"}
+	args := []string{"--unified", "--new-file", "--recursive"}
 
-	// Older versions of GNU diff (< 3.3) do not support `--no-dereference`.
-	// Since macOS Mojave and Catalina ship with GNU diff 2.8.1, we degrade and
-	// do not use the flag, which might lead to problems with symbolic links in
-	// repositories..
-	flagCheck := exec.CommandContext(ctx, "diff", "--no-dereference")
-	flagCheckOut, err := flagCheck.CombinedOutput()
-	if err != nil {
-		return nil, err
-	}
-	if !strings.Contains(string(flagCheckOut), "unrecognized option `--no-dereference") {
+	if diffSupportsNoDereference {
 		args = append(args, "--no-dereference")
+	}
+
+	if diffSupportsColor {
+		args = append(args, "--color=never")
 	}
 
 	args = append(args, oldDir, newDir)
@@ -268,6 +262,16 @@ func diffDirs(ctx context.Context, oldDir, newDir string) ([]byte, error) {
 	}
 
 	return diffOut, nil
+}
+
+func diffSupportsFlag(ctx context.Context, flag string) (bool, error) {
+	cmd := exec.CommandContext(ctx, "diff", flag)
+	out, err := cmd.CombinedOutput()
+	// diff 2.8.1 returns exit code 2 when printing "unrecognized option" message
+	if err != nil && cmd.ProcessState.ExitCode() != 2 {
+		return false, errors.Wrapf(err, "Checking whether diff supports %q failed", flag)
+	}
+	return !strings.Contains(string(out), "unrecognized option `"+flag), nil
 }
 
 // We use an explicit prefix for our temp directories, because otherwise Go

@@ -25,6 +25,15 @@ import (
 	"github.com/sourcegraph/go-diff/diff"
 )
 
+// Older versions of GNU diff (< 3.3) do not support all the flags we want, but
+// since macOS Mojave and Catalina ship with GNU diff 2.8.1, we try to detect
+// missing flags and degrade behavior gracefully instead of failing. check for
+// the flags and degrade if they're not available.
+var (
+	diffSupportsNoDereference = false
+	diffSupportsColor         = false
+)
+
 type ActionFile struct {
 	ScopeQuery string           `json:"scopeQuery,omitempty"`
 	Run        []*ActionFileRun `json:"run"`
@@ -111,6 +120,16 @@ Examples:
 		}
 
 		ctx := context.Background()
+
+		diffSupportsNoDereference, err = diffSupportsFlag(ctx, "--no-dereference")
+		if err != nil {
+			return err
+		}
+
+		diffSupportsColor, err = diffSupportsFlag(ctx, "--color")
+		if err != nil {
+			return err
+		}
 
 		// Build any Docker images.
 		for i, run := range action.Run {
