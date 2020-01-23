@@ -154,7 +154,7 @@ func runAction(ctx context.Context, prefix, repoID, repoName, rev string, runs [
 			}
 			fmt.Fprintf(logFile, "# %s: docker run %v%s\n", logPrefix, run.Image, fromDockerfile)
 
-			cidFile, err := ioutil.TempFile("", prefix+"-container-id")
+			cidFile, err := ioutil.TempFile(tempDirPrefix, prefix+"-container-id")
 			if err != nil {
 				return nil, errors.Wrap(err, "Creating a CID file failed")
 			}
@@ -326,7 +326,7 @@ func fetchRepositoryArchive(ctx context.Context, repoName, rev string) (*os.File
 		return nil, fmt.Errorf("unable to fetch archive (HTTP %d from %s)", resp.StatusCode, zipURL)
 	}
 
-	f, err := ioutil.TempFile("", strings.Replace(repoName, "/", "-", -1)+".zip")
+	f, err := ioutil.TempFile(tempDirPrefix, strings.Replace(repoName, "/", "-", -1)+".zip")
 	if err != nil {
 		return nil, err
 	}
