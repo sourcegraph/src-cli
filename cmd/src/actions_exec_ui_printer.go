@@ -74,6 +74,7 @@ func (p *actionUiPrinter) PrintStatus(repos map[ActionRepo]ActionRepoStatus) {
 			statusText  string
 			logFileText string
 		)
+
 		if p.keepLogs && status.LogFile != "" {
 			logFileText = color.HiBlackString(status.LogFile)
 		}
@@ -126,6 +127,7 @@ func (p *actionUiPrinter) PrintStatus(repos map[ActionRepo]ActionRepoStatus) {
 		if logFileText != "" {
 			appendTexts = append(appendTexts, logFileText)
 		}
+
 		repoText := statusColor(fmt.Sprintf("%-*s", repoNameLen, repo.Name))
 		pipe := color.HiBlackString("|")
 		fmt.Fprintf(w, "%s %s ", repoText, pipe)

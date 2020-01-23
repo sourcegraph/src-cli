@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"time"
 
 	"github.com/fatih/color"
 	"github.com/pkg/errors"
@@ -58,6 +59,8 @@ func userCacheDir() (string, error) {
 	return filepath.Join(userCacheDir, "sourcegraph-src"), nil
 }
 
+const defaultTimeout = 2 * time.Minute
+
 func init() {
 	usage := `
 Execute an action on code in repositories. The output of an action is a set of patches that can be used to create a campaign to open changesets and perform large-scale code changes.
@@ -90,10 +93,11 @@ Examples:
 	const stdin = "<stdin>"
 
 	var (
-		fileFlag        = flagSet.String("f", stdin, `The action file. (required)`)
+		fileFlag        = flagSet.String("f", stdin, "The action file. (required)")
 		parallelismFlag = flagSet.Int("j", runtime.GOMAXPROCS(0), "The number of parallel jobs.")
 		cacheDirFlag    = flagSet.String("cache", displayUserCacheDir, "Directory for caching results.")
 		keepLogsFlag    = flagSet.Bool("keep-logs", false, "Do not remove execution log files when done.")
+		timeoutFlag     = flagSet.Duration("timeout", defaultTimeout, "The maximum duration a single action run can take (excluding the building of Docker images).")
 	)
 
 	handler := func(args []string) error {
@@ -173,6 +177,7 @@ Examples:
 		defer printer.Stop()
 
 		executor := newActionExecutor(action, *parallelismFlag, actionExecutorOptions{
+			timeout:  *timeoutFlag,
 			keepLogs: *keepLogsFlag,
 			cache:    actionExecutionDiskCache{dir: *cacheDirFlag},
 			onUpdate: printer.PrintStatus,

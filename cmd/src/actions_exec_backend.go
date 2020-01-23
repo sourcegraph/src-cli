@@ -10,6 +10,7 @@ import (
 
 type actionExecutorOptions struct {
 	keepLogs bool
+	timeout  time.Duration
 
 	cache    actionExecutionCache
 	onUpdate func(map[ActionRepo]ActionRepoStatus)

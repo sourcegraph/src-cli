@@ -70,12 +70,10 @@ func (x *actionExecutor) do(ctx context.Context, repo ActionRepo) (err error) {
 		StartedAt: time.Now(),
 	})
 
-	// TODO!(sqs)
-	//
-	// ctx, cancel := context.WithTimeout(ctx, 90*time.Second)
-	// defer cancel()
+	runCtx, cancel := context.WithTimeout(ctx, x.opt.timeout)
+	defer cancel()
 
-	patch, err := runAction(ctx, prefix, repo.ID, repo.Name, repo.Rev, x.action.Run, logWriter)
+	patch, err := runAction(runCtx, prefix, repo.ID, repo.Name, repo.Rev, x.action.Run, logWriter)
 	status := ActionRepoStatus{
 		FinishedAt: time.Now(),
 	}
@@ -87,6 +85,9 @@ func (x *actionExecutor) do(ctx context.Context, repo ActionRepo) (err error) {
 		}
 	}
 	if err != nil {
+		if errors.Cause(err) == context.DeadlineExceeded {
+			err = &errTimeoutReached{timeout: x.opt.timeout}
+		}
 		status.Err = err
 		fmt.Fprintf(logWriter, "# ERROR: %s\n", err)
 	}
@@ -94,12 +95,20 @@ func (x *actionExecutor) do(ctx context.Context, repo ActionRepo) (err error) {
 
 	// Add to cache if successful.
 	if err == nil {
+		// We don't use runCtx here because we want to write to the cache even
+		// if we've now reached the timeout
 		if err := x.opt.cache.set(ctx, cacheKey, status.Patch); err != nil {
 			return errors.Wrapf(err, "caching result for %s", repo.Name)
 		}
 	}
 
 	return err
+}
+
+type errTimeoutReached struct{ timeout time.Duration }
+
+func (e *errTimeoutReached) Error() string {
+	return fmt.Sprintf("Timeout reached. Execution took longer than %s.", e.timeout)
 }
 
 func runAction(ctx context.Context, prefix, repoID, repoName, rev string, runs []*ActionFileRun, logFile io.Writer) ([]byte, error) {
