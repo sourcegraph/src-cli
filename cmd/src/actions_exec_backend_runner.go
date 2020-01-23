@@ -215,15 +215,10 @@ func runAction(ctx context.Context, prefix, repoID, repoName, rev string, runs [
 		return nil, err
 	}
 	defer os.RemoveAll(oldDir)
-	// TODO!(sqs): these flags apparently only work on GNU diff not BSD (macOS) diff
-	diffCmd := exec.CommandContext(ctx, "diff", "--unified", "--new-file", "--no-dereference", "--recursive", "--color=never", oldDir, volumeDir)
-	diffOut, err := diffCmd.CombinedOutput()
-	if err != nil && diffCmd.ProcessState.ExitCode() != 1 /* 1 just means files differ, not error */ {
-		outputSummary := string(diffOut)
-		if max := 250; len(outputSummary) >= max {
-			outputSummary = outputSummary[:max] + "..."
-		}
-		return nil, errors.Wrapf(err, "diff (output was: %q)", outputSummary)
+
+	diffOut, err := diffDirs(ctx, oldDir, volumeDir)
+	if err != nil {
+		return nil, err
 	}
 
 	// Strip temp dir prefixes from diff.
@@ -240,6 +235,39 @@ func runAction(ctx context.Context, prefix, repoID, repoName, rev string, runs [
 		fileDiff.NewName = strings.TrimPrefix(fileDiff.NewName, volumeDir+string(os.PathSeparator))
 	}
 	return diff.PrintMultiFileDiff(fileDiffs)
+}
+
+func diffDirs(ctx context.Context, oldDir, newDir string) ([]byte, error) {
+	// TODO!(sqs): these flags apparently only work on GNU diff not BSD (macOS) diff
+	args := []string{"--unified", "--new-file", "--recursive", "--color=never"}
+
+	// Older versions of GNU diff (< 3.3) do not support `--no-dereference`.
+	// Since macOS Mojave and Catalina ship with GNU diff 2.8.1, we degrade and
+	// do not use the flag, which might lead to problems with symbolic links in
+	// repositories..
+	flagCheck := exec.CommandContext(ctx, "diff", "--no-dereference")
+	flagCheckOut, err := flagCheck.CombinedOutput()
+	if err != nil {
+		return nil, err
+	}
+	if !strings.Contains(string(flagCheckOut), "unrecognized option `--no-dereference") {
+		args = append(args, "--no-dereference")
+	}
+
+	args = append(args, oldDir, newDir)
+	diffCmd := exec.CommandContext(ctx, "diff", args...)
+
+	diffOut, err := diffCmd.CombinedOutput()
+	// 1 just means files differ, not error
+	if err != nil && diffCmd.ProcessState.ExitCode() != 1 {
+		outputSummary := string(diffOut)
+		if max := 250; len(outputSummary) >= max {
+			outputSummary = outputSummary[:max] + "..."
+		}
+		return nil, errors.Wrapf(err, "diff (output was: %q)", outputSummary)
+	}
+
+	return diffOut, nil
 }
 
 // We use an explicit prefix for our temp directories, because otherwise Go
