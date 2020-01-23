@@ -165,8 +165,6 @@ func runAction(ctx context.Context, prefix, repoID, repoName, rev string, runs [
 				"--rm",
 				"--cidfile", cidFile.Name(),
 				"--workdir", workDir,
-				// TODO!(sqs): on macOS this fails because the volumeDir is /var/folders/... and the
-				// docker daemon can't access it
 				"--mount", fmt.Sprintf("type=bind,source=%s,target=%s", volumeDir, workDir),
 			)
 			for _, cacheDir := range run.CacheDirs {
