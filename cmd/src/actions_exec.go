@@ -120,7 +120,16 @@ Examples:
 			err        error
 		)
 		if *fileFlag == stdin {
-			// TODO!(sqs) easy to forget -f flag and have it hang forever
+			pipe, err := isPipe(os.Stdin)
+			if err != nil {
+				return err
+			}
+			fmt.Printf("pipe: %t\n", pipe)
+
+			if !pipe {
+				return errors.New("Cannot read from standard input since it's not a pipe")
+			}
+
 			actionFile, err = ioutil.ReadAll(os.Stdin)
 		} else {
 			actionFile, err = ioutil.ReadFile(*fileFlag)
@@ -483,4 +492,13 @@ func diffStatDiagram(stat diff.Stat) string {
 		deleted *= x
 	}
 	return color.GreenString(strings.Repeat("+", int(added))) + color.RedString(strings.Repeat("-", int(deleted)))
+}
+
+func isPipe(f *os.File) (bool, error) {
+	stat, err := f.Stat()
+	if err != nil {
+		return false, errors.Wrap(err, "Could not determine whether file descriptor is a pipe or not")
+	}
+
+	return stat.Mode()&os.ModeNamedPipe != 0, nil
 }
