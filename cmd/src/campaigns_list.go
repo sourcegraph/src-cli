@@ -93,6 +93,8 @@ fragment campaign on Campaign {
   id
   name
   description
+  url
+  publishedAt
   createdAt
   updatedAt
 
@@ -123,6 +125,8 @@ type Campaign struct {
 	ID          string
 	Name        string
 	Description string
+	URL         string
+	PublishedAt time.Time
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 	Changesets  struct {

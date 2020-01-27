@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path"
 	"strings"
 	"text/template"
 	"time"
@@ -102,6 +103,22 @@ func parseTemplate(text string) (*template.Template, error) {
 			fmt.Fprintln(&buf, " ", color.HiCyanString("▶ Web:"), campaignPlan.PreviewURL, color.HiBlackString("or"))
 			cliCommand := fmt.Sprintf("src campaigns create -name='Campaign name' -desc='My first CLI-created campaign' -plan=%s", campaignPlan.ID)
 			fmt.Fprintln(&buf, " ", color.HiCyanString("▶ CLI:"), cliCommand)
+			return buf.String()
+		},
+
+		// `src campaign create`
+		"friendlyCampaignCreatedMessage": func(campaign Campaign) string {
+			var buf bytes.Buffer
+			fmt.Fprintln(&buf)
+
+			message := "See the progress of changeset creation on code hosts:"
+			if campaign.PublishedAt.IsZero() {
+				message = "Publish the campaign and all of its changesets or single changesets individually to create pull requests on code hosts:"
+			}
+
+			fmt.Fprintln(&buf, color.HiGreenString("✔  Campaign created."), message)
+			fmt.Fprintln(&buf)
+			fmt.Fprintln(&buf, " ", color.HiCyanString("▶ Web:"), path.Join(cfg.Endpoint, campaign.URL))
 			return buf.String()
 		},
 	})

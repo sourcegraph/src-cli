@@ -39,7 +39,9 @@ Examples:
 		planIDFlag      = flagSet.String("plan", "", "ID of campaign plan the campaign should turn into changesets. If no plan is specified, a campaign is created to which changesets can be added manually.")
 		draftFlag       = flagSet.Bool("draft", false, "Create the campaign as a draft (which won't create pull requests on code hosts)")
 
-		formatFlag = flagSet.String("f", "{{.ID}}: {{.Name}}", `Format for the output, using the syntax of Go package text/template. (e.g. "{{.ID}}: {{.Name}}") or "{{.|json}}")`)
+		changesetsFlag = flagSet.Int("changesets", 1000, "Returns the first n changesets per campaign.")
+
+		formatFlag = flagSet.String("f", "{{friendlyCampaignCreatedMessage .}}", `Format for the output, using the syntax of Go package text/template. (e.g. "{{.ID}}: {{.Name}}") or "{{.|json}}")`)
 		apiFlags   = newAPIFlags(flagSet)
 	)
 
@@ -95,9 +97,10 @@ Examples:
 		}
 
 		return (&apiRequest{
-			query: createCampaignQuery,
+			query: campaignFragment + createcampaignMutation,
 			vars: map[string]interface{}{
-				"input": input,
+				"input":           input,
+				"changesetsFirst": nullInt(*changesetsFlag),
 			},
 			result: &result,
 			done: func() error {
@@ -117,11 +120,9 @@ Examples:
 
 const currentUserIDQuery = `query CurrentUser { currentUser { id } }`
 
-const createCampaignQuery = `mutation CreateCampaign($input: CreateCampaignInput!) {
+const createcampaignMutation = `mutation CreateCampaign($input: CreateCampaignInput!, $changesetsFirst: Int) {
   createCampaign(input: $input) {
-    id
-    name
-    description
+	... campaign
   }
 }
 `
