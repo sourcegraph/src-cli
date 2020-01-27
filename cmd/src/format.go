@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"os"
-	"path"
 	"strings"
 	"text/template"
 	"time"
@@ -118,7 +118,17 @@ func parseTemplate(text string) (*template.Template, error) {
 
 			fmt.Fprintln(&buf, color.HiGreenString("✔  Campaign created."), message)
 			fmt.Fprintln(&buf)
-			fmt.Fprintln(&buf, " ", color.HiCyanString("▶ Web:"), path.Join(cfg.Endpoint, campaign.URL))
+
+			campaignURL := campaign.URL
+			u, err := url.Parse(campaignURL)
+			if err != nil {
+				// We ignore the error and simply return the message
+				return buf.String()
+			}
+
+			absoluteURL := cfg.Endpoint + u.Path
+			fmt.Fprintln(&buf, " ", color.HiCyanString("▶ Web:"), absoluteURL)
+
 			return buf.String()
 		},
 	})
