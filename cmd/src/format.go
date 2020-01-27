@@ -119,15 +119,13 @@ func parseTemplate(text string) (*template.Template, error) {
 			fmt.Fprintln(&buf, color.HiGreenString("✔  Campaign created."), message)
 			fmt.Fprintln(&buf)
 
-			campaignURL := campaign.URL
-			u, err := url.Parse(campaignURL)
+			u, err := resolveURL(cfg.Endpoint, campaign.URL)
 			if err != nil {
-				// We ignore the error and simply return the message
+				fmt.Fprintf(os.Stderr, "Failed to resolve campaign URL: %s\n", err)
 				return buf.String()
 			}
 
-			absoluteURL := cfg.Endpoint + u.Path
-			fmt.Fprintln(&buf, " ", color.HiCyanString("▶ Web:"), absoluteURL)
+			fmt.Fprintln(&buf, " ", color.HiCyanString("▶ Web:"), u)
 
 			return buf.String()
 		},
@@ -146,4 +144,18 @@ func execTemplate(tmpl *template.Template, data interface{}) error {
 // json.MarshalIndent, but with defaults.
 func marshalIndent(v interface{}) ([]byte, error) {
 	return json.MarshalIndent(v, "", "  ")
+}
+
+func resolveURL(endpoint, u string) (string, error) {
+	parsed, err := url.Parse(u)
+	if err != nil {
+		return "", err
+	}
+
+	base, err := url.Parse(endpoint)
+	if err != nil {
+		return "", err
+	}
+
+	return base.ResolveReference(parsed).String(), nil
 }
