@@ -79,6 +79,43 @@ Examples:
   Execute an action and create a campaign plan from the patches it produced:
 
     	$ src actions exec -f ~/run-gofmt-in-dockerfile.json | src campaign plan create-from-patches
+
+
+Format of the action JSON files:
+
+	An action JSON needs to specify:
+
+	- "scopeQuery" - a Sourcegraph search query to generate a list of repositories over which to run the action
+	- "steps" - a list of action steps to execute in each repository
+
+	A single "step" can either be a command that's executed on the machine on which 'src actions exec' is executed.
+	Or it can be of type "docker" which then (optionally builds) and runs a container in which the repository is mounted.
+
+	This action has a single step that produces a README.md file in repositories whose name starts with "go-" and that doesn't have a README.md file yet:
+
+		{
+		  "scopeQuery": "repo:go-* -repohasfile:README.md",
+		  "steps": [
+		    {
+		      "type": "command",
+		      "args": ["sh", "-c", "echo '# README' > README.md"]
+		    }
+		  ]
+		}
+
+	This action runs a single step over repositories whose name contains "github", building and starting a Docker container based on the image defined through the "dockerfile". In the container the word 'this' is replaced with 'that' in all text files.
+
+
+		{
+		  "scopeQuery": "repo:github",
+		  "steps": [
+		    {
+		      "type": "docker",
+		      "dockerfile": "FROM alpine:3 \n CMD find /work -iname '*.txt' -type f | xargs -n 1 sed -i s/this/that/g"
+		    }
+		  ]
+		}
+
 `
 
 	flagSet := flag.NewFlagSet("exec", flag.ExitOnError)
