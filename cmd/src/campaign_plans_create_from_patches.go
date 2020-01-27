@@ -26,6 +26,15 @@ Examples:
 		$ echo '[{"repository": $repo, "baseRevision": "master", "patch": $patch}]' |\
 		  src campaigns plans create-from-patches
 
+  Create a campaign plan from patches.json produced by 'src actions exec':
+
+		$ src actions exec -f action.json > patches.json
+		$ src campaign plan create-from-patches < patches.json
+
+  Create a campaign plan by piping output of 'src actions exec' into 'src campaign plan create-from-patches':
+
+		$ src actions exec -f action.json | src campaign plan create-from-patches < patches.json
+
 `
 
 	flagSet := flag.NewFlagSet("create-from-patches", flag.ExitOnError)

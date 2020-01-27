@@ -76,9 +76,17 @@ Examples:
 
     	$ src actions exec -f ~/run-gofmt-in-dockerfile.json
 
+  Verbosely execute an action and keep the logs available for debugging:
+
+		$ src -v actions exec -keep-logs -f ~/run-gofmt-in-dockerfile.json
+
   Execute an action and create a campaign plan from the patches it produced:
 
     	$ src actions exec -f ~/run-gofmt-in-dockerfile.json | src campaign plan create-from-patches
+
+  Read and execute an action definition from standard input:
+
+		$ cat ~/my-action.json | src actions exec -f -
 
 
 Format of the action JSON files:
