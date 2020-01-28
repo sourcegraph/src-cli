@@ -155,7 +155,7 @@ const createcampaignMutation = `mutation CreateCampaign($input: CreateCampaignIn
 `
 
 const (
-	sep    = "------- EVERYTHING BELOW THIS LINE WILL BE IGNORE -------"
+	sep    = "------- EVERYTHING BELOW THIS LINE WILL BE IGNORED -------"
 	notice = `You are creating a new campaign.
 Write a name and description for this campaign in this file.
 The first line of text is the name and the rest is the description.`
@@ -237,7 +237,7 @@ func extractContent(file string) (string, error) {
 }
 
 func openInEditor(file string) error {
-	editor := os.ExpandEnv("$EDITOR")
+	editor := os.Getenv("EDITOR")
 	if editor == "" {
 		return errors.New("$EDITOR is not set")
 	}
