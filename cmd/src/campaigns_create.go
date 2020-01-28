@@ -16,6 +16,8 @@ import (
 
 func init() {
 	usage := `
+Create a campaign with the given attributes. If -name or -desc are not specified $EDITOR will open a temporary Markdown file to edit both.
+
 Examples:
 
   Create a campaign with the given name, description and campaign plan:
@@ -40,8 +42,8 @@ Examples:
 		fmt.Println(usage)
 	}
 	var (
-		nameFlag        = flagSet.String("name", "", "Name of the campaign. (required)")
-		descriptionFlag = flagSet.String("desc", "", "Description for the campaign in Markdown. (required)")
+		nameFlag        = flagSet.String("name", "", "Name of the campaign. ")
+		descriptionFlag = flagSet.String("desc", "", "Description for the campaign in Markdown.")
 		namespaceFlag   = flagSet.String("namespace", "", "ID of the namespace under which to create the campaign. The namespace can be the GraphQL ID of a Sourcegraph user or organisation. If not specified, the ID of the authenticated user is queried and used. (Required)")
 		planIDFlag      = flagSet.String("plan", "", "ID of campaign plan the campaign should turn into changesets. If no plan is specified, a campaign is created to which changesets can be added manually.")
 		draftFlag       = flagSet.Bool("draft", false, "Create the campaign as a draft (which won't create pull requests on code hosts)")
