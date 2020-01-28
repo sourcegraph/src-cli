@@ -22,3 +22,5 @@ require (
 	jaytaylor.com/html2text v0.0.0-20190408195923-01ec452cbe43
 	sourcegraph.com/sqs/pbtypes v1.0.0 // indirect
 )
+
+replace github.com/gosuri/uilive v0.0.4 => github.com/mrnugget/uilive v0.0.4-fix-escape
