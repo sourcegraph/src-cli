@@ -153,9 +153,8 @@ const createcampaignMutation = `mutation CreateCampaign($input: CreateCampaignIn
 `
 
 const (
-	sep         = "------- EVERYTHING BELOW THIS LINE WILL BE IGNORE -------"
-	commentChar = "#"
-	notice      = `You are creating a new campaign.
+	sep    = "------- EVERYTHING BELOW THIS LINE WILL BE IGNORE -------"
+	notice = `You are creating a new campaign.
 Write a name and description for this campaign in this file.
 The first line of text is the name and the rest is the description.`
 )
@@ -202,7 +201,7 @@ func (e *CampaignEditor) EditAndExtract() (string, string, error) {
 
 func (e *CampaignEditor) writeTemplate(f *os.File) error {
 	template := e.Name + "\n\n" + e.Description
-	template += "\n\n" + commentChar + " " + sep
+	template += "\n\n" + sep
 	template += "\n\n" + notice
 
 	_, err := f.WriteString(template)
@@ -217,14 +216,13 @@ func extractContent(file string) (string, error) {
 
 	trimmed := bytes.TrimSpace(fileContent)
 
-	separator := commentChar + " " + sep
 	scanner := bufio.NewScanner(bytes.NewReader(trimmed))
 
 	content := []string{}
 
 	for scanner.Scan() {
 		line := scanner.Text()
-		if line == separator {
+		if line == sep {
 			break
 		}
 		content = append(content, line)
