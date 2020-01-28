@@ -236,6 +236,10 @@ func extractContent(file string) (string, error) {
 
 func openInEditor(file string) error {
 	editor := os.ExpandEnv("$EDITOR")
+	if editor == "" {
+		return errors.New("$EDITOR is not set")
+	}
+
 	cmd := exec.Command(editor)
 
 	r := regexp.MustCompile(`\b(?:[gm]?vim)(?:\.exe)?$`)
