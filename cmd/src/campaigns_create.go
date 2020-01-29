@@ -46,6 +46,7 @@ Examples:
 		namespaceFlag   = flagSet.String("namespace", "", "ID of the namespace under which to create the campaign. The namespace can be the GraphQL ID of a Sourcegraph user or organisation. If not specified, the ID of the authenticated user is queried and used. (Required)")
 		planIDFlag      = flagSet.String("plan", "", "ID of campaign plan the campaign should turn into changesets. If no plan is specified, a campaign is created to which changesets can be added manually.")
 		draftFlag       = flagSet.Bool("draft", false, "Create the campaign as a draft (which won't create pull requests on code hosts)")
+		branchFlag      = flagSet.String("branch", "", "")
 
 		changesetsFlag = flagSet.Int("changesets", 1000, "Returns the first n changesets per campaign.")
 
@@ -82,6 +83,10 @@ Examples:
 			return &usageError{errors.New("campaign description cannot be blank")}
 		}
 
+		if *branchFlag == "" {
+			return &usageError{errors.New("branch cannot be blank")}
+		}
+
 		var namespace string
 		if *namespaceFlag != "" {
 			namespace = *namespaceFlag
@@ -116,6 +121,7 @@ Examples:
 			"namespace":   namespace,
 			"plan":        nullString(*planIDFlag),
 			"draft":       *draftFlag,
+			"branch":      *branchFlag,
 		}
 
 		var result struct {
