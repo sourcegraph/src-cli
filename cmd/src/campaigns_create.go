@@ -83,8 +83,8 @@ Examples:
 			return &usageError{errors.New("campaign description cannot be blank")}
 		}
 
-		if *branchFlag == "" {
-			return &usageError{errors.New("branch cannot be blank")}
+		if *planIDFlag != "" && *branchFlag == "" {
+			return &usageError{errors.New("branch cannot be blank for campaigns with a plan")}
 		}
 
 		var namespace string
