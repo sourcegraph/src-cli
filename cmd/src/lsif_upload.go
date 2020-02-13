@@ -53,7 +53,7 @@ Examples:
 		fileFlag        = flagSet.String("file", "./dump.lsif", `The path to the LSIF dump file.`)
 		githubTokenFlag = flagSet.String("github-token", "", `A GitHub access token with 'public_repo' scope that Sourcegraph uses to verify you have access to the repository.`)
 		rootFlag        = flagSet.String("root", "", `The path in the repository that matches the LSIF projectRoot (e.g. cmd/project1). Defaults to the empty string, which refers to the top level of the repository.`)
-		indexerName     = flagSet.String("indexerName", "", `The name of the indexer that generated the dump. Most indexers will declare this in the LSIF output. The upload will fail with an explicit message if this is not the case.`)
+		indexerName     = flagSet.String("indexerName", "", `The name of the indexer that generated the dump. This will override the 'toolInfo.name' field in the metadata vertex of the LSIF dump file. This must be supplied if the indexer does not set this field (in which case the upload will fail with an explicit message).`)
 		apiFlags        = newAPIFlags(flagSet)
 	)
 
