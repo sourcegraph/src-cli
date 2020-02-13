@@ -16,9 +16,9 @@ If there is something you'd like to see Sourcegraph be able to do from the CLI, 
 
 ## Installation
 
-The preferred method of installation is to ask _your_ Sourcegraph instance for the latest compatible version. To do this, replace `https://sourcegraph.com` in the commands below with the address of your instance. If you are running a Sourcegraph version older than 3.12, these URLs will not be available and you must install directly from sourcegraph.com (by running the following commands _exactly_), or from one of the published [releases on GitHub](https://github.com/sourcegraph/src-cli/releases).
+For Sourcegraph 3.13 and newer, the preferred method of installation is to ask _your_ Sourcegraph instance for the latest compatible version. To do this, replace `https://sourcegraph.com` in the commands below with the address of your instance.
 
-Check the releases page for the latest version (or a specific version), then follow the instructions for your operating system using the download URL:
+For Sourcegraph 3.12 and older, run the following commands verbatim (against sourcegraph.com) or install from one of the published [releases on GitHub](https://github.com/sourcegraph/src-cli/releases).
 
 ```
 https://github.com/sourcegraph/src-cli/releases/download/{version}/{binary}
@@ -106,15 +106,19 @@ go get -u github.com/sourcegraph/src-cli/cmd/src
 
 ### Patch releases
 
-The version recommended by a Sourcegraph instance will be the highest patch version with the same major and minor version as the set minimum. This means that patch versions are reserved solely for non-breaking changes and minor bug fixes. This allows us to dynamically release fixes for older versions of src-cli without having to update the instance.
+If a backwards-compatible change is made _after_ a backwards-incompatible one, the backwards-compatible one should be re-released to older instances that support it.
 
-If you are releasing a bug fix or a new feature that is backwards compatible with one of the previous two minor version of Sourcegraph, the changes should be cherry-picked into a patch branch and re-releases with a new patch version. For example, suppose we have the the recommended versions.
+A Sourcegraph instance returns the highest patch version with the same major and minor version as `MinimumVersion` as defined in the instance. Patch versions are reserved solely for non-breaking changes and minor bug fixes. This allows us to dynamically release fixes for older versions of `src-cli` without having to update the instance.
+
+To release a bug fix or a new feature that is backwards compatible with one of the previous two minor version of Sourcegraph, cherry-pick the changes into a patch branch and re-releases with a new patch version. 
+
+For example, suppose we have the the recommended versions.
 
 | Sourcegraph version | Recommended src-cli version |
 | ------------------- | --------------------------- | 
-| `3.x`               | `3.y.z`                     |
-| `3.{x-1}`           | `3.{y-1}.w`                 |
+| `3.100`             | `3.90.5`                    |
+| `3.99`              | `3.85.7`                    |
 
-If a new feature is added to a new `3.y.{z+1}` release of src-cli and this change requires only features available in Sourcegraph `3.{x-1}`, then this feature should also be present in a new `3.{y-1}.{w+1}` release of src-cli. Similar logic should follow for Sourcegraph `3.{x-2}` and its recommended version of src-cli.
+If a new feature is added to a new `3.91.6` release of src-cli and this change requires only features available in Sourcegraph `3.99`, then this feature should also be present in a new `3.85.8` release of src-cli. Similar logic should follow for Sourcegraph `3.98` and its recommended version of src-cli. Because a Sourcegraph instance will automatically select the highest patch version, all non-breaking changes should increment only the patch version. 
 
-Because a Sourcegraph instance will automatically select the highest patch version, almost all non-breaking changes should increment only the patch version. The process above only necessary if a backwards-compatible change is made _after_ a backwards-incompatible one. If the recommended src-cli version for Sourcegraph `3.{x-1}` was instead `3.y.v` in the example above, there is no additional step required, and the new patch version of src-cli will be available to both Sourcegraph versions.
+Note that if instead the recommended src-cli version for Sourcegraph `3.99` was `3.90.4` in the example above, there is no additional step required, and the new patch version of src-cli will be available to both Sourcegraph versions.
