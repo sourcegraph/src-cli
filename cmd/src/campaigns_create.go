@@ -92,7 +92,7 @@ Examples:
 			if err != nil {
 				return err
 			}
-			needsBranch, err := sourcegraphVersionCheck(version, ">= 3.13")
+			needsBranch, err := sourcegraphVersionCheck(version, ">= 3.13", "2020-02-13")
 			if err != nil {
 				return err
 			}
@@ -300,7 +300,7 @@ func getSourcegraphVersion() (string, error) {
 	return sourcegraphVersion.Site.ProductVersion, nil
 }
 
-func sourcegraphVersionCheck(version, constraint string) (bool, error) {
+func sourcegraphVersionCheck(version, constraint, minDate string) (bool, error) {
 	if version == "dev" {
 		return true, nil
 	}
@@ -308,8 +308,7 @@ func sourcegraphVersionCheck(version, constraint string) (bool, error) {
 	buildDate := regexp.MustCompile(`^\d+_(\d{4}-\d{2}-\d{2})_[a-z0-9]{7}$`)
 	matches := buildDate.FindStringSubmatch(version)
 	if len(matches) > 1 {
-		// For now we treat non-release builds as matching the criteria
-		return true, nil
+		return matches[1] >= minDate, nil
 	}
 
 	c, err := semver.NewConstraint(constraint)
