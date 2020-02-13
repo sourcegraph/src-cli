@@ -1,5 +1,7 @@
 # Sourcegraph CLI [![Build Status](https://travis-ci.org/sourcegraph/src-cli.svg)](https://travis-ci.org/sourcegraph/src-cli) [![Build status](https://ci.appveyor.com/api/projects/status/fwa1bkd198hyim8a?svg=true)](https://ci.appveyor.com/project/sourcegraph/src-cli) [![Go Report Card](https://goreportcard.com/badge/sourcegraph/src-cli)](https://goreportcard.com/report/sourcegraph/src-cli)
 
+**Quick links**: [Installation](#installation), [Setup](#setup) ([Authentication](#authentication)), [Usage](#usage)
+
 The Sourcegraph `src` CLI provides access to [Sourcegraph](https://sourcegraph.com) via a command-line interface.
 
 ![image](https://user-images.githubusercontent.com/3173176/43567326-3db5f31c-95e6-11e8-9e74-4c04079c01b0.png)
@@ -16,29 +18,23 @@ If there is something you'd like to see Sourcegraph be able to do from the CLI, 
 
 ## Installation
 
-The preferred method of installation is to ask _your_ Sourcegraph instance for the latest compatible version. To do this, replace `https://sourcegraph.com` in the commands below with the address of your instance. If you are running a Sourcegraph version older than 3.12, these URLs will not be available and you must install directly from sourcegraph.com (by running the following commands _exactly_), or from one of the published [releases on GitHub](https://github.com/sourcegraph/src-cli/releases).
+**NOTE:** To get the best version for _your_ Sourcegraph instance, simply replace `sourcegraph.com` in the commands below with your own Sourcegraph URL and the latest version compatible with your instance will be provided. If you are running a Sourcegraph version older than 3.13, run the commands below verbatim instead.
 
-Check the releases page for the latest version (or a specific version), then follow the instructions for your operating system using the download URL:
-
-```
-https://github.com/sourcegraph/src-cli/releases/download/{version}/{binary}
-````
-
-### Mac OS
+#### Mac OS
 
 ```bash
 curl -L https://sourcegraph.com/.api/src-cli/src_darwin_amd64 -o /usr/local/bin/src
 chmod +x /usr/local/bin/src
 ```
 
-### Linux
+#### Linux
 
 ```bash
 curl -L https://sourcegraph.com/.api/src-cli/src_linux_amd64 -o /usr/local/bin/src
 chmod +x /usr/local/bin/src
 ```
 
-### Windows
+#### Windows
 
 **NOTE:** Windows support is still rough around the edges, but is available. If you encounter issues, please let us know by filing an issue :)
 
@@ -57,7 +53,7 @@ Or manually:
 - Place the file under e.g. `C:\Program Files\Sourcegraph\src.exe`
 - Add that directory to your system path to access it from any command prompt
 
-### Renaming `src` (optional)
+#### Renaming `src` (optional)
 
 If you have a naming conflict with the `src` command, such as a Bash alias, you can rename the static binary. For example, on Linux / Mac OS:
 
@@ -67,11 +63,15 @@ mv /usr/local/bin/src /usr/local/bin/sourcegraph-cli
 
 You can then invoke it via `sourcegraph-cli`.
 
-## Usage
+## Setup
 
-Consult `src -h` and `src api -h` for usage information.
+If you want to use `src` with your own Sourcegraph instance set the `SRC_ENDPOINT` environment variable:
 
-## Authentication
+```sh
+SRC_ENDPOINT=https://sourcegraph.example.com src search
+```
+
+### Authentication
 
 Some Sourcegraph instances will be configured to require authentication. You can do so via the environment:
 
@@ -88,6 +88,10 @@ Or via the configuration file (`~/src-config.json`):
 See `src -h` for more information on specifying access tokens.
 
 To acquire the access token, visit your Sourcegraph instance (or https://sourcegraph.com), click your username in the top right to open the user menu, select **Settings**, and then select **Access tokens** in the left hand menu.
+
+## Usage
+
+Consult `src -h` and `src api -h` for usage information.
 
 ## Development
 
