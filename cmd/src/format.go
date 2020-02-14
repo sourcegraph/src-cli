@@ -104,7 +104,7 @@ func parseTemplate(text string) (*template.Template, error) {
 			cliCommand := fmt.Sprintf("src campaigns create -plan=%s -branch=DESIRED-BRANCH-NAME", campaignPlan.ID)
 			fmt.Fprintln(&buf, " ", color.HiCyanString("▶ CLI:"), cliCommand)
 
-			fmt.Fprintln(&buf, "\nTo update an existing campaign:")
+			fmt.Fprintln(&buf, "\nTo update an existing campaign using this campaign plan:")
 			fmt.Fprintln(&buf, "\n ", color.HiCyanString("▶ Web:"), strings.Replace(campaignPlan.PreviewURL, "/new", "/update", 1))
 			return buf.String()
 		},
