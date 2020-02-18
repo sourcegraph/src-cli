@@ -69,6 +69,7 @@ TODO
 			ui       *uiprogress.Progress
 			bar      *uiprogress.Bar
 		)
+
 		for progress == nil || !progress.Done {
 			progress, err = getExecutionProgress(*addrFlag, id)
 			if err != nil {
@@ -77,15 +78,15 @@ TODO
 
 			if bar == nil {
 				ui = uiprogress.New()
-				ui.Start()
 				ui.SetOut(os.Stderr)
-				go ui.Listen()
+				ui.Start()
 
 				bar = ui.AddBar(len(progress.Repos) * 2) // twice, because we increment for start + finish
 				bar.PrependElapsed()
 				bar.PrependFunc(func(b *uiprogress.Bar) string {
 					return fmt.Sprintf("%d repositories (%d started, %d finished)", len(progress.Repos), len(started), len(finished))
 				})
+				bar.AppendCompleted()
 			}
 
 			for _, r := range progress.Repos {
@@ -111,6 +112,9 @@ TODO
 				time.Sleep(1 * time.Second)
 			}
 		}
+
+		bar.Set(len(started) + len(finished))
+		ui.Stop()
 
 		return json.NewEncoder(os.Stdout).Encode(progress.Patches)
 	}
