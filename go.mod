@@ -6,8 +6,13 @@ require (
 	github.com/Masterminds/semver v1.5.0
 	github.com/dustin/go-humanize v1.0.0
 	github.com/fatih/color v1.9.0
+	github.com/go-stack/stack v1.8.0 // indirect
 	github.com/gogo/protobuf v1.3.1 // indirect
+	github.com/google/uuid v1.1.1
+	github.com/gorilla/handlers v1.4.2
+	github.com/gorilla/mux v1.7.4
 	github.com/gosuri/uilive v0.0.4
+	github.com/gosuri/uiprogress v0.0.1
 	github.com/hashicorp/go-multierror v1.0.0
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
 	github.com/mattn/go-isatty v0.0.12
@@ -20,6 +25,7 @@ require (
 	github.com/ssor/bom v0.0.0-20170718123548-6386211fdfcf // indirect
 	golang.org/x/net v0.0.0-20200114155413-6afb5195e5aa
 	golang.org/x/sys v0.0.0-20200124204421-9fbb57f87de9 // indirect
+	gopkg.in/inconshreveable/log15.v2 v2.0.0-20200109203555-b30bc20e4fd1
 	jaytaylor.com/html2text v0.0.0-20190408195923-01ec452cbe43
 	sourcegraph.com/sqs/pbtypes v1.0.0 // indirect
 )

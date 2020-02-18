@@ -12,8 +12,10 @@ type actionExecutorOptions struct {
 	keepLogs bool
 	timeout  time.Duration
 
-	cache    actionExecutionCache
-	onUpdate func(map[ActionRepo]ActionRepoStatus)
+	cache actionExecutionCache
+
+	onUpdate         func(map[ActionRepo]ActionRepoStatus)
+	onUpdateInterval time.Duration
 }
 
 type actionExecutor struct {
@@ -31,6 +33,10 @@ type actionExecutor struct {
 func newActionExecutor(action Action, parallelism int, opt actionExecutorOptions) *actionExecutor {
 	if opt.cache == nil {
 		opt.cache = actionExecutionNoOpCache{}
+	}
+
+	if opt.onUpdateInterval == 0 {
+		opt.onUpdateInterval = time.Duration(50 * time.Millisecond)
 	}
 
 	return &actionExecutor{
@@ -105,7 +111,7 @@ func (x *actionExecutor) start(ctx context.Context) {
 				x.reposMu.Lock()
 				x.opt.onUpdate(x.repos)
 				x.reposMu.Unlock()
-				time.Sleep(50 * time.Millisecond)
+				time.Sleep(x.opt.onUpdateInterval)
 			}
 		}()
 
