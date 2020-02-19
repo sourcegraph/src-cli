@@ -18,7 +18,7 @@ builds:
   goarch:
     - amd64
   env:
-  - CGO_ENABLED=0
+    - CGO_ENABLED=0
 brews:
   -
     name: src-cli
@@ -30,4 +30,3 @@ brews:
     # Folder inside the repository to put the formula.
     # Default is the root folder.
     folder: Formula
-
