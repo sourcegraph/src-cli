@@ -363,7 +363,7 @@ func validateAction(ctx context.Context, action Action) error {
 			}
 
 			if step.ImageContentDigest != "" {
-				return errors.New("Setting the ImageContentDigest field of a docker run step is not allowed")
+				return errors.New("setting the ImageContentDigest field of a docker run step is not allowed")
 			}
 		}
 
