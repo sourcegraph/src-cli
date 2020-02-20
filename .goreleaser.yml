@@ -1,6 +1,7 @@
 dist: release
 env:
   - GO111MODULE=on
+  - CGO_ENABLED=0
 before:
   hooks:
     - go mod download
@@ -17,8 +18,6 @@ builds:
     - darwin
   goarch:
     - amd64
-  env:
-    - CGO_ENABLED=0
 brews:
   -
     name: src-cli
