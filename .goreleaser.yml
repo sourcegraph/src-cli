@@ -11,7 +11,7 @@ builds:
   main: ./cmd/src/
   binary: src
   ldflags:
-    - -X main.build={{.Version}}
+    - -X main.buildTag={{.Version}}
   goos:
     - linux
     - windows
