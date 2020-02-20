@@ -367,17 +367,18 @@ func unzip(zipFile, dest string) error {
 	}
 	defer r.Close()
 
+	outputBase := filepath.Clean(dest) + string(os.PathSeparator)
+
 	for _, f := range r.File {
 		fpath := filepath.Join(dest, f.Name)
 
-		// Check for ZipSlip. More Info: http://bit.ly/2MsjAWE
-		if !strings.HasPrefix(fpath, filepath.Clean(dest)+string(os.PathSeparator)) {
+		// Check for ZipSlip. More Info: https://snyk.io/research/zip-slip-vulnerability#go
+		if !strings.HasPrefix(fpath, outputBase) {
 			return fmt.Errorf("%s: illegal file path", fpath)
 		}
 
 		if f.FileInfo().IsDir() {
-			err := os.MkdirAll(fpath, os.ModePerm)
-			if err != nil {
+			if err := os.MkdirAll(fpath, os.ModePerm); err != nil {
 				return err
 			}
 			continue
@@ -398,20 +399,15 @@ func unzip(zipFile, dest string) error {
 			return err
 		}
 
-		if _, err = io.Copy(outFile, rc); err != nil {
-			// Make sure to close open files, possibly ignoring that closing
-			// them failed
-			rc.Close()
-			outFile.Close()
-			return err
+		_, err = io.Copy(outFile, rc)
+		rc.Close()
+		cerr := outFile.Close()
+		// Now we have safely closed everything that needs it, and can check errors
+		if err != nil {
+			return errors.Wrapf(err, "copying %q failed", f.Name)
 		}
-
-		if err := rc.Close(); err != nil {
-			return err
-		}
-
-		if err := outFile.Close(); err != nil {
-			return err
+		if cerr != nil {
+			return errors.Wrap(err, "closing output file failed")
 		}
 
 	}
