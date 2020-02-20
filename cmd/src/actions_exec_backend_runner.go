@@ -376,11 +376,14 @@ func unzip(zipFile, dest string) error {
 		}
 
 		if f.FileInfo().IsDir() {
-			os.MkdirAll(fpath, os.ModePerm)
+			err := os.MkdirAll(fpath, os.ModePerm)
+			if err != nil {
+				return err
+			}
 			continue
 		}
 
-		if err = os.MkdirAll(filepath.Dir(fpath), os.ModePerm); err != nil {
+		if err := os.MkdirAll(filepath.Dir(fpath), os.ModePerm); err != nil {
 			return err
 		}
 
@@ -391,17 +394,26 @@ func unzip(zipFile, dest string) error {
 
 		rc, err := f.Open()
 		if err != nil {
+			outFile.Close()
 			return err
 		}
 
-		_, err = io.Copy(outFile, rc)
-
-		outFile.Close()
-		rc.Close()
-
-		if err != nil {
+		if _, err = io.Copy(outFile, rc); err != nil {
+			// Make sure to close open files, possibly ignoring that closing
+			// them failed
+			rc.Close()
+			outFile.Close()
 			return err
 		}
+
+		if err := rc.Close(); err != nil {
+			return err
+		}
+
+		if err := outFile.Close(); err != nil {
+			return err
+		}
+
 	}
 
 	return nil
