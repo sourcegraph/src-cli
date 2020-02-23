@@ -28,6 +28,7 @@ require (
 	github.com/gogo/protobuf v1.3.1 // indirect
 	github.com/gorilla/mux v1.7.4 // indirect
 	github.com/gosuri/uilive v0.0.4
+	github.com/graph-gophers/graphql-go v0.0.0-20200207002730-8334863f2c8b
 	github.com/hashicorp/go-memdb v1.1.0 // indirect
 	github.com/hashicorp/go-multierror v1.0.0
 	github.com/hashicorp/golang-lru v0.5.4 // indirect
@@ -57,14 +58,15 @@ require (
 	github.com/vbatts/tar-split v0.11.1 // indirect
 	github.com/vishvananda/netlink v1.1.0 // indirect
 	golang.org/x/net v0.0.0-20200222125558-5a598a2470a0
-	golang.org/x/sys v0.0.0-20200219091948-cb0a6d8edb6c // indirect
+	golang.org/x/sys v0.0.0-20200223170610-d5e6a3e2c0ae // indirect
 	golang.org/x/time v0.0.0-20191024005414-555d28b269f0 // indirect
 	google.golang.org/genproto v0.0.0-20200218151345-dad8c97a84f5 // indirect
 	google.golang.org/grpc v1.27.1 // indirect
+	gotest.tools/v3 v3.0.2 // indirect
 	jaytaylor.com/html2text v0.0.0-20200220170450-61d9dc4d7195
 	sourcegraph.com/sqs/pbtypes v1.0.0 // indirect
 )
 
 replace github.com/gosuri/uilive v0.0.4 => github.com/mrnugget/uilive v0.0.4-fix-escape
 
-replace github.com/docker/docker v1.4.2-0.20200221230207-d706420b5d0f => github.com/docker/engine v1.4.2-0.20200221230207-d706420b5d0f
+// replace github.com/docker/docker v1.4.2-0.20200221230207-d706420b5d0f => github.com/docker/engine v1.4.2-0.20200221230207-d706420b5d0f

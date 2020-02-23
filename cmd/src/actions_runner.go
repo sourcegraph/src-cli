@@ -1,14 +1,15 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"flag"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"os/signal"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -17,6 +18,8 @@ import (
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/client"
+	"github.com/docker/docker/pkg/stdcopy"
+	"github.com/sourcegraph/go-diff/diff"
 )
 
 func init() {
@@ -70,8 +73,10 @@ type envKV struct {
 }
 
 type actionJob struct {
+	ID    string
 	image string
 	env   []envKV
+	diff  *string
 }
 
 func (r *runner) startRunner(parallelJobCount int) error {
@@ -112,8 +117,13 @@ func (r *runner) startRunner(parallelJobCount int) error {
 				// panic(err)
 			} else if j != nil {
 				println("Starting new job")
-				if err := r.runActionJob(ctx, *j); err != nil {
+				if err := r.runActionJob(ctx, j); err != nil {
 					panic(err)
+				}
+				if j.diff != nil {
+					println("Generated diff", *j.diff)
+				} else {
+					println("Resulted in no diff")
 				}
 			}
 			wg.Done()
@@ -189,15 +199,32 @@ func stopRunner(ctx context.Context, r *jobRunner) {
 
 var lastJob int = 0
 
-func (r *runner) runActionJob(_ctx context.Context, job actionJob) error {
+func (r *runner) runActionJob(_ctx context.Context, job *actionJob) error {
 	ctx, cancel := context.WithCancel(_ctx)
 	defer cancel()
+	changeStatus(job, "PREPARING")
+
+	zipFile, err := fetchRepositoryArchive(ctx, "github.com/sourcegraph/sourcegraph", "master")
+	if err != nil {
+		return err // errors.Wrap(err, "Fetching ZIP archive failed")
+	}
+	defer os.Remove(zipFile.Name())
+
+	prefix := "action-" + strings.Replace(strings.Replace("github.com/sourcegraph/sourcegraph", "/", "-", -1), "github.com-", "", -1)
+	volumeDir, err := unzipToTempDir(ctx, zipFile.Name(), prefix)
+	if err != nil {
+		return err // errors.Wrap(err, "Unzipping the ZIP archive failed")
+	}
+	defer os.RemoveAll(volumeDir)
+
+	changeStatus(job, "CREATING")
 	jr := &jobRunner{
-		actionJob: job,
+		actionJob: *job,
 		client:    r.client,
 	}
 	r.runningJobs[lastJob] = jr
 	lastJob++
+	changeStatus(job, "PULLING")
 	reader, err := r.client.ImagePull(ctx, jr.actionJob.image, types.ImagePullOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to pull image %s: %s", jr.actionJob.image, err.Error())
@@ -208,15 +235,23 @@ func (r *runner) runActionJob(_ctx context.Context, job actionJob) error {
 	for i, kv := range jr.actionJob.env {
 		env[i] = fmt.Sprintf("%s=%s", kv.key, kv.value)
 	}
+	workDir := "/work"
 	c, err := r.client.ContainerCreate(ctx, &container.Config{
-		Image:        jr.actionJob.image,
-		Cmd:          []string{"/bin/sh", "-c", "timeout 12 while true; do echo 1; sleep 1; done"},
-		Labels:       map[string]string{"com.sourcegraph.runner": "true"},
-		Env:          env,
-		Tty:          false,
+		Image: jr.actionJob.image,
+		// Cmd:          []string{"/bin/sh", "-c", "apk update && apk add diffutils && cat LICENSE > package.json"}, // "timeout 12 while true; do echo 1; sleep 1; done"},
+		Labels: map[string]string{"com.sourcegraph.runner": "true"},
+		Env:    env,
+		Tty:    false,
+		// todo: only needed when piping in commands
+		AttachStdin: true,
+		OpenStdin:   true,
+		StdinOnce:   true,
+		// end todo
 		AttachStdout: true,
 		AttachStderr: true,
+		WorkingDir:   workDir,
 	}, &container.HostConfig{
+		Binds:         []string{fmt.Sprintf("%s:%s", volumeDir, workDir)},
 		RestartPolicy: container.RestartPolicy{Name: "no"},
 	}, nil, "") //, "container_name")
 	if err != nil {
@@ -240,38 +275,38 @@ func (r *runner) runActionJob(_ctx context.Context, job actionJob) error {
 	if err != nil {
 		return err
 	}
-	println("Started container")
-	attachCh := make(chan error, 1)
+	changeStatus(job, "RUNNING")
+	attachCh := make(chan error, 2)
+	shellOpts := "set -eo pipefail\n"
 	go func() {
-		for {
-			// todo: need to collect final logs
-			read, err := ioutil.ReadAll(hij.Reader)
-			if err != nil && err != io.EOF {
+		_, err := io.Copy(hij.Conn, bytes.NewBufferString(shellOpts+"ls -laHN\ncat LICENSE >> package.json"))
+		hij.CloseWrite()
+		if err != nil {
+			attachCh <- err
+		}
+	}()
+	go func() {
+		buffer := bytes.NewBuffer([]byte{})
+		go func() {
+			_, err := stdcopy.StdCopy(buffer, buffer, hij.Reader)
+			if err != nil {
 				println(err.Error())
 				attachCh <- err
-				break
 			}
-			if err == io.EOF {
-				println("Received EOF on container logs")
-			}
-			if err := appendLog(&job, string(read)); err != nil {
+		}()
+		for {
+			// todo: buffer might be written to during read, need concurrency lock
+			if err := appendLog(job, buffer.String()); err != nil {
 				attachCh <- err
 				break
 			}
 			select {
 			case <-ctx.Done():
-				println("ctx done: container log listener")
-				remainingLog, err := ioutil.ReadAll(hij.Reader)
-				if err != nil {
-					attachCh <- err
-					break
-				}
-				if err := appendLog(&job, string(remainingLog)); err != nil {
+				if err := appendLog(job, buffer.String()); err != nil {
 					attachCh <- err
 				}
-				break
+				return
 			case <-time.After(time.Second * 5):
-				println("5s over, polling: container log listener")
 			}
 		}
 	}()
@@ -296,15 +331,49 @@ func (r *runner) runActionJob(_ctx context.Context, job actionJob) error {
 			if res.Error != nil {
 				println(res.Error.Message)
 			}
-			changeStatus(&job, "FAILED")
+			changeStatus(job, "ERRORED")
 			// return errors.New("Container errored")
 		} else {
-			changeStatus(&job, "COMPLETED")
+			changeStatus(job, "COMPLETED")
 		}
 	case err = <-errCh:
 		if err != nil {
 			return err
 		}
+	}
+	// todo: error handling
+	// Compute diff.
+	oldDir, err := unzipToTempDir(ctx, zipFile.Name(), prefix)
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(oldDir)
+
+	diffOut, err := diffDirs(ctx, oldDir, volumeDir)
+	if err != nil {
+		return err // errors.Wrap(err, "Generating a diff failed")
+	}
+
+	// Strip temp dir prefixes from diff.
+	fileDiffs, err := diff.ParseMultiFileDiff(diffOut)
+	if err != nil {
+		return err
+	}
+	for _, fileDiff := range fileDiffs {
+		for i := range fileDiff.Extended {
+			fileDiff.Extended[i] = strings.Replace(fileDiff.Extended[i], oldDir+string(os.PathSeparator), "", -1)
+			fileDiff.Extended[i] = strings.Replace(fileDiff.Extended[i], volumeDir+string(os.PathSeparator), "", -1)
+		}
+		fileDiff.OrigName = strings.TrimPrefix(fileDiff.OrigName, oldDir+string(os.PathSeparator))
+		fileDiff.NewName = strings.TrimPrefix(fileDiff.NewName, volumeDir+string(os.PathSeparator))
+	}
+	d, err := diff.PrintMultiFileDiff(fileDiffs)
+	if err != nil {
+		return err
+	}
+	parsedD := string(d)
+	if parsedD != "" {
+		job.diff = &parsedD
 	}
 	return nil
 }
@@ -313,14 +382,40 @@ func (r *runner) checkForJobs(ctx context.Context) (*actionJob, error) {
 	println("Checking for new jobs..")
 	var result struct {
 		BeginActionJob *struct {
-			ID    string `json:"id"`
-			Image string `json:"image"`
-		} `json:"beginActionJob,omitempty"`
+			ID         string `json:"id"`
+			Definition struct {
+				Steps string `json:"steps"`
+				Env   []struct {
+					Key   string `json:"key"`
+					Value string `json:"value"`
+				} `json:"env"`
+				ActionWorkspace struct {
+					Name string `json:"name"`
+				} `json:"actionWorkspace"`
+			} `json:"definition"`
+			Repository struct {
+				Name string `json:"name"`
+			} `json:"repository"`
+			BaseRevision string `json:"baseRevision"`
+		} `json:"pullActionJob,omitempty"`
 	}
 	query := `mutation BeginActionJob($runner: ID!) {
-	beginActionJob(runner: $runner) {
+	pullActionJob(runner: $runner) {
 		id
-		image
+		definition {
+			steps
+			env {
+				key
+				value
+			}
+			actionWorkspace {
+				name
+			}
+		}
+		repository {
+			name
+		}
+		baseRevision
 	}
 }`
 	if err := (&apiRequest{
@@ -334,15 +429,18 @@ func (r *runner) checkForJobs(ctx context.Context) (*actionJob, error) {
 	}
 	if result.BeginActionJob != nil {
 		fmt.Printf("Got job with ID '%s'\n", result.BeginActionJob.ID)
-		return &actionJob{image: result.BeginActionJob.Image}, nil
+		return &actionJob{ID: result.BeginActionJob.ID, image: result.BeginActionJob.Definition.Steps}, nil
 	}
 	return nil, nil
 }
 
 func appendLog(job *actionJob, content string) error {
+	if content == "" {
+		return nil
+	}
 	var result struct{}
-	query := `mutation AppendLog($actionJob: ID!, $content: String!, $start: Int!) {
-	appendLog(actionJob: $actionJob, content: $content, start: $start) {
+	query := `mutation AppendLog($actionJob: ID!, $content: String!) {
+	appendLog(actionJob: $actionJob, content: $content) {
 		alwaysNil
 	}
 }`
@@ -351,7 +449,6 @@ func appendLog(job *actionJob, content string) error {
 		vars: map[string]interface{}{
 			"actionJob": "jobid",
 			"content":   content,
-			"start":     1,
 		},
 		result: &result,
 	}).do(); err != nil {
@@ -362,5 +459,25 @@ func appendLog(job *actionJob, content string) error {
 
 func changeStatus(job *actionJob, status string) error {
 	fmt.Printf("Status of container changed to %s\n", status)
+	if status == "PULLING" || status == "PREPARING" || status == "CREATING" {
+		return nil
+	}
+	var result struct{}
+	query := `mutation UpdateActionJob($actionJob: ID!, $state: ActionJobState) {
+	updateActionJob(actionJob: $actionJob, state: $state) {
+		id
+	}
+}`
+	if err := (&apiRequest{
+		query: query,
+		vars: map[string]interface{}{
+			"actionJob": job.ID,
+			"state":     status,
+		},
+		result: &result,
+	}).do(); err != nil {
+		println(err.Error())
+		return err
+	}
 	return nil
 }
