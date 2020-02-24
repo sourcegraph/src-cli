@@ -123,20 +123,45 @@ func reachedTimeout(cmdCtx context.Context, err error) bool {
 	return errors.Is(err, context.DeadlineExceeded)
 }
 
-func runAction(ctx context.Context, prefix, repoID, repoName, rev string, steps []*ActionStep, logFile io.Writer) ([]byte, error) {
-	fmt.Fprintf(logFile, "# Repository %s @ %s (%d steps)\n", repoName, rev, len(steps))
+type executionContext struct {
+	zipFile   *os.File
+	volumeDir string
+}
 
+func (x *executionContext) prepare(ctx context.Context, repoName, rev, prefix string) error {
 	zipFile, err := fetchRepositoryArchive(ctx, repoName, rev)
 	if err != nil {
-		return nil, errors.Wrap(err, "Fetching ZIP archive failed")
+		return errors.Wrap(err, "Fetching ZIP archive failed")
 	}
-	defer os.Remove(zipFile.Name())
+	x.zipFile = zipFile
 
 	volumeDir, err := unzipToTempDir(ctx, zipFile.Name(), prefix)
 	if err != nil {
-		return nil, errors.Wrap(err, "Unzipping the ZIP archive failed")
+		return errors.Wrap(err, "Unzipping the ZIP archive failed")
 	}
-	defer os.RemoveAll(volumeDir)
+	x.volumeDir = volumeDir
+	return nil
+}
+
+func (x *executionContext) cleanup() error {
+	errZ := os.Remove(x.zipFile.Name())
+	errV := os.RemoveAll(x.volumeDir)
+	if errZ != nil {
+		return errZ
+	}
+	if errV != nil {
+		return errV
+	}
+	return nil
+}
+
+func runAction(ctx context.Context, prefix, repoID, repoName, rev string, steps []*ActionStep, logFile io.Writer) ([]byte, error) {
+	fmt.Fprintf(logFile, "# Repository %s @ %s (%d steps)\n", repoName, rev, len(steps))
+	e := &executionContext{}
+	if err := e.prepare(ctx, repoName, rev, prefix); err != nil {
+		return nil, err
+	}
+	defer e.cleanup()
 
 	for i, step := range steps {
 		if i != 0 {
@@ -150,7 +175,7 @@ func runAction(ctx context.Context, prefix, repoID, repoName, rev string, steps 
 			fmt.Fprintf(logFile, "# %s: command %v\n", logPrefix, step.Args)
 
 			cmd := exec.CommandContext(ctx, step.Args[0], step.Args[1:]...)
-			cmd.Dir = volumeDir
+			cmd.Dir = e.volumeDir
 			cmd.Stdout = logFile
 			cmd.Stderr = logFile
 			if err := cmd.Run(); err != nil {
@@ -186,7 +211,7 @@ func runAction(ctx context.Context, prefix, repoID, repoName, rev string, steps 
 				"--rm",
 				"--cidfile", cidFile.Name(),
 				"--workdir", workDir,
-				"--mount", fmt.Sprintf("type=bind,source=%s,target=%s", volumeDir, workDir),
+				"--mount", fmt.Sprintf("type=bind,source=%s,target=%s", e.volumeDir, workDir),
 			)
 			for _, cacheDir := range step.CacheDirs {
 				// persistentCacheDir returns a host directory that persists across runs of this
@@ -213,7 +238,7 @@ func runAction(ctx context.Context, prefix, repoID, repoName, rev string, steps 
 			}
 			cmd.Args = append(cmd.Args, "--", step.Image)
 			cmd.Args = append(cmd.Args, step.Args...)
-			cmd.Dir = volumeDir
+			cmd.Dir = e.volumeDir
 			cmd.Stdout = logFile
 			cmd.Stderr = logFile
 			t0 := time.Now()
@@ -230,7 +255,10 @@ func runAction(ctx context.Context, prefix, repoID, repoName, rev string, steps 
 		}
 	}
 
-	// Compute diff.
+	return computeDiff(ctx, e.zipFile, e.volumeDir, prefix)
+}
+
+func computeDiff(ctx context.Context, zipFile *os.File, volumeDir, prefix string) ([]byte, error) {
 	oldDir, err := unzipToTempDir(ctx, zipFile.Name(), prefix)
 	if err != nil {
 		return nil, err
