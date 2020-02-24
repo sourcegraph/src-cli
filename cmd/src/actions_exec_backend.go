@@ -26,9 +26,11 @@ type actionExecutor struct {
 	par           *parallel.Run
 	done          chan struct{}
 	doneEnqueuing chan struct{}
+
+	logger *actionLogger
 }
 
-func newActionExecutor(action Action, parallelism int, opt actionExecutorOptions) *actionExecutor {
+func newActionExecutor(action Action, parallelism int, logger *actionLogger, opt actionExecutorOptions) *actionExecutor {
 	if opt.cache == nil {
 		opt.cache = actionExecutionNoOpCache{}
 	}
@@ -38,6 +40,7 @@ func newActionExecutor(action Action, parallelism int, opt actionExecutorOptions
 		opt:    opt,
 		repos:  map[ActionRepo]ActionRepoStatus{},
 		par:    parallel.NewRun(parallelism),
+		logger: logger,
 
 		done:          make(chan struct{}),
 		doneEnqueuing: make(chan struct{}),
@@ -105,7 +108,7 @@ func (x *actionExecutor) start(ctx context.Context) {
 				x.reposMu.Lock()
 				x.opt.onUpdate(x.repos)
 				x.reposMu.Unlock()
-				time.Sleep(5 * time.Second)
+				time.Sleep(50 * time.Millisecond)
 			}
 		}()
 

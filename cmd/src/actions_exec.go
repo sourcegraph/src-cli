@@ -198,18 +198,18 @@ Format of the action JSON files:
 			return errors.Wrap(err, "Failed to prepare action")
 		}
 
+		logger := newActionLogger(*verbose, *keepLogsFlag)
+
 		opts := actionExecutorOptions{
 			timeout:  *timeoutFlag,
 			keepLogs: *keepLogsFlag,
 			cache:    actionExecutionDiskCache{dir: *cacheDirFlag},
 		}
-		if *verbose {
-			opts.onUpdate = newLogPrinter()
-		} else {
+		if !*verbose {
 			opts.onUpdate = newTerminalUI(*keepLogsFlag)
 		}
 
-		executor := newActionExecutor(action, *parallelismFlag, opts)
+		executor := newActionExecutor(action, *parallelismFlag, logger, opts)
 
 		if *verbose {
 			log.Printf("Querying %s for repositories matching '%s'...", cfg.Endpoint, action.ScopeQuery)
@@ -228,7 +228,9 @@ Format of the action JSON files:
 		}
 
 		// Execute actions
-		opts.onUpdate(executor.repos)
+		if opts.onUpdate != nil {
+			opts.onUpdate(executor.repos)
+		}
 
 		go executor.start(ctx)
 		if err := executor.wait(); err != nil {
