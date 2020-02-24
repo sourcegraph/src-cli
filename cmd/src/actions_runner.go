@@ -8,7 +8,6 @@ import (
 	"io"
 	"os"
 	"os/signal"
-	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -102,6 +101,7 @@ func (r *runner) startRunner(parallelJobCount int) error {
 	go func() {
 		sig := <-sigs
 		fmt.Println("Received signal", sig)
+		cancel()
 		r.stopAllJobs(ctx)
 		if err := cleanupOldContainers(ctx, r.client); err != nil {
 			// todo: err chan
@@ -163,8 +163,10 @@ func (r *runner) runActionJob(_ctx context.Context, job *actionJob) error {
 	// create periodic log streamer
 	go func() {
 		for {
+			content := _logBuffer.String()
+			_logBuffer.Reset()
 			// todo: buffer might be written to during read, need concurrency lock
-			if err := appendLog(job, _logBuffer.String()); err != nil {
+			if err := appendLog(job, content); err != nil {
 				// todo:
 				// attachCh <- err
 				break
@@ -215,6 +217,7 @@ func (r *runner) runActionJob(_ctx context.Context, job *actionJob) error {
 
 	for _, step := range action.Steps {
 		if err := r.runContainer(runCtx, job, step, x.volumeDir, logBuffer); err != nil {
+			println("Container errored, I won't continue")
 			println(err.Error())
 			return err
 		}
@@ -261,21 +264,14 @@ func (r *runner) runContainer(ctx context.Context, job *actionJob, step *ActionS
 
 	workDir := "/work"
 	containerConfig := &container.Config{
-		Image:  image,
-		Labels: map[string]string{"com.sourcegraph.runner": "true"},
-		Env:    env,
-		Tty:    false,
-		// end todo
+		Image:        image,
+		Cmd:          step.Args,
+		Labels:       map[string]string{"com.sourcegraph.runner": "true"},
+		Env:          env,
+		Tty:          false,
 		AttachStdout: true,
 		AttachStderr: true,
 		WorkingDir:   workDir,
-	}
-	hasCommand := len(step.Args) > 0
-	if hasCommand {
-		// attach to stdin to pipe in the command
-		containerConfig.AttachStdin = true
-		containerConfig.OpenStdin = true
-		containerConfig.StdinOnce = true
 	}
 
 	c, err := r.client.ContainerCreate(ctx, containerConfig, &container.HostConfig{
@@ -288,7 +284,6 @@ func (r *runner) runContainer(ctx context.Context, job *actionJob, step *ActionS
 
 	hij, err := r.client.ContainerAttach(ctx, c.ID, types.ContainerAttachOptions{
 		Stream: true,
-		Stdin:  true,
 		Stdout: true,
 		Stderr: true,
 		Logs:   true,
@@ -303,28 +298,7 @@ func (r *runner) runContainer(ctx context.Context, job *actionJob, step *ActionS
 		return err
 	}
 
-	attachCh := make(chan error, 2)
-	if hasCommand {
-		shellOpts := "set -eo pipefail\n"
-		cmd := shellOpts
-		firstArg := true
-		for _, arg := range step.Args {
-			convertedArg := "\"" + strings.ReplaceAll(arg, "\"", "\\\"") + "\""
-			if firstArg == true {
-				firstArg = false
-				cmd = cmd + convertedArg
-				continue
-			}
-			cmd = cmd + " " + convertedArg
-		}
-		go func() {
-			_, err := io.Copy(hij.Conn, bytes.NewBufferString(cmd))
-			hij.CloseWrite()
-			if err != nil {
-				attachCh <- err
-			}
-		}()
-	}
+	attachCh := make(chan error, 1)
 	go func() {
 		_, err := stdcopy.StdCopy(log, log, hij.Reader)
 		if err != nil {
@@ -352,8 +326,10 @@ func (r *runner) runContainer(ctx context.Context, job *actionJob, step *ActionS
 		if res.StatusCode != 0 || res.Error != nil {
 			// log job has failed
 			log.Write([]byte(fmt.Sprintf("Container failed with status code %d\n", res.StatusCode)))
-			return errors.Wrap(err, "Container errored")
+			return errors.New(res.Error.Message)
 		}
+		println("Container exited with 0 status code :-)")
+
 		return nil
 
 	case err = <-errCh:
@@ -466,11 +442,12 @@ func appendLog(job *actionJob, content string) error {
 	if err := (&apiRequest{
 		query: query,
 		vars: map[string]interface{}{
-			"actionJob": "jobid",
+			"actionJob": job.ID,
 			"content":   content,
 		},
 		result: &result,
 	}).do(); err != nil {
+		println(err.Error())
 		return err
 	}
 	return nil
