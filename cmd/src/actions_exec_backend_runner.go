@@ -90,7 +90,7 @@ func (x *actionExecutor) do(ctx context.Context, repo ActionRepo) (err error) {
 			err = &errTimeoutReached{timeout: x.opt.timeout}
 		}
 		status.Err = err
-		fmt.Fprintf(logWriter, "# ERROR: %s\n", err)
+		fmt.Fprintf(logWriter, "%s: ERROR: %s\n", repo.Name, err)
 	}
 	x.updateRepoStatus(repo, status)
 
@@ -123,7 +123,7 @@ func reachedTimeout(cmdCtx context.Context, err error) bool {
 }
 
 func runAction(ctx context.Context, prefix, repoID, repoName, rev string, steps []*ActionStep, logFile io.Writer) ([]byte, error) {
-	fmt.Fprintf(logFile, "# Repository %s @ %s (%d steps)\n", repoName, rev, len(steps))
+	fmt.Fprintf(logFile, "%s -> Starting action @ %s (%d steps)\n", repoName, rev, len(steps))
 
 	zipFile, err := fetchRepositoryArchive(ctx, repoName, rev)
 	if err != nil {
@@ -138,32 +138,28 @@ func runAction(ctx context.Context, prefix, repoID, repoName, rev string, steps 
 	defer os.RemoveAll(volumeDir)
 
 	for i, step := range steps {
-		if i != 0 {
-			fmt.Fprintln(logFile)
-		}
-
-		logPrefix := fmt.Sprintf("Step %d", i)
+		logPrefix := fmt.Sprintf("%s -> Step %d", repoName, i)
 
 		switch step.Type {
 		case "command":
-			fmt.Fprintf(logFile, "# %s: command %v\n", logPrefix, step.Args)
+			fmt.Fprintf(logFile, "%s: command %v\n", logPrefix, step.Args)
 
 			cmd := exec.CommandContext(ctx, step.Args[0], step.Args[1:]...)
 			cmd.Dir = volumeDir
 			cmd.Stdout = logFile
 			cmd.Stderr = logFile
 			if err := cmd.Run(); err != nil {
-				fmt.Fprintf(logFile, "# %s: error: %s.\n", logPrefix, err)
+				fmt.Fprintf(logFile, "%s: error: %s.\n", logPrefix, err)
 				return nil, errors.Wrap(err, "run command")
 			}
-			fmt.Fprintf(logFile, "# %s: done.\n", logPrefix)
+			fmt.Fprintf(logFile, "%s: done.\n", logPrefix)
 
 		case "docker":
 			var fromDockerfile string
 			if step.Dockerfile != "" {
 				fromDockerfile = " (built from inline Dockerfile)"
 			}
-			fmt.Fprintf(logFile, "# %s: docker run %v%s\n", logPrefix, step.Image, fromDockerfile)
+			fmt.Fprintf(logFile, "%s: docker run %v%s\n", logPrefix, step.Image, fromDockerfile)
 
 			cidFile, err := ioutil.TempFile(tempDirPrefix, prefix+"-container-id")
 			if err != nil {
@@ -219,10 +215,10 @@ func runAction(ctx context.Context, prefix, repoID, repoName, rev string, steps 
 			err = cmd.Run()
 			elapsed := time.Since(t0).Round(time.Millisecond)
 			if err != nil {
-				fmt.Fprintf(logFile, "# %s: error: %s. (%s)\n", logPrefix, err, elapsed)
+				fmt.Fprintf(logFile, "%s: error: %s. (%s)\n", logPrefix, err, elapsed)
 				return nil, errors.Wrap(err, "run docker container")
 			}
-			fmt.Fprintf(logFile, "# %s: done. (%s)\n", logPrefix, elapsed)
+			fmt.Fprintf(logFile, "%s: done. (%s)\n", logPrefix, elapsed)
 
 		default:
 			return nil, fmt.Errorf("unrecognized run type %q", step.Type)

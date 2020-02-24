@@ -105,7 +105,7 @@ func (x *actionExecutor) start(ctx context.Context) {
 				x.reposMu.Lock()
 				x.opt.onUpdate(x.repos)
 				x.reposMu.Unlock()
-				time.Sleep(50 * time.Millisecond)
+				time.Sleep(5 * time.Second)
 			}
 		}()
 
