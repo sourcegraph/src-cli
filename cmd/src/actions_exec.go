@@ -177,14 +177,22 @@ Format of the action JSON files:
 
 		ctx := context.Background()
 
+		logger := newActionLogger(*verbose, *keepLogsFlag)
+
 		diffSupportsNoDereference, err = diffSupportsFlag(ctx, "--no-dereference")
 		if err != nil {
 			return err
+		}
+		if !diffSupportsNoDereference {
+			logger.Warnf("Local installation of 'diff' doesn't support '%s' flag. Consider upgrading to GNU diff >=3.7.\n", "--no-dereference")
 		}
 
 		diffSupportsColor, err = diffSupportsFlag(ctx, "--color")
 		if err != nil {
 			return err
+		}
+		if !diffSupportsColor {
+			logger.Warnf("Local installation of 'diff' doesn't support '%s' flag. Consider upgrading to GNU diff >=3.7.\n", "--color")
 		}
 
 		err = validateAction(ctx, action)
@@ -198,8 +206,6 @@ Format of the action JSON files:
 			return errors.Wrap(err, "Failed to prepare action")
 		}
 
-		logger := newActionLogger(*verbose, *keepLogsFlag)
-
 		opts := actionExecutorOptions{
 			timeout:  *timeoutFlag,
 			keepLogs: *keepLogsFlag,
@@ -209,20 +215,15 @@ Format of the action JSON files:
 			opts.onUpdate = newTerminalUI(*keepLogsFlag)
 		}
 
-		executor := newActionExecutor(action, *parallelismFlag, logger, opts)
-
-		if *verbose {
-			log.Printf("Querying %s for repositories matching '%s'...", cfg.Endpoint, action.ScopeQuery)
-		}
-
 		// Query repos over which to run action
-		repos, err := actionRepos(ctx, *verbose, action.ScopeQuery)
+		logger.Infof("Querying %s for repositories matching '%s'...\n", cfg.Endpoint, action.ScopeQuery)
+		repos, err := actionRepos(ctx, action.ScopeQuery)
 		if err != nil {
 			return err
 		}
-		if *verbose {
-			log.Printf("%d repositories match. Use 'src actions scope-query' for help with scoping.", len(repos))
-		}
+		logger.Infof("%d repositories match. Use 'src actions scope-query' for help with scoping.\n", len(repos))
+
+		executor := newActionExecutor(action, *parallelismFlag, logger, opts)
 		for _, repo := range repos {
 			executor.enqueueRepo(repo)
 		}
@@ -237,9 +238,9 @@ Format of the action JSON files:
 			return err
 		}
 		patches := executor.allPatches()
-		if *verbose {
-			log.Printf("Action produced %d patches.", len(patches))
-		}
+
+		logger.Infof("Action produced %d patches.\n", len(patches))
+
 		return json.NewEncoder(os.Stdout).Encode(patches)
 	}
 
@@ -359,7 +360,7 @@ type ActionRepo struct {
 	Rev  string
 }
 
-func actionRepos(ctx context.Context, verbose bool, scopeQuery string) ([]ActionRepo, error) {
+func actionRepos(ctx context.Context, scopeQuery string) ([]ActionRepo, error) {
 	hasCount, err := regexp.MatchString(`count:\d+`, scopeQuery)
 	if err != nil {
 		return nil, err

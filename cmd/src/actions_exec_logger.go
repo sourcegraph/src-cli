@@ -39,6 +39,18 @@ func newActionLogger(verbose, keepLogs bool) *actionLogger {
 	}
 }
 
+func (a *actionLogger) Warnf(format string, args ...interface{}) {
+	if a.verbose {
+		fmt.Fprintf(os.Stderr, "WARNING: "+format, args...)
+	}
+}
+
+func (a *actionLogger) Infof(format string, args ...interface{}) {
+	if a.verbose {
+		fmt.Fprintf(os.Stderr, format, args...)
+	}
+}
+
 func (a *actionLogger) AddRepo(repo ActionRepo) (string, error) {
 	prefix := "action-" + strings.Replace(strings.Replace(repo.Name, "/", "-", -1), "github.com-", "", -1)
 
