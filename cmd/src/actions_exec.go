@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -17,6 +18,7 @@ import (
 	"time"
 
 	"github.com/fatih/color"
+	"github.com/mattn/go-isatty"
 	"github.com/pkg/errors"
 	"github.com/sourcegraph/go-diff/diff"
 )
@@ -61,19 +63,23 @@ Examples:
 
   Execute an action defined in ~/run-gofmt-in-dockerfile.json:
 
-    	$ src actions exec -f ~/run-gofmt-in-dockerfile.json
-
-  Verbosely execute an action and keep the logs available for debugging:
-
-		$ src -v actions exec -keep-logs -f ~/run-gofmt-in-dockerfile.json
+	$ src actions exec -f ~/run-gofmt-in-dockerfile.json
 
   Execute an action and create a campaign plan from the patches it produced:
 
-    	$ src actions exec -f ~/run-gofmt-in-dockerfile.json | src campaign plan create-from-patches
+	$ src actions exec -f ~/run-gofmt-in-dockerfile.json -create-plan
+
+  Verbosely execute an action and keep the logs available for debugging:
+
+	$ src -v actions exec -keep-logs -f ~/run-gofmt-in-dockerfile.json
+
+  Execute an action and pipe the patches it produced to 'src campaign plan create-from-patches':
+
+	$ src actions exec -f ~/run-gofmt-in-dockerfile.json | src campaign plan create-from-patches
 
   Read and execute an action definition from standard input:
 
-		$ cat ~/my-action.json | src actions exec -f -
+	$ cat ~/my-action.json | src actions exec -f -
 
 
 Format of the action JSON files:
@@ -132,6 +138,10 @@ Format of the action JSON files:
 		cacheDirFlag    = flagSet.String("cache", displayUserCacheDir, "Directory for caching results.")
 		keepLogsFlag    = flagSet.Bool("keep-logs", false, "Do not remove execution log files when done.")
 		timeoutFlag     = flagSet.Duration("timeout", defaultTimeout, "The maximum duration a single action run can take (excluding the building of Docker images).")
+
+		createPlanFlag = flagSet.Bool("create-plan", false, "Create a campaign plan from the produced set of patches. When the execution of the action fails in a single repository a prompt will ask to confirm or reject the campaign plan creation.")
+
+		apiFlags = newAPIFlags(flagSet)
 	)
 
 	handler := func(args []string) error {
@@ -213,14 +223,38 @@ Format of the action JSON files:
 		}
 
 		go executor.start(ctx)
-		if err := executor.wait(); err != nil {
-			return err
-		}
+		err = executor.wait()
+
 		patches := executor.allPatches()
 
-		logger.Infof("Action produced %d patches.\n", len(patches))
+		if !*createPlanFlag {
+			if err != nil {
+				return err
+			}
 
-		return json.NewEncoder(os.Stdout).Encode(patches)
+			logger.Infof("Action produced %d patches.\n", len(patches))
+			return json.NewEncoder(os.Stdout).Encode(patches)
+		}
+
+		if err != nil {
+			canInput := isatty.IsTerminal(os.Stdin.Fd()) || isatty.IsCygwinTerminal(os.Stdin.Fd())
+			if !canInput {
+				return err
+			}
+
+			logger.Warnf("Action failed with an error: %s\n", err)
+			c := askForConfirmation(fmt.Sprintf("Do you still want to create a campaign plan for the %d generated patches?", len(patches)))
+			if !c {
+				return err
+			}
+		}
+
+		tmpl, err := parseTemplate("{{friendlyCampaignPlanCreatedMessage .}}")
+		if err != nil {
+			return err
+		}
+
+		return createCampaignPlanFromPatches(apiFlags, patches, tmpl, 100)
 	}
 
 	// Register the command.
@@ -475,4 +509,29 @@ func isGitAvailable() bool {
 		return false
 	}
 	return true
+}
+
+// askForConfirmation asks the user for confirmation. A user must type in "yes" or "no" and
+// then press enter. It has fuzzy matching, so "y", "Y", "yes", "YES", and "Yes" all count as
+// confirmations. If the input is not recognized, it will ask again. The function does not return
+// until it gets a valid response from the user.
+func askForConfirmation(s string) bool {
+	reader := bufio.NewReader(os.Stdin)
+
+	for {
+		fmt.Printf("%s [y/n]: ", s)
+
+		response, err := reader.ReadString('\n')
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		response = strings.ToLower(strings.TrimSpace(response))
+
+		if response == "y" || response == "yes" {
+			return true
+		} else if response == "n" || response == "no" {
+			return false
+		}
+	}
 }

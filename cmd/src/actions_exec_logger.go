@@ -114,7 +114,9 @@ func (a *actionLogger) RepoFinished(repoName string, patchProduced bool, actionE
 	if actionErr != nil {
 		a.write(repoName, boldRed, "%s\n", actionErr)
 	} else if patchProduced {
-		a.write(repoName, boldGreen, "Patch generated.\n")
+		a.write(repoName, boldGreen, "Finished. Patch generated.\n")
+	} else {
+		a.write(repoName, grey, "Finished. No patch generated.\n")
 	}
 
 	a.mu.Lock()
