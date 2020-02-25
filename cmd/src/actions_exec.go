@@ -226,17 +226,25 @@ Format of the action JSON files:
 		err = executor.wait()
 
 		patches := executor.allPatches()
+		if len(patches) == 0 {
+			return err
+		}
+
+		logger.Infof("Action produced %d patches.\n", len(patches))
 
 		if !*createPlanFlag {
 			if err != nil {
 				return err
 			}
 
-			logger.Infof("Action produced %d patches.\n", len(patches))
 			return json.NewEncoder(os.Stdout).Encode(patches)
 		}
 
 		if err != nil {
+			if len(patches) == 0 {
+				return err
+			}
+
 			canInput := isatty.IsTerminal(os.Stdin.Fd()) || isatty.IsCygwinTerminal(os.Stdin.Fd())
 			if !canInput {
 				return err
