@@ -436,7 +436,7 @@ func appendLog(job *actionJob, content string) error {
 	var result struct{}
 	query := `mutation AppendLog($actionJob: ID!, $content: String!) {
 	appendLog(actionJob: $actionJob, content: $content) {
-		alwaysNil
+		id
 	}
 }`
 	if err := (&apiRequest{
