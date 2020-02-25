@@ -19,6 +19,8 @@ builds:
   goarch:
     - amd64
 archives:
+- id: tarball
+  format: tar.gz
 - id: bin
   format: binary
   wrap_in_directory: false
