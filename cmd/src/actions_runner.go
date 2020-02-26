@@ -125,7 +125,8 @@ func (r *runner) startRunner(parallelJobCount int) error {
 					}
 				}
 				wg.Done()
-				time.Sleep(time.Second * 30)
+				// todo: revert to longer poll, with concurrency 1 it just holds
+				time.Sleep(time.Second * 1)
 				wg.Add(1)
 			}
 		}()
@@ -351,6 +352,7 @@ func (r *runner) pullImage(ctx context.Context, image string, log io.Writer) err
 	return nil
 }
 
+// todo: this kills containers from other runners as well, need to have some locking mechanism
 func cleanupOldContainers(ctx context.Context, c *client.Client) error {
 	// todo: detect that only one instance of the runner is running at a time,
 	// otherwise they can steal the containers from each other
