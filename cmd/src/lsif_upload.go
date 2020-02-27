@@ -13,12 +13,30 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+
 	"path/filepath"
 	"strings"
 
 	"github.com/kballard/go-shellquote"
 	"github.com/mattn/go-isatty"
 )
+
+// stringFlag is used to wrap the value of the -root argument so that we can
+// distinguish the cases where no root is supplied and an empty root is supplied.
+type stringFlag struct {
+	set   bool
+	value string
+}
+
+func (f *stringFlag) Set(v string) error {
+	f.value = v
+	f.set = true
+	return nil
+}
+
+func (f *stringFlag) String() string {
+	return f.value
+}
 
 func init() {
 	usage := `
@@ -48,9 +66,11 @@ Examples:
 		commitFlag      = flagSet.String("commit", "", `The 40-character hash of the commit. Defaults to the currently checked-out commit.`)
 		fileFlag        = flagSet.String("file", "./dump.lsif", `The path to the LSIF dump file.`)
 		githubTokenFlag = flagSet.String("github-token", "", `A GitHub access token with 'public_repo' scope that Sourcegraph uses to verify you have access to the repository.`)
-		rootFlag        = flagSet.String("root", "", `The path in the repository that matches the LSIF projectRoot (e.g. cmd/project1). Defaults to the empty string, which refers to the top level of the repository.`)
+		rootFlag        stringFlag
 		apiFlags        = newAPIFlags(flagSet)
 	)
+
+	flagSet.Var(&rootFlag, "root", `The path in the repository that matches the LSIF projectRoot (e.g. cmd/project1). Defaults to the empty string, which refers to the top level of the repository.`)
 
 	handler := func(args []string) error {
 		flagSet.Parse(args)
@@ -91,7 +111,8 @@ Examples:
 		}
 		fmt.Println("File: " + *fileFlag)
 
-		if rootFlag == nil {
+		root := rootFlag.String()
+		if !rootFlag.set {
 			checkError := func(err error) {
 				if err != nil {
 					fmt.Println(err)
@@ -110,18 +131,18 @@ Examples:
 			rel, err := filepath.Rel(strings.TrimSpace(string(topLevel)), absFile)
 			checkError(err)
 
-			*rootFlag = filepath.Dir(rel)
+			root = filepath.Dir(rel)
 		}
 
-		*rootFlag = filepath.Clean(*rootFlag)
-		if strings.HasPrefix(*rootFlag, "..") {
-			fmt.Println("-root is outside the repository: " + *rootFlag)
+		root = filepath.Clean(root)
+		if strings.HasPrefix(root, "..") {
+			fmt.Println("-root is outside the repository: " + root)
 			os.Exit(1)
 		}
-		if *rootFlag == "." {
-			*rootFlag = ""
+		if root == "." || root == "/" {
+			root = ""
 		}
-		fmt.Println("Root: " + *rootFlag)
+		fmt.Println("Root: " + root)
 
 		// First, build the URL which is used to both make the request
 		// and to emit a cURL command. This is a little different than
@@ -134,8 +155,8 @@ Examples:
 		if *githubTokenFlag != "" {
 			qs.Add("github_token", *githubTokenFlag)
 		}
-		if *rootFlag != "" {
-			qs.Add("root", *rootFlag)
+		if root != "" {
+			qs.Add("root", root)
 		}
 
 		url, err := url.Parse(cfg.Endpoint + "/.api/lsif/upload")
