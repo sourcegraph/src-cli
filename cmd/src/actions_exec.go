@@ -139,7 +139,8 @@ Format of the action JSON files:
 		keepLogsFlag    = flagSet.Bool("keep-logs", false, "Do not remove execution log files when done.")
 		timeoutFlag     = flagSet.Duration("timeout", defaultTimeout, "The maximum duration a single action run can take (excluding the building of Docker images).")
 
-		createPlanFlag = flagSet.Bool("create-plan", false, "Create a campaign plan from the produced set of patches. When the execution of the action fails in a single repository a prompt will ask to confirm or reject the campaign plan creation.")
+		createPlanFlag      = flagSet.Bool("create-plan", false, "Create a campaign plan from the produced set of patches. When the execution of the action fails in a single repository a prompt will ask to confirm or reject the campaign plan creation.")
+		forceCreatePlanFlag = flagSet.Bool("force-create-plan", false, "Force creation of campaign plan from the produced set of patches, without asking for confirmation even when the execution of the action failed for a subset of repositories.")
 
 		apiFlags = newAPIFlags(flagSet)
 	)
@@ -232,7 +233,7 @@ Format of the action JSON files:
 
 		logger.Infof("Action produced %d patches.\n", len(patches))
 
-		if !*createPlanFlag {
+		if !*createPlanFlag && !*forceCreatePlanFlag {
 			if err != nil {
 				return err
 			}
@@ -245,15 +246,18 @@ Format of the action JSON files:
 				return err
 			}
 
-			canInput := isatty.IsTerminal(os.Stdin.Fd()) || isatty.IsCygwinTerminal(os.Stdin.Fd())
-			if !canInput {
-				return err
-			}
+			logger.Warnf("Action failed with error: %s\n", err)
 
-			logger.Warnf("Action failed with an error: %s\n", err)
-			c := askForConfirmation(fmt.Sprintf("Do you still want to create a campaign plan for the %d generated patches?", len(patches)))
-			if !c {
-				return err
+			if !*forceCreatePlanFlag {
+				canInput := isatty.IsTerminal(os.Stdin.Fd()) || isatty.IsCygwinTerminal(os.Stdin.Fd())
+				if !canInput {
+					return err
+				}
+
+				c, _ := askForConfirmation(fmt.Sprintf("Create a campaign plan for the generated patches anyway?"))
+				if !c {
+					return err
+				}
 			}
 		}
 
@@ -519,27 +523,22 @@ func isGitAvailable() bool {
 	return true
 }
 
-// askForConfirmation asks the user for confirmation. A user must type in "yes" or "no" and
-// then press enter. It has fuzzy matching, so "y", "Y", "yes", "YES", and "Yes" all count as
-// confirmations. If the input is not recognized, it will ask again. The function does not return
-// until it gets a valid response from the user.
-func askForConfirmation(s string) bool {
+// askForConfirmation asks the user for confirmation. A user must type in "yes"
+// and press enter to confirm. It has fuzzy matching, so "y", "Y", "yes",
+// "YES", and "Yes" all count as confirmations. Everything else counts as "no".
+func askForConfirmation(s string) (bool, error) {
+	fmt.Fprintf(os.Stderr, "%s [y/n]: ", s)
+
 	reader := bufio.NewReader(os.Stdin)
-
-	for {
-		fmt.Printf("%s [y/n]: ", s)
-
-		response, err := reader.ReadString('\n')
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		response = strings.ToLower(strings.TrimSpace(response))
-
-		if response == "y" || response == "yes" {
-			return true
-		} else if response == "n" || response == "no" {
-			return false
-		}
+	response, err := reader.ReadString('\n')
+	if err != nil {
+		return false, err
 	}
+
+	response = strings.ToLower(strings.TrimSpace(response))
+	if response == "y" || response == "yes" {
+		return true, nil
+	}
+
+	return false, nil
 }
