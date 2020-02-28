@@ -207,11 +207,16 @@ Format of the action JSON files:
 
 		// Query repos over which to run action
 		logger.Infof("Querying %s for repositories matching '%s'...\n", cfg.Endpoint, action.ScopeQuery)
-		repos, err := actionRepos(ctx, action.ScopeQuery)
+		repos, skipped, err := actionRepos(ctx, action.ScopeQuery)
 		if err != nil {
 			return err
 		}
+		for _, r := range skipped {
+			logger.Infof("Skipping repository %s because we couldn't determine default branch.\n", r)
+		}
 		logger.Infof("%d repositories match. Use 'src actions scope-query' for help with scoping.\n", len(repos))
+
+		logger.Start()
 
 		executor := newActionExecutor(action, *parallelismFlag, logger, opts)
 		for _, repo := range repos {
@@ -228,25 +233,29 @@ Format of the action JSON files:
 
 		patches := executor.allPatches()
 		if len(patches) == 0 {
-			return err
+			// We call os.Exit because we don't want to return the error
+			// and have it printed.
+			logger.ActionFailed(err, patches)
+			os.Exit(1)
 		}
-
-		logger.Infof("Action produced %d patches.\n", len(patches))
 
 		if !*createPlanFlag && !*forceCreatePlanFlag {
 			if err != nil {
-				return err
+				logger.ActionFailed(err, patches)
+				os.Exit(1)
 			}
+
+			logger.ActionSuccess(patches, true)
 
 			return json.NewEncoder(os.Stdout).Encode(patches)
 		}
 
 		if err != nil {
-			if len(patches) == 0 {
-				return err
-			}
+			logger.ActionFailed(err, patches)
 
-			logger.Warnf("Action failed with error: %s\n", err)
+			if len(patches) == 0 {
+				os.Exit(1)
+			}
 
 			if !*forceCreatePlanFlag {
 				canInput := isatty.IsTerminal(os.Stdin.Fd()) || isatty.IsCygwinTerminal(os.Stdin.Fd())
@@ -254,11 +263,13 @@ Format of the action JSON files:
 					return err
 				}
 
-				c, _ := askForConfirmation(fmt.Sprintf("Create a campaign plan for the generated patches anyway?"))
+				c, _ := askForConfirmation(fmt.Sprintf("Create a campaign plan for the produced patches anyway?"))
 				if !c {
 					return err
 				}
 			}
+		} else {
+			logger.ActionSuccess(patches, false)
 		}
 
 		tmpl, err := parseTemplate("{{friendlyCampaignPlanCreatedMessage .}}")
@@ -385,10 +396,10 @@ type ActionRepo struct {
 	Rev  string
 }
 
-func actionRepos(ctx context.Context, scopeQuery string) ([]ActionRepo, error) {
+func actionRepos(ctx context.Context, scopeQuery string) ([]ActionRepo, []string, error) {
 	hasCount, err := regexp.MatchString(`count:\d+`, scopeQuery)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	if !hasCount {
@@ -442,9 +453,10 @@ query ActionRepos($query: String!) {
 		},
 		result: &result,
 	}).do(); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
+	skipped := []string{}
 	reposByID := map[string]ActionRepo{}
 	for _, searchResult := range result.Search.Results.Results {
 		var repo Repository
@@ -459,7 +471,7 @@ query ActionRepos($query: String!) {
 		}
 
 		if repo.DefaultBranch.Name == "" {
-			log.Printf("Skipping repository %s because we couldn't determine default branch.", repo.Name)
+			skipped = append(skipped, repo.Name)
 			continue
 		}
 
@@ -476,7 +488,7 @@ query ActionRepos($query: String!) {
 	for _, repo := range reposByID {
 		repos = append(repos, repo)
 	}
-	return repos, nil
+	return repos, skipped, nil
 }
 
 func sumDiffStats(fileDiffs []*diff.FileDiff) diff.Stat {
