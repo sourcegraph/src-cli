@@ -137,6 +137,10 @@ Format of the action JSON files:
 	handler := func(args []string) error {
 		flagSet.Parse(args)
 
+		if !isGitAvailable() {
+			return errors.New("Could not find git in $PATH. 'src actions exec' requires git to be available.")
+		}
+
 		if *cacheDirFlag == displayUserCacheDir {
 			*cacheDirFlag = cacheDir
 		}
@@ -463,4 +467,12 @@ func diffStatDiagram(stat diff.Stat) string {
 		deleted *= x
 	}
 	return color.GreenString(strings.Repeat("+", int(added))) + color.RedString(strings.Repeat("-", int(deleted)))
+}
+
+func isGitAvailable() bool {
+	cmd := exec.Command("git", "version")
+	if err := cmd.Run(); err != nil {
+		return false
+	}
+	return true
 }
