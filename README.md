@@ -26,6 +26,8 @@ For Sourcegraph 3.12 and older, run the following commands verbatim (against sou
 https://github.com/sourcegraph/src-cli/releases/download/{version}/{binary}
 ````
 
+> NOTE: If you want to use the 'src actions exec' functionality, make sure that git is installed and accessible by src.
+
 #### Mac OS
 
 ```bash
