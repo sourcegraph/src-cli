@@ -102,7 +102,7 @@ func (a *actionLogger) Infof(format string, args ...interface{}) {
 func (a *actionLogger) RepoCacheHit(repo ActionRepo, patchProduced bool) {
 	if a.verbose {
 		if patchProduced {
-			fmt.Fprintf(os.Stderr, "%s -> Found cached result: using cached patch.\n", boldGreen.Sprint(repo.Name))
+			fmt.Fprintf(os.Stderr, "%s -> Cached result found: using cached diff.\n", boldGreen.Sprint(repo.Name))
 			return
 		}
 
