@@ -106,7 +106,7 @@ func (a *actionLogger) RepoCacheHit(repo ActionRepo, patchProduced bool) {
 			return
 		}
 
-		fmt.Fprintf(os.Stderr, "%s -> Found cached result: no patch produced for this repository.\n", green.Sprint(repo.Name))
+		fmt.Fprintf(os.Stderr, "%s -> Cached result found: no diff produced for this repository.\n", green.Sprint(repo.Name))
 	}
 }
 
