@@ -141,25 +141,11 @@ func (r *runner) startRunner(parallelJobCount int) error {
 						updateState(j, updatedState)
 					}
 				}
-				waitCh := make(chan time.Time, 1)
-				if err != nil || j == nil {
-					go func() {
-						select {
-						case <-runCtx.Done():
-							return
-						case <-time.After(time.Second * 5):
-							waitCh <- time.Now()
-							return
-						}
-					}()
-				} else {
-					waitCh <- time.Now()
-				}
 				select {
 				case <-runCtx.Done():
 					wg.Done()
 					return
-				case <-waitCh:
+				case <-time.After(time.Second * 5):
 				}
 			}
 		}()
