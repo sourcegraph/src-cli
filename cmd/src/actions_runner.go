@@ -109,10 +109,10 @@ func (r *runner) startRunner(parallelJobCount int) error {
 		fmt.Println("Received signal", sig)
 		cancelRun()
 		r.stopAllJobs(ctx)
-		if err := cleanupOldContainers(ctx, r.client); err != nil {
-			// todo: err chan
-			println(err.Error())
-		}
+		// if err := cleanupOldContainers(ctx, r.client); err != nil {
+		// 	// todo: err chan
+		// 	println(err.Error())
+		// }
 		wg.Done()
 	}()
 	for i := 0; i < parallelJobCount; i++ {
@@ -144,16 +144,22 @@ func (r *runner) startRunner(parallelJobCount int) error {
 				waitCh := make(chan time.Time, 1)
 				if err != nil || j == nil {
 					go func() {
-						time.Sleep(time.Second * 5)
-						waitCh <- time.Now()
+						select {
+						case <-runCtx.Done():
+							return
+						case <-time.After(time.Second * 5):
+							waitCh <- time.Now()
+							return
+						}
 					}()
+				} else {
+					waitCh <- time.Now()
 				}
 				select {
 				case <-runCtx.Done():
 					wg.Done()
 					return
 				case <-waitCh:
-					continue
 				}
 			}
 		}()
