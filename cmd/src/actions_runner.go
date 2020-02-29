@@ -230,12 +230,13 @@ func (r *runner) runActionJob(_ctx context.Context, job *actionJob) (*string, er
 			}
 			select {
 			case <-runCtx.Done():
+				// append final logs
 				if err := appendLog(job, _logBuffer.String()); err != nil {
 					// todo:
 					// attachCh <- err
 				}
 				return
-			case <-time.After(time.Second * 2):
+			case <-time.After(time.Second * 5):
 			}
 		}
 	}()
@@ -482,7 +483,9 @@ func (r *runner) checkForJobs(ctx context.Context) (*actionJob, error) {
 		baseRevision
 	}
 }`
+	name := "PullActionJob"
 	if err := (&apiRequest{
+		name:  &name,
 		query: query,
 		vars: map[string]interface{}{
 			"runner": r.conf.runnerID,
@@ -510,7 +513,9 @@ func appendLog(job *actionJob, content string) error {
 		id
 	}
 }`
+	name := "AppendLog"
 	if err := (&apiRequest{
+		name:  &name,
 		query: query,
 		vars: map[string]interface{}{
 			"actionJob": job.ID,
@@ -531,9 +536,6 @@ type updateStateProps struct {
 
 func updateState(job *actionJob, state updateStateProps) error {
 	if state.status != "" {
-		if state.status == "PULLING" || state.status == "PREPARING" || state.status == "CREATING" {
-			return nil
-		}
 		fmt.Printf("Status of container changed to %s\n", state.status)
 	}
 	if state.status == "" && state.patch == nil {
@@ -555,7 +557,9 @@ func updateState(job *actionJob, state updateStateProps) error {
 	if state.patch != nil {
 		vars["patch"] = *state.patch
 	}
+	name := "UpdateActionJob"
 	if err := (&apiRequest{
+		name:   &name,
 		query:  query,
 		vars:   vars,
 		result: &result,
@@ -580,7 +584,9 @@ func checkIsCanceled(job *actionJob) (bool, error) {
 		}
 	}
 }`
+	name := "ActionJobByID"
 	if err := (&apiRequest{
+		name:  &name,
 		query: query,
 		vars: map[string]interface{}{
 			"id": job.ID,

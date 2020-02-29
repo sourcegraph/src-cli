@@ -119,12 +119,16 @@ Examples:
 
 // gqlURL returns the URL to the GraphQL endpoint for the given Sourcegraph
 // instance.
-func gqlURL(endpoint string) string {
-	return endpoint + "/.api/graphql"
+func gqlURL(endpoint string, name *string) string {
+	url := endpoint + "/.api/graphql"
+	if name != nil {
+		url += "?" + *name
+	}
+	return url
 }
 
 // curlCmd returns the curl command to perform the given GraphQL query. Bash-only.
-func curlCmd(endpoint, accessToken, query string, vars map[string]interface{}) (string, error) {
+func curlCmd(endpoint, accessToken, query string, name *string, vars map[string]interface{}) (string, error) {
 	data, err := json.Marshal(map[string]interface{}{
 		"query":     query,
 		"variables": vars,
@@ -138,12 +142,13 @@ func curlCmd(endpoint, accessToken, query string, vars map[string]interface{}) (
 		s += fmt.Sprintf("   %s \\\n", shellquote.Join("-H", "Authorization: token "+accessToken))
 	}
 	s += fmt.Sprintf("   %s \\\n", shellquote.Join("-d", string(data)))
-	s += fmt.Sprintf("   %s", shellquote.Join(gqlURL(endpoint)))
+	s += fmt.Sprintf("   %s", shellquote.Join(gqlURL(endpoint, name)))
 	return s, nil
 }
 
 // apiRequest represents a GraphQL API request.
 type apiRequest struct {
+	name   *string                // optional name for the GraphQL query. Is appended to the URL
 	query  string                 // the GraphQL query
 	vars   map[string]interface{} // the GraphQL query variables
 	result interface{}            // where to store the result
@@ -174,7 +179,7 @@ func (a *apiRequest) do() error {
 	if a.done != nil {
 		// Handle the get-curl flag now.
 		if *a.flags.getCurl {
-			curl, err := curlCmd(cfg.Endpoint, cfg.AccessToken, a.query, a.vars)
+			curl, err := curlCmd(cfg.Endpoint, cfg.AccessToken, a.query, a.name, a.vars)
 			if err != nil {
 				return err
 			}
@@ -195,7 +200,7 @@ func (a *apiRequest) do() error {
 	}
 
 	// Create the HTTP request.
-	req, err := http.NewRequest("POST", gqlURL(cfg.Endpoint), nil)
+	req, err := http.NewRequest("POST", gqlURL(cfg.Endpoint, a.name), nil)
 	if err != nil {
 		return err
 	}
