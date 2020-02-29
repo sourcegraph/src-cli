@@ -42,7 +42,7 @@ Usage:
 
 	handler := func(args []string) error {
 		r := &runner{}
-		err := r.startRunner(1)
+		err := r.startRunner(4)
 		return err
 	}
 
