@@ -144,8 +144,13 @@ func (x *executionContext) prepare(ctx context.Context, repoName, rev, prefix st
 }
 
 func (x *executionContext) cleanup() error {
-	errZ := os.Remove(x.zipFile.Name())
-	errV := os.RemoveAll(x.volumeDir)
+	var errZ, errV error
+	if x.zipFile != nil {
+		errZ = os.Remove(x.zipFile.Name())
+	}
+	if x.volumeDir != "" {
+		errV = os.RemoveAll(x.volumeDir)
+	}
 	if errZ != nil {
 		return errZ
 	}

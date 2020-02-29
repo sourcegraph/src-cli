@@ -20,6 +20,8 @@ import (
 	"github.com/pkg/errors"
 )
 
+var verboseRunner bool
+
 func init() {
 	usage := `'src actions runner' TBD.
 
@@ -35,9 +37,11 @@ Usage:
 		fmt.Println(usage)
 	}
 
+	// todo parse
+	verboseRunner = false
+
 	handler := func(args []string) error {
 		r := &runner{}
-		// only 1 parallel run
 		err := r.startRunner(1)
 		return err
 	}
@@ -107,7 +111,7 @@ func (r *runner) startRunner(parallelJobCount int) error {
 		r.stopAllJobs(ctx)
 		if err := cleanupOldContainers(ctx, r.client); err != nil {
 			// todo: err chan
-			panic(err)
+			println(err.Error())
 		}
 		wg.Done()
 	}()
@@ -170,10 +174,36 @@ func (r *runner) stopAllJobs(ctx context.Context) error {
 
 func (r *runner) runActionJob(_ctx context.Context, job *actionJob) (*string, error) {
 	_logBuffer := bytes.NewBuffer([]byte{})
-	logBuffer := io.MultiWriter(_logBuffer, os.Stdout)
+	var logBuffer io.Writer
+	if verboseRunner == true {
+		logBuffer = io.MultiWriter(_logBuffer, os.Stdout)
+	} else {
+		logBuffer = _logBuffer
+	}
 	logBuffer.Write([]byte(fmt.Sprintln("Starting job")))
 	runCtx, cancel := context.WithCancel(_ctx)
 	defer cancel()
+
+	// create periodic cancel checker
+	go func() {
+		for {
+			isCanceled, err := checkIsCanceled(job)
+			if err != nil {
+				// todo:
+				// attachCh <- err
+				// break
+			}
+			if isCanceled == true {
+				cancel()
+				return
+			}
+			select {
+			case <-runCtx.Done():
+				return
+			case <-time.After(time.Second * 2):
+			}
+		}
+	}()
 
 	// create periodic log streamer
 	go func() {
@@ -181,10 +211,12 @@ func (r *runner) runActionJob(_ctx context.Context, job *actionJob) (*string, er
 			content := _logBuffer.String()
 			_logBuffer.Reset()
 			// todo: buffer might be written to during read, need concurrency lock
-			if err := appendLog(job, content); err != nil {
+			 err := appendLog(job, content)
+			if err != nil {
 				// todo:
 				// attachCh <- err
-				break
+				// break
+				println(err.Error())
 			}
 			select {
 			case <-runCtx.Done():
@@ -192,7 +224,7 @@ func (r *runner) runActionJob(_ctx context.Context, job *actionJob) (*string, er
 					// todo:
 					// attachCh <- err
 				}
-				break
+				return
 			case <-time.After(time.Second * 2):
 			}
 		}
@@ -477,7 +509,7 @@ func appendLog(job *actionJob, content string) error {
 		println(err.Error())
 		return err
 	}
-	return nil
+	return  nil
 }
 
 type updateStateProps struct {
@@ -520,4 +552,36 @@ func updateState(job *actionJob, state updateStateProps) error {
 		return err
 	}
 	return nil
+}
+
+
+func checkIsCanceled(job *actionJob) (bool, error) {
+	var result struct{
+		Node *struct {
+			State string `json:"state"`
+		} `json:"node"`
+	}
+	query := `query ActionJobByID($id: ID!) {
+	node(id: $id) {
+		... on ActionJob {
+			id
+			state
+		}
+	}
+}`
+	if err := (&apiRequest{
+		query: query,
+		vars: map[string]interface{}{
+			"id": job.ID,
+		},
+		result: &result,
+	}).do(); err != nil {
+		println(err.Error())
+		return false, err
+	}
+	if result.Node == nil {
+		// cancel non existant jobs
+		return true, nil
+	}
+	return result.Node.State == "CANCELED", nil 
 }
