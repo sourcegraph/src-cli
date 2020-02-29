@@ -54,13 +54,13 @@ Usage:
 	})
 }
 
-type RunnerConfig struct {
-	runnerID string `json:"runnerId"`
+type runnerConfig struct {
+	RunnerID string `json:"runnerId"`
 }
 
 type runner struct {
 	client *client.Client
-	conf   RunnerConfig
+	conf   runnerConfig
 }
 
 type envKV struct {
@@ -89,7 +89,7 @@ func (r *runner) startRunner(parallelJobCount int) error {
 	ctx := context.Background()
 	runCtx, cancelRun := context.WithCancel(ctx)
 	defer cancelRun()
-	r.conf.runnerID = "runner123"
+	r.conf.RunnerID = "runner123"
 
 	if err := r.createClient(); err != nil {
 		return err
@@ -480,7 +480,7 @@ func (r *runner) checkForJobs(ctx context.Context) (*actionJob, error) {
 		name:  &name,
 		query: query,
 		vars: map[string]interface{}{
-			"runner": r.conf.runnerID,
+			"runner": r.conf.RunnerID,
 		},
 		result: &result,
 	}).do(); err != nil {
