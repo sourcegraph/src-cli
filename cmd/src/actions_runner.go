@@ -211,7 +211,7 @@ func (r *runner) runActionJob(_ctx context.Context, job *actionJob) (*string, er
 			content := _logBuffer.String()
 			_logBuffer.Reset()
 			// todo: buffer might be written to during read, need concurrency lock
-			 err := appendLog(job, content)
+			err := appendLog(job, content)
 			if err != nil {
 				// todo:
 				// attachCh <- err
@@ -511,7 +511,7 @@ func appendLog(job *actionJob, content string) error {
 		println(err.Error())
 		return err
 	}
-	return  nil
+	return nil
 }
 
 type updateStateProps struct {
@@ -556,9 +556,8 @@ func updateState(job *actionJob, state updateStateProps) error {
 	return nil
 }
 
-
 func checkIsCanceled(job *actionJob) (bool, error) {
-	var result struct{
+	var result struct {
 		Node *struct {
 			State string `json:"state"`
 		} `json:"node"`
@@ -585,5 +584,5 @@ func checkIsCanceled(job *actionJob) (bool, error) {
 		// cancel non existant jobs
 		return true, nil
 	}
-	return result.Node.State == "CANCELED", nil 
+	return result.Node.State == "CANCELED", nil
 }
