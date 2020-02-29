@@ -141,10 +141,20 @@ func (r *runner) startRunner(parallelJobCount int) error {
 						updateState(j, updatedState)
 					}
 				}
-				wg.Done()
-				// todo: revert to longer poll, with concurrency 1 it just holds
-				time.Sleep(time.Second * 1)
-				wg.Add(1)
+				waitCh := make(chan time.Time, 1)
+				if err != nil || j == nil {
+					go func() {
+						time.Sleep(time.Second * 5)
+						waitCh <- time.Now()
+					}()
+				}
+				select {
+				case <-runCtx.Done():
+					wg.Done()
+					return
+				case <-waitCh:
+					continue
+				}
 			}
 		}()
 	}
