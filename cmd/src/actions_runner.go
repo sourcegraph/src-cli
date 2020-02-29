@@ -82,17 +82,19 @@ type actionJob struct {
 }
 
 func (r *runner) startRunner(parallelJobCount int) error {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := context.Background()
+	runCtx, cancelRun := context.WithCancel(ctx)
+	defer cancelRun()
 	r.conf.runnerID = "runner123"
 
 	if err := r.createClient(); err != nil {
 		return err
 	}
 
-	if err := cleanupOldContainers(ctx, r.client); err != nil {
-		return err
-	}
+	// todo: reenable
+	// if err := cleanupOldContainers(ctx, r.client); err != nil {
+	// 	return err
+	// }
 
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
@@ -101,7 +103,7 @@ func (r *runner) startRunner(parallelJobCount int) error {
 	go func() {
 		sig := <-sigs
 		fmt.Println("Received signal", sig)
-		cancel()
+		cancelRun()
 		r.stopAllJobs(ctx)
 		if err := cleanupOldContainers(ctx, r.client); err != nil {
 			// todo: err chan
@@ -113,15 +115,26 @@ func (r *runner) startRunner(parallelJobCount int) error {
 		wg.Add(1)
 		go func() {
 			for {
-				j, err := r.checkForJobs(ctx)
+				j, err := r.checkForJobs(runCtx)
 				if err != nil {
 					// todo: channel err
 					// or maybe this can be ignored, at least N times
 					// panic(err)
 				} else if j != nil {
 					fmt.Printf("Starting new job with ID %s\n", j.ID)
-					if err := r.runActionJob(ctx, j); err != nil {
-						println(err)
+					diff, err := r.runActionJob(runCtx, j)
+					if err != nil {
+						println(err.Error())
+						updateState(j, updateStateProps{status: "ERRORED"})
+					} else {
+						updatedState := updateStateProps{
+							status: "COMPLETED",
+						}
+						// todo: nil pointer?
+						if *diff != "" {
+							updatedState.patch = diff
+						}
+						updateState(j, updatedState)
 					}
 				}
 				wg.Done()
@@ -155,9 +168,10 @@ func (r *runner) stopAllJobs(ctx context.Context) error {
 	return nil
 }
 
-func (r *runner) runActionJob(_ctx context.Context, job *actionJob) error {
+func (r *runner) runActionJob(_ctx context.Context, job *actionJob) (*string, error) {
 	_logBuffer := bytes.NewBuffer([]byte{})
 	logBuffer := io.MultiWriter(_logBuffer, os.Stdout)
+	logBuffer.Write([]byte(fmt.Sprintln("Starting job")))
 	runCtx, cancel := context.WithCancel(_ctx)
 	defer cancel()
 
@@ -178,64 +192,55 @@ func (r *runner) runActionJob(_ctx context.Context, job *actionJob) error {
 					// todo:
 					// attachCh <- err
 				}
-				return
-			case <-time.After(time.Second * 5):
+				break
+			case <-time.After(time.Second * 2):
 			}
 		}
 	}()
 
-	updateState(job, updateStateProps{status: "RUNNING"})
 	logBuffer.Write([]byte(fmt.Sprintln("Preparing execution context..")))
 
 	x := executionContext{}
-	if err := x.prepare(runCtx, job.Repository.Name, job.BaseRevision, "test"); err != nil {
-		return errors.Wrap(err, "Failed to prepare execution context")
-	}
+	err := x.prepare(runCtx, job.Repository.Name, job.BaseRevision, "test")
 	defer x.cleanup()
+	if err != nil {
+		logBuffer.Write([]byte(fmt.Sprintf("Failed to prepare execution context: %s\n", err.Error())))
+		return nil, errors.Wrap(err, "Failed to prepare execution context")
+	}
 
-	println("execution context set-up")
+	logBuffer.Write([]byte(fmt.Sprintln("Execution context set up")))
 
 	var action Action
 	if err := jsonxUnmarshal(string(job.Definition.Steps), &action); err != nil {
-		return errors.Wrap(err, "invalid JSON action file")
+		logBuffer.Write([]byte(fmt.Sprintf("Invalid JSON action file: %s\n", err.Error())))
+		return nil, errors.Wrap(err, "invalid JSON action file")
 	}
-
-	println("action parsed")
 
 	if err := validateAction(runCtx, action); err != nil {
-		return errors.Wrap(err, "Validation of action failed")
+		logBuffer.Write([]byte(fmt.Sprintf("Failed to validate action: %s\n", err.Error())))
+		return nil, errors.Wrap(err, "Validation of action failed")
 	}
-
-	println("action validated")
 
 	// Build Docker images etc.
 	if err := prepareAction(runCtx, action); err != nil {
-		println(err.Error())
-		return errors.Wrap(err, "Failed to prepare action")
+		logBuffer.Write([]byte(err.Error()))
+		return nil, errors.Wrap(err, "Failed to prepare action")
 	}
-
-	println("action prepared")
 
 	for _, step := range action.Steps {
 		if err := r.runContainer(runCtx, job, step, x.volumeDir, logBuffer); err != nil {
-			println("Container errored, I won't continue")
-			println(err.Error())
-			return err
+			logBuffer.Write([]byte(fmt.Sprintf("Container failed: %s\n", err.Error())))
+			return nil, errors.Wrap(err, "Container failed")
 		}
 	}
 
 	d, err := computeDiff(runCtx, x.zipFile, x.volumeDir, "test")
 	if err != nil {
-		return errors.Wrap(err, "failed to compute diff")
+		logBuffer.Write([]byte(fmt.Sprintf("Failed to compute diff: %s\n", err.Error())))
+		return nil, errors.Wrap(err, "failed to compute diff")
 	}
-	parsedD := string(d)
-	updatedState := updateStateProps{}
-	if parsedD != "" {
-		updatedState.patch = &parsedD
-	}
-	updatedState.status = "COMPLETED"
-	updateState(job, updatedState)
-	return nil
+	diffString := string(d)
+	return &diffString, nil
 }
 
 func (r *runner) killContainer(ctx context.Context, cID string) error {
@@ -251,11 +256,17 @@ func (r *runner) runContainer(ctx context.Context, job *actionJob, step *ActionS
 		image = step.Image
 	}
 
-	println("Pulling image")
-
 	r.pullImage(ctx, image, log)
 
-	println("Pulled image!")
+	// Set digests for Docker images so we don't cache action runs in 2 different images with
+	// the same tag.
+	if step.Image != "" {
+		var err error
+		step.ImageContentDigest, err = getDockerImageContentDigest(ctx, step.Image)
+		if err != nil {
+			return errors.Wrap(err, "Failed to get Docker image content digest")
+		}
+	}
 
 	// generate env
 	env := make([]string, len(job.Definition.Env))
@@ -264,7 +275,8 @@ func (r *runner) runContainer(ctx context.Context, job *actionJob, step *ActionS
 	}
 
 	workDir := "/work"
-	containerConfig := &container.Config{
+
+	c, err := r.client.ContainerCreate(ctx, &container.Config{
 		Image:        image,
 		Cmd:          step.Args,
 		Labels:       map[string]string{"com.sourcegraph.runner": "true"},
@@ -273,12 +285,11 @@ func (r *runner) runContainer(ctx context.Context, job *actionJob, step *ActionS
 		AttachStdout: true,
 		AttachStderr: true,
 		WorkingDir:   workDir,
-	}
-
-	c, err := r.client.ContainerCreate(ctx, containerConfig, &container.HostConfig{
+	}, &container.HostConfig{
 		Binds:         []string{fmt.Sprintf("%s:%s", volumeDir, workDir)},
 		RestartPolicy: container.RestartPolicy{Name: "no"},
 	}, nil, "") //, "container_name")
+
 	if err != nil {
 		return err
 	}
@@ -289,65 +300,78 @@ func (r *runner) runContainer(ctx context.Context, job *actionJob, step *ActionS
 		Stderr: true,
 		Logs:   true,
 	})
+	defer hij.Close()
 	if err != nil {
 		return err
 	}
-	defer hij.Close()
+
+	attachCh := make(chan error, 1)
+	var wg sync.WaitGroup
+	wg.Add(1)
+	// create asynchronous log forwarder
+	go func() {
+		_, err := stdcopy.StdCopy(log, log, hij.Reader)
+		if err != nil {
+			fmt.Printf("Log stream error: %s", err.Error())
+			attachCh <- err
+		}
+		wg.Done()
+	}()
 
 	err = r.client.ContainerStart(ctx, c.ID, types.ContainerStartOptions{})
 	if err != nil {
 		return err
 	}
 
-	attachCh := make(chan error, 1)
-	go func() {
-		_, err := stdcopy.StdCopy(log, log, hij.Reader)
-		if err != nil {
-			println(err.Error())
-			attachCh <- err
-		}
-	}()
-
 	waitCh, errCh := r.client.ContainerWait(ctx, c.ID, container.WaitConditionNotRunning)
 	select {
 	case <-ctx.Done():
 		println("container kill: ctx.Done")
 		// todo: this context is already done
-		r.killContainer(ctx, c.ID)
-		return errors.New("Aborted")
+		// r.killContainer(ctx, c.ID)
+		return errors.New("Context aborted")
 
 	case err = <-attachCh:
+		// log stream finished or errored
 		println("container kill: attachCh")
-		r.killContainer(ctx, c.ID)
+		// r.killContainer(ctx, c.ID)
 		if err != nil {
-			return err
+			return errors.Wrap(err, "")
 		}
 
 	case res := <-waitCh:
+		// container has exited
 		if res.StatusCode != 0 || res.Error != nil {
 			// log job has failed
 			log.Write([]byte(fmt.Sprintf("Container failed with status code %d\n", res.StatusCode)))
-			return errors.New(res.Error.Message)
+			if res.Error != nil {
+				return errors.New(res.Error.Message)
+			}
+			return errors.New("Unknown failure on container")
 		}
-		println("Container exited with 0 status code :-)")
-
+		log.Write([]byte("Container exited with 0 status code :-)\n"))
+		// todo: do this wait everywhere
+		wg.Wait()
 		return nil
 
 	case err = <-errCh:
 		if err != nil {
+			println("errCh")
 			return err
 		}
+		return nil
 	}
 
 	return nil
 }
 
 func (r *runner) pullImage(ctx context.Context, image string, log io.Writer) error {
-	log.Write([]byte(fmt.Sprintf("Pulling image %s", image)))
+	log.Write([]byte(fmt.Sprintf("Pulling image %s\n", image)))
 	logReader, err := r.client.ImagePull(ctx, image, types.ImagePullOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to pull image %s: %s", image, err.Error())
 	}
+	// add logs from docker pull to the job log
 	io.Copy(log, logReader)
 	return nil
 }
@@ -421,6 +445,7 @@ func (r *runner) checkForJobs(ctx context.Context) (*actionJob, error) {
 		},
 		result: &result,
 	}).do(); err != nil {
+		println(err.Error())
 		return nil, err
 	}
 	if result.PullActionJob != nil {

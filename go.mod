@@ -26,6 +26,7 @@ require (
 	github.com/fatih/color v1.9.0
 	github.com/godbus/dbus v4.1.0+incompatible // indirect
 	github.com/gogo/protobuf v1.3.1 // indirect
+	github.com/golang/protobuf v1.3.4 // indirect
 	github.com/gorilla/mux v1.7.4 // indirect
 	github.com/gosuri/uilive v0.0.4
 	github.com/graph-gophers/graphql-go v0.0.0-20200207002730-8334863f2c8b
@@ -34,6 +35,7 @@ require (
 	github.com/hashicorp/golang-lru v0.5.4 // indirect
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
 	github.com/konsorten/go-windows-terminal-sequences v1.0.2 // indirect
+	github.com/mattn/go-colorable v0.1.6 // indirect
 	github.com/mattn/go-isatty v0.0.12
 	github.com/mattn/go-runewidth v0.0.8 // indirect
 	github.com/mattn/go-shellwords v1.0.10 // indirect
@@ -58,10 +60,9 @@ require (
 	github.com/urfave/cli v1.22.2 // indirect
 	github.com/vbatts/tar-split v0.11.1 // indirect
 	github.com/vishvananda/netlink v1.1.0 // indirect
-	golang.org/x/net v0.0.0-20200222125558-5a598a2470a0
-	golang.org/x/sys v0.0.0-20200223170610-d5e6a3e2c0ae // indirect
+	golang.org/x/net v0.0.0-20200226121028-0de0cce0169b
 	golang.org/x/time v0.0.0-20191024005414-555d28b269f0 // indirect
-	google.golang.org/genproto v0.0.0-20200218151345-dad8c97a84f5 // indirect
+	google.golang.org/genproto v0.0.0-20200228133532-8c2c7df3a383 // indirect
 	google.golang.org/grpc v1.27.1 // indirect
 	gotest.tools/v3 v3.0.2 // indirect
 	jaytaylor.com/html2text v0.0.0-20200220170450-61d9dc4d7195
