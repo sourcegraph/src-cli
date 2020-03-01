@@ -270,7 +270,7 @@ func (r *runner) runActionJob(_ctx context.Context, job *actionJob) (*string, er
 	}
 
 	logBuffer.Write([]byte("Computing diff.."))
-	d, err := computeDiff(runCtx, x.zipFile, x.volumeDir, "test")
+	d, err := x.computeDiff()
 	if err != nil {
 		logBuffer.Write([]byte(fmt.Sprintf("Failed to compute diff: %s\n", err.Error())))
 		return nil, errors.Wrap(err, "failed to compute diff")
