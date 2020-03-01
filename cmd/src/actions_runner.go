@@ -312,7 +312,7 @@ func (r *runner) runContainer(ctx context.Context, job *actionJob, step *ActionS
 	}
 
 	workDir := "/work"
-
+	bind := fmt.Sprintf("%s:%s", volumeDir, workDir)
 	c, err := r.client.ContainerCreate(ctx, &container.Config{
 		Image:        image,
 		Cmd:          step.Args,
@@ -323,7 +323,7 @@ func (r *runner) runContainer(ctx context.Context, job *actionJob, step *ActionS
 		AttachStderr: true,
 		WorkingDir:   workDir,
 	}, &container.HostConfig{
-		Binds:         []string{fmt.Sprintf("%s:%s", volumeDir, workDir)},
+		Binds:         []string{bind},
 		RestartPolicy: container.RestartPolicy{Name: "no"},
 	}, nil, "") //, "container_name")
 

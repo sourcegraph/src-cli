@@ -125,7 +125,8 @@ func (x *executionContext) prepare(ctx context.Context, repoName, rev, prefix st
 	if err != nil {
 		return errors.Wrap(err, "Unzipping the ZIP archive failed")
 	}
-	runGitCmd := func(args ...string) ([]byte, error) {
+	x.volumeDir = volumeDir
+	x.runGitCmd = func(args ...string) ([]byte, error) {
 		cmd := exec.CommandContext(ctx, "git", args...)
 		cmd.Dir = volumeDir
 		out, err := cmd.CombinedOutput()
@@ -135,14 +136,14 @@ func (x *executionContext) prepare(ctx context.Context, repoName, rev, prefix st
 		return out, nil
 	}
 
-	if _, err := runGitCmd("init"); err != nil {
+	if _, err := x.runGitCmd("init"); err != nil {
 		return errors.Wrap(err, "git init failed")
 	}
 	// --force because we want previously "gitignored" files in the repository
-	if _, err := runGitCmd("add", "--force", "--all"); err != nil {
+	if _, err := x.runGitCmd("add", "--force", "--all"); err != nil {
 		return errors.Wrap(err, "git add failed")
 	}
-	if _, err := runGitCmd("commit", "--quiet", "--all", "-m", "src-action-exec"); err != nil {
+	if _, err := x.runGitCmd("commit", "--quiet", "--all", "-m", "src-action-exec"); err != nil {
 		return errors.Wrap(err, "git commit failed")
 	}
 	return nil
@@ -152,7 +153,8 @@ func (x *executionContext) computeDiff() ([]byte, error) {
 	if _, err := x.runGitCmd("add", "--all"); err != nil {
 		return nil, errors.Wrap(err, "git add failed")
 	}
-	diffOut, err := x.runGitCmd("diff", "--cached")
+	// --no-prefix omits the a/ and b/ folder prefixes, otherwise the diff would be interpreted as renaming the file
+	diffOut, err := x.runGitCmd("diff", "--cached", "--no-prefix")
 	if err != nil {
 		return nil, errors.Wrap(err, "git diff failed")
 	}
