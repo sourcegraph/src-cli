@@ -14,12 +14,10 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"time"
 
 	"github.com/pkg/errors"
-	"github.com/sourcegraph/go-diff/diff"
 	"golang.org/x/net/context/ctxhttp"
 )
 
@@ -41,41 +39,28 @@ func (x *actionExecutor) do(ctx context.Context, repo ActionRepo) (err error) {
 	if result, ok, err := x.opt.cache.get(ctx, cacheKey); err != nil {
 		return errors.Wrapf(err, "checking cache for %s", repo.Name)
 	} else if ok {
-		x.updateRepoStatus(repo, ActionRepoStatus{
-			Cached: true,
-			Patch:  result,
-		})
+		status := ActionRepoStatus{Cached: true, Patch: result}
+		x.updateRepoStatus(repo, status)
+		x.logger.RepoCacheHit(repo, status.Patch != CampaignPlanPatch{})
 		return nil
 	}
 
 	prefix := "action-" + strings.Replace(strings.Replace(repo.Name, "/", "-", -1), "github.com-", "", -1)
 
-	// TODO(sqs): better cleanup of old log files
-	logFile, err := ioutil.TempFile(tempDirPrefix, prefix+"-log")
+	logFileName, err := x.logger.AddRepo(repo)
 	if err != nil {
-		return err
-	}
-	if !x.opt.keepLogs {
-		defer func() {
-			if err == nil {
-				os.Remove(logFile.Name())
-			}
-		}()
-	}
-	logWriter := io.Writer(logFile)
-	if *verbose {
-		logWriter = io.MultiWriter(logWriter, os.Stderr)
+		return errors.Wrapf(err, "failed to setup logging for repo %s", repo.Name)
 	}
 
 	x.updateRepoStatus(repo, ActionRepoStatus{
-		LogFile:   logFile.Name(),
+		LogFile:   logFileName,
 		StartedAt: time.Now(),
 	})
 
 	runCtx, cancel := context.WithTimeout(ctx, x.opt.timeout)
 	defer cancel()
 
-	patch, err := runAction(runCtx, prefix, repo.ID, repo.Name, repo.Rev, x.action.Steps, logWriter)
+	patch, err := runAction(runCtx, prefix, repo.ID, repo.Name, repo.Rev, x.action.Steps, x.logger)
 	status := ActionRepoStatus{
 		FinishedAt: time.Now(),
 	}
@@ -91,9 +76,10 @@ func (x *actionExecutor) do(ctx context.Context, repo ActionRepo) (err error) {
 			err = &errTimeoutReached{timeout: x.opt.timeout}
 		}
 		status.Err = err
-		fmt.Fprintf(logWriter, "# ERROR: %s\n", err)
 	}
+
 	x.updateRepoStatus(repo, status)
+	x.logger.RepoFinished(repo.Name, len(patch) > 0, err)
 
 	// Add to cache if successful.
 	if err == nil {
@@ -126,6 +112,7 @@ func reachedTimeout(cmdCtx context.Context, err error) bool {
 type executionContext struct {
 	zipFile   *os.File
 	volumeDir string
+	runGitCmd func(args ...string) ([]byte, error)
 }
 
 func (x *executionContext) prepare(ctx context.Context, repoName, rev, prefix string) error {
@@ -134,13 +121,42 @@ func (x *executionContext) prepare(ctx context.Context, repoName, rev, prefix st
 		return errors.Wrap(err, "Fetching ZIP archive failed")
 	}
 	x.zipFile = zipFile
-
 	volumeDir, err := unzipToTempDir(ctx, zipFile.Name(), prefix)
 	if err != nil {
 		return errors.Wrap(err, "Unzipping the ZIP archive failed")
 	}
-	x.volumeDir = volumeDir
+	runGitCmd := func(args ...string) ([]byte, error) {
+		cmd := exec.CommandContext(ctx, "git", args...)
+		cmd.Dir = volumeDir
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			return nil, errors.Wrapf(err, "'git %s' failed: %s", strings.Join(args, " "), out)
+		}
+		return out, nil
+	}
+
+	if _, err := runGitCmd("init"); err != nil {
+		return errors.Wrap(err, "git init failed")
+	}
+	// --force because we want previously "gitignored" files in the repository
+	if _, err := runGitCmd("add", "--force", "--all"); err != nil {
+		return errors.Wrap(err, "git add failed")
+	}
+	if _, err := runGitCmd("commit", "--quiet", "--all", "-m", "src-action-exec"); err != nil {
+		return errors.Wrap(err, "git commit failed")
+	}
 	return nil
+}
+
+func (x *executionContext) computeDiff() ([]byte, error) {
+	if _, err := x.runGitCmd("add", "--all"); err != nil {
+		return nil, errors.Wrap(err, "git add failed")
+	}
+	diffOut, err := x.runGitCmd("diff", "--cached")
+	if err != nil {
+		return nil, errors.Wrap(err, "git diff failed")
+	}
+	return diffOut, nil
 }
 
 func (x *executionContext) cleanup() error {
@@ -160,8 +176,9 @@ func (x *executionContext) cleanup() error {
 	return nil
 }
 
-func runAction(ctx context.Context, prefix, repoID, repoName, rev string, steps []*ActionStep, logFile io.Writer) ([]byte, error) {
-	fmt.Fprintf(logFile, "# Repository %s @ %s (%d steps)\n", repoName, rev, len(steps))
+func runAction(ctx context.Context, prefix, repoID, repoName, rev string, steps []*ActionStep, logger *actionLogger) ([]byte, error) {
+	logger.RepoStarted(repoName, rev, steps)
+
 	e := &executionContext{}
 	if err := e.prepare(ctx, repoName, rev, prefix); err != nil {
 		return nil, err
@@ -169,32 +186,26 @@ func runAction(ctx context.Context, prefix, repoID, repoName, rev string, steps 
 	defer e.cleanup()
 
 	for i, step := range steps {
-		if i != 0 {
-			fmt.Fprintln(logFile)
-		}
-
-		logPrefix := fmt.Sprintf("Step %d", i)
-
 		switch step.Type {
 		case "command":
-			fmt.Fprintf(logFile, "# %s: command %v\n", logPrefix, step.Args)
+			logger.CommandStepStarted(repoName, i, step.Args)
 
 			cmd := exec.CommandContext(ctx, step.Args[0], step.Args[1:]...)
 			cmd.Dir = e.volumeDir
-			cmd.Stdout = logFile
-			cmd.Stderr = logFile
+
+			if w, ok := logger.RepoWriter(repoName); ok {
+				cmd.Stdout = w
+				cmd.Stderr = w
+			}
+
 			if err := cmd.Run(); err != nil {
-				fmt.Fprintf(logFile, "# %s: error: %s.\n", logPrefix, err)
+				logger.CommandStepErrored(repoName, i, err)
 				return nil, errors.Wrap(err, "run command")
 			}
-			fmt.Fprintf(logFile, "# %s: done.\n", logPrefix)
+			logger.CommandStepDone(repoName, i)
 
 		case "docker":
-			var fromDockerfile string
-			if step.Dockerfile != "" {
-				fromDockerfile = " (built from inline Dockerfile)"
-			}
-			fmt.Fprintf(logFile, "# %s: docker run %v%s\n", logPrefix, step.Image, fromDockerfile)
+			logger.DockerStepStarted(repoName, i, step.Dockerfile, step.Image)
 
 			cidFile, err := ioutil.TempFile(tempDirPrefix, prefix+"-container-id")
 			if err != nil {
@@ -244,91 +255,32 @@ func runAction(ctx context.Context, prefix, repoID, repoName, rev string, steps 
 			cmd.Args = append(cmd.Args, "--", step.Image)
 			cmd.Args = append(cmd.Args, step.Args...)
 			cmd.Dir = e.volumeDir
-			cmd.Stdout = logFile
-			cmd.Stderr = logFile
+
+			if w, ok := logger.RepoWriter(repoName); ok {
+				cmd.Stdout = w
+				cmd.Stderr = w
+			}
+
 			t0 := time.Now()
 			err = cmd.Run()
 			elapsed := time.Since(t0).Round(time.Millisecond)
 			if err != nil {
-				fmt.Fprintf(logFile, "# %s: error: %s. (%s)\n", logPrefix, err, elapsed)
+				logger.DockerStepErrored(repoName, i, err, elapsed)
 				return nil, errors.Wrap(err, "run docker container")
 			}
-			fmt.Fprintf(logFile, "# %s: done. (%s)\n", logPrefix, elapsed)
+			logger.DockerStepDone(repoName, i, elapsed)
 
 		default:
 			return nil, fmt.Errorf("unrecognized run type %q", step.Type)
 		}
 	}
 
-	return computeDiff(ctx, e.zipFile, e.volumeDir, prefix)
-}
-
-func computeDiff(ctx context.Context, zipFile *os.File, volumeDir, prefix string) ([]byte, error) {
-	oldDir, err := unzipToTempDir(ctx, zipFile.Name(), prefix)
+	diffOut, err := e.computeDiff()
 	if err != nil {
 		return nil, err
 	}
-	defer os.RemoveAll(oldDir)
 
-	diffOut, err := diffDirs(ctx, oldDir, volumeDir)
-	if err != nil {
-		return nil, errors.Wrap(err, "Generating a diff failed")
-	}
-
-	// Strip temp dir prefixes from diff.
-	fileDiffs, err := diff.ParseMultiFileDiff(diffOut)
-	if err != nil {
-		return nil, err
-	}
-	for _, fileDiff := range fileDiffs {
-		for i := range fileDiff.Extended {
-			fileDiff.Extended[i] = strings.Replace(fileDiff.Extended[i], oldDir+string(os.PathSeparator), "", -1)
-			fileDiff.Extended[i] = strings.Replace(fileDiff.Extended[i], volumeDir+string(os.PathSeparator), "", -1)
-		}
-		fileDiff.OrigName = strings.TrimPrefix(fileDiff.OrigName, oldDir+string(os.PathSeparator))
-		fileDiff.NewName = strings.TrimPrefix(fileDiff.NewName, volumeDir+string(os.PathSeparator))
-	}
-	return diff.PrintMultiFileDiff(fileDiffs)
-}
-
-func diffDirs(ctx context.Context, oldDir, newDir string) ([]byte, error) {
-	args := []string{"--unified", "--new-file", "--recursive"}
-
-	if diffSupportsNoDereference {
-		args = append(args, "--no-dereference")
-	}
-
-	if diffSupportsColor {
-		args = append(args, "--color=never")
-	}
-
-	args = append(args, oldDir, newDir)
-	cmd := exec.CommandContext(ctx, "diff", args...)
-
-	out, err := cmd.CombinedOutput()
-	// 1 just means files differ, not error
-	if err != nil && cmd.ProcessState.ExitCode() != 1 {
-		outputSummary := string(out)
-		if max := 250; len(outputSummary) >= max {
-			outputSummary = outputSummary[:max] + "..."
-		}
-		return nil, errors.Wrapf(err, "diff (output was: %q)", outputSummary)
-	}
-
-	return out, nil
-}
-
-func diffSupportsFlag(ctx context.Context, flag string) (bool, error) {
-	cmd := exec.CommandContext(ctx, "diff", flag)
-	out, err := cmd.CombinedOutput()
-	// diff 2.8.1 returns exit code 2 when printing "unrecognized option" message
-	if err != nil && cmd.ProcessState.ExitCode() != 2 {
-		return false, errors.Wrapf(err, "Checking whether diff supports %q failed", flag)
-	}
-
-	pattern := fmt.Sprintf("unrecognized\\soption\\s[`']%s", flag)
-	matched, err := regexp.MatchString(pattern, string(out))
-	return !matched, err
+	return diffOut, err
 }
 
 // We use an explicit prefix for our temp directories, because otherwise Go

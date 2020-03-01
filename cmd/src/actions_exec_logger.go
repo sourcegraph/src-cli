@@ -1,0 +1,215 @@
+package main
+
+import (
+	"fmt"
+	"io"
+	"io/ioutil"
+	"os"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/fatih/color"
+	"github.com/mattn/go-isatty"
+	"github.com/neelance/parallel"
+	"github.com/pkg/errors"
+)
+
+var (
+	boldBlack = color.New(color.Bold, color.FgBlack)
+	boldRed   = color.New(color.Bold, color.FgRed)
+	boldGreen = color.New(color.Bold, color.FgGreen)
+	green     = color.New(color.FgGreen)
+	hiGreen   = color.New(color.FgHiGreen)
+	yellow    = color.New(color.FgYellow)
+	grey      = color.New(color.FgHiBlack)
+)
+
+type actionLogger struct {
+	verbose  bool
+	keepLogs bool
+
+	highlight func(a ...interface{}) string
+
+	logFiles   map[string]*os.File
+	logWriters map[string]io.Writer
+	mu         sync.Mutex
+}
+
+func newActionLogger(verbose, keepLogs bool) *actionLogger {
+	useColor := isatty.IsTerminal(os.Stderr.Fd()) || isatty.IsCygwinTerminal(os.Stderr.Fd())
+	if useColor {
+		color.NoColor = false
+	}
+	return &actionLogger{
+		verbose:    verbose,
+		keepLogs:   keepLogs,
+		highlight:  color.New(color.Bold, color.FgGreen).SprintFunc(),
+		logFiles:   map[string]*os.File{},
+		logWriters: map[string]io.Writer{},
+	}
+}
+
+func (a *actionLogger) Start() {
+	if a.verbose {
+		fmt.Fprintln(os.Stderr)
+	}
+}
+
+func (a *actionLogger) Warnf(format string, args ...interface{}) {
+	if a.verbose {
+		yellow.Fprintf(os.Stderr, "WARNING: "+format, args...)
+	}
+}
+
+func (a *actionLogger) ActionFailed(err error, patches []CampaignPlanPatch) {
+	if !a.verbose {
+		return
+	}
+	fmt.Fprintln(os.Stderr)
+	if perr, ok := err.(parallel.Errors); ok {
+		if len(patches) > 0 {
+			yellow.Fprintf(os.Stderr, "✗  Action produced %d patches but failed with %d errors.\n\n", len(patches), len(perr))
+		} else {
+			yellow.Fprintf(os.Stderr, "✗  Action failed with %d errors.\n", len(perr))
+		}
+	} else {
+		if len(patches) > 0 {
+			yellow.Fprintf(os.Stderr, "✗  Action produced %d patches but failed with error: %s\n\n", len(patches), err)
+		} else {
+			yellow.Fprintf(os.Stderr, "✗  Action failed with error: %s\n\n", err)
+		}
+	}
+}
+
+func (a *actionLogger) ActionSuccess(patches []CampaignPlanPatch, newLines bool) {
+	if a.verbose {
+		fmt.Fprintln(os.Stderr)
+		format := "✔  Action produced %d patches."
+		if newLines {
+			format = format + "\n\n"
+		}
+		hiGreen.Fprintf(os.Stderr, format, len(patches))
+	}
+}
+
+func (a *actionLogger) Infof(format string, args ...interface{}) {
+	if a.verbose {
+		grey.Fprintf(os.Stderr, format, args...)
+	}
+}
+
+func (a *actionLogger) RepoCacheHit(repo ActionRepo, patchProduced bool) {
+	if a.verbose {
+		if patchProduced {
+			fmt.Fprintf(os.Stderr, "%s -> Cached result with patch found.\n", boldGreen.Sprint(repo.Name))
+			return
+		}
+
+		fmt.Fprintf(os.Stderr, "%s -> Cached result without patch found.\n", green.Sprint(repo.Name))
+	}
+}
+
+func (a *actionLogger) AddRepo(repo ActionRepo) (string, error) {
+	prefix := "action-" + strings.Replace(strings.Replace(repo.Name, "/", "-", -1), "github.com-", "", -1)
+
+	logFile, err := ioutil.TempFile(tempDirPrefix, prefix+"-log")
+	if err != nil {
+		return "", err
+	}
+
+	logWriter := io.Writer(logFile)
+
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.logFiles[repo.Name] = logFile
+	a.logWriters[repo.Name] = logWriter
+
+	return logFile.Name(), nil
+}
+
+func (a *actionLogger) RepoWriter(repoName string) (io.Writer, bool) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	w, ok := a.logWriters[repoName]
+	return w, ok
+}
+
+func (a *actionLogger) write(repoName string, c *color.Color, format string, args ...interface{}) {
+	if w, ok := a.RepoWriter(repoName); ok {
+		fmt.Fprintf(w, format, args...)
+	}
+
+	if a.verbose {
+		format = fmt.Sprintf("%s -> %s", c.Sprint(repoName), format)
+		fmt.Fprintf(os.Stderr, format, args...)
+	}
+}
+
+func (a *actionLogger) RepoFinished(repoName string, patchProduced bool, actionErr error) error {
+	a.mu.Lock()
+	f, ok := a.logFiles[repoName]
+	if !ok {
+		a.mu.Unlock()
+		return nil
+	}
+	a.mu.Unlock()
+
+	if actionErr != nil {
+		if a.keepLogs {
+			a.write(repoName, boldRed, "Action failed. Logfile: %s\n", f.Name())
+		} else {
+			a.write(repoName, boldRed, "Action failed.\n")
+		}
+	} else if patchProduced {
+		a.write(repoName, boldGreen, "Finished. Patch produced.\n")
+	} else {
+		a.write(repoName, grey, "Finished. No patch produced.\n")
+	}
+
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	delete(a.logFiles, repoName)
+	delete(a.logWriters, repoName)
+
+	if !a.keepLogs && actionErr == nil {
+		if err := os.Remove(f.Name()); err != nil {
+			return errors.Wrap(err, "Failed to remove log file")
+		}
+	}
+
+	return nil
+}
+
+func (a *actionLogger) RepoStarted(repoName, rev string, steps []*ActionStep) {
+	a.write(repoName, yellow, "Starting action @ %s (%d steps)\n", rev, len(steps))
+}
+
+func (a *actionLogger) CommandStepStarted(repoName string, step int, args []string) {
+	a.write(repoName, yellow, "[Step %d] command %v\n", step, args)
+}
+
+func (a *actionLogger) CommandStepErrored(repoName string, step int, err error) {
+	a.write(repoName, boldRed, "[Step %d] %s.\n", step, err)
+}
+
+func (a *actionLogger) CommandStepDone(repoName string, step int) {
+	a.write(repoName, yellow, "[Step %d] Done.\n", step)
+}
+
+func (a *actionLogger) DockerStepStarted(repoName string, step int, dockerfile, image string) {
+	var fromDockerfile string
+	if dockerfile != "" {
+		fromDockerfile = " (built from inline Dockerfile)"
+	}
+	a.write(repoName, yellow, "[Step %d] docker run %v%s\n", step, image, fromDockerfile)
+}
+
+func (a *actionLogger) DockerStepErrored(repoName string, step int, err error, elapsed time.Duration) {
+	a.write(repoName, boldRed, "[Step %d] %s. (%s)\n", step, err, elapsed)
+}
+
+func (a *actionLogger) DockerStepDone(repoName string, step int, elapsed time.Duration) {
+	a.write(repoName, yellow, "[Step %d] Done. (%s)\n", step, elapsed)
+}

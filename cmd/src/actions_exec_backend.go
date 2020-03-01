@@ -26,9 +26,11 @@ type actionExecutor struct {
 	par           *parallel.Run
 	done          chan struct{}
 	doneEnqueuing chan struct{}
+
+	logger *actionLogger
 }
 
-func newActionExecutor(action Action, parallelism int, opt actionExecutorOptions) *actionExecutor {
+func newActionExecutor(action Action, parallelism int, logger *actionLogger, opt actionExecutorOptions) *actionExecutor {
 	if opt.cache == nil {
 		opt.cache = actionExecutionNoOpCache{}
 	}
@@ -38,6 +40,7 @@ func newActionExecutor(action Action, parallelism int, opt actionExecutorOptions
 		opt:    opt,
 		repos:  map[ActionRepo]ActionRepoStatus{},
 		par:    parallel.NewRun(parallelism),
+		logger: logger,
 
 		done:          make(chan struct{}),
 		doneEnqueuing: make(chan struct{}),
@@ -84,9 +87,9 @@ func (x *actionExecutor) allPatches() []CampaignPlanPatch {
 	patches := make([]CampaignPlanPatch, 0, len(x.repos))
 	x.reposMu.Lock()
 	defer x.reposMu.Unlock()
-	for _, repoStatus := range x.repos {
-		if patch := repoStatus.Patch; patch != (CampaignPlanPatch{}) {
-			patches = append(patches, repoStatus.Patch)
+	for _, status := range x.repos {
+		if patch := status.Patch; patch != (CampaignPlanPatch{}) && status.Err == nil {
+			patches = append(patches, status.Patch)
 		}
 	}
 	return patches

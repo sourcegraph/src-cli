@@ -1,12 +1,12 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"log"
 	"os"
@@ -14,25 +14,13 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
-	"sort"
 	"strings"
-	"sync"
 	"time"
-	"unicode/utf8"
 
 	"github.com/fatih/color"
-	"github.com/gosuri/uilive"
+	"github.com/mattn/go-isatty"
 	"github.com/pkg/errors"
 	"github.com/sourcegraph/go-diff/diff"
-)
-
-// Older versions of GNU diff (< 3.3) do not support all the flags we want, but
-// since macOS Mojave and Catalina ship with GNU diff 2.8.1, we try to detect
-// missing flags and degrade behavior gracefully instead of failing. check for
-// the flags and degrade if they're not available.
-var (
-	diffSupportsNoDereference = false
-	diffSupportsColor         = false
 )
 
 type Action struct {
@@ -75,19 +63,23 @@ Examples:
 
   Execute an action defined in ~/run-gofmt-in-dockerfile.json:
 
-    	$ src actions exec -f ~/run-gofmt-in-dockerfile.json
-
-  Verbosely execute an action and keep the logs available for debugging:
-
-		$ src -v actions exec -keep-logs -f ~/run-gofmt-in-dockerfile.json
+	$ src actions exec -f ~/run-gofmt-in-dockerfile.json
 
   Execute an action and create a campaign plan from the patches it produced:
 
-    	$ src actions exec -f ~/run-gofmt-in-dockerfile.json | src campaign plan create-from-patches
+	$ src actions exec -f ~/run-gofmt-in-dockerfile.json -create-plan
+
+  Verbosely execute an action and keep the logs available for debugging:
+
+	$ src -v actions exec -keep-logs -f ~/run-gofmt-in-dockerfile.json
+
+  Execute an action and pipe the patches it produced to 'src campaign plan create-from-patches':
+
+	$ src actions exec -f ~/run-gofmt-in-dockerfile.json | src campaign plan create-from-patches
 
   Read and execute an action definition from standard input:
 
-		$ cat ~/my-action.json | src actions exec -f -
+	$ cat ~/my-action.json | src actions exec -f -
 
 
 Format of the action JSON files:
@@ -146,10 +138,19 @@ Format of the action JSON files:
 		cacheDirFlag    = flagSet.String("cache", displayUserCacheDir, "Directory for caching results.")
 		keepLogsFlag    = flagSet.Bool("keep-logs", false, "Do not remove execution log files when done.")
 		timeoutFlag     = flagSet.Duration("timeout", defaultTimeout, "The maximum duration a single action run can take (excluding the building of Docker images).")
+
+		createPlanFlag      = flagSet.Bool("create-plan", false, "Create a campaign plan from the produced set of patches. When the execution of the action fails in a single repository a prompt will ask to confirm or reject the campaign plan creation.")
+		forceCreatePlanFlag = flagSet.Bool("force-create-plan", false, "Force creation of campaign plan from the produced set of patches, without asking for confirmation even when the execution of the action failed for a subset of repositories.")
+
+		apiFlags = newAPIFlags(flagSet)
 	)
 
 	handler := func(args []string) error {
 		flagSet.Parse(args)
+
+		if !isGitAvailable() {
+			return errors.New("Could not find git in $PATH. 'src actions exec' requires git to be available.")
+		}
 
 		if *cacheDirFlag == displayUserCacheDir {
 			*cacheDirFlag = cacheDir
@@ -182,15 +183,7 @@ Format of the action JSON files:
 
 		ctx := context.Background()
 
-		diffSupportsNoDereference, err = diffSupportsFlag(ctx, "--no-dereference")
-		if err != nil {
-			return err
-		}
-
-		diffSupportsColor, err = diffSupportsFlag(ctx, "--color")
-		if err != nil {
-			return err
-		}
+		logger := newActionLogger(*verbose, *keepLogsFlag)
 
 		err = validateAction(ctx, action)
 		if err != nil {
@@ -203,144 +196,88 @@ Format of the action JSON files:
 			return errors.Wrap(err, "Failed to prepare action")
 		}
 
-		uilive.Out = os.Stderr
-		uilive.RefreshInterval = 10 * time.Hour // TODO!(sqs): manually flush
-		color.NoColor = false                   // force color even when in a pipe
-		var (
-			lwMu sync.Mutex
-			lw   = uilive.New()
-		)
-		lw.Start()
-		defer lw.Stop()
-
-		spinner := []rune{'⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'}
-		spinnerI := 0
-		onUpdate := func(reposMap map[ActionRepo]ActionRepoStatus) {
-			lwMu.Lock()
-			defer lwMu.Unlock()
-
-			spinnerRune := spinner[spinnerI%len(spinner)]
-			spinnerI++
-
-			reposSorted := make([]ActionRepo, 0, len(reposMap))
-			repoNameLen := 0
-			for repo := range reposMap {
-				reposSorted = append(reposSorted, repo)
-				if n := utf8.RuneCountInString(repo.Name); n > repoNameLen {
-					repoNameLen = n
-				}
-			}
-			sort.Slice(reposSorted, func(i, j int) bool { return reposSorted[i].Name < reposSorted[j].Name })
-
-			for i, repo := range reposSorted {
-				status := reposMap[repo]
-
-				var (
-					timerDuration time.Duration
-
-					statusColor func(string, ...interface{}) string
-
-					statusText  string
-					logFileText string
-				)
-				if *keepLogsFlag && status.LogFile != "" {
-					logFileText = color.HiBlackString(status.LogFile)
-				}
-				switch {
-				case !status.Cached && status.StartedAt.IsZero():
-					statusColor = color.HiBlackString
-					statusText = statusColor(string(spinnerRune))
-					timerDuration = time.Since(status.EnqueuedAt)
-
-				case !status.Cached && status.FinishedAt.IsZero():
-					statusColor = color.YellowString
-					statusText = statusColor(string(spinnerRune))
-					timerDuration = time.Since(status.StartedAt)
-
-				case status.Cached || !status.FinishedAt.IsZero():
-					if status.Err != nil {
-						statusColor = color.RedString
-						statusText = "error: see " + status.LogFile
-						logFileText = "" // don't show twice
-					} else {
-						statusColor = color.GreenString
-						if status.Patch != (CampaignPlanPatch{}) && status.Patch.Patch != "" {
-							fileDiffs, err := diff.ParseMultiFileDiff([]byte(status.Patch.Patch))
-							if err != nil {
-								panic(err)
-								// return errors.Wrapf(err, "invalid patch for repository %q", repo.Name)
-							}
-							statusText = diffStatDescription(fileDiffs) + " " + diffStatDiagram(sumDiffStats(fileDiffs))
-							if status.Cached {
-								statusText += " (cached)"
-							}
-						} else {
-							statusText = color.HiBlackString("0 files changed")
-						}
-					}
-					timerDuration = status.FinishedAt.Sub(status.StartedAt)
-				}
-
-				var w io.Writer
-				if i == 0 {
-					w = lw
-				} else {
-					w = lw.Newline()
-				}
-
-				var appendTexts []string
-				if statusText != "" {
-					appendTexts = append(appendTexts, statusText)
-				}
-				if logFileText != "" {
-					appendTexts = append(appendTexts, logFileText)
-				}
-				repoText := statusColor(fmt.Sprintf("%-*s", repoNameLen, repo.Name))
-				pipe := color.HiBlackString("|")
-				fmt.Fprintf(w, "%s %s ", repoText, pipe)
-				fmt.Fprintf(w, "%s", strings.Join(appendTexts, " "))
-				if timerDuration != 0 {
-					fmt.Fprintf(w, color.HiBlackString(" %s"), timerDuration.Round(time.Second))
-				}
-				fmt.Fprintln(w)
-			}
-			_ = lw.Flush()
-		}
-		executor := newActionExecutor(action, *parallelismFlag, actionExecutorOptions{
+		opts := actionExecutorOptions{
 			timeout:  *timeoutFlag,
 			keepLogs: *keepLogsFlag,
 			cache:    actionExecutionDiskCache{dir: *cacheDirFlag},
-			onUpdate: onUpdate,
-		})
-
-		if *verbose {
-			log.Printf("# Querying %s for repositories matching '%s'...", cfg.Endpoint, action.ScopeQuery)
+		}
+		if !*verbose {
+			opts.onUpdate = newTerminalUI(*keepLogsFlag)
 		}
 
 		// Query repos over which to run action
-		repos, err := actionRepos(ctx, *verbose, action.ScopeQuery)
+		logger.Infof("Querying %s for repositories matching '%s'...\n", cfg.Endpoint, action.ScopeQuery)
+		repos, skipped, err := actionRepos(ctx, action.ScopeQuery)
 		if err != nil {
 			return err
 		}
-		if *verbose {
-			log.Printf("# %d repositories match. Use 'src actions scope-query' for help with scoping.", len(repos))
+		for _, r := range skipped {
+			logger.Infof("Skipping repository %s because we couldn't determine default branch.\n", r)
 		}
+		logger.Infof("%d repositories match. Use 'src actions scope-query' for help with scoping.\n", len(repos))
+
+		logger.Start()
+
+		executor := newActionExecutor(action, *parallelismFlag, logger, opts)
 		for _, repo := range repos {
 			executor.enqueueRepo(repo)
 		}
 
 		// Execute actions
-		onUpdate(executor.repos)
+		if opts.onUpdate != nil {
+			opts.onUpdate(executor.repos)
+		}
 
 		go executor.start(ctx)
-		if err := executor.wait(); err != nil {
+		err = executor.wait()
+
+		patches := executor.allPatches()
+		if len(patches) == 0 {
+			// We call os.Exit because we don't want to return the error
+			// and have it printed.
+			logger.ActionFailed(err, patches)
+			os.Exit(1)
+		}
+
+		if !*createPlanFlag && !*forceCreatePlanFlag {
+			if err != nil {
+				logger.ActionFailed(err, patches)
+				os.Exit(1)
+			}
+
+			logger.ActionSuccess(patches, true)
+
+			return json.NewEncoder(os.Stdout).Encode(patches)
+		}
+
+		if err != nil {
+			logger.ActionFailed(err, patches)
+
+			if len(patches) == 0 {
+				os.Exit(1)
+			}
+
+			if !*forceCreatePlanFlag {
+				canInput := isatty.IsTerminal(os.Stdin.Fd()) || isatty.IsCygwinTerminal(os.Stdin.Fd())
+				if !canInput {
+					return err
+				}
+
+				c, _ := askForConfirmation(fmt.Sprintf("Create a campaign plan for the produced patches anyway?"))
+				if !c {
+					return err
+				}
+			}
+		} else {
+			logger.ActionSuccess(patches, false)
+		}
+
+		tmpl, err := parseTemplate("{{friendlyCampaignPlanCreatedMessage .}}")
+		if err != nil {
 			return err
 		}
-		patches := executor.allPatches()
-		if *verbose {
-			log.Printf("# Action produced %d patches.", len(patches))
-		}
-		return json.NewEncoder(os.Stdout).Encode(patches)
+
+		return createCampaignPlanFromPatches(apiFlags, patches, tmpl, 100)
 	}
 
 	// Register the command.
@@ -395,7 +332,7 @@ func prepareAction(ctx context.Context, action Action) error {
 				defer os.Remove(iidFile.Name())
 
 				if *verbose {
-					log.Printf("# Building Docker container for step %d...", i)
+					log.Printf("Building Docker container for step %d...", i)
 				}
 
 				cmd := exec.CommandContext(ctx, "docker", "build", "--iidfile", iidFile.Name(), "-")
@@ -405,7 +342,7 @@ func prepareAction(ctx context.Context, action Action) error {
 					return errors.Wrap(err, "build docker image")
 				}
 				if *verbose {
-					log.Printf("# Done building Docker container for step %d.", i)
+					log.Printf("Done building Docker container for step %d.", i)
 				}
 
 				iid, err := ioutil.ReadFile(iidFile.Name())
@@ -460,10 +397,10 @@ type ActionRepo struct {
 	Rev  string
 }
 
-func actionRepos(ctx context.Context, verbose bool, scopeQuery string) ([]ActionRepo, error) {
+func actionRepos(ctx context.Context, scopeQuery string) ([]ActionRepo, []string, error) {
 	hasCount, err := regexp.MatchString(`count:\d+`, scopeQuery)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	if !hasCount {
@@ -517,9 +454,10 @@ query ActionRepos($query: String!) {
 		},
 		result: &result,
 	}).do(); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
+	skipped := []string{}
 	reposByID := map[string]ActionRepo{}
 	for _, searchResult := range result.Search.Results.Results {
 		var repo Repository
@@ -534,7 +472,7 @@ query ActionRepos($query: String!) {
 		}
 
 		if repo.DefaultBranch.Name == "" {
-			log.Printf("# Skipping repository %s because we couldn't determine default branch.", repo.Name)
+			skipped = append(skipped, repo.Name)
 			continue
 		}
 
@@ -551,7 +489,7 @@ query ActionRepos($query: String!) {
 	for _, repo := range reposByID {
 		repos = append(repos, repo)
 	}
-	return repos, nil
+	return repos, skipped, nil
 }
 
 func sumDiffStats(fileDiffs []*diff.FileDiff) diff.Stat {
@@ -588,4 +526,32 @@ func diffStatDiagram(stat diff.Stat) string {
 		deleted *= x
 	}
 	return color.GreenString(strings.Repeat("+", int(added))) + color.RedString(strings.Repeat("-", int(deleted)))
+}
+
+func isGitAvailable() bool {
+	cmd := exec.Command("git", "version")
+	if err := cmd.Run(); err != nil {
+		return false
+	}
+	return true
+}
+
+// askForConfirmation asks the user for confirmation. A user must type in "yes"
+// and press enter to confirm. It has fuzzy matching, so "y", "Y", "yes",
+// "YES", and "Yes" all count as confirmations. Everything else counts as "no".
+func askForConfirmation(s string) (bool, error) {
+	fmt.Fprintf(os.Stderr, "%s [y/n]: ", s)
+
+	reader := bufio.NewReader(os.Stdin)
+	response, err := reader.ReadString('\n')
+	if err != nil {
+		return false, err
+	}
+
+	response = strings.ToLower(strings.TrimSpace(response))
+	if response == "y" || response == "yes" {
+		return true, nil
+	}
+
+	return false, nil
 }
