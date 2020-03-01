@@ -239,7 +239,8 @@ func runAction(ctx context.Context, prefix, repoID, repoName, rev string, steps 
 		return nil, errors.Wrap(err, "git add failed")
 	}
 
-	diffOut, err := runGitCmd("diff", "--cached")
+	// --no-prefix omits the a/ and b/ folder prefixes, otherwise the diff would be interpreted as renaming the file
+	diffOut, err := runGitCmd("diff", "--cached", "--no-prefix")
 	if err != nil {
 		return nil, errors.Wrap(err, "git diff failed")
 	}
