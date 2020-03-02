@@ -1,0 +1,78 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "actions.schema.json#",
+  "title": "Action Definition",
+  "description": "Describes an action with its scope and steps to perform.",
+  "allowComments": true,
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "scopeQuery",
+    "steps"
+  ],
+  "properties": {
+    "scopeQuery": {
+      "description": "A Sourcegraph search query to generate a list of repositories over which to run the action. Use 'src actions scope-query' to see which repositories are matched by the query.",
+      "type": "string",
+      "minLength": 1
+    },
+    "steps": {
+      "description": "A list of action steps to execute in each repository.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["type"],
+        "additionalProperties": false,
+        "properties": {
+          "type": {
+            "description": "Can either be of type \"command\", which means the step is executed on the machine on which 'src actions exec' is executed, or it can be of type \"docker\" which then (optionally builds) and runs a container in which the repository is mounted.",
+            "type": "string",
+            "enum": ["command", "docker"]
+          },
+          "args": {
+            "description": "The command to execute.",
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string"
+            }
+          },
+          "image": {
+            "description": "Docker image handle to pull for executing this step. If no `args` are provided, the default CMD will be executed.",
+            "type": "string",
+            "minLength": 1
+          },
+          "dockerfile": {
+            "description": "An inline defined dockerfile to build the image from",
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "oneOf": [
+          {
+            "required": ["args"],
+            "properties": {
+              "type": { "const": "command" },
+              "image": { "type": "null" },
+              "dockerfile": { "type": "null" }
+            }
+          },
+          {
+            "required": ["image"],
+            "properties": {
+              "type": { "const": "docker" },
+              "dockerfile": { "type": "null" }
+            }
+          },
+          {
+            "required": ["dockerfile"],
+            "properties": {
+              "type": { "const": "docker" },
+              "image": { "type": "null" }
+            }
+          }
+        ]
+      }
+    }
+  }
+}
