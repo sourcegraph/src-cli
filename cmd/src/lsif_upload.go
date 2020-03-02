@@ -56,7 +56,7 @@ Examples:
 	var (
 		repoFlag        = flagSet.String("repo", "", `The name of the repository. By default, derived from the origin remote.`)
 		commitFlag      = flagSet.String("commit", "", `The 40-character hash of the commit. Defaults to the currently checked-out commit.`)
-		rootFlag        = flagSet.String("root", `The path in the repository that matches the LSIF projectRoot (e.g. cmd/project1). Defaults to the empty string, which refers to the top level of the repository.`)
+		rootFlag        = flagSet.String("root", "", `The path in the repository that matches the LSIF projectRoot (e.g. cmd/project1). Defaults to the empty string, which refers to the top level of the repository.`)
 		fileFlag        = flagSet.String("file", "./dump.lsif", `The path to the LSIF dump file.`)
 		githubTokenFlag = flagSet.String("github-token", "", `A GitHub access token with 'public_repo' scope that Sourcegraph uses to verify you have access to the repository.`)
 		apiFlags        = newAPIFlags(flagSet)
@@ -101,7 +101,7 @@ Examples:
 		}
 		fmt.Println("File: " + *fileFlag)
 
-		if !isFlagSet(rootFlag) {
+		if !isFlagSet(flagSet, "root") {
 			checkError := func(err error) {
 				if err != nil {
 					fmt.Println(err)
@@ -120,7 +120,8 @@ Examples:
 			rel, err := filepath.Rel(strings.TrimSpace(string(topLevel)), absFile)
 			checkError(err)
 
-			rootFlag = filepath.Dir(rel)
+			rf := filepath.Dir(rel)
+			rootFlag = &rf
 		}
 
 		*rootFlag = filepath.Clean(*rootFlag)
