@@ -38,12 +38,7 @@
             }
           },
           "image": {
-            "description": "Docker image handle to pull for executing this step. If no `args` are provided, the default CMD will be executed.",
-            "type": "string",
-            "minLength": 1
-          },
-          "dockerfile": {
-            "description": "An inline defined Dockerfile to build the image from",
+            "description": "The Docker image handle for running the container executing this step. Just like when running `docker run`, `args` here override the default `CMD` to be executed.",
             "type": "string",
             "minLength": 1
           }
@@ -53,22 +48,13 @@
             "required": ["args"],
             "properties": {
               "type": { "const": "command" },
-              "image": { "type": "null" },
-              "dockerfile": { "type": "null" }
+              "image": { "type": "null" }
             }
           },
           {
             "required": ["image"],
             "properties": {
-              "type": { "const": "docker" },
-              "dockerfile": { "type": "null" }
-            }
-          },
-          {
-            "required": ["dockerfile"],
-            "properties": {
-              "type": { "const": "docker" },
-              "image": { "type": "null" }
+              "type": { "const": "docker" }
             }
           }
         ]
