@@ -251,7 +251,7 @@ Examples:
 
 		fmt.Println("")
 		fmt.Printf("LSIF dump successfully uploaded for processing.\n")
-		fmt.Printf("To check the status, visit %s.\n", uploadURL)
+		fmt.Printf("View processing status at %s.\n", uploadURL)
 
 		if *openFlag {
 			if err := browser.OpenURL(uploadURL); err != nil {
