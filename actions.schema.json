@@ -25,7 +25,7 @@
         "additionalProperties": false,
         "properties": {
           "type": {
-            "description": "Can either be of type \"command\", which means the step is executed on the machine on which 'src actions exec' is executed, or it can be of type \"docker\" which then (optionally builds) and runs a container in which the repository is mounted.",
+            "description": "Can be either \"command\", which executes the step in the native environment (OS) of the machine where 'src actions exec' is executed, or \"docker\" which runs a container with the repository contents mounted in at `/work`. Note that local images (not from a Docker registry) must be built manually prior to executing.",
             "type": "string",
             "enum": ["command", "docker"]
           },
@@ -43,7 +43,7 @@
             "minLength": 1
           },
           "dockerfile": {
-            "description": "An inline defined dockerfile to build the image from",
+            "description": "An inline defined Dockerfile to build the image from",
             "type": "string",
             "minLength": 1
           }
