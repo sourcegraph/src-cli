@@ -73,12 +73,14 @@ func (a *actionLogger) ActionFailed(err error, patches []CampaignPlanPatch) {
 		} else {
 			yellow.Fprintf(os.Stderr, "✗  Action failed with %d errors.\n", len(perr))
 		}
-	} else {
+	} else if err != nil {
 		if len(patches) > 0 {
 			yellow.Fprintf(os.Stderr, "✗  Action produced %d patches but failed with error: %s\n\n", len(patches), err)
 		} else {
 			yellow.Fprintf(os.Stderr, "✗  Action failed with error: %s\n\n", err)
 		}
+	} else {
+		grey.Fprintf(os.Stderr, "✗  Action did not produce any patches.\n\n")
 	}
 }
 
@@ -102,11 +104,11 @@ func (a *actionLogger) Infof(format string, args ...interface{}) {
 func (a *actionLogger) RepoCacheHit(repo ActionRepo, patchProduced bool) {
 	if a.verbose {
 		if patchProduced {
-			fmt.Fprintf(os.Stderr, "%s -> Cached result with patch found.\n", boldGreen.Sprint(repo.Name))
+			fmt.Fprintf(os.Stderr, "%s -> Cached result found: using cached diff.\n", boldGreen.Sprint(repo.Name))
 			return
 		}
 
-		fmt.Fprintf(os.Stderr, "%s -> Cached result without patch found.\n", green.Sprint(repo.Name))
+		fmt.Fprintf(os.Stderr, "%s -> Cached result found: no diff produced for this repository.\n", grey.Sprint(repo.Name))
 	}
 }
 
