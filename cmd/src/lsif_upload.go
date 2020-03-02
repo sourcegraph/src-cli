@@ -120,8 +120,8 @@ Examples:
 			rel, err := filepath.Rel(strings.TrimSpace(string(topLevel)), absFile)
 			checkError(err)
 
-			rf := filepath.Dir(rel)
-			rootFlag = &rf
+			relDir := filepath.Dir(rel)
+			rootFlag = &relDir
 		}
 
 		*rootFlag = filepath.Clean(*rootFlag)
