@@ -250,7 +250,7 @@ Examples:
 		uploadURL := fmt.Sprintf("%s/%s/-/settings/code-intelligence/lsif-uploads/%s", cfg.Endpoint, *repoFlag, uploadID)
 
 		fmt.Println("")
-		fmt.Printf("LSIF dump successfully uploaded. It will be converted asynchronously.\n")
+		fmt.Printf("LSIF dump successfully uploaded for processing.\n")
 		fmt.Printf("To check the status, visit %s.\n", uploadURL)
 
 		if *openFlag {
