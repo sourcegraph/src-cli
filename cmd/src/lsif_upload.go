@@ -57,8 +57,8 @@ Examples:
 		repoFlag        = flagSet.String("repo", "", `The name of the repository. By default, derived from the origin remote.`)
 		commitFlag      = flagSet.String("commit", "", `The 40-character hash of the commit. Defaults to the currently checked-out commit.`)
 		fileFlag        = flagSet.String("file", "./dump.lsif", `The path to the LSIF dump file.`)
-		rootFlag        = flagSet.String("root", "", `The path in the repository that matches the LSIF projectRoot (e.g. cmd/project1). Defaults to the empty string, which refers to the top level of the repository.`)
 		githubTokenFlag = flagSet.String("github-token", "", `A GitHub access token with 'public_repo' scope that Sourcegraph uses to verify you have access to the repository.`)
+		rootFlag        = flagSet.String("root", "", `The path in the repository that matches the LSIF projectRoot (e.g. cmd/project1). Defaults to the empty string, which refers to the top level of the repository.`)
 		apiFlags        = newAPIFlags(flagSet)
 	)
 
