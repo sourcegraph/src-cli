@@ -102,7 +102,7 @@ func createCampaignPlanFromPatches(
 	if err != nil {
 		return err
 	}
-	supportsBaseRef, err := sourcegraphVersionCheck(version, ">= 3.14-0", "2020-03-11")
+	supportsBaseRef, err := sourcegraphVersionCheck(version, ">= 3.14.0", "2020-03-11")
 	if err != nil {
 		return err
 	}
