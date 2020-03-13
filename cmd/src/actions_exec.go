@@ -8,7 +8,6 @@ import (
 	"flag"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -29,11 +28,10 @@ type Action struct {
 }
 
 type ActionStep struct {
-	Type       string   `json:"type"` // "command"
-	Dockerfile string   `json:"dockerfile,omitempty"`
-	Image      string   `json:"image,omitempty"` // Docker image
-	CacheDirs  []string `json:"cacheDirs,omitempty"`
-	Args       []string `json:"args,omitempty"`
+	Type      string   `json:"type"`            // "command"
+	Image     string   `json:"image,omitempty"` // Docker image
+	CacheDirs []string `json:"cacheDirs,omitempty"`
+	Args      []string `json:"args,omitempty"`
 
 	// ImageContentDigest is an internal field that should not be set by users.
 	ImageContentDigest string
@@ -42,6 +40,7 @@ type ActionStep struct {
 type CampaignPlanPatch struct {
 	Repository   string `json:"repository"`
 	BaseRevision string `json:"baseRevision"`
+	BaseRef      string `json:"baseRef"`
 	Patch        string `json:"patch"`
 }
 
@@ -61,21 +60,21 @@ Execute an action on code in repositories. The output of an action is a set of p
 
 Examples:
 
-  Execute an action defined in ~/run-gofmt-in-dockerfile.json:
+  Execute an action defined in ~/run-gofmt.json:
 
-	$ src actions exec -f ~/run-gofmt-in-dockerfile.json
+	$ src actions exec -f ~/run-gofmt.json
 
   Execute an action and create a campaign plan from the patches it produced:
 
-	$ src actions exec -f ~/run-gofmt-in-dockerfile.json -create-plan
+	$ src actions exec -f ~/run-gofmt.json -create-plan
 
   Verbosely execute an action and keep the logs available for debugging:
 
-	$ src -v actions exec -keep-logs -f ~/run-gofmt-in-dockerfile.json
+	$ src -v actions exec -keep-logs -f ~/run-gofmt.json
 
   Execute an action and pipe the patches it produced to 'src campaign plan create-from-patches':
 
-	$ src actions exec -f ~/run-gofmt-in-dockerfile.json | src campaign plan create-from-patches
+	$ src actions exec -f ~/run-gofmt.json | src campaign plan create-from-patches
 
   Read and execute an action definition from standard input:
 
@@ -105,13 +104,13 @@ Format of the action JSON files:
 
 	This action runs a single step over repositories whose name contains "github", building and starting a Docker container based on the image defined through the "dockerfile". In the container the word 'this' is replaced with 'that' in all text files.
 
-
 		{
 		  "scopeQuery": "repo:github",
 		  "steps": [
 		    {
 		      "type": "docker",
-		      "dockerfile": "FROM alpine:3 \n CMD find /work -iname '*.txt' -type f | xargs -n 1 sed -i s/this/that/g"
+		      "image": "alpine:3",
+			  "args": ["sh", "-c", "find /work -iname '*.txt' -type f | xargs -n 1 sed -i s/this/that/g"]
 		    }
 		  ]
 		}
@@ -291,12 +290,8 @@ Format of the action JSON files:
 func validateAction(ctx context.Context, action Action) error {
 	for _, step := range action.Steps {
 		if step.Type == "docker" {
-			if step.Dockerfile == "" && step.Image == "" {
-				return fmt.Errorf("docker run step has to specify either 'image' or 'dockerfile'")
-			}
-
-			if step.Dockerfile != "" && step.Image != "" {
-				return fmt.Errorf("docker run step may specify either image (%q) or dockerfile, not both", step.Image)
+			if step.Image == "" {
+				return fmt.Errorf("docker run step has to specify 'image'")
 			}
 
 			if step.ImageContentDigest != "" {
@@ -314,44 +309,8 @@ func validateAction(ctx context.Context, action Action) error {
 
 func prepareAction(ctx context.Context, action Action) error {
 	// Build any Docker images.
-	for i, step := range action.Steps {
+	for _, step := range action.Steps {
 		if step.Type == "docker" {
-			if step.Dockerfile == "" && step.Image == "" {
-				return fmt.Errorf("docker run step has to specify either 'image' or 'dockerfile'")
-			}
-
-			if step.Dockerfile != "" && step.Image != "" {
-				return fmt.Errorf("docker run step may specify either image (%q) or dockerfile, not both", step.Image)
-			}
-
-			if step.Dockerfile != "" {
-				iidFile, err := ioutil.TempFile("", "src-actions-exec-image-id")
-				if err != nil {
-					return err
-				}
-				defer os.Remove(iidFile.Name())
-
-				if *verbose {
-					log.Printf("Building Docker container for step %d...", i)
-				}
-
-				cmd := exec.CommandContext(ctx, "docker", "build", "--iidfile", iidFile.Name(), "-")
-				cmd.Stdin = strings.NewReader(step.Dockerfile)
-				verboseCmdOutput(cmd)
-				if err := cmd.Run(); err != nil {
-					return errors.Wrap(err, "build docker image")
-				}
-				if *verbose {
-					log.Printf("Done building Docker container for step %d.", i)
-				}
-
-				iid, err := ioutil.ReadFile(iidFile.Name())
-				if err != nil {
-					return err
-				}
-				step.Image = string(iid)
-			}
-
 			// todo: moved to run step
 			// Set digests for Docker images so we don't cache action runs in 2 different images with
 			// the same tag.
@@ -392,9 +351,10 @@ func getDockerImageContentDigest(ctx context.Context, image string) (string, err
 }
 
 type ActionRepo struct {
-	ID   string
-	Name string
-	Rev  string
+	ID      string
+	Name    string
+	Rev     string
+	BaseRef string
 }
 
 func actionRepos(ctx context.Context, scopeQuery string) ([]ActionRepo, []string, error) {
@@ -416,13 +376,19 @@ query ActionRepos($query: String!) {
 				... on Repository {
 					id
 					name
-					defaultBranch { name }
+					defaultBranch {
+						name
+						target { oid }
+					}
 				}
 				... on FileMatch {
 					repository {
 						id
 						name
-						defaultBranch { name }
+						defaultBranch {
+							name
+							target { oid }
+						}
 					}
 				}
 			}
@@ -432,7 +398,10 @@ query ActionRepos($query: String!) {
 `
 	type Repository struct {
 		ID, Name      string
-		DefaultBranch struct{ Name string }
+		DefaultBranch struct {
+			Name   string
+			Target struct{ OID string }
+		}
 	}
 	var result struct {
 		Search struct {
@@ -440,8 +409,11 @@ query ActionRepos($query: String!) {
 				Results []struct {
 					Typename      string `json:"__typename"`
 					ID, Name      string
-					DefaultBranch struct{ Name string }
-					Repository    Repository `json:"repository"`
+					DefaultBranch struct {
+						Name   string
+						Target struct{ OID string }
+					}
+					Repository Repository `json:"repository"`
 				}
 			}
 		}
@@ -476,11 +448,17 @@ query ActionRepos($query: String!) {
 			continue
 		}
 
+		if repo.DefaultBranch.Target.OID == "" {
+			skipped = append(skipped, repo.Name)
+			continue
+		}
+
 		if _, ok := reposByID[repo.ID]; !ok {
 			reposByID[repo.ID] = ActionRepo{
-				ID:   repo.ID,
-				Name: repo.Name,
-				Rev:  repo.DefaultBranch.Name,
+				ID:      repo.ID,
+				Name:    repo.Name,
+				Rev:     repo.DefaultBranch.Target.OID,
+				BaseRef: repo.DefaultBranch.Name,
 			}
 		}
 	}

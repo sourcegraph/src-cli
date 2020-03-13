@@ -68,6 +68,7 @@ func (x *actionExecutor) do(ctx context.Context, repo ActionRepo) (err error) {
 		status.Patch = CampaignPlanPatch{
 			Repository:   repo.ID,
 			BaseRevision: repo.Rev,
+			BaseRef:      repo.BaseRef,
 			Patch:        string(patch),
 		}
 	}
@@ -211,7 +212,7 @@ func runAction(ctx context.Context, prefix, repoID, repoName, rev string, steps 
 			logger.CommandStepDone(repoName, i)
 
 		case "docker":
-			logger.DockerStepStarted(repoName, i, step.Dockerfile, step.Image)
+			logger.DockerStepStarted(repoName, i, step.Image)
 
 			cidFile, err := ioutil.TempFile(tempDirPrefix, prefix+"-container-id")
 			if err != nil {
