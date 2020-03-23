@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -236,7 +237,8 @@ func (r *runner) runActionJob(_ctx context.Context, job *actionJob) (*string, er
 	logBuffer.Write([]byte(fmt.Sprintln("Preparing execution context..")))
 
 	x := executionContext{}
-	err := x.prepare(runCtx, job.Repository.Name, job.BaseRevision, "test")
+	prefix := "action-" + strings.Replace(strings.Replace(job.Repository.Name, "/", "-", -1), "github.com-", "", -1)
+	err := x.prepare(runCtx, job.Repository.Name, job.BaseRevision, prefix)
 	defer x.cleanup()
 	if err != nil {
 		logBuffer.Write([]byte(fmt.Sprintf("Failed to prepare execution context: %s\n", err.Error())))
