@@ -75,7 +75,7 @@ Examples:
 		if repoFlag == nil || *repoFlag == "" {
 			remoteURL, err := exec.Command("git", "remote", "get-url", "origin").Output()
 			if err != nil {
-				fmt.Printf("Failed to invoke git: %q\n", err)
+				fmt.Printf("Failed to invoke git: %v\n", err)
 				fmt.Println("Unable to detect repository from environment.")
 				fmt.Println("Either cd into a git repository or set -repo explicitly.")
 				os.Exit(1)
@@ -92,7 +92,7 @@ Examples:
 		if commitFlag == nil || *commitFlag == "" {
 			commit, err := exec.Command("git", "rev-parse", "HEAD").Output()
 			if err != nil {
-				fmt.Printf("Failed to invoke git: %q\n", err)
+				fmt.Printf("Failed to invoke git: %v\n", err)
 				fmt.Println("Unable to detect commit from environment.")
 				fmt.Println("Either cd into a git repository or set -commit explicitly.")
 				os.Exit(1)
