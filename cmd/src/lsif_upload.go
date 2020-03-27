@@ -59,7 +59,7 @@ Examples:
 		fmt.Println(usage)
 	}
 	var (
-		repoFlag        = flagSet.String("repo", "", `The name of the repository (in the form of <host>/<org>/<repo>). By default, derived from the origin remote.`)
+		repoFlag        = flagSet.String("repo", "", `The name of the repository (e.g. github.com/gorilla/mux). By default, derived from the origin remote.`)
 		commitFlag      = flagSet.String("commit", "", `The 40-character hash of the commit. Defaults to the currently checked-out commit.`)
 		fileFlag        = flagSet.String("file", "./dump.lsif", `The path to the LSIF dump file.`)
 		githubTokenFlag = flagSet.String("github-token", "", `A GitHub access token with 'public_repo' scope that Sourcegraph uses to verify you have access to the repository.`)
