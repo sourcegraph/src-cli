@@ -164,9 +164,6 @@ Format of the action JSON files:
 			return errors.New("cache is not a valid path")
 		}
 
-		if *clearCacheFlag {
-		}
-
 		var (
 			actionFile []byte
 			err        error
