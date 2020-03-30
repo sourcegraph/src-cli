@@ -143,10 +143,10 @@ func (a *actionLogger) RepoStdoutStderr(repoName string) (io.Writer, io.Writer, 
 	defer a.mu.Unlock()
 	w, ok := a.logWriters[repoName]
 
-	stderrPrefix := fmt.Sprintf("%s -> [ERR]: ", yellow.Sprint(repoName))
+	stderrPrefix := fmt.Sprintf("%s -> [STDERR]: ", yellow.Sprint(repoName))
 	stderr := textio.NewPrefixWriter(os.Stderr, stderrPrefix)
 
-	stdoutPrefix := fmt.Sprintf("%s -> [OUT]: ", yellow.Sprint(repoName))
+	stdoutPrefix := fmt.Sprintf("%s -> [STDOUT]: ", yellow.Sprint(repoName))
 	stdout := textio.NewPrefixWriter(os.Stderr, stdoutPrefix)
 
 	return io.MultiWriter(stdout, w), io.MultiWriter(stderr, w), ok
