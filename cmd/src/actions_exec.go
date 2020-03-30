@@ -52,7 +52,7 @@ func userCacheDir() (string, error) {
 	return filepath.Join(userCacheDir, "sourcegraph-src"), nil
 }
 
-const defaultTimeout = 15 * time.Minute
+const defaultTimeout = 60 * time.Minute
 
 func init() {
 	usage := `
