@@ -25,17 +25,17 @@ archives:
   format: binary
   wrap_in_directory: false
   name_template: "src_{{ .Os }}_{{ .Arch }}"
-brews:
-  -
-    name: src-cli
-    homepage: "https://sourcegraph.com/"
-    description: "Sourcegraph CLI"
-    github:
-      owner: sourcegraph
-      name: homebrew-src-cli
-    # Folder inside the repository to put the formula.
-    # Default is the root folder.
-    folder: Formula
+# brews:
+#   -
+#     name: src-cli
+#     homepage: "https://sourcegraph.com/"
+#     description: "Sourcegraph CLI"
+#     github:
+#       owner: sourcegraph
+#       name: homebrew-src-cli
+#     # Folder inside the repository to put the formula.
+#     # Default is the root folder.
+#     folder: Formula
 changelog:
   sort: asc
   filters:
