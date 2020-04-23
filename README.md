@@ -136,7 +136,7 @@ To acquire the access token, visit your Sourcegraph instance (or https://sourceg
 
 `src` provides different subcommands to interact with different parts of Sourcegraph:
 
- - `search` - search for results on Sourcegraph
+ - `search` - search for results on the configured Sourcegraph instance
  - `api` - interacts with the Sourcegraph GraphQL API
  - `repos` (alias: `repo`) - manages repositories
  - `users` (alias: `user`) - manages users
@@ -144,10 +144,10 @@ To acquire the access token, visit your Sourcegraph instance (or https://sourceg
  - `config` - manages global, org, and user settings
  - `extsvc` - manages external services
  - `extensions` (alias: `ext`) - manages extensions
- - `actions` - runs actions to generate patch sets
- - `campaigns` - manages campaigns
+ - `actions` - runs [campaign actions](https://docs.sourcegraph.com/user/campaigns/actions)to generate patch sets
+ - `campaigns` - manages [campaigns](https://docs.sourcegraph.com/user/campaigns)
  - `lsif` - manages LSIF data
- - `version` - display and compare the src-cli version against the recommended version - `your` instance
+ - `version` - display and compare the src-cli version against the recommended version of the configured Sourcegraph instance
 
 Run `src -h` and `src <subcommand> -h` for more detailed usage information.
 
