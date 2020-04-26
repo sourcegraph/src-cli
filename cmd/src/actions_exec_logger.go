@@ -13,13 +13,13 @@ import (
 	"github.com/mattn/go-isatty"
 	"github.com/neelance/parallel"
 	"github.com/pkg/errors"
+	"github.com/segmentio/textio"
 )
 
 var (
 	boldBlack = color.New(color.Bold, color.FgBlack)
 	boldRed   = color.New(color.Bold, color.FgRed)
 	boldGreen = color.New(color.Bold, color.FgGreen)
-	green     = color.New(color.FgGreen)
 	hiGreen   = color.New(color.FgHiGreen)
 	yellow    = color.New(color.FgYellow)
 	grey      = color.New(color.FgHiBlack)
@@ -69,10 +69,14 @@ func (a *actionLogger) ActionFailed(err error, patches []PatchInput) {
 	fmt.Fprintln(os.Stderr)
 	if perr, ok := err.(parallel.Errors); ok {
 		if len(patches) > 0 {
-			yellow.Fprintf(os.Stderr, "✗  Action produced %d patches but failed with %d errors.\n\n", len(patches), len(perr))
+			yellow.Fprintf(os.Stderr, "✗  Action produced %d patches but failed with %d errors:\n\n", len(patches), len(perr))
 		} else {
-			yellow.Fprintf(os.Stderr, "✗  Action failed with %d errors.\n", len(perr))
+			yellow.Fprintf(os.Stderr, "✗  Action failed with %d errors:\n", len(perr))
 		}
+		for _, e := range perr {
+			fmt.Fprintf(os.Stderr, "\t- %s\n", e)
+		}
+		fmt.Println()
 	} else if err != nil {
 		if len(patches) > 0 {
 			yellow.Fprintf(os.Stderr, "✗  Action produced %d patches but failed with error: %s\n\n", len(patches), err)
@@ -137,6 +141,24 @@ func (a *actionLogger) RepoWriter(repoName string) (io.Writer, bool) {
 	return w, ok
 }
 
+func (a *actionLogger) RepoStdoutStderr(repoName string) (io.Writer, io.Writer, bool) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	w, ok := a.logWriters[repoName]
+
+	if !a.verbose {
+		return w, w, ok
+	}
+
+	stderrPrefix := fmt.Sprintf("%s -> [STDERR]: ", yellow.Sprint(repoName))
+	stderr := textio.NewPrefixWriter(os.Stderr, stderrPrefix)
+
+	stdoutPrefix := fmt.Sprintf("%s -> [STDOUT]: ", yellow.Sprint(repoName))
+	stdout := textio.NewPrefixWriter(os.Stderr, stdoutPrefix)
+
+	return io.MultiWriter(stdout, w), io.MultiWriter(stderr, w), ok
+}
+
 func (a *actionLogger) write(repoName string, c *color.Color, format string, args ...interface{}) {
 	if w, ok := a.RepoWriter(repoName); ok {
 		fmt.Fprintf(w, format, args...)
@@ -159,9 +181,9 @@ func (a *actionLogger) RepoFinished(repoName string, patchProduced bool, actionE
 
 	if actionErr != nil {
 		if a.keepLogs {
-			a.write(repoName, boldRed, "Action failed. Logfile: %s\n", f.Name())
+			a.write(repoName, boldRed, "Action failed: %q (Logfile: %s)\n", actionErr, f.Name())
 		} else {
-			a.write(repoName, boldRed, "Action failed.\n")
+			a.write(repoName, boldRed, "Action failed: %q\n", actionErr)
 		}
 	} else if patchProduced {
 		a.write(repoName, boldGreen, "Finished. Patch produced.\n")
@@ -189,25 +211,25 @@ func (a *actionLogger) RepoStarted(repoName, rev string, steps []*ActionStep) {
 }
 
 func (a *actionLogger) CommandStepStarted(repoName string, step int, args []string) {
-	a.write(repoName, yellow, "[Step %d] command %v\n", step, args)
+	a.write(repoName, yellow, "%s command %v\n", boldBlack.Sprintf("[Step %d]", step), args)
 }
 
 func (a *actionLogger) CommandStepErrored(repoName string, step int, err error) {
-	a.write(repoName, boldRed, "[Step %d] %s.\n", step, err)
+	a.write(repoName, boldRed, "%s %s.\n", boldBlack.Sprintf("[Step %d]", step), err)
 }
 
 func (a *actionLogger) CommandStepDone(repoName string, step int) {
-	a.write(repoName, yellow, "[Step %d] Done.\n", step)
+	a.write(repoName, yellow, "%s Done.\n", boldBlack.Sprintf("[Step %d]", step))
 }
 
 func (a *actionLogger) DockerStepStarted(repoName string, step int, image string) {
-	a.write(repoName, yellow, "[Step %d] docker run %s\n", step, image)
+	a.write(repoName, yellow, "%s docker run %s\n", boldBlack.Sprintf("[Step %d]", step), image)
 }
 
 func (a *actionLogger) DockerStepErrored(repoName string, step int, err error, elapsed time.Duration) {
-	a.write(repoName, boldRed, "[Step %d] %s. (%s)\n", step, err, elapsed)
+	a.write(repoName, boldRed, "%s %s. (%s)\n", boldBlack.Sprintf("[Step %d]", step), err, elapsed)
 }
 
 func (a *actionLogger) DockerStepDone(repoName string, step int, elapsed time.Duration) {
-	a.write(repoName, yellow, "[Step %d] Done. (%s)\n", step, elapsed)
+	a.write(repoName, yellow, "%s Done. (%s)\n", boldBlack.Sprintf("[Step %d]", step), elapsed)
 }

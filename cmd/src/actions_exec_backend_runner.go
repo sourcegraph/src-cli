@@ -36,13 +36,19 @@ type ActionRepoStatus struct {
 func (x *actionExecutor) do(ctx context.Context, repo ActionRepo) (err error) {
 	// Check if cached.
 	cacheKey := actionExecutionCacheKey{Repo: repo, Runs: x.action.Steps}
-	if result, ok, err := x.opt.cache.get(ctx, cacheKey); err != nil {
-		return errors.Wrapf(err, "checking cache for %s", repo.Name)
-	} else if ok {
-		status := ActionRepoStatus{Cached: true, Patch: result}
-		x.updateRepoStatus(repo, status)
-		x.logger.RepoCacheHit(repo, status.Patch != PatchInput{})
-		return nil
+	if x.opt.clearCache {
+		if err := x.opt.cache.clear(ctx, cacheKey); err != nil {
+			return errors.Wrapf(err, "clearing cache for %s", repo.Name)
+		}
+	} else {
+		if result, ok, err := x.opt.cache.get(ctx, cacheKey); err != nil {
+			return errors.Wrapf(err, "checking cache for %s", repo.Name)
+		} else if ok {
+			status := ActionRepoStatus{Cached: true, Patch: result}
+			x.updateRepoStatus(repo, status)
+			x.logger.RepoCacheHit(repo, status.Patch != PatchInput{})
+			return nil
+		}
 	}
 
 	prefix := "action-" + strings.Replace(strings.Replace(repo.Name, "/", "-", -1), "github.com-", "", -1)
@@ -80,7 +86,10 @@ func (x *actionExecutor) do(ctx context.Context, repo ActionRepo) (err error) {
 	}
 
 	x.updateRepoStatus(repo, status)
-	x.logger.RepoFinished(repo.Name, len(patch) > 0, err)
+	lerr := x.logger.RepoFinished(repo.Name, len(patch) > 0, err)
+	if lerr != nil {
+		return lerr
+	}
 
 	// Add to cache if successful.
 	if err == nil {
@@ -200,9 +209,9 @@ func runAction(ctx context.Context, prefix, repoID, repoName, rev string, steps 
 			cmd := exec.CommandContext(ctx, step.Args[0], step.Args[1:]...)
 			cmd.Dir = e.volumeDir
 
-			if w, ok := logger.RepoWriter(repoName); ok {
-				cmd.Stdout = w
-				cmd.Stderr = w
+			if stdout, stderr, ok := logger.RepoStdoutStderr(repoName); ok {
+				cmd.Stdout = stdout
+				cmd.Stderr = stderr
 			}
 
 			if err := cmd.Run(); err != nil {
@@ -263,9 +272,9 @@ func runAction(ctx context.Context, prefix, repoID, repoName, rev string, steps 
 			cmd.Args = append(cmd.Args, step.Args...)
 			cmd.Dir = e.volumeDir
 
-			if w, ok := logger.RepoWriter(repoName); ok {
-				cmd.Stdout = w
-				cmd.Stderr = w
+			if stdout, stderr, ok := logger.RepoStdoutStderr(repoName); ok {
+				cmd.Stdout = stdout
+				cmd.Stderr = stderr
 			}
 
 			t0 := time.Now()
@@ -273,7 +282,7 @@ func runAction(ctx context.Context, prefix, repoID, repoName, rev string, steps 
 			elapsed := time.Since(t0).Round(time.Millisecond)
 			if err != nil {
 				logger.DockerStepErrored(repoName, i, err, elapsed)
-				return nil, errors.Wrap(err, "run docker container")
+				return nil, errors.Wrapf(err, "Running Docker container for image %q failed", step.Image)
 			}
 			logger.DockerStepDone(repoName, i, elapsed)
 

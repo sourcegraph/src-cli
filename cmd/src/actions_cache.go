@@ -20,6 +20,7 @@ type actionExecutionCacheKey struct {
 type actionExecutionCache interface {
 	get(ctx context.Context, key actionExecutionCacheKey) (result PatchInput, ok bool, err error)
 	set(ctx context.Context, key actionExecutionCacheKey, result PatchInput) error
+	clear(ctx context.Context, key actionExecutionCacheKey) error
 }
 
 type actionExecutionDiskCache struct {
@@ -82,6 +83,19 @@ func (c actionExecutionDiskCache) set(ctx context.Context, key actionExecutionCa
 	return ioutil.WriteFile(path, data, 0600)
 }
 
+func (c actionExecutionDiskCache) clear(ctx context.Context, key actionExecutionCacheKey) error {
+	path, err := c.cacheFilePath(key)
+	if err != nil {
+		return err
+	}
+
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		return nil
+	}
+
+	return os.Remove(path)
+}
+
 // actionExecutionNoOpCache is an implementation of actionExecutionCache that does not store or
 // retrieve cache entries.
 type actionExecutionNoOpCache struct{}
@@ -91,5 +105,9 @@ func (actionExecutionNoOpCache) get(ctx context.Context, key actionExecutionCach
 }
 
 func (actionExecutionNoOpCache) set(ctx context.Context, key actionExecutionCacheKey, result PatchInput) error {
+	return nil
+}
+
+func (actionExecutionNoOpCache) clear(ctx context.Context, key actionExecutionCacheKey) error {
 	return nil
 }

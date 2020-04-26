@@ -45,10 +45,10 @@ type commander []*command
 func (c commander) run(flagSet *flag.FlagSet, cmdName, usageText string, args []string) {
 	// Parse flags.
 	flagSet.Usage = func() {
-		fmt.Fprintf(flag.CommandLine.Output(), usageText)
+		fmt.Fprint(flag.CommandLine.Output(), usageText)
 	}
 	if !flagSet.Parsed() {
-		flagSet.Parse(args)
+		_ = flagSet.Parse(args)
 	}
 
 	// Print usage if the command is "help".
@@ -122,6 +122,13 @@ type usageError struct {
 type exitCodeError struct {
 	error
 	exitCode int
+}
+
+func (e *exitCodeError) Error() string {
+	if e.error != nil {
+		return fmt.Sprintf("%s (exit code: %d)", e.error, e.exitCode)
+	}
+	return fmt.Sprintf("exit code: %d", e.exitCode)
 }
 
 const (

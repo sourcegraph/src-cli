@@ -10,6 +10,7 @@ import (
 	"io/ioutil"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"regexp"
 	"runtime"
@@ -17,9 +18,12 @@ import (
 	"time"
 
 	"github.com/fatih/color"
+	multierror "github.com/hashicorp/go-multierror"
 	"github.com/mattn/go-isatty"
 	"github.com/pkg/errors"
 	"github.com/sourcegraph/go-diff/diff"
+	"github.com/sourcegraph/src-cli/schema"
+	"github.com/xeipuuv/gojsonschema"
 )
 
 type Action struct {
@@ -52,7 +56,7 @@ func userCacheDir() (string, error) {
 	return filepath.Join(userCacheDir, "sourcegraph-src"), nil
 }
 
-const defaultTimeout = 2 * time.Minute
+const defaultTimeout = 60 * time.Minute
 
 func init() {
 	usage := `
@@ -134,9 +138,12 @@ Format of the action JSON files:
 	var (
 		fileFlag        = flagSet.String("f", "-", "The action file. If not given or '-' standard input is used. (Required)")
 		parallelismFlag = flagSet.Int("j", runtime.GOMAXPROCS(0), "The number of parallel jobs.")
-		cacheDirFlag    = flagSet.String("cache", displayUserCacheDir, "Directory for caching results.")
-		keepLogsFlag    = flagSet.Bool("keep-logs", false, "Do not remove execution log files when done.")
-		timeoutFlag     = flagSet.Duration("timeout", defaultTimeout, "The maximum duration a single action run can take (excluding the building of Docker images).")
+
+		cacheDirFlag   = flagSet.String("cache", displayUserCacheDir, "Directory for caching results.")
+		clearCacheFlag = flagSet.Bool("clear-cache", false, "Remove possibly cached results for an action before executing it.")
+
+		keepLogsFlag = flagSet.Bool("keep-logs", false, "Do not remove execution log files when done.")
+		timeoutFlag  = flagSet.Duration("timeout", defaultTimeout, "The maximum duration a single action run can take.")
 
 		createPatchSetFlag      = flagSet.Bool("create-patchset", false, "Create a patch set from the produced set of patches. When the execution of the action fails in a single repository a prompt will ask to confirm or reject the patch set creation.")
 		forceCreatePatchSetFlag = flagSet.Bool("force-create-patchset", false, "Force creation of patch set from the produced set of patches, without asking for confirmation even when the execution of the action failed for a subset of repositories.")
@@ -145,7 +152,10 @@ Format of the action JSON files:
 	)
 
 	handler := func(args []string) error {
-		flagSet.Parse(args)
+		err := flagSet.Parse(args)
+		if err != nil {
+			return err
+		}
 
 		if !isGitAvailable() {
 			return errors.New("Could not find git in $PATH. 'src actions exec' requires git to be available.")
@@ -161,10 +171,7 @@ Format of the action JSON files:
 			return errors.New("cache is not a valid path")
 		}
 
-		var (
-			actionFile []byte
-			err        error
-		)
+		var actionFile []byte
 
 		if *fileFlag == "-" {
 			actionFile, err = ioutil.ReadAll(os.Stdin)
@@ -175,12 +182,32 @@ Format of the action JSON files:
 			return err
 		}
 
+		err = validateActionDefinition(actionFile)
+		if err != nil {
+			return err
+		}
+
 		var action Action
 		if err := jsonxUnmarshal(string(actionFile), &action); err != nil {
 			return errors.Wrap(err, "invalid JSON action file")
 		}
 
-		ctx := context.Background()
+		ctx, cancel := context.WithCancel(context.Background())
+		c := make(chan os.Signal, 1)
+		signal.Notify(c, os.Interrupt)
+		defer func() {
+			signal.Stop(c)
+			cancel()
+		}()
+		go func() {
+			select {
+			case <-c:
+				cancel()
+			case <-ctx.Done():
+			}
+			<-c // If user hits Ctrl-C second time, we do a hard exit
+			os.Exit(2)
+		}()
 
 		logger := newActionLogger(*verbose, *keepLogsFlag)
 
@@ -196,9 +223,10 @@ Format of the action JSON files:
 		}
 
 		opts := actionExecutorOptions{
-			timeout:  *timeoutFlag,
-			keepLogs: *keepLogsFlag,
-			cache:    actionExecutionDiskCache{dir: *cacheDirFlag},
+			timeout:    *timeoutFlag,
+			keepLogs:   *keepLogsFlag,
+			clearCache: *clearCacheFlag,
+			cache:      actionExecutionDiskCache{dir: *cacheDirFlag},
 		}
 		if !*verbose {
 			opts.onUpdate = newTerminalUI(*keepLogsFlag)
@@ -262,7 +290,7 @@ Format of the action JSON files:
 					return err
 				}
 
-				c, _ := askForConfirmation(fmt.Sprintf("Create a patch set for the produced patches anyway?"))
+				c, _ := askForConfirmation("Create a patch set for the produced patches anyway?")
 				if !c {
 					return err
 				}
@@ -285,6 +313,46 @@ Format of the action JSON files:
 		handler:   handler,
 		usageFunc: usageFunc,
 	})
+}
+
+func formatValidationErrs(es []error) string {
+	points := make([]string, len(es))
+	for i, err := range es {
+		points[i] = fmt.Sprintf("- %s", err)
+	}
+
+	return fmt.Sprintf(
+		"Validating action definition failed:\n%s\n",
+		strings.Join(points, "\n"))
+}
+
+func validateActionDefinition(def []byte) error {
+	sl := gojsonschema.NewSchemaLoader()
+	sc, err := sl.Compile(gojsonschema.NewStringLoader(schema.ActionSchemaJSON))
+	if err != nil {
+		return errors.Wrapf(err, "failed to compile actions schema")
+	}
+
+	normalized, err := jsonxToJSON(string(def))
+	if err != nil {
+		return err
+	}
+
+	res, err := sc.Validate(gojsonschema.NewBytesLoader(normalized))
+	if err != nil {
+		return errors.Wrap(err, "failed to validate config against schema")
+	}
+
+	errs := &multierror.Error{ErrorFormat: formatValidationErrs}
+	for _, err := range res.Errors() {
+		e := err.String()
+		// Remove `(root): ` from error formatting since these errors are
+		// presented to users.
+		e = strings.TrimPrefix(e, "(root): ")
+		errs = multierror.Append(errs, errors.New(e))
+	}
+
+	return errs.ErrorOrNil()
 }
 
 func validateAction(ctx context.Context, action Action) error {
@@ -398,25 +466,32 @@ query ActionRepos($query: String!) {
 `
 	type Repository struct {
 		ID, Name      string
-		DefaultBranch struct {
+		DefaultBranch *struct {
 			Name   string
 			Target struct{ OID string }
 		}
 	}
 	var result struct {
-		Search struct {
-			Results struct {
-				Results []struct {
-					Typename      string `json:"__typename"`
-					ID, Name      string
-					DefaultBranch struct {
-						Name   string
-						Target struct{ OID string }
+		Data struct {
+			Search struct {
+				Results struct {
+					Results []struct {
+						Typename      string `json:"__typename"`
+						ID, Name      string
+						DefaultBranch *struct {
+							Name   string
+							Target struct{ OID string }
+						}
+						Repository Repository `json:"repository"`
 					}
-					Repository Repository `json:"repository"`
 				}
 			}
-		}
+		} `json:"data,omitempty"`
+
+		Errors []struct {
+			Message string
+			Path    []interface{}
+		} `json:"errors,omitempty"`
 	}
 
 	if err := (&apiRequest{
@@ -424,14 +499,32 @@ query ActionRepos($query: String!) {
 		vars: map[string]interface{}{
 			"query": scopeQuery,
 		},
-		result: &result,
+		// Do not unpack errors and return error. Instead we want to go through
+		// the results and check whether they're complete.
+		// If we don't do this and the query returns an error for _one_
+		// repository because that is still cloning, we don't get any repositories.
+		// Instead we simply want to skip those repositories that are still
+		// being cloned.
+		dontUnpackErrors: true,
+		result:           &result,
 	}).do(); err != nil {
-		return nil, nil, err
+
+		// Ignore exitCodeError with error == nil, because we explicitly set
+		// dontUnpackErrors, which can lead to an empty exitCodeErr being
+		// returned.
+		exitCodeErr, ok := err.(*exitCodeError)
+		if !ok {
+			return nil, nil, err
+		}
+		if exitCodeErr.error != nil {
+			return nil, nil, exitCodeErr
+		}
 	}
 
 	skipped := []string{}
 	reposByID := map[string]ActionRepo{}
-	for _, searchResult := range result.Search.Results.Results {
+	for _, searchResult := range result.Data.Search.Results.Results {
+
 		var repo Repository
 		if searchResult.Repository.ID != "" {
 			repo = searchResult.Repository
@@ -443,8 +536,8 @@ query ActionRepos($query: String!) {
 			}
 		}
 
-		if repo.DefaultBranch.Name == "" {
-			skipped = append(skipped, repo.Name)
+		if repo.DefaultBranch == nil || repo.DefaultBranch.Name == "" {
+			skipped = append(skipped, searchResult.Repository.Name)
 			continue
 		}
 
@@ -488,10 +581,6 @@ func diffStatDescription(fileDiffs []*diff.FileDiff) string {
 	}
 
 	return fmt.Sprintf("%d file%s changed", len(fileDiffs), plural)
-}
-
-func diffStatSummary(stat diff.Stat) string {
-	return fmt.Sprintf("%d insertions(+), %d deletions(-)", stat.Added+stat.Changed, stat.Deleted+stat.Changed)
 }
 
 func diffStatDiagram(stat diff.Stat) string {

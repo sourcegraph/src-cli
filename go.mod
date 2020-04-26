@@ -10,7 +10,7 @@ require (
 	github.com/checkpoint-restore/go-criu v0.0.0-20191125063657-fcdcd07065c5 // indirect
 	github.com/cilium/ebpf v0.0.0-20200220135754-243d06f69c38 // indirect
 	github.com/containerd/console v0.0.0-20191219165238-8375c3424e4d // indirect
-	github.com/containerd/containerd v1.3.3 // indirect
+	github.com/containerd/containerd v1.3.4 // indirect
 	github.com/containerd/continuity v0.0.0-20200107194136-26c1120b8d41 // indirect
 	github.com/containerd/fifo v0.0.0-20191213151349-ff969a566b00 // indirect
 	github.com/coreos/etcd v3.3.18+incompatible // indirect
@@ -26,18 +26,18 @@ require (
 	github.com/fatih/color v1.9.0
 	github.com/godbus/dbus v4.1.0+incompatible // indirect
 	github.com/gogo/protobuf v1.3.1 // indirect
-	github.com/golang/protobuf v1.3.4 // indirect
+	github.com/golang/protobuf v1.4.0 // indirect
 	github.com/gorilla/mux v1.7.4 // indirect
 	github.com/gosuri/uilive v0.0.4
 	github.com/graph-gophers/graphql-go v0.0.0-20200207002730-8334863f2c8b
 	github.com/hashicorp/go-memdb v1.1.0 // indirect
-	github.com/hashicorp/go-multierror v1.0.0
+	github.com/hashicorp/go-multierror v1.1.0
 	github.com/hashicorp/golang-lru v0.5.4 // indirect
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
 	github.com/konsorten/go-windows-terminal-sequences v1.0.2 // indirect
 	github.com/mattn/go-colorable v0.1.6 // indirect
 	github.com/mattn/go-isatty v0.0.12
-	github.com/mattn/go-runewidth v0.0.8 // indirect
+	github.com/mattn/go-runewidth v0.0.9 // indirect
 	github.com/mattn/go-shellwords v1.0.10 // indirect
 	github.com/morikuni/aec v1.0.0 // indirect
 	github.com/mrunalp/fileutils v0.0.0-20171103030105-7d4729fb3618 // indirect
@@ -49,10 +49,13 @@ require (
 	github.com/opencontainers/selinux v1.3.2 // indirect
 	github.com/opentracing/opentracing-go v1.1.0
 	github.com/pborman/uuid v1.2.0 // indirect
+	github.com/pkg/browser v0.0.0-20180916011732-0a3d74bf9ce4
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.4.1 // indirect
 	github.com/prometheus/procfs v0.0.10 // indirect
 	github.com/seccomp/libseccomp-golang v0.9.1 // indirect
+	github.com/segmentio/textio v1.2.0
+	github.com/sirupsen/logrus v1.5.0 // indirect
 	github.com/sourcegraph/go-diff v0.5.1
 	github.com/sourcegraph/jsonx v0.0.0-20190114210550-ba8cb36a8614
 	github.com/ssor/bom v0.0.0-20170718123548-6386211fdfcf // indirect
@@ -60,12 +63,15 @@ require (
 	github.com/urfave/cli v1.22.2 // indirect
 	github.com/vbatts/tar-split v0.11.1 // indirect
 	github.com/vishvananda/netlink v1.1.0 // indirect
-	golang.org/x/net v0.0.0-20200226121028-0de0cce0169b
+	github.com/xeipuuv/gojsonpointer v0.0.0-20190905194746-02993c407bfb // indirect
+	github.com/xeipuuv/gojsonschema v1.2.0
+	golang.org/x/net v0.0.0-20200425230154-ff2c4b7c35a0
+	golang.org/x/sys v0.0.0-20200420163511-1957bb5e6d1f // indirect
 	golang.org/x/time v0.0.0-20191024005414-555d28b269f0 // indirect
-	google.golang.org/genproto v0.0.0-20200228133532-8c2c7df3a383 // indirect
-	google.golang.org/grpc v1.27.1 // indirect
+	google.golang.org/genproto v0.0.0-20200424135956-bca184e23272 // indirect
+	google.golang.org/grpc v1.29.1 // indirect
 	gotest.tools/v3 v3.0.2 // indirect
-	jaytaylor.com/html2text v0.0.0-20200220170450-61d9dc4d7195
+	jaytaylor.com/html2text v0.0.0-20200412013138-3577fbdbcff7
 	sourcegraph.com/sqs/pbtypes v1.0.0 // indirect
 )
 
