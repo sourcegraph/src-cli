@@ -21,17 +21,17 @@ import (
 	"github.com/pkg/errors"
 )
 
-var verboseRunner bool
+var verboseAgent bool
 
 func init() {
-	usage := `'src actions runner' TBD.
+	usage := `'src actions agent' TBD.
 
 Usage:
 
-	src actions runner [command options]
+	src actions agent [command options]
 `
 
-	flagSet := flag.NewFlagSet("runner", flag.ExitOnError)
+	flagSet := flag.NewFlagSet("agent", flag.ExitOnError)
 	usageFunc := func() {
 		fmt.Fprintf(flag.CommandLine.Output(), "Usage of 'src actions %s':\n", flagSet.Name())
 		flagSet.PrintDefaults()
@@ -39,11 +39,11 @@ Usage:
 	}
 
 	// todo parse
-	verboseRunner = false
+	verboseAgent = false
 
 	handler := func(args []string) error {
-		r := &runner{}
-		err := r.startRunner(4)
+		r := &agent{}
+		err := r.startAgent(4)
 		return err
 	}
 
@@ -55,13 +55,13 @@ Usage:
 	})
 }
 
-type runnerConfig struct {
-	RunnerID string `json:"runnerId"`
+type agentConfig struct {
+	AgentID string `json:"agentId"`
 }
 
-type runner struct {
+type agent struct {
 	client *client.Client
-	conf   runnerConfig
+	conf   agentConfig
 }
 
 type envKV struct {
@@ -70,11 +70,8 @@ type envKV struct {
 }
 
 type actionDefinition struct {
-	Steps           string `json:"steps"`
-	ActionWorkspace struct {
-		Name string `json:"name"`
-	} `json:"actionWorkspace"`
-	Env []envKV `json:"env"`
+	Steps string  `json:"steps"`
+	Env   []envKV `json:"env"`
 }
 
 type actionJob struct {
@@ -83,14 +80,20 @@ type actionJob struct {
 	Repository struct {
 		Name string `json:"name"`
 	} `json:"repository"`
-	BaseRevision string `json:"baseRevision"`
+	BaseRevision struct {
+		Oid string `json:"oid"`
+	} `json:"baseRevision"`
 }
 
-func (r *runner) startRunner(parallelJobCount int) error {
+func (r *agent) startAgent(parallelJobCount int) error {
 	ctx := context.Background()
 	runCtx, cancelRun := context.WithCancel(ctx)
 	defer cancelRun()
-	r.conf.RunnerID = "runner123"
+	id, err := registerAgent("agent-123")
+	if err != nil {
+		return err
+	}
+	r.conf.AgentID = id
 
 	if err := r.createClient(); err != nil {
 		return err
@@ -157,7 +160,7 @@ func (r *runner) startRunner(parallelJobCount int) error {
 }
 
 // creates the docker client
-func (r *runner) createClient() error {
+func (r *agent) createClient() error {
 	c, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
 		return err
@@ -166,7 +169,7 @@ func (r *runner) createClient() error {
 	return nil
 }
 
-func (r *runner) stopAllJobs(ctx context.Context) error {
+func (r *agent) stopAllJobs(ctx context.Context) error {
 	// for _, job := range r.runningJobs {
 	// 	if job != nil {
 	// 		r.killContainer(ctx, job.container)
@@ -175,10 +178,10 @@ func (r *runner) stopAllJobs(ctx context.Context) error {
 	return nil
 }
 
-func (r *runner) runActionJob(_ctx context.Context, job *actionJob) (*string, error) {
+func (r *agent) runActionJob(_ctx context.Context, job *actionJob) (*string, error) {
 	_logBuffer := bytes.NewBuffer([]byte{})
 	var logBuffer io.Writer
-	if verboseRunner == true {
+	if verboseAgent == true {
 		logBuffer = io.MultiWriter(_logBuffer, os.Stdout)
 	} else {
 		logBuffer = _logBuffer
@@ -238,7 +241,7 @@ func (r *runner) runActionJob(_ctx context.Context, job *actionJob) (*string, er
 
 	x := executionContext{}
 	prefix := "action-" + strings.Replace(strings.Replace(job.Repository.Name, "/", "-", -1), "github.com-", "", -1)
-	err := x.prepare(runCtx, job.Repository.Name, job.BaseRevision, prefix)
+	err := x.prepare(runCtx, job.Repository.Name, job.BaseRevision.Oid, prefix)
 	defer x.cleanup()
 	if err != nil {
 		logBuffer.Write([]byte(fmt.Sprintf("Failed to prepare execution context: %s\n", err.Error())))
@@ -282,11 +285,11 @@ func (r *runner) runActionJob(_ctx context.Context, job *actionJob) (*string, er
 	return &diffString, nil
 }
 
-func (r *runner) killContainer(ctx context.Context, cID string) error {
+func (r *agent) killContainer(ctx context.Context, cID string) error {
 	return r.client.ContainerKill(ctx, cID, "SIGKILL")
 }
 
-func (r *runner) runContainer(ctx context.Context, job *actionJob, step *ActionStep, volumeDir string, log io.Writer) error {
+func (r *agent) runContainer(ctx context.Context, job *actionJob, step *ActionStep, volumeDir string, log io.Writer) error {
 	var image string
 	if step.Type == "command" {
 		// use ubuntu for command type for now
@@ -318,7 +321,7 @@ func (r *runner) runContainer(ctx context.Context, job *actionJob, step *ActionS
 	c, err := r.client.ContainerCreate(ctx, &container.Config{
 		Image:        image,
 		Cmd:          step.Args,
-		Labels:       map[string]string{"com.sourcegraph.runner": "true"},
+		Labels:       map[string]string{"com.sourcegraph.agent": "true"},
 		Env:          env,
 		Tty:          false,
 		AttachStdout: true,
@@ -404,7 +407,7 @@ func (r *runner) runContainer(ctx context.Context, job *actionJob, step *ActionS
 	return nil
 }
 
-func (r *runner) pullImage(ctx context.Context, image string, log io.Writer) error {
+func (r *agent) pullImage(ctx context.Context, image string, log io.Writer) error {
 	log.Write([]byte(fmt.Sprintf("Pulling image %s\n", image)))
 	logReader, err := r.client.ImagePull(ctx, image, types.ImagePullOptions{})
 	if err != nil {
@@ -415,13 +418,13 @@ func (r *runner) pullImage(ctx context.Context, image string, log io.Writer) err
 	return nil
 }
 
-// todo: this kills containers from other runners as well, need to have some locking mechanism
+// todo: this kills containers from other agents as well, need to have some locking mechanism
 func cleanupOldContainers(ctx context.Context, c *client.Client) error {
-	// todo: detect that only one instance of the runner is running at a time,
+	// todo: detect that only one instance of the agent is running at a time,
 	// otherwise they can steal the containers from each other
-	println("Clearing up orphaned runner containers")
+	println("Clearing up orphaned agent containers")
 	containers, err := c.ContainerList(ctx, types.ContainerListOptions{
-		Filters: filters.NewArgs(filters.KeyValuePair{Key: "label", Value: "com.sourcegraph.runner=true"}),
+		Filters: filters.NewArgs(filters.KeyValuePair{Key: "label", Value: "com.sourcegraph.agent=true"}),
 	})
 	var wg sync.WaitGroup
 	errCh := make(chan error, 1)
@@ -453,13 +456,13 @@ func cleanupOldContainers(ctx context.Context, c *client.Client) error {
 	}
 }
 
-func (r *runner) checkForJobs(ctx context.Context) (*actionJob, error) {
+func (r *agent) checkForJobs(ctx context.Context) (*actionJob, error) {
 	println("Checking for new jobs..")
 	var result struct {
 		PullActionJob *actionJob `json:"pullActionJob,omitempty"`
 	}
-	query := `mutation PullActionJob($runner: ID!) {
-	pullActionJob(runner: $runner) {
+	query := `mutation PullActionJob($agent: ID!) {
+	pullActionJob(agent: $agent) {
 		id
 		definition {
 			steps
@@ -467,14 +470,13 @@ func (r *runner) checkForJobs(ctx context.Context) (*actionJob, error) {
 				key
 				value
 			}
-			actionWorkspace {
-				name
-			}
 		}
 		repository {
 			name
 		}
-		baseRevision
+		baseRevision {
+			oid
+		}
 	}
 }`
 	name := "PullActionJob"
@@ -482,7 +484,7 @@ func (r *runner) checkForJobs(ctx context.Context) (*actionJob, error) {
 		name:  &name,
 		query: query,
 		vars: map[string]interface{}{
-			"runner": r.conf.RunnerID,
+			"agent": r.conf.AgentID,
 		},
 		result: &result,
 	}).do(); err != nil {
@@ -521,6 +523,32 @@ func appendLog(job *actionJob, content string) error {
 		return err
 	}
 	return nil
+}
+
+func registerAgent(id string) (string, error) {
+	var result struct {
+		RegisterAgent struct {
+			ID string `json:"id"`
+		} `json:"registerAgent"`
+	}
+	query := `mutation RegisterAgent($id: String!) {
+	registerAgent(id: $id, specs: "macOS 10.15.4") {
+		id
+	}
+}`
+	name := "RegisterAgent"
+	if err := (&apiRequest{
+		name:  &name,
+		query: query,
+		vars: map[string]interface{}{
+			"id": id,
+		},
+		result: &result,
+	}).do(); err != nil {
+		println(err.Error())
+		return "", err
+	}
+	return result.RegisterAgent.ID, nil
 }
 
 type updateStateProps struct {
