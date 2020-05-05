@@ -141,6 +141,21 @@ func (a *actionLogger) RepoWriter(repoName string) (io.Writer, bool) {
 	return w, ok
 }
 
+func (a *actionLogger) InfoPipe(prefix string) io.Writer {
+	if !a.verbose {
+		return ioutil.Discard
+	}
+	stdoutPrefix := fmt.Sprintf("%s -> [STDOUT]: ", yellow.Sprint(prefix))
+	stdout := textio.NewPrefixWriter(os.Stderr, stdoutPrefix)
+	return io.Writer(stdout)
+}
+
+func (a *actionLogger) ErrorPipe(prefix string) io.Writer {
+	stderrPrefix := fmt.Sprintf("%s -> [STDERR]: ", yellow.Sprint(prefix))
+	stderr := textio.NewPrefixWriter(os.Stderr, stderrPrefix)
+	return io.Writer(stderr)
+}
+
 func (a *actionLogger) RepoStdoutStderr(repoName string) (io.Writer, io.Writer, bool) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -150,11 +165,8 @@ func (a *actionLogger) RepoStdoutStderr(repoName string) (io.Writer, io.Writer, 
 		return w, w, ok
 	}
 
-	stderrPrefix := fmt.Sprintf("%s -> [STDERR]: ", yellow.Sprint(repoName))
-	stderr := textio.NewPrefixWriter(os.Stderr, stderrPrefix)
-
-	stdoutPrefix := fmt.Sprintf("%s -> [STDOUT]: ", yellow.Sprint(repoName))
-	stdout := textio.NewPrefixWriter(os.Stderr, stdoutPrefix)
+	stderr := a.ErrorPipe(repoName)
+	stdout := a.InfoPipe(repoName)
 
 	return io.MultiWriter(stdout, w), io.MultiWriter(stderr, w), ok
 }

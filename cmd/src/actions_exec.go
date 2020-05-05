@@ -216,7 +216,7 @@ Format of the action JSON files:
 			return errors.Wrap(err, "Validation of action failed")
 		}
 
-		// Build Docker images etc.
+		// Build Docker images, pull Docker images from registries, etc.
 		err = prepareAction(ctx, action, logger)
 		if err != nil {
 			return errors.Wrap(err, "Failed to prepare action")
@@ -408,29 +408,17 @@ func getDockerImageContentDigest(ctx context.Context, image string, logger *acti
 	// https://github.com/moby/moby/issues/32016.
 	out, err := exec.CommandContext(ctx, "docker", "image", "inspect", "--format", "{{.Id}}", "--", image).CombinedOutput()
 	if err != nil {
-		// An error could mean the image just didn't exist, so we need to pull it first.
-		logger.Infof("Pulling image %q...\n", image)
+		if strings.Index(err.Error(), "No such image") != -1 {
+			return "", fmt.Errorf("error inspecting docker image %q: %s", image, bytes.TrimSpace(out))
+		}
+		logger.Infof("Pulling Docker image %q...\n", image)
 		pullCmd := exec.CommandContext(ctx, "docker", "image", "pull", image)
-		stdout, err := pullCmd.StdoutPipe()
-		if err != nil {
-			return "", fmt.Errorf("error pulling docker image %q: %s", image, err)
+		if logger.verbose {
+			stdout := logger.InfoPipe(fmt.Sprintf("%q", image))
+			pullCmd.Stdout = stdout
 		}
-		stderr, err := pullCmd.StderrPipe()
-		if err != nil {
-			return "", fmt.Errorf("error pulling docker image %q: %s", image, err)	
-		}
-		outScanner := bufio.NewScanner(stdout)
-		go func() {
-			for outScanner.Scan() {
-				logger.Infof("%s\n", outScanner.Text())
-			}
-		}()
-		errScanner := bufio.NewScanner(stderr)
-		go func() {
-			for errScanner.Scan() {
-				logger.Warnf("%s\n", errScanner.Text())
-			}
-		}()
+		stderr := logger.ErrorPipe(fmt.Sprintf("%q", image))
+		pullCmd.Stderr = stderr
 		err = pullCmd.Start()
 		if err != nil {
 			return "", fmt.Errorf("error pulling docker image %q: %s", image, err)
