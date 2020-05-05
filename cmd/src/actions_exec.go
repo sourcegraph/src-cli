@@ -594,6 +594,11 @@ fragment repositoryFields on Repository {
 		}
 	}
 	logger.Infof("%s\n", matchesStr)
+
+	if len(repos) == 0 && !*verbose {
+		yellow.Fprintf(os.Stderr, "WARNING: No repositories matched by scopeQuery\n")
+	}
+
 	return repos, nil
 }
 
