@@ -119,22 +119,24 @@ func reachedTimeout(cmdCtx context.Context, err error) bool {
 	return errors.Is(err, context.DeadlineExceeded)
 }
 
-func runAction(ctx context.Context, prefix, repoID, repoName, rev string, steps []*ActionStep, logger *actionLogger) ([]byte, error) {
-	logger.RepoStarted(repoName, rev, steps)
+type executionContext struct {
+	zipFile   *os.File
+	volumeDir string
+	runGitCmd func(args ...string) ([]byte, error)
+}
 
+func (x *executionContext) prepare(ctx context.Context, repoName, rev, prefix string) error {
 	zipFile, err := fetchRepositoryArchive(ctx, repoName, rev)
 	if err != nil {
-		return nil, errors.Wrap(err, "Fetching ZIP archive failed")
+		return errors.Wrap(err, "Fetching ZIP archive failed")
 	}
-	defer os.Remove(zipFile.Name())
-
+	x.zipFile = zipFile
 	volumeDir, err := unzipToTempDir(ctx, zipFile.Name(), prefix)
 	if err != nil {
-		return nil, errors.Wrap(err, "Unzipping the ZIP archive failed")
+		return errors.Wrap(err, "Unzipping the ZIP archive failed")
 	}
-	defer os.RemoveAll(volumeDir)
-
-	runGitCmd := func(args ...string) ([]byte, error) {
+	x.volumeDir = volumeDir
+	x.runGitCmd = func(args ...string) ([]byte, error) {
 		cmd := exec.CommandContext(ctx, "git", args...)
 		cmd.Dir = volumeDir
 		out, err := cmd.CombinedOutput()
@@ -144,16 +146,60 @@ func runAction(ctx context.Context, prefix, repoID, repoName, rev string, steps 
 		return out, nil
 	}
 
-	if _, err := runGitCmd("init"); err != nil {
-		return nil, errors.Wrap(err, "git init failed")
+	if _, err := x.runGitCmd("init"); err != nil {
+		return errors.Wrap(err, "git init failed")
 	}
 	// --force because we want previously "gitignored" files in the repository
-	if _, err := runGitCmd("add", "--force", "--all"); err != nil {
+	if _, err := x.runGitCmd("add", "--force", "--all"); err != nil {
+		return errors.Wrap(err, "git add failed")
+	}
+	if _, err := x.runGitCmd("commit", "--quiet", "--all", "-m", "src-action-exec"); err != nil {
+		return errors.Wrap(err, "git commit failed")
+	}
+	return nil
+}
+
+func (x *executionContext) computeDiff() ([]byte, error) {
+	if _, err := x.runGitCmd("add", "--all"); err != nil {
 		return nil, errors.Wrap(err, "git add failed")
 	}
-	if _, err := runGitCmd("commit", "--quiet", "--all", "-m", "src-action-exec"); err != nil {
-		return nil, errors.Wrap(err, "git commit failed")
+
+	// As of Sourcegraph 3.14 we only support unified diff format.
+	// That means we need to strip away the `a/` and `/b` prefixes with `--no-prefix`.
+	// See: https://github.com/sourcegraph/sourcegraph/blob/82d5e7e1562fef6be5c0b17f18631040fd330835/enterprise/internal/campaigns/service.go#L324-L329
+	//
+	diffOut, err := x.runGitCmd("diff", "--cached", "--no-prefix")
+	if err != nil {
+		return nil, errors.Wrap(err, "git diff failed")
 	}
+	return diffOut, nil
+}
+
+func (x *executionContext) cleanup() error {
+	var errZ, errV error
+	if x.zipFile != nil {
+		errZ = os.Remove(x.zipFile.Name())
+	}
+	if x.volumeDir != "" {
+		errV = os.RemoveAll(x.volumeDir)
+	}
+	if errZ != nil {
+		return errZ
+	}
+	if errV != nil {
+		return errV
+	}
+	return nil
+}
+
+func runAction(ctx context.Context, prefix, repoID, repoName, rev string, steps []*ActionStep, logger *actionLogger) ([]byte, error) {
+	logger.RepoStarted(repoName, rev, steps)
+
+	e := &executionContext{}
+	if err := e.prepare(ctx, repoName, rev, prefix); err != nil {
+		return nil, err
+	}
+	defer e.cleanup()
 
 	for i, step := range steps {
 		switch step.Type {
@@ -161,7 +207,7 @@ func runAction(ctx context.Context, prefix, repoID, repoName, rev string, steps 
 			logger.CommandStepStarted(repoName, i, step.Args)
 
 			cmd := exec.CommandContext(ctx, step.Args[0], step.Args[1:]...)
-			cmd.Dir = volumeDir
+			cmd.Dir = e.volumeDir
 
 			if stdout, stderr, ok := logger.RepoStdoutStderr(repoName); ok {
 				cmd.Stdout = stdout
@@ -197,7 +243,7 @@ func runAction(ctx context.Context, prefix, repoID, repoName, rev string, steps 
 				"--rm",
 				"--cidfile", cidFile.Name(),
 				"--workdir", workDir,
-				"--mount", fmt.Sprintf("type=bind,source=%s,target=%s", volumeDir, workDir),
+				"--mount", fmt.Sprintf("type=bind,source=%s,target=%s", e.volumeDir, workDir),
 			)
 			for _, cacheDir := range step.CacheDirs {
 				// persistentCacheDir returns a host directory that persists across runs of this
@@ -224,7 +270,7 @@ func runAction(ctx context.Context, prefix, repoID, repoName, rev string, steps 
 			}
 			cmd.Args = append(cmd.Args, "--", step.Image)
 			cmd.Args = append(cmd.Args, step.Args...)
-			cmd.Dir = volumeDir
+			cmd.Dir = e.volumeDir
 
 			if stdout, stderr, ok := logger.RepoStdoutStderr(repoName); ok {
 				cmd.Stdout = stdout
@@ -245,17 +291,9 @@ func runAction(ctx context.Context, prefix, repoID, repoName, rev string, steps 
 		}
 	}
 
-	if _, err := runGitCmd("add", "--all"); err != nil {
-		return nil, errors.Wrap(err, "git add failed")
-	}
-
-	// As of Sourcegraph 3.14 we only support unified diff format.
-	// That means we need to strip away the `a/` and `/b` prefixes with `--no-prefix`.
-	// See: https://github.com/sourcegraph/sourcegraph/blob/82d5e7e1562fef6be5c0b17f18631040fd330835/enterprise/internal/campaigns/service.go#L324-L329
-	//
-	diffOut, err := runGitCmd("diff", "--cached", "--no-prefix")
+	diffOut, err := e.computeDiff()
 	if err != nil {
-		return nil, errors.Wrap(err, "git diff failed")
+		return nil, err
 	}
 
 	return diffOut, err

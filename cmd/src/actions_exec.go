@@ -379,15 +379,16 @@ func prepareAction(ctx context.Context, action Action) error {
 	// Build any Docker images.
 	for _, step := range action.Steps {
 		if step.Type == "docker" {
+			// todo: moved to run step
 			// Set digests for Docker images so we don't cache action runs in 2 different images with
 			// the same tag.
-			if step.Image != "" {
-				var err error
-				step.ImageContentDigest, err = getDockerImageContentDigest(ctx, step.Image)
-				if err != nil {
-					return errors.Wrap(err, "Failed to get Docker image content digest")
-				}
-			}
+			// if step.Image != "" {
+			// 	var err error
+			// 	step.ImageContentDigest, err = getDockerImageContentDigest(ctx, step.Image)
+			// 	if err != nil {
+			// 		return errors.Wrap(err, "Failed to get Docker image content digest")
+			// 	}
+			// }
 		}
 	}
 

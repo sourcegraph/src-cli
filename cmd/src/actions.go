@@ -20,6 +20,7 @@ The commands are:
 
 	exec              executes an action to produce patches
 	scope-query       list the repositories matched by "scopeQuery" in action
+	agent             launch src in agent mode to pull action jobs
 
 Use "src actions [command] -h" for more information about a command.
 `
