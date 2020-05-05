@@ -217,7 +217,7 @@ Format of the action JSON files:
 		}
 
 		// Build Docker images etc.
-		err = prepareAction(ctx, action)
+		err = prepareAction(ctx, action, logger)
 		if err != nil {
 			return errors.Wrap(err, "Failed to prepare action")
 		}
@@ -375,7 +375,7 @@ func validateAction(ctx context.Context, action Action) error {
 	return nil
 }
 
-func prepareAction(ctx context.Context, action Action) error {
+func prepareAction(ctx context.Context, action Action, logger *actionLogger) error {
 	// Build any Docker images.
 	for _, step := range action.Steps {
 		if step.Type == "docker" {
@@ -383,7 +383,7 @@ func prepareAction(ctx context.Context, action Action) error {
 			// the same tag.
 			if step.Image != "" {
 				var err error
-				step.ImageContentDigest, err = getDockerImageContentDigest(ctx, step.Image)
+				step.ImageContentDigest, err = getDockerImageContentDigest(ctx, step.Image, logger)
 				if err != nil {
 					return errors.Wrap(err, "Failed to get Docker image content digest")
 				}
@@ -401,14 +401,49 @@ func prepareAction(ctx context.Context, action Action) error {
 // have been pulled from or pushed to a registry. See
 // https://windsock.io/explaining-docker-image-ids/ under "A Final Twist" for a good
 // explanation.
-func getDockerImageContentDigest(ctx context.Context, image string) (string, error) {
+func getDockerImageContentDigest(ctx context.Context, image string, logger *actionLogger) (string, error) {
 	// TODO!(sqs): is image id the right thing to use here? it is NOT the
 	// digest. but the digest is not calculated for all images (unless they are
 	// pulled/pushed from/to a registry), see
 	// https://github.com/moby/moby/issues/32016.
 	out, err := exec.CommandContext(ctx, "docker", "image", "inspect", "--format", "{{.Id}}", "--", image).CombinedOutput()
 	if err != nil {
-		return "", fmt.Errorf("error inspecting docker image (try `docker pull %q` to fix this): %s", image, bytes.TrimSpace(out))
+		// An error could mean the image just didn't exist, so we need to pull it first.
+		logger.Infof("Pulling image %q...\n", image)
+		pullCmd := exec.CommandContext(ctx, "docker", "image", "pull", image)
+		stdout, err := pullCmd.StdoutPipe()
+		if err != nil {
+			return "", fmt.Errorf("error pulling docker image %q: %s", image, err)
+		}
+		stderr, err := pullCmd.StderrPipe()
+		if err != nil {
+			return "", fmt.Errorf("error pulling docker image %q: %s", image, err)	
+		}
+		outScanner := bufio.NewScanner(stdout)
+		go func() {
+			for outScanner.Scan() {
+				logger.Infof("%s\n", outScanner.Text())
+			}
+		}()
+		errScanner := bufio.NewScanner(stderr)
+		go func() {
+			for errScanner.Scan() {
+				logger.Warnf("%s\n", errScanner.Text())
+			}
+		}()
+		err = pullCmd.Start()
+		if err != nil {
+			return "", fmt.Errorf("error pulling docker image %q: %s", image, err)
+		}
+		err = pullCmd.Wait()
+		if err != nil {
+			return "", fmt.Errorf("error pulling docker image %q: %s", image, err)
+		}
+	}
+	out, err = exec.CommandContext(ctx, "docker", "image", "inspect", "--format", "{{.Id}}", "--", image).CombinedOutput()
+	// This time, the image MUST be present, so the issue must be something else.
+	if err != nil {
+		return "", fmt.Errorf("error inspecting docker image %q: %s", image, bytes.TrimSpace(out))
 	}
 	id := string(bytes.TrimSpace(out))
 	if id == "" {
