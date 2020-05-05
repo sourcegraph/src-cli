@@ -590,7 +590,7 @@ fragment repositoryFields on Repository {
 		}
 	} else {
 		if unsupportedCount > 0 {
-			matchesStr += fmt.Sprintf(" (%d repositories were filtered out because their code host is not supported by campaigns. Use -include-unsupported to generate patches for them anyways.)", unsupportedCount)
+			matchesStr += " (Some repositories were filtered out because their code host is not supported by campaigns. Use -include-unsupported to generate patches for them anyways.)"
 		}
 	}
 	logger.Infof("%s\n", matchesStr)
