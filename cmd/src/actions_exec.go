@@ -441,30 +441,37 @@ query ActionRepos($query: String!) {
 			results {
 				__typename
 				... on Repository {
-					id
-					name
-					defaultBranch {
-						name
-						target { oid }
-					}
+					...repositoryFields
 				}
 				... on FileMatch {
 					repository {
-						id
-						name
-						defaultBranch {
-							name
-							target { oid }
-						}
+						...repositoryFields
 					}
 				}
 			}
 		}
 	}
 }
+
+fragment repositoryFields on Repository {
+	id
+	name
+	externalRepository {
+		serviceType
+	}
+	defaultBranch {
+		name
+		target {
+			oid
+		}
+	}
+}
 `
 	type Repository struct {
-		ID, Name      string
+		ID, Name           string
+		ExternalRepository struct {
+			ServiceType string
+		}
 		DefaultBranch *struct {
 			Name   string
 			Target struct{ OID string }
@@ -475,8 +482,11 @@ query ActionRepos($query: String!) {
 			Search struct {
 				Results struct {
 					Results []struct {
-						Typename      string `json:"__typename"`
-						ID, Name      string
+						Typename           string `json:"__typename"`
+						ID, Name           string
+						ExternalRepository struct {
+							ServiceType string
+						}
 						DefaultBranch *struct {
 							Name   string
 							Target struct{ OID string }
@@ -529,14 +539,20 @@ query ActionRepos($query: String!) {
 			repo = searchResult.Repository
 		} else {
 			repo = Repository{
-				ID:            searchResult.ID,
-				Name:          searchResult.Name,
-				DefaultBranch: searchResult.DefaultBranch,
+				ID:                 searchResult.ID,
+				Name:               searchResult.Name,
+				ExternalRepository: searchResult.ExternalRepository,
+				DefaultBranch:      searchResult.DefaultBranch,
 			}
 		}
 
+		// Skip repos from unsupported code hosts but don't report them explicitly.
+		if repo.ExternalRepository.ServiceType != "github" && repo.ExternalRepository.ServiceType != "bitbucketServer" {
+			continue
+		}
+
 		if repo.DefaultBranch == nil || repo.DefaultBranch.Name == "" {
-			skipped = append(skipped, searchResult.Repository.Name)
+			skipped = append(skipped, repo.Name)
 			continue
 		}
 
