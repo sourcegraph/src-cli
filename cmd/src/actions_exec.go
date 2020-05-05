@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/fatih/color"
+	"github.com/ghodss/yaml"
 	multierror "github.com/hashicorp/go-multierror"
 	"github.com/mattn/go-isatty"
 	"github.com/pkg/errors"
@@ -173,8 +174,8 @@ Format of the action JSON files:
 			return errors.New("cache is not a valid path")
 		}
 
+		// Read action file content.
 		var actionFile []byte
-
 		if *fileFlag == "-" {
 			actionFile, err = ioutil.ReadAll(os.Stdin)
 		} else {
@@ -184,13 +185,19 @@ Format of the action JSON files:
 			return err
 		}
 
-		err = validateActionDefinition(actionFile)
+		// Convert action file to JSON.
+		jsonActionFile, err := yaml.YAMLToJSONStrict(actionFile)
+		if err != nil {
+			return errors.Wrap(err, "unable to parse action file")
+		}
+
+		err = validateActionDefinition(jsonActionFile)
 		if err != nil {
 			return err
 		}
 
 		var action Action
-		if err := jsonxUnmarshal(string(actionFile), &action); err != nil {
+		if err := jsonxUnmarshal(string(jsonActionFile), &action); err != nil {
 			return errors.Wrap(err, "invalid JSON action file")
 		}
 
