@@ -7,14 +7,13 @@ import (
 	"os"
 )
 
-const actionDefinitionTemplate = `$schema: https://raw.githubusercontent.com/sourcegraph/src-cli/master/schema/actions.schema.json
-
-scopeQuery: ""
+const actionDefinitionTemplate = `scopeQuery: ""
 
 steps:
-- type: command
-  args:
-  - /bin/sh
+  - type: command
+    args:
+	  - rm
+	  - package.json
 `
 
 func init() {
