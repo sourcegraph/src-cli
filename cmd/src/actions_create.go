@@ -18,7 +18,7 @@ steps:
 
 func init() {
 	usage := `
-Create an empty action definition in action.yml (if not -o flag is given). This command is meant to help with creating action definitions to be used with 'src actions exec'.
+Create an empty action definition in action.yml (if no -o flag is given). This command is meant to help with creating action definitions to be used with 'src actions exec'.
 
 Examples:
 
