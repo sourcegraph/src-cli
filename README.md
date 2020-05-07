@@ -2,15 +2,14 @@
 
 <img src="https://user-images.githubusercontent.com/3173176/43567326-3db5f31c-95e6-11e8-9e74-4c04079c01b0.png" width=450 align=right>
 
-- **Run search queries**
-  - Colorized output
-  - Raw JSON output
-- **Execute GraphQL API queries**
-  - Easily authenticate with Sourcegraph, run API queries, and get JSON back.
-- **Manage repositories, users, and more**
+`src` is a command line interface to Sourcegraph:
+
+- **Run search queries & get highlighted results in your terminal**
+- **Run search queries & get raw JSON for programmatic consumption**
+- **Make GraphQL API requests with easy auth and get JSON back fast**
 - **Execute [campaign actions](https://docs.sourcegraph.com/user/campaigns)**
-- **Easily convert src-CLI commands to equivalent curl commands**
-  - Just add `--get-curl`!
+- **Manage repositories, users, and more**
+- **Easily convert src-CLI commands to equivalent curl commands, just add --get-curl!**
 
 **Note:** Using Sourcegraph 3.12 or earlier? [See the older README](https://github.com/sourcegraph/src-cli/tree/3.11.2).
 
