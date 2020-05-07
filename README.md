@@ -65,33 +65,26 @@ See [Sourcegraph CLI for Windows](WINDOWS.md).
 
 ## Setup with your Sourcegraph instance
 
-To use `src` with your own Sourcegraph instance set the `SRC_ENDPOINT` environment variable:
+### Via environment variables
+
+Point `src` to your instance and access token using environment variables:
 
 ```sh
-SRC_ENDPOINT=https://sourcegraph.example.com src search
+SRC_ENDPOINT=https://sourcegraph.example.com SRC_ACCESS_TOKEN="secret" src search 'foobar'
 ```
 
-Or via the configuration file (`~/src-config.json`):
+### Via global configuration file
+
+
+Creat a `$HOME/src-config.json` with:
 
 ```sh
-{"endpoint": "https://sourcegraph.example.com"}
+{"endpoint": "https://sourcegraph.example.com", "accessToken": "secret"}
 ```
 
-### Authenticate with your Sourcegraph instance
+### Where to get an access token
 
-Private Sourcegraph instances require authentication. You can do so via the environment variable `SRC_ACCESS_TOKEN`:
-
-```sh
-SRC_ENDPOINT=https://sourcegraph.example.com SRC_ACCESS_TOKEN="secret" src ...
-```
-
-Or via the configuration file (`~/src-config.json`):
-
-```sh
-{"accessToken": "secret", "endpoint": "https://sourcegraph.example.com"}
-```
-
-To acquire the access token, visit your Sourcegraph instance (or https://sourcegraph.com), click your username in the top right to open the user menu, select **Settings**, and then select **Access tokens** in the left hand menu.
+Visit your Sourcegraph instance (or https://sourcegraph.com), click your username in the top right to open the user menu, select **Settings**, and then select **Access tokens** in the left hand menu.
 
 ## Usage
 
