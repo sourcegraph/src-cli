@@ -12,7 +12,7 @@
 - **Easily convert src-CLI commands to equivalent curl commands**
   - Just add `--get-curl`!
 
-**Note:** Using Sourcegraph 3.12 or earlier? [See the older README instead](https://github.com/sourcegraph/src-cli/tree/3.11.2).
+**Note:** Using Sourcegraph 3.12 or earlier? [See the older README](https://github.com/sourcegraph/src-cli/tree/3.11.2).
 
 ## Installation
 
