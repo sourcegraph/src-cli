@@ -2,7 +2,6 @@ package codeintel
 
 import (
 	"bytes"
-	"compress/gzip"
 	"io"
 	"strings"
 	"testing"
@@ -35,12 +34,5 @@ func generateTestIndex(metaDataVertex string) io.Reader {
 		lines = append(lines, testVertex)
 	}
 
-	content := strings.Join(lines, "\n") + "\n"
-
-	var buf bytes.Buffer
-	w := gzip.NewWriter(&buf)
-	_, _ = io.Copy(w, bytes.NewReader([]byte(content)))
-	w.Close()
-
-	return bytes.NewReader(buf.Bytes())
+	return bytes.NewReader([]byte(strings.Join(lines, "\n") + "\n"))
 }
