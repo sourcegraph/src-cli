@@ -75,12 +75,13 @@ SRC_ENDPOINT=https://sourcegraph.example.com SRC_ACCESS_TOKEN="secret" src searc
 
 ### Via global configuration file
 
-
-Creat a `$HOME/src-config.json` with:
+Create a `$HOME/src-config.json` with:
 
 ```sh
 {"endpoint": "https://sourcegraph.example.com", "accessToken": "secret"}
 ```
+
+Then `src search 'foobar'` and other commands will automatically use that configuration!
 
 ### Where to get an access token
 
