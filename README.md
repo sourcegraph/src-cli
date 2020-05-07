@@ -1,8 +1,6 @@
-# Sourcegraph CLI [![Build Status](https://travis-ci.org/sourcegraph/src-cli.svg)](https://travis-ci.org/sourcegraph/src-cli) [![Go Report Card](https://goreportcard.com/badge/sourcegraph/src-cli)](https://goreportcard.com/report/sourcegraph/src-cli)
+# [Sourcegraph](https://sourcegraph.com) CLI [![Build Status](https://travis-ci.org/sourcegraph/src-cli.svg)](https://travis-ci.org/sourcegraph/src-cli) [![Go Report Card](https://goreportcard.com/badge/sourcegraph/src-cli)](https://goreportcard.com/report/sourcegraph/src-cli)
 
 <img src="https://user-images.githubusercontent.com/3173176/43567326-3db5f31c-95e6-11e8-9e74-4c04079c01b0.png" width=450 align=right>
-
-The Sourcegraph `src` CLI provides access to [Sourcegraph](https://sourcegraph.com) via the command-line.
 
 - **Run search queries** and get colorized output or JSON.
 - **Execute GraphQL API queries** against Sourcegraph, get JSON results back.
