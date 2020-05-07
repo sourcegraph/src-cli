@@ -20,85 +20,57 @@ It currently provides the ability to:
 
 If there is something you'd like to see Sourcegraph be able to do from the CLI, let us know! :)
 
+**Note:** Using Sourcegraph 3.12 or earlier? [See the v3.11.2 README instead](https://github.com/sourcegraph/src-cli/tree/3.11.2).
+
 ## Installation
 
-For Sourcegraph 3.13 and newer, the preferred method of installation is to ask _your_ Sourcegraph instance for the latest compatible version. To do this, replace `https://sourcegraph.com` in the commands below with the address of your instance.
+Latest versions of the src CLI are available on the [releases tab on GitHub](https://github.com/sourcegraph/src-cli/releases) and through Sourcegraph.com (see commands below). If the latest version does not work for you, consider using the version compatible with your Sourcegraph instance.
 
-For Sourcegraph 3.12 and older, run the following commands verbatim (against sourcegraph.com) or install from one of the published [releases on GitHub](https://github.com/sourcegraph/src-cli/releases).
+### Mac OS
 
-```
-https://github.com/sourcegraph/src-cli/releases/download/{version}/{binary}
-```
-
-#### Requirements
-
-If you want to use the `src action exec` functionality (see [Sourcegraph campaigns](https://docs.sourcegraph.com/user/campaigns) docs and `src action exec -h`), make sure that `git` is installed and accessible by `src`.
-
-#### Mac OS
+#### Latest version
 
 ```bash
-# Sourcraph 3.13 and newer:
-curl -L https://<your-sourcegraph-instance>/.api/src-cli/src_darwin_amd64 -o /usr/local/bin/src
-chmod +x /usr/local/bin/src
-
-# Sourcraph 3.12 and older:
 curl -L https://sourcegraph.com/.api/src-cli/src_darwin_amd64 -o /usr/local/bin/src
 chmod +x /usr/local/bin/src
 ```
 
-or use `brew` to get the newest version:
+or
 
-```
+```bash
 brew install sourcegraph/src-cli/src-cli
 ```
 
-#### Linux
+#### Version compatible with your Sourcegraph instance
+
+Replace `sourcegraph.example.com` with your Sourcegraph instance URL:
 
 ```bash
-# Sourcraph 3.13 and newer:
-curl -L https://<your-sourcegraph-instance>/.api/src-cli/src_linux_amd64 -o /usr/local/bin/src
+curl -L https://sourcegraph.example.com/.api/src-cli/src_darwin_amd64 -o /usr/local/bin/src
 chmod +x /usr/local/bin/src
+```
 
-# Sourcraph 3.12 and older:
+### Linux
+
+#### Latest version
+
+```bash
 curl -L https://sourcegraph.com/.api/src-cli/src_linux_amd64 -o /usr/local/bin/src
 chmod +x /usr/local/bin/src
 ```
 
-#### Windows
+#### Version compatible with your Sourcegraph instance
 
-**NOTE:** Windows support is still rough around the edges, but is available. If you encounter issues, please let us know by filing an issue :)
+Replace `sourcegraph.example.com` with your Sourcegraph instance URL:
 
-Run in PowerShell as administrator:
-
-```powershell
-New-Item -ItemType Directory 'C:\Program Files\Sourcegraph'
-
-# Sourcegraph 3.13 and newer:
-Invoke-WebRequest https://<your-sourcegraph-instance>/.api/src-cli/src_windows_amd64.exe -OutFile 'C:\Program Files\Sourcegraph\src.exe'
-# Sourcegraph 3.12 and older:
-Invoke-WebRequest https://sourcegraph.com/.api/src-cli/src_windows_amd64.exe -OutFile 'C:\Program Files\Sourcegraph\src.exe'
-
-[Environment]::SetEnvironmentVariable('Path', [Environment]::GetEnvironmentVariable('Path', [EnvironmentVariableTarget]::Machine) + ';C:\Program Files\Sourcegraph', [EnvironmentVariableTarget]::Machine)
-$env:Path += ';C:\Program Files\Sourcegraph'
+```bash
+curl -L https://sourcegraph.example.com/.api/src-cli/src_linux_amd64 -o /usr/local/bin/src
+chmod +x /usr/local/bin/src
 ```
 
-Or manually:
+### Windows
 
-- Download the latest src_windows_amd64.exe:
-  - Sourcegraph 3.13 and newer: https://<your-sourcegraph-instance>/.api/src-cli/src_windows_amd64.exe
-  - Sourcegraph 3.12 and older: https://sourcegraph.com/.api/src-cli/src_windows_amd64.exe
-- Place the file under e.g. `C:\Program Files\Sourcegraph\src.exe`
-- Add that directory to your system path to access it from any command prompt
-
-#### Renaming `src` (optional)
-
-If you have a naming conflict with the `src` command, such as a Bash alias, you can rename the static binary. For example, on Linux / Mac OS:
-
-```sh
-mv /usr/local/bin/src /usr/local/bin/sourcegraph-cli
-```
-
-You can then invoke it via `sourcegraph-cli`.
+See [Sourcegraph CLI for Windows](WINDOWS.md).
 
 ## Setup
 
@@ -116,7 +88,7 @@ Or via the configuration file (`~/src-config.json`):
 
 ### Authentication
 
-Some Sourcegraph instances will be configured to require authentication. You can do so via the environment variable `SRC_ACCESS_TOKEN`:
+Private Sourcegraph instances require authentication. You can do so via the environment variable `SRC_ACCESS_TOKEN`:
 
 ```sh
 SRC_ENDPOINT=https://sourcegraph.example.com SRC_ACCESS_TOKEN="secret" src ...
@@ -128,25 +100,33 @@ Or via the configuration file (`~/src-config.json`):
 {"accessToken": "secret", "endpoint": "https://sourcegraph.example.com"}
 ```
 
-See `src -h` for more information on specifying access tokens.
-
 To acquire the access token, visit your Sourcegraph instance (or https://sourcegraph.com), click your username in the top right to open the user menu, select **Settings**, and then select **Access tokens** in the left hand menu.
 
 ## Usage
 
 `src` provides different subcommands to interact with different parts of Sourcegraph:
 
- - `search` - search for results on the configured Sourcegraph instance
- - `api` - interacts with the Sourcegraph GraphQL API
- - `repos` (alias: `repo`) - manages repositories
- - `users` (alias: `user`) - manages users
- - `orgs` (alias: `org`) - manages organizations
- - `config` - manages global, org, and user settings
- - `extsvc` - manages external services
- - `extensions` (alias: `ext`) - manages extensions
- - `actions` - runs [campaign actions](https://docs.sourcegraph.com/user/campaigns/actions)to generate patch sets
- - `campaigns` - manages [campaigns](https://docs.sourcegraph.com/user/campaigns)
+ - `src search` - perform searches and get results in your terminal or as JSON
+ - `src actions` - run [campaign actions](https://docs.sourcegraph.com/user/campaigns/actions) to generate patch sets
+ - `src api` - run Sourcegraph GraphQL API requests
+ - `src campaigns` - manages [campaigns](https://docs.sourcegraph.com/user/campaigns)
+ - `src repos` - manage repositories
+ - `src users` - manage users
+ - `src orgs` - manages organization
+ - `src config` - manage global, org, and user settings
+ - `src extsvc` - manage external services (repository configuration)
+ - `src extensions` - manage extensions
  - `lsif` - manages LSIF data
- - `version` - display and compare the src-cli version against the recommended version of the configured Sourcegraph instance
+ - `version` - check for updates
 
 Run `src -h` and `src <subcommand> -h` for more detailed usage information.
+
+#### Optional: Renaming `src`
+
+If you have a naming conflict with the `src` command, such as a Bash alias, you can rename the static binary. For example, on Linux / Mac OS:
+
+```sh
+mv /usr/local/bin/src /usr/local/bin/src-cli
+```
+
+You can then invoke it via `src-cli`.
