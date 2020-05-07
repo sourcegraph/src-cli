@@ -4,12 +4,12 @@
 
 `src` is a command line interface to Sourcegraph:
 
-- **Run search queries & get highlighted results in your terminal**
-- **Run search queries & get raw JSON for programmatic consumption**
-- **Make GraphQL API requests with easy auth and get JSON back fast**
-- **Execute [campaign actions](https://docs.sourcegraph.com/user/campaigns)**
-- **Manage repositories, users, and more**
-- **Easily convert src-CLI commands to equivalent curl commands, just add --get-curl!**
+- **Search & get results in your terminal**
+- **Search & get JSON** for programmatic consumption
+- Make **GraphQL API requests** with auth easily & get JSON back fast
+- Execute **[campaign actions](https://docs.sourcegraph.com/user/campaigns)**
+- **Manage & administrate** repositories, users, and more
+- **Easily convert src-CLI commands to equivalent curl commands**, just add --get-curl!
 
 **Note:** Using Sourcegraph 3.12 or earlier? [See the older README](https://github.com/sourcegraph/src-cli/tree/3.11.2).
 
