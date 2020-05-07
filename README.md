@@ -2,25 +2,15 @@
 
 <img src="https://user-images.githubusercontent.com/3173176/43567326-3db5f31c-95e6-11e8-9e74-4c04079c01b0.png" width=450 align=right>
 
-**Quick links**:
-- [Installation](#installation)
-- [Setup](#setup) ([Authentication](#authentication))
-- [Usage](#usage)
+The Sourcegraph `src` CLI provides access to [Sourcegraph](https://sourcegraph.com) via the command-line.
 
-The Sourcegraph `src` CLI provides access to [Sourcegraph](https://sourcegraph.com) via a command-line interface.
+- **Run search queries** and get colorized output or JSON.
+- **Execute GraphQL API queries** against Sourcegraph, get JSON results back.
+- **Easily convert src-CLI commands to equivalent curl commands with `-get-curl`**
+- **Manage repositories, users, and more**
+- **Execute [campaign actions](https://docs.sourcegraph.com/user/campaigns)**
 
-It currently provides the ability to:
-
-- **Execute search queries** from the command line and get nice colorized output back (or JSON, optionally).
-- **Execute GraphQL queries** against a Sourcegraph instance, and get JSON results back (`src api`).
-  - You can provide your API access token via an environment variable or file on disk.
-  - You can easily convert a `src api` command into a curl command with `src api -get-curl`.
-- **Manage repositories, users, and organizations** using the `src repos`, `src users`, and `src orgs` commands.
-- **Execute campaign actions** as part of [Sourcegraph campaigns](https://docs.sourcegraph.com/user/campaigns)
-
-If there is something you'd like to see Sourcegraph be able to do from the CLI, let us know! :)
-
-**Note:** Using Sourcegraph 3.12 or earlier? [See the v3.11.2 README instead](https://github.com/sourcegraph/src-cli/tree/3.11.2).
+**Note:** Using Sourcegraph 3.12 or earlier? [See the older README instead](https://github.com/sourcegraph/src-cli/tree/3.11.2).
 
 ## Installation
 
