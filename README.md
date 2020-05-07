@@ -102,7 +102,7 @@ Visit your Sourcegraph instance (or https://sourcegraph.com), click your usernam
  - `src extsvc` - manage external services (repository configuration)
  - `src extensions` - manage extensions
  - `lsif` - manages LSIF data
- - `version` - check for updates
+ - `src version` - check version and guaranteed-compatible version for your Sourcegraph instance
 
 Run `src -h` and `src <subcommand> -h` for more detailed usage information.
 
