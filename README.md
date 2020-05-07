@@ -26,7 +26,7 @@ If there is something you'd like to see Sourcegraph be able to do from the CLI, 
 
 Latest versions of the src CLI are available on the [releases tab on GitHub](https://github.com/sourcegraph/src-cli/releases) and through Sourcegraph.com (see commands below). If the latest version does not work for you, consider using the version compatible with your Sourcegraph instance.
 
-### Mac OS
+### Installation: Mac OS
 
 #### Latest version
 
@@ -50,7 +50,7 @@ curl -L https://sourcegraph.example.com/.api/src-cli/src_darwin_amd64 -o /usr/lo
 chmod +x /usr/local/bin/src
 ```
 
-### Linux
+### Installation: Linux
 
 #### Latest version
 
@@ -68,11 +68,11 @@ curl -L https://sourcegraph.example.com/.api/src-cli/src_linux_amd64 -o /usr/loc
 chmod +x /usr/local/bin/src
 ```
 
-### Windows
+### Installation: Windows
 
 See [Sourcegraph CLI for Windows](WINDOWS.md).
 
-## Setup
+## Setup with your Sourcegraph instance
 
 To use `src` with your own Sourcegraph instance set the `SRC_ENDPOINT` environment variable:
 
@@ -86,7 +86,7 @@ Or via the configuration file (`~/src-config.json`):
 {"endpoint": "https://sourcegraph.example.com"}
 ```
 
-### Authentication
+### Authenticate with your Sourcegraph instance
 
 Private Sourcegraph instances require authentication. You can do so via the environment variable `SRC_ACCESS_TOKEN`:
 
