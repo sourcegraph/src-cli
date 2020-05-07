@@ -2,11 +2,15 @@
 
 <img src="https://user-images.githubusercontent.com/3173176/43567326-3db5f31c-95e6-11e8-9e74-4c04079c01b0.png" width=450 align=right>
 
-- **Run search queries** and get colorized output or JSON.
-- **Execute GraphQL API queries** against Sourcegraph, get JSON results back.
-- **Easily convert src-CLI commands to equivalent curl commands with `-get-curl`**
+- **Run search queries**
+  - Colorized output
+  - Raw JSON output
+- **Execute GraphQL API queries**
+  - Easily authenticate with Sourcegraph, run API queries, and get JSON back.
 - **Manage repositories, users, and more**
 - **Execute [campaign actions](https://docs.sourcegraph.com/user/campaigns)**
+- **Easily convert src-CLI commands to equivalent curl commands**
+  - Just add `--get-curl`!
 
 **Note:** Using Sourcegraph 3.12 or earlier? [See the older README instead](https://github.com/sourcegraph/src-cli/tree/3.11.2).
 
