@@ -1,6 +1,6 @@
 # [Sourcegraph](https://sourcegraph.com) CLI [![Build Status](https://travis-ci.org/sourcegraph/src-cli.svg)](https://travis-ci.org/sourcegraph/src-cli) [![Go Report Card](https://goreportcard.com/badge/sourcegraph/src-cli)](https://goreportcard.com/report/sourcegraph/src-cli)
 
-<img src="https://user-images.githubusercontent.com/3173176/43567326-3db5f31c-95e6-11e8-9e74-4c04079c01b0.png" width=450 align=right>
+<img src="https://user-images.githubusercontent.com/3173176/43567326-3db5f31c-95e6-11e8-9e74-4c04079c01b0.png" width=500 align=right>
 
 `src` is a command line interface to Sourcegraph:
 
@@ -15,7 +15,7 @@
 
 ## Installation
 
-Latest versions of the src CLI are available on the [releases tab on GitHub](https://github.com/sourcegraph/src-cli/releases) and through Sourcegraph.com (see commands below). If the latest version does not work for you, consider using the version compatible with your Sourcegraph instance.
+Binary downloads are available on the [releases tab](https://github.com/sourcegraph/src-cli/releases), and through Sourcegraph.com. _If the latest version does not work for you,_ consider using the version compatible with your Sourcegraph instance instead.
 
 ### Installation: Mac OS
 
