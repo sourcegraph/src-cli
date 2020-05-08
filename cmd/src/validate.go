@@ -585,7 +585,25 @@ func (c *vdClient) graphQL(token, query string, variables map[string]interface{}
 		return errors.New(string(p))
 	}
 
-	return jsoniter.NewDecoder(resp.Body).Decode(target)
+	// Decode the response.
+	var result struct {
+		Data   interface{} `json:"data,omitempty"`
+		Errors interface{} `json:"errors,omitempty"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return err
+	}
+
+	if result.Errors != nil {
+		return &exitCodeError{
+			error:    fmt.Errorf("GraphQL errors:\n%s", &graphqlError{result.Errors}),
+			exitCode: graphqlErrorsExitCode,
+		}
+	}
+	if err := jsonCopy(target, result.Data); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (vd *validator) createFirstAdmin(email, username, password string) error {
