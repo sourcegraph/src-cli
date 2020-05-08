@@ -90,6 +90,7 @@ func (vd *validator) parseScriptContext(val string) map[string]string {
 
 func (vd *validator) validate(script []byte, scriptContext map[string]string) error {
 	globals := map[string]interface{}{
+		"src_list_external_services": vd.listExternalServices,
 		"src_add_external_service": vd.addExternalService,
 		"src_delete_external_service": vd.deleteExternalService,
 		"src_search_match_count": vd.searchMatchCount,
@@ -198,11 +199,12 @@ func (vd *validator) searchMatchCount(searchStr string) (int, error) {
 }
 
 const vdListRepos = `
-query ListRepos($cloneInProgress: Boolean!, $cloned: Boolean!, $notCloned: Boolean!) {
+query ListRepos($cloneInProgress: Boolean!, $cloned: Boolean!, $notCloned: Boolean!, $names: [String!]) {
   repositories(
     cloned: $cloneInProgress
     cloneInProgress: $cloned
     notCloned: $notCloned
+    names: $names
   ) {
     nodes {
       name
@@ -210,7 +212,7 @@ query ListRepos($cloneInProgress: Boolean!, $cloned: Boolean!, $notCloned: Boole
   }
 }`
 
-func (vd *validator) listRepos(cloneInProgress, cloned, notCloned bool) ([]string, error) {
+func (vd *validator) listRepos(filterNames []string, cloneInProgress, cloned, notCloned bool) ([]string, error) {
 	var resp struct {
 		Repositories struct {
 			Nodes []struct {
@@ -225,6 +227,7 @@ func (vd *validator) listRepos(cloneInProgress, cloned, notCloned bool) ([]strin
 			"cloneInProgress": cloneInProgress,
 			"cloned": cloned,
 			"notCloned": notCloned,
+			"names": filterNames,
 		},
 		result: &resp,
 	}).do()
@@ -251,5 +254,38 @@ func (vd *validator) runGraphQL(query string, vars map[string]interface{}) (map[
 	}).do()
 
 	return resp, err
+}
+
+const vdListExternalServices = `
+query ExternalServices {
+  externalServices {
+    nodes {
+      id
+      displayName
+    }
+  }
+}`
+
+func (vd *validator) listExternalServices() ([]interface{}, error) {
+	var resp struct {
+		ExternalServices struct {
+			Nodes []struct {
+				DisplayName string `json:"displayName"`
+				ID string `json:"id"`
+			} `json:"nodes"`
+		} `json:"externalServices"`
+	}
+
+	err := (&apiRequest{
+		query: vdListExternalServices,
+		result: &resp,
+	}).do()
+
+	xs := make([]interface{}, 0, len(resp.ExternalServices.Nodes))
+	for _, es := range resp.ExternalServices.Nodes {
+		xs = append(xs, map[string]string{"id": es.ID, "displayName": es.DisplayName})
+	}
+
+	return xs, err
 }
 
