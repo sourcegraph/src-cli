@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -11,6 +12,8 @@ import (
 
 	"github.com/mattn/go-isatty"
 	"github.com/starlight-go/starlight"
+	"github.com/starlight-go/starlight/convert"
+	"go.starlark.net/starlark"
 )
 
 type validator struct{}
@@ -127,25 +130,28 @@ mutation AddExternalService($kind: ExternalServiceKind!, $displayName: String!, 
   }
 }`
 
-func (vd *validator) addExternalService(kind, displayName, config string) (string, error) {
-	var resp struct {
-		Data struct {
-			AddExternalService struct {
-				ID string `json:"id"`
-			} `json:"addExternalService"`
-		} `json:"data"`
+func (vd *validator) addExternalService(kind, displayName, config interface{}) (string, error) {
+	dict := vd.convertDict(config)
+	configJson, err := json.MarshalIndent(dict, "", "  ")
+	if err != nil {
+		return "", err
 	}
-	err := (&apiRequest{
+	var resp struct {
+		AddExternalService struct {
+			ID string `json:"id"`
+		} `json:"addExternalService"`
+	}
+	err = (&apiRequest{
 		query: vdAddExternalServiceQuery,
 		vars: map[string]interface{}{
 			"kind": kind,
 			"displayName": displayName,
-			"config": config,
+			"config": string(configJson),
 		},
 		result: &resp,
 	}).do()
 
-	return resp.Data.AddExternalService.ID, err
+	return resp.AddExternalService.ID, err
 }
 
 const vdDeleteExternalServiceQuery = `
@@ -212,7 +218,8 @@ query ListRepos($cloneInProgress: Boolean!, $cloned: Boolean!, $notCloned: Boole
   }
 }`
 
-func (vd *validator) listClonedRepos(filterNames []string) ([]string, error) {
+func (vd *validator) listClonedRepos(filterNames interface{}) ([]string, error) {
+	fs := vd.convertStringList(filterNames)
 	var resp struct {
 		Repositories struct {
 			Nodes []struct {
@@ -227,7 +234,7 @@ func (vd *validator) listClonedRepos(filterNames []string) ([]string, error) {
 			"cloneInProgress": false,
 			"cloned": true,
 			"notCloned": false,
-			"names": filterNames,
+			"names": fs,
 		},
 		result: &resp,
 	}).do()
@@ -289,3 +296,61 @@ func (vd *validator) listExternalServices() ([]interface{}, error) {
 	return xs, err
 }
 
+func (vd *validator) convertDict(val interface{}) map[string]interface{} {
+	dict := val.(map[interface{}]interface{})
+	res := make(map[string]interface{})
+
+	for k, v := range dict {
+		gk := vd.fromStarLark(k).(string)
+		gv := vd.fromStarLark(v)
+
+		res[gk] = gv
+	}
+	return res
+}
+
+func (vd *validator) convertStringList(val interface{}) []string {
+	list := val.([]interface{})
+	res := make([]string, 0, len(list))
+
+	for _, v := range list {
+		gv := v.(string)
+
+		res = append(res, gv)
+	}
+	return res
+}
+
+func (vd *validator) fromStarLark(v interface{}) interface{} {
+	switch v := v.(type) {
+	case starlark.Bool:
+		return bool(v)
+	case starlark.Int:
+		// starlark ints can be signed or unsigned
+		if i, ok := v.Int64(); ok {
+			return i
+		}
+		if i, ok := v.Uint64(); ok {
+			return i
+		}
+		// buh... maybe > maxint64?  Dunno
+		panic(fmt.Errorf("can't convert starlark.Int %q to int", v))
+	case starlark.Float:
+		return float64(v)
+	case starlark.String:
+		return string(v)
+	case *starlark.List:
+		return convert.FromList(v)
+	case starlark.Tuple:
+		return convert.FromTuple(v)
+	case *starlark.Dict:
+		return convert.FromDict(v)
+	case *starlark.Set:
+		return convert.FromSet(v)
+	default:
+		// dunno, hope it's a custom type that the receiver knows how to deal
+		// with. This can happen with custom-written go types that implement
+		// starlark.Value.
+		return v
+	}
+}

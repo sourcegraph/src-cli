@@ -9,6 +9,7 @@ require (
 	github.com/gogo/protobuf v1.3.1 // indirect
 	github.com/gosuri/uilive v0.0.4
 	github.com/hashicorp/go-multierror v1.0.0
+	github.com/json-iterator/go v1.1.9
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
 	github.com/mattn/go-isatty v0.0.12
 	github.com/mattn/go-runewidth v0.0.8 // indirect
@@ -22,7 +23,7 @@ require (
 	github.com/ssor/bom v0.0.0-20170718123548-6386211fdfcf // indirect
 	github.com/starlight-go/starlight v0.0.0-20181207205707-b06f321544f3
 	github.com/xeipuuv/gojsonschema v1.2.0
-	go.starlark.net v0.0.0-20200330013621-be5394c419b6 // indirect
+	go.starlark.net v0.0.0-20200330013621-be5394c419b6
 	golang.org/x/net v0.0.0-20200114155413-6afb5195e5aa
 	golang.org/x/sys v0.0.0-20200124204421-9fbb57f87de9 // indirect
 	jaytaylor.com/html2text v0.0.0-20190408195923-01ec452cbe43
