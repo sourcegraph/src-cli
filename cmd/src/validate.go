@@ -1,22 +1,27 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
 	"io/ioutil"
+	"net/http"
 	"os"
 	"strings"
 	"time"
 
+	jsoniter "github.com/json-iterator/go"
 	"github.com/mattn/go-isatty"
 	"github.com/starlight-go/starlight"
 	"github.com/starlight-go/starlight/convert"
 	"go.starlark.net/starlark"
 )
 
-type validator struct{}
+type validator struct{
+	client *vdClient
+}
 
 func init() {
 	usage := `'src validate' is a tool that validates a Sourcegraph instance.
@@ -31,7 +36,7 @@ or
 `
 	flagSet := flag.NewFlagSet("validate", flag.ExitOnError)
 	usageFunc := func() {
-		fmt.Fprintf(flag.CommandLine.Output(), "Usage of 'src validate %s':\n", flagSet.Name())
+		_, _ = fmt.Fprintf(flag.CommandLine.Output(), "Usage of 'src validate %s':\n", flagSet.Name())
 		flagSet.PrintDefaults()
 		fmt.Println(usage)
 	}
@@ -39,6 +44,7 @@ or
 	var (
 		contextFlag = flagSet.String("context", "", `Comma-separated list of key=value pairs to add to the script execution context`)
 		docFlag = flagSet.Bool("doc", false, `Show function documentation`)
+		secretsFlag = flagSet.String("secrets", "", "Path to a file containing key=value lines. The key value pairs will be added to the script context")
 	)
 
 	vd := &validator{}
@@ -67,7 +73,20 @@ or
 				}
 			}
 
-			return vd.validate(script, vd.parseScriptContext(*contextFlag))
+			ctxm := vd.parseKVPairs(*contextFlag, ",")
+
+			if *secretsFlag != "" {
+				sm, err := vd.readSecrets(*secretsFlag)
+				if err != nil {
+					return err
+				}
+
+				for k, v := range sm {
+					ctxm[k] = v
+				}
+			}
+
+			return vd.validate(script, ctxm)
 		},
 		usageFunc: usageFunc,
 	})
@@ -77,18 +96,27 @@ func (vd *validator) printDocumentation() {
 	fmt.Println("TODO(uwedeportivo): write function documentation")
 }
 
-func (vd *validator) parseScriptContext(val string) map[string]string {
+func (vd *validator) parseKVPairs(val string, pairSep string) map[string]string {
 	scriptContext := make(map[string]string)
 
-	pairs := strings.Split(val, ",")
+	pairs := strings.Split(val, pairSep)
 	for _, pair := range pairs {
 		kv := strings.Split(pair, "=")
 
 		if len(kv) == 2 {
-			scriptContext[kv[0]] = kv[1]
+			scriptContext[strings.TrimSpace(kv[0])] = strings.TrimSpace(kv[1])
 		}
 	}
 	return scriptContext
+}
+
+func (vd *validator) readSecrets(path string) (map[string]string, error) {
+	bs, err := ioutil.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	return vd.parseKVPairs(string(bs), "\n"), nil
 }
 
 func (vd *validator) validate(script []byte, scriptContext map[string]string) error {
@@ -102,6 +130,7 @@ func (vd *validator) validate(script []byte, scriptContext map[string]string) er
 		"src_log": vd.log,
 		"src_run_graphql": vd.runGraphQL,
 		"src_context": scriptContext,
+		"src_create_first_admin": vd.createFirstAdmin,
 	}
 
 	vals, err := starlight.Eval(script, globals, nil)
@@ -141,15 +170,12 @@ func (vd *validator) addExternalService(kind, displayName, config interface{}) (
 			ID string `json:"id"`
 		} `json:"addExternalService"`
 	}
-	err = (&apiRequest{
-		query: vdAddExternalServiceQuery,
-		vars: map[string]interface{}{
-			"kind": kind,
-			"displayName": displayName,
-			"config": string(configJson),
-		},
-		result: &resp,
-	}).do()
+	
+	err = vd.graphQL(vdAddExternalServiceQuery, map[string]interface{}{
+		"kind": kind,
+		"displayName": displayName,
+		"config": string(configJson),
+	}, &resp)
 
 	return resp.AddExternalService.ID, err
 }
@@ -353,4 +379,257 @@ func (vd *validator) fromStarLark(v interface{}) interface{} {
 		// starlark.Value.
 		return v
 	}
+}
+
+// SiteAdminInit initializes the instance with given admin account.
+// It returns an authenticated client as the admin for doing e2e testing.
+func (vd *validator) siteAdminInit(baseURL, email, username, password string) (*vdClient, error) {
+	client, err := vd.newClient(baseURL)
+	if err != nil {
+		return nil, err
+	}
+
+	var request = struct {
+		Email    string `json:"email"`
+		Username string `json:"username"`
+		Password string `json:"password"`
+	}{
+		Email:    email,
+		Username: username,
+		Password: password,
+	}
+	err = client.authenticate("/-/site-init", request)
+	if err != nil {
+		return nil, err
+	}
+
+	return client, nil
+}
+
+// SignIn performs the sign in with given user credentials.
+// It returns an authenticated client as the user for doing e2e testing.
+func (vd *validator) signIn(baseURL string, email, password string) (*vdClient, error) {
+	client, err := vd.newClient(baseURL)
+	if err != nil {
+		return nil, err
+	}
+
+	var request = struct {
+		Email    string `json:"email"`
+		Password string `json:"password"`
+	}{
+		Email:    email,
+		Password: password,
+	}
+	err = client.authenticate("/-/sign-in", request)
+	if err != nil {
+		return nil, err
+	}
+
+	return client, nil
+}
+
+// extractCSRFToken extracts CSRF token from HTML response body.
+func (vd *validator) extractCSRFToken(body string) string {
+	anchor := `X-Csrf-Token":"`
+	i := strings.Index(body, anchor)
+	if i == -1 {
+		return ""
+	}
+
+	j := strings.Index(body[i+len(anchor):], `","`)
+	if j == -1 {
+		return ""
+	}
+
+	return body[i+len(anchor) : i+len(anchor)+j]
+}
+
+// Client is an authenticated client for a Sourcegraph user for doing e2e testing.
+// The user may or may not be a site admin depends on how the client is instantiated.
+// It works by simulating how the browser would send HTTP requests to the server.
+type vdClient struct {
+	baseURL       string
+	csrfToken     string
+	csrfCookie    *http.Cookie
+	sessionCookie *http.Cookie
+
+	userID string
+}
+
+// newClient instantiates a new client by performing a GET request then obtains the
+// CSRF token and cookie from its response.
+func (vd *validator) newClient(baseURL string) (*vdClient, error) {
+	resp, err := http.Get(baseURL)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	p, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	csrfToken := vd.extractCSRFToken(string(p))
+	if csrfToken == "" {
+		return nil, err
+	}
+	var csrfCookie *http.Cookie
+	for _, cookie := range resp.Cookies() {
+		if cookie.Name == "sg_csrf_token" {
+			csrfCookie = cookie
+			break
+		}
+	}
+	if csrfCookie == nil {
+		return nil, errors.New(`"sg_csrf_token" cookie not found`)
+	}
+
+	return &vdClient{
+		baseURL:    baseURL,
+		csrfToken:  csrfToken,
+		csrfCookie: csrfCookie,
+	}, nil
+}
+
+// authenticate is used to send a HTTP POST request to an URL that is able to authenticate
+// a user with given body (marshalled to JSON), e.g. site admin init, sign in. Once the
+// client is authenticated, the session cookie will be stored as a proof of authentication.
+func (c *vdClient) authenticate(path string, body interface{}) error {
+	p, err := jsoniter.Marshal(body)
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequest("POST", c.baseURL+path, bytes.NewReader(p))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Csrf-Token", c.csrfToken)
+	req.AddCookie(c.csrfCookie)
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		p, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			return err
+		}
+		return errors.New(string(p))
+	}
+
+	var sessionCookie *http.Cookie
+	for _, cookie := range resp.Cookies() {
+		if cookie.Name == "sgs" {
+			sessionCookie = cookie
+			break
+		}
+	}
+	if sessionCookie == nil {
+		return err
+	}
+	c.sessionCookie = sessionCookie
+
+	userID, err := c.currentUserID()
+	if err != nil {
+		return err
+	}
+	c.userID = userID
+	return nil
+}
+
+// currentUserID returns the current user's GraphQL node ID.
+func (c *vdClient) currentUserID() (string, error) {
+	query := `
+	query {
+		currentUser {
+			id
+		}
+	}
+`
+	var resp struct {
+		Data struct {
+			CurrentUser struct {
+				ID string `json:"id"`
+			} `json:"currentUser"`
+		} `json:"data"`
+	}
+	err := c.graphQL("", query, nil, &resp)
+	if err != nil {
+		return "", err
+	}
+
+	return resp.Data.CurrentUser.ID, nil
+}
+
+// GraphQL makes a GraphQL request to the server on behalf of the user authenticated by the client.
+// An optional token can be passed to impersonate other users.
+func (c *vdClient) graphQL(token, query string, variables map[string]interface{}, target interface{}) error {
+	body, err := jsoniter.Marshal(map[string]interface{}{
+		"query":     query,
+		"variables": variables,
+	})
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequest("POST", fmt.Sprintf("%s/.api/graphql", c.baseURL), bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	if token != "" {
+		req.Header.Set("Authorization", fmt.Sprintf("token %s", token))
+	} else {
+		// NOTE: We use this header to protect from CSRF attacks of HTTP API,
+		// see https://sourcegraph.com/github.com/sourcegraph/sourcegraph/-/blob/cmd/frontend/internal/cli/http.go#L41-42
+		req.Header.Set("X-Requested-With", "Sourcegraph")
+		req.AddCookie(c.csrfCookie)
+		req.AddCookie(c.sessionCookie)
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		p, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			return err
+		}
+		return errors.New(string(p))
+	}
+
+	return jsoniter.NewDecoder(resp.Body).Decode(target)
+}
+
+func (vd *validator) createFirstAdmin(email, username, password string) error {
+	client, err := vd.signIn(cfg.Endpoint, email, password)
+	if err != nil {
+		client, err = vd.siteAdminInit(cfg.Endpoint, email, username, password)
+		if err != nil {
+			return err
+		}
+	}
+
+	vd.client = client
+	return nil
+}
+
+func (vd *validator) graphQL(query string, variables map[string]interface{}, target interface{}) error {
+	if vd.client != nil {
+		return vd.client.graphQL("", query, variables, target)
+	}
+
+	return (&apiRequest{
+		query: vdListExternalServices,
+		result: target,
+	}).do()
 }
