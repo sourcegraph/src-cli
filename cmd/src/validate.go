@@ -94,7 +94,7 @@ func (vd *validator) validate(script []byte, scriptContext map[string]string) er
 		"src_add_external_service": vd.addExternalService,
 		"src_delete_external_service": vd.deleteExternalService,
 		"src_search_match_count": vd.searchMatchCount,
-		"src_list_repos": vd.listRepos,
+		"src_list_cloned_repos": vd.listClonedRepos,
 		"src_sleep_seconds": vd.sleepSeconds,
 		"src_log": vd.log,
 		"src_run_graphql": vd.runGraphQL,
@@ -212,7 +212,7 @@ query ListRepos($cloneInProgress: Boolean!, $cloned: Boolean!, $notCloned: Boole
   }
 }`
 
-func (vd *validator) listRepos(filterNames []string, cloneInProgress, cloned, notCloned bool) ([]string, error) {
+func (vd *validator) listClonedRepos(filterNames []string) ([]string, error) {
 	var resp struct {
 		Repositories struct {
 			Nodes []struct {
@@ -224,9 +224,9 @@ func (vd *validator) listRepos(filterNames []string, cloneInProgress, cloned, no
 	err := (&apiRequest{
 		query: vdListRepos,
 		vars: map[string]interface{}{
-			"cloneInProgress": cloneInProgress,
-			"cloned": cloned,
-			"notCloned": notCloned,
+			"cloneInProgress": false,
+			"cloned": true,
+			"notCloned": false,
 			"names": filterNames,
 		},
 		result: &resp,
