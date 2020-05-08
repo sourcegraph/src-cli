@@ -170,7 +170,7 @@ func (vd *validator) addExternalService(kind, displayName, config interface{}) (
 			ID string `json:"id"`
 		} `json:"addExternalService"`
 	}
-	
+
 	err = vd.graphQL(vdAddExternalServiceQuery, map[string]interface{}{
 		"kind": kind,
 		"displayName": displayName,
@@ -190,15 +190,9 @@ mutation DeleteExternalService($id: ID!) {
 func (vd *validator) deleteExternalService(id string) error {
 	var resp struct {}
 
-	err := (&apiRequest{
-		query: vdDeleteExternalServiceQuery,
-		vars: map[string]interface{}{
-			"id": id,
-		},
-		result: &resp,
-	}).do()
-
-	return err
+	return vd.graphQL(vdDeleteExternalServiceQuery, map[string]interface{}{
+		"id": id,
+	}, &resp)
 }
 
 const vdSearchMatchCountQuery = `
@@ -219,13 +213,9 @@ func (vd *validator) searchMatchCount(searchStr string) (int, error) {
 		} `json:"search"`
 	}
 
-	err := (&apiRequest{
-		query: vdSearchMatchCountQuery,
-		vars: map[string]interface{}{
-			"query": searchStr,
-		},
-		result: &resp,
-	}).do()
+	err := vd.graphQL(vdSearchMatchCountQuery, map[string]interface{}{
+		"query": searchStr,
+	}, &resp)
 
 	return resp.Search.Results.MatchCount, err
 }
@@ -254,16 +244,12 @@ func (vd *validator) listClonedRepos(filterNames interface{}) ([]string, error) 
 		} `json:"repositories"`
 	}
 
-	err := (&apiRequest{
-		query: vdListRepos,
-		vars: map[string]interface{}{
-			"cloneInProgress": false,
-			"cloned": true,
-			"notCloned": false,
-			"names": fs,
-		},
-		result: &resp,
-	}).do()
+	err := vd.graphQL(vdListRepos, map[string]interface{}{
+		"cloneInProgress": false,
+		"cloned": true,
+		"notCloned": false,
+		"names": fs,
+	}, &resp)
 
 	names := make([]string, 0, len(resp.Repositories.Nodes))
 	for _, node := range resp.Repositories.Nodes {
@@ -277,15 +263,10 @@ func (vd *validator) log(line string) {
 	fmt.Println(line)
 }
 
-func (vd *validator) runGraphQL(query string, vars map[string]interface{}) (map[string]interface{}, error) {
-	resp := map[string]interface{}{}
+func (vd *validator) runGraphQL(query string, vars map[string]interface{}) (map[interface{}]interface{}, error) {
+	resp := map[interface{}]interface{}{}
 
-	err := (&apiRequest{
-		query: query,
-		vars: vars,
-		result: &resp,
-	}).do()
-
+	err := vd.graphQL(query, vars, &resp)
 	return resp, err
 }
 
@@ -309,10 +290,7 @@ func (vd *validator) listExternalServices() ([]interface{}, error) {
 		} `json:"externalServices"`
 	}
 
-	err := (&apiRequest{
-		query: vdListExternalServices,
-		result: &resp,
-	}).do()
+	err := vd.graphQL(vdListExternalServices, map[string]interface{}{}, &resp)
 
 	xs := make([]interface{}, 0, len(resp.ExternalServices.Nodes))
 	for _, es := range resp.ExternalServices.Nodes {
@@ -629,7 +607,8 @@ func (vd *validator) graphQL(query string, variables map[string]interface{}, tar
 	}
 
 	return (&apiRequest{
-		query: vdListExternalServices,
+		query: query,
+		vars:variables,
 		result: target,
 	}).do()
 }
