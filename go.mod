@@ -20,7 +20,9 @@ require (
 	github.com/sourcegraph/go-diff v0.5.1
 	github.com/sourcegraph/jsonx v0.0.0-20190114210550-ba8cb36a8614
 	github.com/ssor/bom v0.0.0-20170718123548-6386211fdfcf // indirect
+	github.com/starlight-go/starlight v0.0.0-20181207205707-b06f321544f3
 	github.com/xeipuuv/gojsonschema v1.2.0
+	go.starlark.net v0.0.0-20200330013621-be5394c419b6 // indirect
 	golang.org/x/net v0.0.0-20200114155413-6afb5195e5aa
 	golang.org/x/sys v0.0.0-20200124204421-9fbb57f87de9 // indirect
 	jaytaylor.com/html2text v0.0.0-20190408195923-01ec452cbe43

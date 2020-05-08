@@ -37,6 +37,7 @@ The commands are:
 	actions         runs actions to generate patch sets (experimental)
 	campaigns       manages campaigns (experimental)
 	lsif            manages LSIF data
+    validate        validate a Sourcegraph instance
 	version         display and compare the src-cli version against the recommended version for your instance
 
 Use "src [command] -h" for more information about a command.
