@@ -63,12 +63,10 @@ github.com/sourcegraph/go-diff v0.5.1 h1:gO6i5zugwzo1RVTvgvfwCOSVegNuvnNi6bAD1QC
 github.com/sourcegraph/go-diff v0.5.1/go.mod h1:j2dHj3m8aZgQO8lMTcTnBcXkRRRqi34cd2MNlA9u1mE=
 github.com/sourcegraph/jsonx v0.0.0-20190114210550-ba8cb36a8614 h1:MrlKMpoGse4bCneDoK/c+ZbPGqOP5Hme5ulatc8smbQ=
 github.com/sourcegraph/jsonx v0.0.0-20190114210550-ba8cb36a8614/go.mod h1:7jkSQ2sdxwXMaIDxKJotTt+hwKnT9b/wbJFU7/ObUEY=
-github.com/sourcegraph/starlight v0.0.0-20181207205707-b06f321544f3 h1:kHv4KgUn5TMPlgaZqDTGwzS0OMvMiF3F5QiOyY7H21k=
-github.com/sourcegraph/starlight v0.0.0-20181207205707-b06f321544f3/go.mod h1:xIDWQkiOKpUvTomr/eJOtywocqUvuCjNycwuyKFUXHE=
+github.com/sourcegraph/starlight v0.0.0-20200510065702-c68e5b848a14 h1:Nex40sFpA3I9xwflIL+Z4uE1at5StgjtAA6boAzUYtU=
+github.com/sourcegraph/starlight v0.0.0-20200510065702-c68e5b848a14/go.mod h1:cFjo4+OQB4N+ROTZGn0we7RXmNvShjrxsCT3zKatbmU=
 github.com/ssor/bom v0.0.0-20170718123548-6386211fdfcf h1:pvbZ0lM0XWPBqUKqFU8cmavspvIl9nulOYwdy6IFRRo=
 github.com/ssor/bom v0.0.0-20170718123548-6386211fdfcf/go.mod h1:RJID2RhlZKId02nZ62WenDCkgHFerpIOmW0iT7GKmXM=
-github.com/starlight-go/starlight v0.0.0-20181207205707-b06f321544f3 h1:/fBh1Ot84ILt/ociFHO98wJ9LxIMA3UG8B0unUJPFpY=
-github.com/starlight-go/starlight v0.0.0-20181207205707-b06f321544f3/go.mod h1:pxOc2ZuBV+CNlQgzq/HJ9Z9G/eoEMHFeuGohOvva4Co=
 github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=
 github.com/stretchr/testify v1.3.0 h1:TivCn/peBQ7UY8ooIcPgZFpTNSz0Q2U6UrFlUfqbe0Q=
 github.com/stretchr/testify v1.3.0/go.mod h1:M5WIy9Dh21IEIfnGCwXGc5bZfKNJtfHm1UVUgZn+9EI=
