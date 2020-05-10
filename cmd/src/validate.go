@@ -14,8 +14,8 @@ import (
 
 	jsoniter "github.com/json-iterator/go"
 	"github.com/mattn/go-isatty"
-	"github.com/starlight-go/starlight"
-	"github.com/starlight-go/starlight/convert"
+	"github.com/sourcegraph/starlight"
+	"github.com/sourcegraph/starlight/convert"
 	"go.starlark.net/starlark"
 )
 
@@ -131,6 +131,7 @@ func (vd *validator) validate(script []byte, scriptContext map[string]string) er
 		"src_run_graphql": vd.runGraphQL,
 		"src_context": scriptContext,
 		"src_create_first_admin": vd.createFirstAdmin,
+		"src_debug": vd.debug,
 	}
 
 	vals, err := starlight.Eval(script, globals, nil)
@@ -245,9 +246,9 @@ func (vd *validator) listClonedRepos(filterNames interface{}) ([]string, error) 
 	}
 
 	err := vd.graphQL(vdListRepos, map[string]interface{}{
-		"cloneInProgress": false,
+		"cloneInProgress": true,
 		"cloned": true,
-		"notCloned": false,
+		"notCloned": true,
 		"names": fs,
 	}, &resp)
 
@@ -263,11 +264,15 @@ func (vd *validator) log(line string) {
 	fmt.Println(line)
 }
 
-func (vd *validator) runGraphQL(query string, vars map[string]interface{}) (map[interface{}]interface{}, error) {
-	resp := map[interface{}]interface{}{}
+func (vd *validator) runGraphQL(query string, vars interface{}) (starlark.Value, error) {
+	resp := map[string]interface{}{}
+	cvars := vd.convertDict(vars)
 
-	err := vd.graphQL(query, vars, &resp)
-	return resp, err
+	err := vd.graphQL(query, cvars, &resp)
+	if err != nil {
+		return nil, err
+	}
+	return vd.makeDict(resp)
 }
 
 const vdListExternalServices = `
@@ -280,7 +285,7 @@ query ExternalServices {
   }
 }`
 
-func (vd *validator) listExternalServices() ([]interface{}, error) {
+func (vd *validator) listExternalServices() ([]map[string]string, error) {
 	var resp struct {
 		ExternalServices struct {
 			Nodes []struct {
@@ -291,13 +296,43 @@ func (vd *validator) listExternalServices() ([]interface{}, error) {
 	}
 
 	err := vd.graphQL(vdListExternalServices, map[string]interface{}{}, &resp)
+	if err != nil {
+		return nil, err
+	}
 
-	xs := make([]interface{}, 0, len(resp.ExternalServices.Nodes))
+	xs := make([]map[string]string, 0, len(resp.ExternalServices.Nodes))
 	for _, es := range resp.ExternalServices.Nodes {
 		xs = append(xs, map[string]string{"id": es.ID, "displayName": es.DisplayName})
 	}
 
-	return xs, err
+	return xs, nil
+}
+
+func (vd *validator) makeDict(m map[string]interface{}) (starlark.Value, error) {
+	dict := starlark.Dict{}
+
+	for k, v := range m {
+		var sv starlark.Value
+		var err error
+
+		sk := starlark.String(k)
+		if cv, ok := v.(map[string]interface{}); ok {
+			sv, err = vd.makeDict(cv)
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			sv, err = convert.ToValue(v)
+			if err != nil {
+				return nil, err
+			}
+		}
+		err = dict.SetKey(sk, sv)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return &dict, nil
 }
 
 func (vd *validator) convertDict(val interface{}) map[string]interface{} {
@@ -629,4 +664,8 @@ func (vd *validator) graphQL(query string, variables map[string]interface{}, tar
 		vars:variables,
 		result: target,
 	}).do()
+}
+
+func (vd *validator) debug(val interface{}) {
+	fmt.Printf("%+v\n", val)
 }
