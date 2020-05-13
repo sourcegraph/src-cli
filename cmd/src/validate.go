@@ -126,6 +126,7 @@ func (vd *validator) validate(script []byte, scriptContext map[string]string) er
 		"src_delete_external_service": vd.deleteExternalService,
 		"src_search_match_count": vd.searchMatchCount,
 		"src_list_cloned_repos": vd.listClonedRepos,
+		"src_wait_repo_cloned": vd.waitRepoCloned,
 		"src_sleep_seconds": vd.sleepSeconds,
 		"src_log": vd.log,
 		"src_run_graphql": vd.runGraphQL,
@@ -258,6 +259,22 @@ func (vd *validator) listClonedRepos(filterNames interface{}) ([]string, error) 
 	}
 
 	return names, err
+}
+
+func (vd *validator) waitRepoCloned(repoName string, sleepSeconds int, maxTries int) error {
+	nameFilter := []string{repoName}
+
+	for i := 0; i < maxTries; i++ {
+		names, err := vd.listClonedRepos(nameFilter)
+		if err != nil {
+			return err
+		}
+		if len(names) == 1 {
+			return nil
+		}
+		time.Sleep(time.Second * time.Duration(sleepSeconds))
+	}
+	return fmt.Errorf("repo %s not cloned after %d tries", repoName, maxTries)
 }
 
 func (vd *validator) log(line string) {
