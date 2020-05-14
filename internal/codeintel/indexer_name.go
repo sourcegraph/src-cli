@@ -19,7 +19,7 @@ type toolInfo struct {
 // ErrMetadataExceedsBuffer occurs when the first line of an LSIF index is too long to read.
 var ErrMetadataExceedsBuffer = errors.New("metaData vertex exceeds buffer")
 
-// ErrInvalidMetaDataVertex occurs when teh first line of an LSIF index is not a valid metadata vertex.
+// ErrInvalidMetaDataVertex occurs when the first line of an LSIF index is not a valid metadata vertex.
 var ErrInvalidMetaDataVertex = errors.New("invalid metaData vertex")
 
 // ReadIndexerName returns the name of the tool that generated the given index contents.
