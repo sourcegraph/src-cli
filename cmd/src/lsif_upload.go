@@ -123,7 +123,7 @@ Examples:
 
 		for _, v := range inferErrors {
 			return errors.New(strings.Join([]string{
-				fmt.Sprintf(`error: %s`, v.err),
+				fmt.Sprintf("error: %s", v.err),
 				fmt.Sprintf(`Unable to determine %s from environment. Either cd into a git repository or set -%s explicitly.`, v.argument, v.argument),
 				argsString,
 			}, "\n\n"))
