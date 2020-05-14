@@ -236,8 +236,7 @@ query ListRepos($cloneInProgress: Boolean!, $cloned: Boolean!, $notCloned: Boole
   }
 }`
 
-func (vd *validator) listClonedRepos(filterNames interface{}) ([]string, error) {
-	fs := vd.convertStringList(filterNames)
+func (vd *validator) listClonedReposImpl(fs []string) ([]string, error) {
 	var resp struct {
 		Repositories struct {
 			Nodes []struct {
@@ -261,20 +260,25 @@ func (vd *validator) listClonedRepos(filterNames interface{}) ([]string, error) 
 	return names, err
 }
 
-func (vd *validator) waitRepoCloned(repoName string, sleepSeconds int, maxTries int) error {
+func (vd *validator) listClonedRepos(filterNames interface{}) ([]string, error) {
+	fs := vd.convertStringList(filterNames)
+	return vd.listClonedReposImpl(fs)
+}
+
+func (vd *validator) waitRepoCloned(repoName string, sleepSeconds int, maxTries int) (bool, error) {
 	nameFilter := []string{repoName}
 
 	for i := 0; i < maxTries; i++ {
-		names, err := vd.listClonedRepos(nameFilter)
+		names, err := vd.listClonedReposImpl(nameFilter)
 		if err != nil {
-			return err
+			return false, err
 		}
 		if len(names) == 1 {
-			return nil
+			return true, nil
 		}
 		time.Sleep(time.Second * time.Duration(sleepSeconds))
 	}
-	return fmt.Errorf("repo %s not cloned after %d tries", repoName, maxTries)
+	return false, nil
 }
 
 func (vd *validator) log(line string) {
