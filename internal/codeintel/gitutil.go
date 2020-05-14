@@ -43,7 +43,7 @@ func InferCommit() (string, error) {
 	return runGitCommand("rev-parse", "HEAD")
 }
 
-// InferRoot gets the relative path  the root of the git clone enclosing the given file path.
+// InferRoot gets the path relative to the root of the git clone enclosing the given file path.
 func InferRoot(file string) (string, error) {
 	topLevel, err := runGitCommand("rev-parse", "--show-toplevel")
 	if err != nil {
