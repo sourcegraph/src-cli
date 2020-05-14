@@ -13,7 +13,7 @@ import (
 // size. The file names are returned in the order in which they were written. The
 // cleanup function removes all temporary files, and wraps the error argument
 // with any additional errors that happen during cleanup.
-func splitFile(file string, maxPayloadSize int) (files []string, _ func(err error) error, err error) {
+func splitFile(file string, maxPayloadSize int) (files []string, _ func(error) error, err error) {
 	cleanup := func(err error) error {
 		for _, file := range files {
 			if removeErr := os.Remove(file); removeErr != nil {
