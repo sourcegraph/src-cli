@@ -35,15 +35,16 @@ Examples:
 `
 
 	var flags struct {
-		repo             *string
-		commit           *string
-		file             *string
-		root             *string
-		indexer          *string
-		gitHubToken      *string
-		open             *bool
-		json             *bool
-		maxPayloadSizeMb *int
+		repo                 *string
+		commit               *string
+		file                 *string
+		root                 *string
+		indexer              *string
+		gitHubToken          *string
+		open                 *bool
+		json                 *bool
+		maxPayloadSizeMb     *int
+		ignoreUploadFailures *bool
 	}
 
 	flagSet := flag.NewFlagSet("upload", flag.ExitOnError)
@@ -56,6 +57,7 @@ Examples:
 	flags.open = flagSet.Bool("open", false, `Open the LSIF upload page in your browser.`)
 	flags.json = flagSet.Bool("json", false, `Output relevant state in JSON on success.`)
 	flags.maxPayloadSizeMb = flagSet.Int("max-payload-size", 100, `The maximum upload size (in megabytes). Indexes exceeding this limit will be uploaded over multiple HTTP requests.`)
+	flags.ignoreUploadFailures = flagSet.Bool("ignore-upload-failure", false, `Exit with status code zero on upload failure.`)
 
 	parseAndValidateFlags := func(args []string) error {
 		flagSet.Parse(args)
@@ -170,6 +172,11 @@ Examples:
 					fmt.Println("You may need to specify or update your GitHub access token to use this endpoint.")
 					fmt.Println("See https://github.com/sourcegraph/src-cli#authentication.")
 				}
+			}
+
+			if *flags.ignoreUploadFailures {
+				fmt.Printf("error: %s\n", err)
+				return nil
 			}
 
 			return err
