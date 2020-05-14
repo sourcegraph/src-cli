@@ -189,8 +189,8 @@ func (args requestArgs) EncodeQuery() string {
 	return qs.Encode()
 }
 
-// makeUploadRequest performs an HTTP POSt to the upload endpoint. The query string of the request
-// is constructed from teh given request args and the body of the request is the unmodified reader.
+// makeUploadRequest performs an HTTP POST to the upload endpoint. The query string of the request
+// is constructed from the given request args and the body of the request is the unmodified reader.
 // If target is a non-nil pointer, it will be assigned the value of the upload identifier present
 // in the response body.
 func makeUploadRequest(args requestArgs, payload io.Reader, target *int) error {
