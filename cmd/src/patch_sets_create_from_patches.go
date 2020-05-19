@@ -10,6 +10,7 @@ import (
 
 	"github.com/mattn/go-isatty"
 	"github.com/pkg/errors"
+	"github.com/sourcegraph/src-cli/internal/version"
 )
 
 func init() {
@@ -98,11 +99,11 @@ func createPatchSetFromPatches(
 		CreatePatchSetFromPatches PatchSet
 	}
 
-	version, err := getSourcegraphVersion()
+	sourcegraphVersion, err := getSourcegraphVersion()
 	if err != nil {
 		return err
 	}
-	supportsBaseRef, err := sourcegraphVersionCheck(version, ">= 3.14.0", "2020-03-11")
+	supportsBaseRef, err := version.SourcegraphVersionCheck(sourcegraphVersion, ">= 3.14.0", "2020-03-11")
 	if err != nil {
 		return err
 	}

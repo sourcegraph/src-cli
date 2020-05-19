@@ -1,4 +1,4 @@
-package main
+package version
 
 import "testing"
 
@@ -62,7 +62,7 @@ func TestSourcegraphVersionCheck(t *testing.T) {
 			expected:       true,
 		},
 	} {
-		actual, err := sourcegraphVersionCheck(tc.currentVersion, tc.constraint, tc.minDate)
+		actual, err := SourcegraphVersionCheck(tc.currentVersion, tc.constraint, tc.minDate)
 		if err != nil {
 			t.Errorf("err: %s", err)
 		}

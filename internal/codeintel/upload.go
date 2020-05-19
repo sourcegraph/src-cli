@@ -16,15 +16,16 @@ import (
 )
 
 type UploadIndexOpts struct {
-	Endpoint            string
-	AccessToken         string
-	Repo                string
-	Commit              string
-	Root                string
-	Indexer             string
-	GitHubToken         string
-	File                string
-	MaxPayloadSizeBytes int
+	Endpoint                string
+	AccessToken             string
+	Repo                    string
+	Commit                  string
+	Root                    string
+	Indexer                 string
+	GitHubToken             string
+	File                    string
+	MaxPayloadSizeBytes     int
+	SupportsMultipartUpload bool
 }
 
 // ErrUnauthorized occurs when the upload endpoint returns a 401 response.
@@ -39,7 +40,7 @@ func UploadIndex(opts UploadIndexOpts) (string, error) {
 		return "", err
 	}
 
-	if fileInfo.Size() <= int64(opts.MaxPayloadSizeBytes) {
+	if !opts.SupportsMultipartUpload || fileInfo.Size() <= int64(opts.MaxPayloadSizeBytes) {
 		id, err := uploadIndex(opts)
 		if err != nil {
 			return "", err

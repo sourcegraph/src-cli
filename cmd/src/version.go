@@ -92,3 +92,33 @@ func getRecommendedVersion() (string, error) {
 
 	return payload.Version, nil
 }
+
+//
+//
+
+const sourcegraphVersionQuery = `query SourcegraphVersion {
+	site {
+	  productVersion
+	}
+  }
+  `
+
+// TODO(efritz) - move this into internal as well
+// (punting for now so we don't move the forest for the banana)
+func getSourcegraphVersion() (string, error) {
+	var sourcegraphVersion struct {
+		Site struct {
+			ProductVersion string
+		}
+	}
+
+	err := (&apiRequest{
+		query:  sourcegraphVersionQuery,
+		result: &sourcegraphVersion,
+	}).do()
+	if err != nil {
+		return "", err
+	}
+
+	return sourcegraphVersion.Site.ProductVersion, nil
+}

@@ -11,6 +11,7 @@ import (
 	"github.com/pkg/browser"
 	"github.com/pkg/errors"
 	"github.com/sourcegraph/src-cli/internal/codeintel"
+	"github.com/sourcegraph/src-cli/internal/version"
 )
 
 func init() {
@@ -149,16 +150,26 @@ Examples:
 			return &usageError{err}
 		}
 
+		sourcegraphVersion, err := getSourcegraphVersion()
+		if err != nil {
+			return err
+		}
+		supportsMultipartUpload, err := version.SourcegraphVersionCheck(sourcegraphVersion, ">= 3.16-0", "2020-05-13")
+		if err != nil {
+			return err
+		}
+
 		opts := codeintel.UploadIndexOpts{
-			Endpoint:            cfg.Endpoint,
-			AccessToken:         cfg.AccessToken,
-			Repo:                *flags.repo,
-			Commit:              *flags.commit,
-			Root:                *flags.root,
-			Indexer:             *flags.indexer,
-			GitHubToken:         *flags.gitHubToken,
-			File:                *flags.file,
-			MaxPayloadSizeBytes: *flags.maxPayloadSizeMb * 1000 * 1000,
+			Endpoint:                cfg.Endpoint,
+			AccessToken:             cfg.AccessToken,
+			Repo:                    *flags.repo,
+			Commit:                  *flags.commit,
+			Root:                    *flags.root,
+			Indexer:                 *flags.indexer,
+			GitHubToken:             *flags.gitHubToken,
+			File:                    *flags.file,
+			MaxPayloadSizeBytes:     *flags.maxPayloadSizeMb * 1000 * 1000,
+			SupportsMultipartUpload: supportsMultipartUpload,
 		}
 
 		uploadID, err := codeintel.UploadIndex(opts)

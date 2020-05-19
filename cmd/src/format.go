@@ -13,6 +13,7 @@ import (
 	humanize "github.com/dustin/go-humanize"
 	"github.com/fatih/color"
 	"github.com/sourcegraph/jsonx"
+	"github.com/sourcegraph/src-cli/internal/version"
 )
 
 func parseTemplate(text string) (*template.Template, error) {
@@ -106,13 +107,13 @@ func parseTemplate(text string) (*template.Template, error) {
 
 			// Hacky to do this in a formatting helper, but better than
 			// globally querying the version and only using it here for now.
-			version, err := getSourcegraphVersion()
+			sourcegraphVersion, err := getSourcegraphVersion()
 			if err != nil {
 				// We ignore the error and return what we have
 				return buf.String()
 			}
 
-			supportsUpdatingPatchSet, err := sourcegraphVersionCheck(version, ">= 3.13-0", "2020-02-14")
+			supportsUpdatingPatchSet, err := version.SourcegraphVersionCheck(sourcegraphVersion, ">= 3.13-0", "2020-02-14")
 			if err != nil {
 				return buf.String()
 			}

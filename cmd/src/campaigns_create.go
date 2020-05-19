@@ -8,11 +8,10 @@ import (
 	"io/ioutil"
 	"os"
 	"os/exec"
-	"regexp"
 	"strings"
 
-	"github.com/Masterminds/semver"
 	"github.com/pkg/errors"
+	"github.com/sourcegraph/src-cli/internal/version"
 )
 
 func init() {
@@ -91,11 +90,11 @@ Examples:
 
 		if *patchsetIDFlag != "" {
 			// We only need to check for -branch if the Sourcegraph version is >= 3.13
-			version, err := getSourcegraphVersion()
+			sourcegraphVersion, err := getSourcegraphVersion()
 			if err != nil {
 				return err
 			}
-			needsBranch, err := sourcegraphVersionCheck(version, ">= 3.13-0", "2020-02-13")
+			needsBranch, err := version.SourcegraphVersionCheck(sourcegraphVersion, ">= 3.13-0", "2020-02-13")
 			if err != nil {
 				return err
 			}
@@ -276,52 +275,4 @@ func openInEditor(file string) error {
 	}
 
 	return cmd.Run()
-}
-
-const sourcegraphVersionQuery = `query SourcegraphVersion {
-  site {
-    productVersion
-  }
-}
-`
-
-func getSourcegraphVersion() (string, error) {
-	var sourcegraphVersion struct {
-		Site struct {
-			ProductVersion string
-		}
-	}
-
-	err := (&apiRequest{
-		query:  sourcegraphVersionQuery,
-		result: &sourcegraphVersion,
-	}).do()
-	if err != nil {
-		return "", err
-	}
-
-	return sourcegraphVersion.Site.ProductVersion, nil
-}
-
-func sourcegraphVersionCheck(version, constraint, minDate string) (bool, error) {
-	if version == "dev" || version == "0.0.0+dev" {
-		return true, nil
-	}
-
-	buildDate := regexp.MustCompile(`^\d+_(\d{4}-\d{2}-\d{2})_[a-z0-9]{7}$`)
-	matches := buildDate.FindStringSubmatch(version)
-	if len(matches) > 1 {
-		return matches[1] >= minDate, nil
-	}
-
-	c, err := semver.NewConstraint(constraint)
-	if err != nil {
-		return false, nil
-	}
-
-	v, err := semver.NewVersion(version)
-	if err != nil {
-		return false, err
-	}
-	return c.Check(v), nil
 }
