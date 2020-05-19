@@ -54,15 +54,16 @@ func TestUploadIndex(t *testing.T) {
 	_ = f.Close()
 
 	id, err := UploadIndex(UploadIndexOpts{
-		Endpoint:            ts.URL,
-		AccessToken:         "hunter2",
-		Repo:                "foo/bar",
-		Commit:              "deadbeef",
-		Root:                "proj/",
-		Indexer:             "lsif-go",
-		GitHubToken:         "ght",
-		File:                f.Name(),
-		MaxPayloadSizeBytes: 1000,
+		Endpoint:                ts.URL,
+		AccessToken:             "hunter2",
+		Repo:                    "foo/bar",
+		Commit:                  "deadbeef",
+		Root:                    "proj/",
+		Indexer:                 "lsif-go",
+		GitHubToken:             "ght",
+		File:                    f.Name(),
+		MaxPayloadSizeBytes:     1000,
+		SupportsMultipartUpload: true,
 	})
 	if err != nil {
 		t.Fatalf("unexpected error uploading index: %s", err)
@@ -114,15 +115,16 @@ func TestUploadIndexMultipart(t *testing.T) {
 	_ = f.Close()
 
 	id, err := UploadIndex(UploadIndexOpts{
-		Endpoint:            ts.URL,
-		AccessToken:         "hunter2",
-		Repo:                "foo/bar",
-		Commit:              "deadbeef",
-		Root:                "proj/",
-		Indexer:             "lsif-go",
-		GitHubToken:         "ght",
-		File:                f.Name(),
-		MaxPayloadSizeBytes: 1000,
+		Endpoint:                ts.URL,
+		AccessToken:             "hunter2",
+		Repo:                    "foo/bar",
+		Commit:                  "deadbeef",
+		Root:                    "proj/",
+		Indexer:                 "lsif-go",
+		GitHubToken:             "ght",
+		File:                    f.Name(),
+		MaxPayloadSizeBytes:     1000,
+		SupportsMultipartUpload: true,
 	})
 	if err != nil {
 		t.Fatalf("unexpected error uploading index: %s", err)
