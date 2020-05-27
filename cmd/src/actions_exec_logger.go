@@ -1,12 +1,14 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/fatih/color"
@@ -31,9 +33,11 @@ type actionLogger struct {
 
 	highlight func(a ...interface{}) string
 
+	progress *progress
+
+	mu         sync.Mutex
 	logFiles   map[string]*os.File
 	logWriters map[string]io.Writer
-	mu         sync.Mutex
 }
 
 func newActionLogger(verbose, keepLogs bool) *actionLogger {
@@ -41,10 +45,14 @@ func newActionLogger(verbose, keepLogs bool) *actionLogger {
 	if useColor {
 		color.NoColor = false
 	}
+	progress := &progress{
+		w: os.Stderr,
+	}
 	return &actionLogger{
 		verbose:    verbose,
 		keepLogs:   keepLogs,
 		highlight:  color.New(color.Bold, color.FgGreen).SprintFunc(),
+		progress:   progress,
 		logFiles:   map[string]*os.File{},
 		logWriters: map[string]io.Writer{},
 	}
@@ -58,7 +66,7 @@ func (a *actionLogger) Start() {
 
 func (a *actionLogger) Warnf(format string, args ...interface{}) {
 	if a.verbose {
-		yellow.Fprintf(os.Stderr, "WARNING: "+format, args...)
+		a.write("", yellow, "WARNING: "+format, args...)
 	}
 }
 
@@ -101,18 +109,17 @@ func (a *actionLogger) ActionSuccess(patches []PatchInput, newLines bool) {
 
 func (a *actionLogger) Infof(format string, args ...interface{}) {
 	if a.verbose {
-		grey.Fprintf(os.Stderr, format, args...)
+		a.write("", grey, format, args...)
 	}
 }
 
 func (a *actionLogger) RepoCacheHit(repo ActionRepo, patchProduced bool) {
 	if a.verbose {
 		if patchProduced {
-			fmt.Fprintf(os.Stderr, "%s -> Cached result found: using cached diff.\n", boldGreen.Sprint(repo.Name))
+			a.write(repo.Name, boldGreen, "Cached result found: using cached diff.\n")
 			return
 		}
-
-		fmt.Fprintf(os.Stderr, "%s -> Cached result found: no diff produced for this repository.\n", grey.Sprint(repo.Name))
+		a.write(repo.Name, grey, "Cached result found: no diff produced for this repository.\n")
 	}
 }
 
@@ -151,23 +158,12 @@ func (a *actionLogger) RepoStdoutStderr(repoName string) (io.Writer, io.Writer, 
 	}
 
 	stderrPrefix := fmt.Sprintf("%s -> [STDERR]: ", yellow.Sprint(repoName))
-	stderr := textio.NewPrefixWriter(os.Stderr, stderrPrefix)
+	stderr := textio.NewPrefixWriter(a.progress, stderrPrefix)
 
 	stdoutPrefix := fmt.Sprintf("%s -> [STDOUT]: ", yellow.Sprint(repoName))
-	stdout := textio.NewPrefixWriter(os.Stderr, stdoutPrefix)
+	stdout := textio.NewPrefixWriter(a.progress, stdoutPrefix)
 
 	return io.MultiWriter(stdout, w), io.MultiWriter(stderr, w), ok
-}
-
-func (a *actionLogger) write(repoName string, c *color.Color, format string, args ...interface{}) {
-	if w, ok := a.RepoWriter(repoName); ok {
-		fmt.Fprintf(w, format, args...)
-	}
-
-	if a.verbose {
-		format = fmt.Sprintf("%s -> %s", c.Sprint(repoName), format)
-		fmt.Fprintf(os.Stderr, format, args...)
-	}
 }
 
 func (a *actionLogger) RepoFinished(repoName string, patchProduced bool, actionErr error) error {
@@ -215,10 +211,12 @@ func (a *actionLogger) CommandStepStarted(repoName string, step int, args []stri
 }
 
 func (a *actionLogger) CommandStepErrored(repoName string, step int, err error) {
+	a.progress.IncStepsComplete(1)
 	a.write(repoName, boldRed, "%s %s.\n", boldBlack.Sprintf("[Step %d]", step), err)
 }
 
 func (a *actionLogger) CommandStepDone(repoName string, step int) {
+	a.progress.IncStepsComplete(1)
 	a.write(repoName, yellow, "%s Done.\n", boldBlack.Sprintf("[Step %d]", step))
 }
 
@@ -227,9 +225,106 @@ func (a *actionLogger) DockerStepStarted(repoName string, step int, image string
 }
 
 func (a *actionLogger) DockerStepErrored(repoName string, step int, err error, elapsed time.Duration) {
+	a.progress.IncStepsComplete(1)
 	a.write(repoName, boldRed, "%s %s. (%s)\n", boldBlack.Sprintf("[Step %d]", step), err, elapsed)
 }
 
 func (a *actionLogger) DockerStepDone(repoName string, step int, elapsed time.Duration) {
+	a.progress.IncStepsComplete(1)
 	a.write(repoName, yellow, "%s Done. (%s)\n", boldBlack.Sprintf("[Step %d]", step), elapsed)
+}
+
+func (a *actionLogger) write(repoName string, c *color.Color, format string, args ...interface{}) {
+	if w, ok := a.RepoWriter(repoName); ok {
+		fmt.Fprintf(w, format, args...)
+	}
+
+	if a.verbose {
+		if len(repoName) > 0 {
+			format = fmt.Sprintf("%s -> %s", c.Sprint(repoName), format)
+		}
+		fmt.Fprintf(a.progress, format, args...)
+	}
+}
+
+type progress struct {
+	jobs          int64
+	stepsComplete int64
+	totalSteps    int64
+
+	mu          sync.Mutex
+	w           io.Writer
+	shouldClear bool
+}
+
+func (p *progress) Write(data []byte) (int, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	length := 50
+	if p.shouldClear {
+		// Clear current progress
+		fmt.Fprintf(p.w, "\r")
+		// TODO: We could be more precise here by taking into account the number of steps / jobs
+		fmt.Fprintf(p.w, strings.Repeat(" ", 100))
+		fmt.Fprintf(p.w, "\r")
+	}
+
+	if p.TotalSteps() == 0 {
+		// Don't display bar until we know number of steps
+		p.shouldClear = false
+		return p.w.Write(data)
+	}
+
+	if !bytes.HasSuffix(data, []byte("\n")) {
+		p.shouldClear = false
+		return p.w.Write(data)
+	}
+
+	n, err := p.w.Write(data)
+	if err != nil {
+		return n, err
+	}
+	total := p.TotalSteps()
+	done := p.StepsComplete()
+	var pctDone float64
+	if total > 0 {
+		pctDone = float64(done) / float64(total)
+	}
+	bar := strings.Repeat("=", int(float64(length)*pctDone))
+	if len(bar) < length {
+		bar += ">"
+	}
+	bar += strings.Repeat(" ", length-len(bar))
+	fmt.Fprintf(p.w, "[%s] steps(%d/%d) jobs(%d)", bar, p.StepsComplete(), p.TotalSteps(), p.Jobs())
+	p.shouldClear = true
+	return n, err
+}
+
+func (p *progress) SetTotalSteps(n int64) {
+	atomic.StoreInt64(&p.totalSteps, n)
+}
+
+func (p *progress) TotalSteps() int64 {
+	return atomic.LoadInt64(&p.totalSteps)
+}
+
+func (p *progress) StepsComplete() int64 {
+	return atomic.LoadInt64(&p.stepsComplete)
+}
+
+func (p *progress) IncStepsComplete(delta int64) {
+	atomic.AddInt64(&p.stepsComplete, delta)
+}
+
+func (p *progress) Jobs() int64 {
+	return atomic.LoadInt64(&p.jobs)
+}
+
+func (p *progress) IncJobs() {
+	atomic.AddInt64(&p.jobs, 1)
+}
+
+func (p *progress) DecJobs() {
+	atomic.AddInt64(&p.jobs, -1)
 }

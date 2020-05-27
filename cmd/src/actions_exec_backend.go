@@ -122,11 +122,14 @@ func (x *actionExecutor) start(ctx context.Context) {
 		allRepos = append(allRepos, repo)
 	}
 	x.reposMu.Unlock()
+	x.logger.progress.SetTotalSteps(int64(len(x.repos) * len(x.action.Steps)))
 
 	for _, repo := range allRepos {
 		x.par.Acquire()
+		x.logger.progress.IncJobs()
 		go func(repo ActionRepo) {
 			defer x.par.Release()
+			defer x.logger.progress.DecJobs()
 			err := x.do(ctx, repo)
 			if err != nil {
 				x.par.Error(err)
