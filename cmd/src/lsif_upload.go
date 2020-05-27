@@ -10,6 +10,7 @@ import (
 	"github.com/mattn/go-isatty"
 	"github.com/pkg/browser"
 	"github.com/pkg/errors"
+	"github.com/sourcegraph/codeintelutils"
 	"github.com/sourcegraph/src-cli/internal/codeintel"
 )
 
@@ -104,7 +105,7 @@ Examples:
 			}
 			defer file.Close()
 
-			if indexer, err := codeintel.ReadIndexerName(file); err != nil {
+			if indexer, err := codeintelutils.ReadIndexerName(file); err != nil {
 				inferErrors = append(inferErrors, inferError{"indexer", err})
 			} else {
 				flags.indexer = &indexer

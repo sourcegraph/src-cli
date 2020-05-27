@@ -13,6 +13,7 @@ import (
 	"strconv"
 
 	"github.com/hashicorp/go-multierror"
+	"github.com/sourcegraph/codeintelutils"
 )
 
 type UploadIndexOpts struct {
@@ -82,7 +83,7 @@ func uploadIndex(opts UploadIndexOpts) (id int, err error) {
 		gitHubToken: opts.GitHubToken,
 	}
 
-	if err := makeUploadRequest(args, gzipReader(f), &id); err != nil {
+	if err := makeUploadRequest(args, codeintelutils.Gzip(f), &id); err != nil {
 		return 0, err
 	}
 
@@ -92,7 +93,7 @@ func uploadIndex(opts UploadIndexOpts) (id int, err error) {
 // uploadMultipartIndex splits the index file into chunks small enough to upload, then
 // performs a series of request to the upload endpoint. The new upload id is returned.
 func uploadMultipartIndex(opts UploadIndexOpts) (id int, err error) {
-	files, cleanup, err := splitFile(opts.File, opts.MaxPayloadSizeBytes)
+	files, cleanup, err := codeintelutils.SplitFile(opts.File, opts.MaxPayloadSizeBytes)
 	if err != nil {
 		return 0, err
 	}
@@ -132,7 +133,7 @@ func uploadMultipartIndex(opts UploadIndexOpts) (id int, err error) {
 			uploadID:    id,
 			index:       i,
 		}
-		if err := makeUploadRequest(uploadArgs, gzipReader(f), nil); err != nil {
+		if err := makeUploadRequest(uploadArgs, codeintelutils.Gzip(f), nil); err != nil {
 			return 0, err
 		}
 	}
