@@ -33,7 +33,8 @@ type actionLogger struct {
 
 	highlight func(a ...interface{}) string
 
-	progress *progress
+	progress       *progress
+	progressWriter *progressWriter
 
 	mu         sync.Mutex
 	logFiles   map[string]*os.File
@@ -45,16 +46,20 @@ func newActionLogger(verbose, keepLogs bool) *actionLogger {
 	if useColor {
 		color.NoColor = false
 	}
-	progress := &progress{
+	progress := new(progress)
+	progressWriter := &progressWriter{
+		p: progress,
 		w: os.Stderr,
 	}
+
 	return &actionLogger{
-		verbose:    verbose,
-		keepLogs:   keepLogs,
-		highlight:  color.New(color.Bold, color.FgGreen).SprintFunc(),
-		progress:   progress,
-		logFiles:   map[string]*os.File{},
-		logWriters: map[string]io.Writer{},
+		verbose:        verbose,
+		keepLogs:       keepLogs,
+		highlight:      color.New(color.Bold, color.FgGreen).SprintFunc(),
+		progress:       progress,
+		progressWriter: progressWriter,
+		logFiles:       map[string]*os.File{},
+		logWriters:     map[string]io.Writer{},
 	}
 }
 
@@ -156,10 +161,10 @@ func (a *actionLogger) RepoStdoutStderr(repoName string) (io.Writer, io.Writer, 
 	}
 
 	stderrPrefix := fmt.Sprintf("%s -> [STDERR]: ", yellow.Sprint(repoName))
-	stderr := textio.NewPrefixWriter(a.progress, stderrPrefix)
+	stderr := textio.NewPrefixWriter(a.progressWriter, stderrPrefix)
 
 	stdoutPrefix := fmt.Sprintf("%s -> [STDOUT]: ", yellow.Sprint(repoName))
-	stdout := textio.NewPrefixWriter(a.progress, stdoutPrefix)
+	stdout := textio.NewPrefixWriter(a.progressWriter, stdoutPrefix)
 
 	return io.MultiWriter(stdout, w), io.MultiWriter(stderr, w), ok
 }
@@ -251,7 +256,7 @@ func (a *actionLogger) log(repoName string, c *color.Color, format string, args 
 	if len(repoName) > 0 {
 		format = fmt.Sprintf("%s -> %s", c.Sprint(repoName), format)
 	}
-	fmt.Fprintf(a.progress, format, args...)
+	fmt.Fprintf(a.progressWriter, format, args...)
 }
 
 type progress struct {
@@ -260,6 +265,10 @@ type progress struct {
 	totalSteps    int64
 	stepsComplete int64
 	stepsFailed   int64
+}
+
+type progressWriter struct {
+	p *progress
 
 	mu                sync.Mutex
 	w                 io.Writer
@@ -267,34 +276,34 @@ type progress struct {
 	progressLogLength int
 }
 
-func (p *progress) Write(data []byte) (int, error) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
+func (w *progressWriter) Write(data []byte) (int, error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
 
-	if p.shouldClear {
+	if w.shouldClear {
 		// Clear current progress
-		fmt.Fprintf(p.w, "\r")
-		fmt.Fprintf(p.w, strings.Repeat(" ", p.progressLogLength))
-		fmt.Fprintf(p.w, "\r")
+		fmt.Fprintf(w.w, "\r")
+		fmt.Fprintf(w.w, strings.Repeat(" ", w.progressLogLength))
+		fmt.Fprintf(w.w, "\r")
 	}
 
-	if p.TotalSteps() == 0 {
+	if w.p.TotalSteps() == 0 {
 		// Don't display bar until we know number of steps
-		p.shouldClear = false
-		return p.w.Write(data)
+		w.shouldClear = false
+		return w.w.Write(data)
 	}
 
 	if !bytes.HasSuffix(data, []byte("\n")) {
-		p.shouldClear = false
-		return p.w.Write(data)
+		w.shouldClear = false
+		return w.w.Write(data)
 	}
 
-	n, err := p.w.Write(data)
+	n, err := w.w.Write(data)
 	if err != nil {
 		return n, err
 	}
-	total := p.TotalSteps()
-	done := p.StepsComplete()
+	total := w.p.TotalSteps()
+	done := w.p.StepsComplete()
 	var pctDone float64
 	if total > 0 {
 		pctDone = float64(done) / float64(total)
@@ -306,10 +315,10 @@ func (p *progress) Write(data []byte) (int, error) {
 		bar += ">"
 	}
 	bar += strings.Repeat(" ", maxLength-len(bar))
-	progessText := fmt.Sprintf("[%s] steps(%d/%d) failed(%d) patches(%d)", bar, p.StepsComplete(), p.TotalSteps(), p.TotalStepsFailed(), p.PatchCount())
-	fmt.Fprintf(p.w, progessText)
-	p.shouldClear = true
-	p.progressLogLength = len(progessText)
+	progessText := fmt.Sprintf("[%s] steps(%d/%d) %s %s", bar, w.p.StepsComplete(), w.p.TotalSteps(), boldRed.Sprintf("failed(%d)", w.p.TotalStepsFailed()), hiGreen.Sprintf("patches(%d)", w.p.PatchCount()))
+	fmt.Fprintf(w.w, progessText)
+	w.shouldClear = true
+	w.progressLogLength = len(progessText)
 	return n, err
 }
 
