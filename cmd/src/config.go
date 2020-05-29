@@ -50,7 +50,7 @@ Use "src config [command] -h" for more information about a command.
 }
 
 const configurationSubjectFragment = `
-fragment ConfigurationSubjectFields on ConfigurationSubject {
+fragment ConfigurationSubjectFields on SettingsSubject {
     id
     latestSettings {
         id
