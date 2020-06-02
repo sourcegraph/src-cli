@@ -7,9 +7,9 @@ require (
 	github.com/dustin/go-humanize v1.0.0
 	github.com/fatih/color v1.9.0
 	github.com/gogo/protobuf v1.3.1 // indirect
-	github.com/google/go-cmp v0.4.0
+	github.com/google/go-cmp v0.4.1
 	github.com/gosuri/uilive v0.0.4
-	github.com/hashicorp/go-multierror v1.0.0
+	github.com/hashicorp/go-multierror v1.1.0
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
 	github.com/mattn/go-isatty v0.0.12
 	github.com/mattn/go-runewidth v0.0.8 // indirect
@@ -18,6 +18,7 @@ require (
 	github.com/pkg/browser v0.0.0-20180916011732-0a3d74bf9ce4
 	github.com/pkg/errors v0.9.1
 	github.com/segmentio/textio v1.2.0
+	github.com/sourcegraph/codeintelutils v0.0.0-20200602000243-9543a4b9c9f8
 	github.com/sourcegraph/go-diff v0.5.1
 	github.com/sourcegraph/jsonx v0.0.0-20190114210550-ba8cb36a8614
 	github.com/ssor/bom v0.0.0-20170718123548-6386211fdfcf // indirect
