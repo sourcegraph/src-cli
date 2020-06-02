@@ -240,7 +240,7 @@ func (a *actionLogger) DockerStepDone(repoName string, step int, elapsed time.Du
 	a.write(repoName, yellow, "%s Done. (%s)\n", boldBlack.Sprintf("[Step %d]", step), elapsed)
 }
 
-// write writes to RepoWriter and if in verbose mode, to stderr
+// write writes to the RepoWriter associated with the given repoName and logs the message using the log method.
 func (a *actionLogger) write(repoName string, c *color.Color, format string, args ...interface{}) {
 	if w, ok := a.RepoWriter(repoName); ok {
 		fmt.Fprintf(w, format, args...)
