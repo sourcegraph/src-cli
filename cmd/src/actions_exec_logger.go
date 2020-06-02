@@ -33,8 +33,8 @@ type actionLogger struct {
 
 	highlight func(a ...interface{}) string
 
-	progress       *progress
-	progressWriter *progressWriter
+	progress *progress
+	out      io.Writer
 
 	mu         sync.Mutex
 	logFiles   map[string]*os.File
@@ -46,20 +46,20 @@ func newActionLogger(verbose, keepLogs bool) *actionLogger {
 	if useColor {
 		color.NoColor = false
 	}
+
 	progress := new(progress)
-	progressWriter := &progressWriter{
-		p: progress,
-		w: os.Stderr,
-	}
 
 	return &actionLogger{
-		verbose:        verbose,
-		keepLogs:       keepLogs,
-		highlight:      color.New(color.Bold, color.FgGreen).SprintFunc(),
-		progress:       progress,
-		progressWriter: progressWriter,
-		logFiles:       map[string]*os.File{},
-		logWriters:     map[string]io.Writer{},
+		verbose:   verbose,
+		keepLogs:  keepLogs,
+		highlight: color.New(color.Bold, color.FgGreen).SprintFunc(),
+		progress:  progress,
+		out: &progressWriter{
+			p: progress,
+			w: os.Stderr,
+		},
+		logFiles:   map[string]*os.File{},
+		logWriters: map[string]io.Writer{},
 	}
 }
 
@@ -161,10 +161,10 @@ func (a *actionLogger) RepoStdoutStderr(repoName string) (io.Writer, io.Writer, 
 	}
 
 	stderrPrefix := fmt.Sprintf("%s -> [STDERR]: ", yellow.Sprint(repoName))
-	stderr := textio.NewPrefixWriter(a.progressWriter, stderrPrefix)
+	stderr := textio.NewPrefixWriter(a.out, stderrPrefix)
 
 	stdoutPrefix := fmt.Sprintf("%s -> [STDOUT]: ", yellow.Sprint(repoName))
-	stdout := textio.NewPrefixWriter(a.progressWriter, stdoutPrefix)
+	stdout := textio.NewPrefixWriter(a.out, stdoutPrefix)
 
 	return io.MultiWriter(stdout, w), io.MultiWriter(stderr, w), ok
 }
@@ -256,7 +256,7 @@ func (a *actionLogger) log(repoName string, c *color.Color, format string, args 
 	if len(repoName) > 0 {
 		format = fmt.Sprintf("%s -> %s", c.Sprint(repoName), format)
 	}
-	fmt.Fprintf(a.progressWriter, format, args...)
+	fmt.Fprintf(a.out, format, args...)
 }
 
 type progress struct {
