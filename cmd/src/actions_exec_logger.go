@@ -267,6 +267,38 @@ type progress struct {
 	stepsFailed   int64
 }
 
+func (p *progress) SetTotalSteps(n int64) {
+	atomic.StoreInt64(&p.totalSteps, n)
+}
+
+func (p *progress) TotalSteps() int64 {
+	return atomic.LoadInt64(&p.totalSteps)
+}
+
+func (p *progress) StepsComplete() int64 {
+	return atomic.LoadInt64(&p.stepsComplete)
+}
+
+func (p *progress) IncStepsComplete(delta int64) {
+	atomic.AddInt64(&p.stepsComplete, delta)
+}
+
+func (p *progress) TotalStepsFailed() int64 {
+	return atomic.LoadInt64(&p.stepsFailed)
+}
+
+func (p *progress) IncStepsFailed() {
+	atomic.AddInt64(&p.stepsFailed, 1)
+}
+
+func (p *progress) PatchCount() int64 {
+	return atomic.LoadInt64(&p.patchCount)
+}
+
+func (p *progress) IncPatchCount() {
+	atomic.AddInt64(&p.patchCount, 1)
+}
+
 type progressWriter struct {
 	p *progress
 
@@ -320,36 +352,4 @@ func (w *progressWriter) Write(data []byte) (int, error) {
 	w.shouldClear = true
 	w.progressLogLength = len(progessText)
 	return n, err
-}
-
-func (p *progress) SetTotalSteps(n int64) {
-	atomic.StoreInt64(&p.totalSteps, n)
-}
-
-func (p *progress) TotalSteps() int64 {
-	return atomic.LoadInt64(&p.totalSteps)
-}
-
-func (p *progress) StepsComplete() int64 {
-	return atomic.LoadInt64(&p.stepsComplete)
-}
-
-func (p *progress) IncStepsComplete(delta int64) {
-	atomic.AddInt64(&p.stepsComplete, delta)
-}
-
-func (p *progress) TotalStepsFailed() int64 {
-	return atomic.LoadInt64(&p.stepsFailed)
-}
-
-func (p *progress) IncStepsFailed() {
-	atomic.AddInt64(&p.stepsFailed, 1)
-}
-
-func (p *progress) PatchCount() int64 {
-	return atomic.LoadInt64(&p.patchCount)
-}
-
-func (p *progress) IncPatchCount() {
-	atomic.AddInt64(&p.patchCount, 1)
 }
