@@ -54,7 +54,7 @@ fragment SettingsSubjectFields on SettingsSubject {
     id
     latestSettings {
         id
-		contents
+        contents
         author {
             ...UserFields
         }
