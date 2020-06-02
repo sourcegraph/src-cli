@@ -75,7 +75,6 @@ type config struct {
 func readConfig() (*config, error) {
 	cfgPath := *configPath
 	userSpecified := *configPath != ""
-
 	if !userSpecified {
 		user, err := user.Current()
 		if err != nil {
