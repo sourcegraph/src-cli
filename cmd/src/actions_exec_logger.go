@@ -248,7 +248,7 @@ func (a *actionLogger) write(repoName string, c *color.Color, format string, arg
 	a.log(repoName, c, format, args...)
 }
 
-// log logs only to stderr, it does not log to our repoWriters
+// log logs only to stderr, it does not log to our repoWriters. When not in verbose mode, it's a noop.
 func (a *actionLogger) log(repoName string, c *color.Color, format string, args ...interface{}) {
 	if !a.verbose {
 		return
