@@ -65,7 +65,7 @@ Execute an action on code in repositories. The output of an action is a set of p
 
 Examples:
 
-  Execute an action defined in ~/run-gofmt.json:
+  Execute an action defined in ~/run-gofmt.json and save the patches it produced to 'patches.json'
 
 	$ src actions exec -f ~/run-gofmt.json
 
@@ -142,7 +142,7 @@ Format of the action JSON files:
 
 	var (
 		fileFlag        = flagSet.String("f", "-", "The action file. If not given or '-' standard input is used. (Required)")
-		outputFlag      = flagSet.String("o", "", "The output file. If given, it will be used as the destination for patches. If not given, 'patches.json' is used unless the command is being piped in which case patches are piped to stdout")
+		outputFlag      = flagSet.String("o", "patches.json", "The output file. Will be used as the destination for patches unless the command is being piped in which case patches are piped to stdout")
 		parallelismFlag = flagSet.Int("j", runtime.GOMAXPROCS(0), "The number of parallel jobs.")
 
 		cacheDirFlag   = flagSet.String("cache", displayUserCacheDir, "Directory for caching results.")
@@ -192,22 +192,17 @@ Format of the action JSON files:
 
 		var outputWriter io.Writer
 		if !*createPatchSetFlag && !*forceCreatePatchSetFlag {
-			// If -o filename is given, write to filename.
-			// If no -o filename is given and stdout is not a pipe, write to patches.json.
-			// If no -o filename is given and stdout is a pipe, write to pipe.
-
+			// If stdout is a pipe, write to pipe, otherwise
+			// write to output file
 			fi, err := os.Stdout.Stat()
 			if err != nil {
 				return err
 			}
 			isPipe := fi.Mode()&os.ModeCharDevice == 0
 
-			if isPipe && *outputFlag == "" {
+			if isPipe {
 				outputWriter = os.Stdout
 			} else {
-				if *outputFlag == "" {
-					*outputFlag = "patches.json"
-				}
 				f, err := os.Create(*outputFlag)
 				if err != nil {
 					return errors.Wrap(err, "creating output file")
