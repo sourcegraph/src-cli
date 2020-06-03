@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"os/exec"
@@ -18,7 +19,7 @@ import (
 	"time"
 
 	"github.com/fatih/color"
-	multierror "github.com/hashicorp/go-multierror"
+	"github.com/hashicorp/go-multierror"
 	"github.com/mattn/go-isatty"
 	"github.com/pkg/errors"
 	"github.com/sourcegraph/go-diff/diff"
@@ -80,6 +81,10 @@ Examples:
 
 	$ src actions exec -f ~/run-gofmt.json | src campaign patchset create-from-patches
 
+  Execute an action and save the patches it produced to 'patches.json'
+
+	$ src actions exec -f ~/run-gofmt.json -o patches.json 
+
   Read and execute an action definition from standard input:
 
 	$ cat ~/my-action.json | src actions exec -f -
@@ -137,6 +142,7 @@ Format of the action JSON files:
 
 	var (
 		fileFlag        = flagSet.String("f", "-", "The action file. If not given or '-' standard input is used. (Required)")
+		outputFlag      = flagSet.String("o", "", "The output file. If given, it will be used as the destination for patches. If not given, 'patches.json' is used unless the command is being piped in which case patches are piped to stdout")
 		parallelismFlag = flagSet.Int("j", runtime.GOMAXPROCS(0), "The number of parallel jobs.")
 
 		cacheDirFlag   = flagSet.String("cache", displayUserCacheDir, "Directory for caching results.")
@@ -182,6 +188,33 @@ Format of the action JSON files:
 		}
 		if err != nil {
 			return err
+		}
+
+		var outputWriter io.Writer
+		if !*createPatchSetFlag && !*forceCreatePatchSetFlag {
+			// If -o filename is given, write to filename.
+			// If no -o filename is given and stdout is not a pipe, write to patches.json.
+			// If no -o filename is given and stdout is a pipe, write to pipe.
+
+			fi, err := os.Stdout.Stat()
+			if err != nil {
+				return err
+			}
+			isPipe := fi.Mode()&os.ModeCharDevice == 0
+
+			if isPipe && *outputFlag == "" {
+				outputWriter = os.Stdout
+			} else {
+				if *outputFlag == "" {
+					*outputFlag = "patches.json"
+				}
+				f, err := os.Create(*outputFlag)
+				if err != nil {
+					return errors.Wrap(err, "creating output file")
+				}
+				defer f.Close()
+				outputWriter = f
+			}
 		}
 
 		err = validateActionDefinition(actionFile)
@@ -269,7 +302,7 @@ Format of the action JSON files:
 
 			logger.ActionSuccess(patches, true)
 
-			return json.NewEncoder(os.Stdout).Encode(patches)
+			return json.NewEncoder(outputWriter).Encode(patches)
 		}
 
 		if err != nil {
