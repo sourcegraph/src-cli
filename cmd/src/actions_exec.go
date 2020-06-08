@@ -216,7 +216,7 @@ Format of the action JSON files:
 			return errors.Wrap(err, "Validation of action failed")
 		}
 
-		// Build Docker images, pull Docker images from registries, etc.
+		// Pull Docker images from registries, get image digests, etc.
 		err = prepareAction(ctx, action, logger)
 		if err != nil {
 			return errors.Wrap(err, "Failed to prepare action")
@@ -408,16 +408,16 @@ func getDockerImageContentDigest(ctx context.Context, image string, logger *acti
 	// https://github.com/moby/moby/issues/32016.
 	out, err := exec.CommandContext(ctx, "docker", "image", "inspect", "--format", "{{.Id}}", "--", image).CombinedOutput()
 	if err != nil {
-		if strings.Index(err.Error(), "No such image") != -1 {
+		if !strings.Contains(err.Error(), "No such image") {
 			return "", fmt.Errorf("error inspecting docker image %q: %s", image, bytes.TrimSpace(out))
 		}
 		logger.Infof("Pulling Docker image %q...\n", image)
 		pullCmd := exec.CommandContext(ctx, "docker", "image", "pull", image)
 		if logger.verbose {
-			stdout := logger.InfoPipe(fmt.Sprintf("%q", image))
+			stdout := logger.InfoPipe(fmt.Sprintf("docker image pull %s", image))
 			pullCmd.Stdout = stdout
 		}
-		stderr := logger.ErrorPipe(fmt.Sprintf("%q", image))
+		stderr := logger.ErrorPipe(fmt.Sprintf("docker image pull %s", image))
 		pullCmd.Stderr = stderr
 		err = pullCmd.Start()
 		if err != nil {
