@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"os/exec"
@@ -18,7 +19,7 @@ import (
 	"time"
 
 	"github.com/fatih/color"
-	multierror "github.com/hashicorp/go-multierror"
+	"github.com/hashicorp/go-multierror"
 	"github.com/mattn/go-isatty"
 	"github.com/pkg/errors"
 	"github.com/sourcegraph/go-diff/diff"
@@ -64,7 +65,7 @@ Execute an action on code in repositories. The output of an action is a set of p
 
 Examples:
 
-  Execute an action defined in ~/run-gofmt.json:
+  Execute an action defined in ~/run-gofmt.json and save the patches it produced to 'patches.json'
 
 	$ src actions exec -f ~/run-gofmt.json
 
@@ -79,6 +80,10 @@ Examples:
   Execute an action and pipe the patches it produced to 'src campaign patchset create-from-patches':
 
 	$ src actions exec -f ~/run-gofmt.json | src campaign patchset create-from-patches
+
+  Execute an action and save the patches it produced to 'patches.json'
+
+	$ src actions exec -f ~/run-gofmt.json -o patches.json 
 
   Read and execute an action definition from standard input:
 
@@ -137,6 +142,7 @@ Format of the action JSON files:
 
 	var (
 		fileFlag        = flagSet.String("f", "-", "The action file. If not given or '-' standard input is used. (Required)")
+		outputFlag      = flagSet.String("o", "patches.json", "The output file. Will be used as the destination for patches unless the command is being piped in which case patches are piped to stdout")
 		parallelismFlag = flagSet.Int("j", runtime.GOMAXPROCS(0), "The number of parallel jobs.")
 
 		cacheDirFlag   = flagSet.String("cache", displayUserCacheDir, "Directory for caching results.")
@@ -147,6 +153,8 @@ Format of the action JSON files:
 
 		createPatchSetFlag      = flagSet.Bool("create-patchset", false, "Create a patch set from the produced set of patches. When the execution of the action fails in a single repository a prompt will ask to confirm or reject the patch set creation.")
 		forceCreatePatchSetFlag = flagSet.Bool("force-create-patchset", false, "Force creation of patch set from the produced set of patches, without asking for confirmation even when the execution of the action failed for a subset of repositories.")
+
+		includeUnsupportedFlag = flagSet.Bool("include-unsupported", false, "When specified, also repos from unsupported codehosts are processed. Those can be created once the integration is done.")
 
 		apiFlags = newAPIFlags(flagSet)
 	)
@@ -182,6 +190,28 @@ Format of the action JSON files:
 			return err
 		}
 
+		var outputWriter io.Writer
+		if !*createPatchSetFlag && !*forceCreatePatchSetFlag {
+			// If stdout is a pipe, write to pipe, otherwise
+			// write to output file
+			fi, err := os.Stdout.Stat()
+			if err != nil {
+				return err
+			}
+			isPipe := fi.Mode()&os.ModeCharDevice == 0
+
+			if isPipe {
+				outputWriter = os.Stdout
+			} else {
+				f, err := os.Create(*outputFlag)
+				if err != nil {
+					return errors.Wrap(err, "creating output file")
+				}
+				defer f.Close()
+				outputWriter = f
+			}
+		}
+
 		err = validateActionDefinition(actionFile)
 		if err != nil {
 			return err
@@ -211,12 +241,7 @@ Format of the action JSON files:
 
 		logger := newActionLogger(*verbose, *keepLogsFlag)
 
-		err = validateAction(ctx, action)
-		if err != nil {
-			return errors.Wrap(err, "Validation of action failed")
-		}
-
-		// Pull Docker images from registries, get image digests, etc.
+		// Build Docker images etc.
 		err = prepareAction(ctx, action, logger)
 		if err != nil {
 			return errors.Wrap(err, "Failed to prepare action")
@@ -234,16 +259,14 @@ Format of the action JSON files:
 
 		// Query repos over which to run action
 		logger.Infof("Querying %s for repositories matching '%s'...\n", cfg.Endpoint, action.ScopeQuery)
-		repos, skipped, err := actionRepos(ctx, action.ScopeQuery)
+		repos, err := actionRepos(ctx, action.ScopeQuery, *includeUnsupportedFlag, logger)
 		if err != nil {
 			return err
 		}
-		for _, r := range skipped {
-			logger.Infof("Skipping repository %s because we couldn't determine default branch.\n", r)
-		}
-		logger.Infof("%d repositories match. Use 'src actions scope-query' for help with scoping.\n", len(repos))
+		logger.Infof("Use 'src actions scope-query' for help with scoping.\n")
 
-		logger.Start()
+		totalSteps := len(repos) * len(action.Steps)
+		logger.Start(totalSteps)
 
 		executor := newActionExecutor(action, *parallelismFlag, logger, opts)
 		for _, repo := range repos {
@@ -272,9 +295,24 @@ Format of the action JSON files:
 				os.Exit(1)
 			}
 
-			logger.ActionSuccess(patches, true)
+			err = json.NewEncoder(outputWriter).Encode(patches)
+			if err != nil {
+				return errors.Wrap(err, "writing patches")
+			}
 
-			return json.NewEncoder(os.Stdout).Encode(patches)
+			logger.ActionSuccess(patches)
+
+			if out, ok := outputWriter.(*os.File); ok && out == os.Stdout {
+				// Don't print instructions when piping
+				return nil
+			}
+
+			// Print instructions when we've written patches to a file, even when not in verbose mode
+			fmt.Fprintf(os.Stderr, "\n\nPatches saved to %s, to create a patch set on your Sourcegraph instance please do the following:\n", *outputFlag)
+			fmt.Fprintln(os.Stderr, "\n ", color.HiCyanString("▶"), fmt.Sprintf("src campaign patchset create-from-patches < %s", *outputFlag))
+			fmt.Fprintln(os.Stderr)
+
+			return nil
 		}
 
 		if err != nil {
@@ -296,7 +334,7 @@ Format of the action JSON files:
 				}
 			}
 		} else {
-			logger.ActionSuccess(patches, false)
+			logger.ActionSuccess(patches)
 		}
 
 		tmpl, err := parseTemplate("{{friendlyPatchSetCreatedMessage .}}")
@@ -355,38 +393,16 @@ func validateActionDefinition(def []byte) error {
 	return errs.ErrorOrNil()
 }
 
-func validateAction(ctx context.Context, action Action) error {
-	for _, step := range action.Steps {
-		if step.Type == "docker" {
-			if step.Image == "" {
-				return fmt.Errorf("docker run step has to specify 'image'")
-			}
-
-			if step.ImageContentDigest != "" {
-				return errors.New("setting the ImageContentDigest field of a docker run step is not allowed")
-			}
-		}
-
-		if step.Type == "command" && len(step.Args) < 1 {
-			return errors.New("command run step has to specify 'args'")
-		}
-	}
-
-	return nil
-}
-
 func prepareAction(ctx context.Context, action Action, logger *actionLogger) error {
 	// Build any Docker images.
 	for _, step := range action.Steps {
 		if step.Type == "docker" {
 			// Set digests for Docker images so we don't cache action runs in 2 different images with
 			// the same tag.
-			if step.Image != "" {
-				var err error
-				step.ImageContentDigest, err = getDockerImageContentDigest(ctx, step.Image, logger)
-				if err != nil {
-					return errors.Wrap(err, "Failed to get Docker image content digest")
-				}
+			var err error
+			step.ImageContentDigest, err = getDockerImageContentDigest(ctx, step.Image, logger)
+			if err != nil {
+				return errors.Wrap(err, "Failed to get Docker image content digest")
 			}
 		}
 	}
@@ -445,10 +461,10 @@ type ActionRepo struct {
 	BaseRef string
 }
 
-func actionRepos(ctx context.Context, scopeQuery string) ([]ActionRepo, []string, error) {
+func actionRepos(ctx context.Context, scopeQuery string, includeUnsupported bool, logger *actionLogger) ([]ActionRepo, error) {
 	hasCount, err := regexp.MatchString(`count:\d+`, scopeQuery)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	if !hasCount {
@@ -462,30 +478,37 @@ query ActionRepos($query: String!) {
 			results {
 				__typename
 				... on Repository {
-					id
-					name
-					defaultBranch {
-						name
-						target { oid }
-					}
+					...repositoryFields
 				}
 				... on FileMatch {
 					repository {
-						id
-						name
-						defaultBranch {
-							name
-							target { oid }
-						}
+						...repositoryFields
 					}
 				}
 			}
 		}
 	}
 }
+
+fragment repositoryFields on Repository {
+	id
+	name
+	externalRepository {
+		serviceType
+	}
+	defaultBranch {
+		name
+		target {
+			oid
+		}
+	}
+}
 `
 	type Repository struct {
-		ID, Name      string
+		ID, Name           string
+		ExternalRepository struct {
+			ServiceType string
+		}
 		DefaultBranch *struct {
 			Name   string
 			Target struct{ OID string }
@@ -496,8 +519,11 @@ query ActionRepos($query: String!) {
 			Search struct {
 				Results struct {
 					Results []struct {
-						Typename      string `json:"__typename"`
-						ID, Name      string
+						Typename           string `json:"__typename"`
+						ID, Name           string
+						ExternalRepository struct {
+							ServiceType string
+						}
 						DefaultBranch *struct {
 							Name   string
 							Target struct{ OID string }
@@ -534,14 +560,15 @@ query ActionRepos($query: String!) {
 		// returned.
 		exitCodeErr, ok := err.(*exitCodeError)
 		if !ok {
-			return nil, nil, err
+			return nil, err
 		}
 		if exitCodeErr.error != nil {
-			return nil, nil, exitCodeErr
+			return nil, exitCodeErr
 		}
 	}
 
 	skipped := []string{}
+	unsupported := []string{}
 	reposByID := map[string]ActionRepo{}
 	for _, searchResult := range result.Data.Search.Results.Results {
 
@@ -550,14 +577,21 @@ query ActionRepos($query: String!) {
 			repo = searchResult.Repository
 		} else {
 			repo = Repository{
-				ID:            searchResult.ID,
-				Name:          searchResult.Name,
-				DefaultBranch: searchResult.DefaultBranch,
+				ID:                 searchResult.ID,
+				Name:               searchResult.Name,
+				ExternalRepository: searchResult.ExternalRepository,
+				DefaultBranch:      searchResult.DefaultBranch,
 			}
 		}
 
+		// Skip repos from unsupported code hosts but don't report them explicitly.
+		if !includeUnsupported && strings.ToLower(repo.ExternalRepository.ServiceType) != "github" && strings.ToLower(repo.ExternalRepository.ServiceType) != "bitbucketserver" {
+			unsupported = append(unsupported, repo.Name)
+			continue
+		}
+
 		if repo.DefaultBranch == nil || repo.DefaultBranch.Name == "" {
-			skipped = append(skipped, searchResult.Repository.Name)
+			skipped = append(skipped, repo.Name)
 			continue
 		}
 
@@ -580,7 +614,30 @@ query ActionRepos($query: String!) {
 	for _, repo := range reposByID {
 		repos = append(repos, repo)
 	}
-	return repos, skipped, nil
+	for _, r := range skipped {
+		logger.Infof("Skipping repository %s because we couldn't determine default branch.\n", r)
+	}
+	for _, r := range unsupported {
+		logger.Infof("# Skipping repository %s because it's on a not supported code host.\n", r)
+	}
+	matchesStr := fmt.Sprintf("%d repositories match.", len(repos))
+	unsupportedCount := len(unsupported)
+	if includeUnsupported {
+		if unsupportedCount > 0 {
+			matchesStr += fmt.Sprintf(" (Including %d on unsupported code hosts.)", unsupportedCount)
+		}
+	} else {
+		if unsupportedCount > 0 {
+			matchesStr += " (Some repositories were filtered out because their code host is not supported by campaigns. Use -include-unsupported to generate patches for them anyways.)"
+		}
+	}
+	logger.Infof("%s\n", matchesStr)
+
+	if len(repos) == 0 && !*verbose {
+		yellow.Fprintf(os.Stderr, "WARNING: No repositories matched by scopeQuery\n")
+	}
+
+	return repos, nil
 }
 
 func sumDiffStats(fileDiffs []*diff.FileDiff) diff.Stat {

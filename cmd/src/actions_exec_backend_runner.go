@@ -46,7 +46,7 @@ func (x *actionExecutor) do(ctx context.Context, repo ActionRepo) (err error) {
 		} else if ok {
 			status := ActionRepoStatus{Cached: true, Patch: result}
 			x.updateRepoStatus(repo, status)
-			x.logger.RepoCacheHit(repo, status.Patch != PatchInput{})
+			x.logger.RepoCacheHit(repo, len(x.action.Steps), status.Patch != PatchInput{})
 			return nil
 		}
 	}
@@ -66,7 +66,7 @@ func (x *actionExecutor) do(ctx context.Context, repo ActionRepo) (err error) {
 	runCtx, cancel := context.WithTimeout(ctx, x.opt.timeout)
 	defer cancel()
 
-	patch, err := runAction(runCtx, prefix, repo.ID, repo.Name, repo.Rev, x.action.Steps, x.logger)
+	patch, err := runAction(runCtx, prefix, repo.Name, repo.Rev, x.action.Steps, x.logger)
 	status := ActionRepoStatus{
 		FinishedAt: time.Now(),
 	}
@@ -119,7 +119,7 @@ func reachedTimeout(cmdCtx context.Context, err error) bool {
 	return errors.Is(err, context.DeadlineExceeded)
 }
 
-func runAction(ctx context.Context, prefix, repoID, repoName, rev string, steps []*ActionStep, logger *actionLogger) ([]byte, error) {
+func runAction(ctx context.Context, prefix, repoName, rev string, steps []*ActionStep, logger *actionLogger) ([]byte, error) {
 	logger.RepoStarted(repoName, rev, steps)
 
 	zipFile, err := fetchRepositoryArchive(ctx, repoName, rev)
@@ -253,7 +253,9 @@ func runAction(ctx context.Context, prefix, repoID, repoName, rev string, steps 
 	// That means we need to strip away the `a/` and `/b` prefixes with `--no-prefix`.
 	// See: https://github.com/sourcegraph/sourcegraph/blob/82d5e7e1562fef6be5c0b17f18631040fd330835/enterprise/internal/campaigns/service.go#L324-L329
 	//
-	diffOut, err := runGitCmd("diff", "--cached", "--no-prefix")
+	// Also, we need to add --binary so binary file changes are inlined in the patch.
+	//
+	diffOut, err := runGitCmd("diff", "--cached", "--no-prefix", "--binary")
 	if err != nil {
 		return nil, errors.Wrap(err, "git diff failed")
 	}
