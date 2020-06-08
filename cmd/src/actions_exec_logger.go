@@ -146,11 +146,14 @@ func (a *actionLogger) InfoPipe(prefix string) io.Writer {
 		return ioutil.Discard
 	}
 	stdoutPrefix := fmt.Sprintf("%s -> [STDOUT]: ", yellow.Sprint(prefix))
-	stdout := textio.NewPrefixWriter(os.Stderr, stdoutPrefix)
-	return io.Writer(stdout)
+	stderr := textio.NewPrefixWriter(os.Stderr, stdoutPrefix)
+	return io.Writer(stderr)
 }
 
 func (a *actionLogger) ErrorPipe(prefix string) io.Writer {
+	if !a.verbose {
+		return ioutil.Discard
+	}
 	stderrPrefix := fmt.Sprintf("%s -> [STDERR]: ", yellow.Sprint(prefix))
 	stderr := textio.NewPrefixWriter(os.Stderr, stderrPrefix)
 	return io.Writer(stderr)

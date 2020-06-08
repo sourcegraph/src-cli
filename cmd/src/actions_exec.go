@@ -413,10 +413,8 @@ func getDockerImageContentDigest(ctx context.Context, image string, logger *acti
 		}
 		logger.Infof("Pulling Docker image %q...\n", image)
 		pullCmd := exec.CommandContext(ctx, "docker", "image", "pull", image)
-		if logger.verbose {
-			stdout := logger.InfoPipe(fmt.Sprintf("docker image pull %s", image))
-			pullCmd.Stdout = stdout
-		}
+		stdout := logger.InfoPipe(fmt.Sprintf("docker image pull %s", image))
+		pullCmd.Stdout = stdout
 		stderr := logger.ErrorPipe(fmt.Sprintf("docker image pull %s", image))
 		pullCmd.Stderr = stderr
 		err = pullCmd.Start()
