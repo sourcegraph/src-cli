@@ -241,7 +241,7 @@ Format of the action JSON files:
 
 		logger := newActionLogger(*verbose, *keepLogsFlag)
 
-		// Build Docker images etc.
+		// Fetch Docker images etc.
 		err = prepareAction(ctx, action, logger)
 		if err != nil {
 			return errors.Wrap(err, "Failed to prepare action")
