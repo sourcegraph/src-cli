@@ -424,7 +424,7 @@ func getDockerImageContentDigest(ctx context.Context, image string, logger *acti
 	// https://github.com/moby/moby/issues/32016.
 	out, err := exec.CommandContext(ctx, "docker", "image", "inspect", "--format", "{{.Id}}", "--", image).CombinedOutput()
 	if err != nil {
-		if !strings.Contains(err.Error(), "No such image") {
+		if !strings.Contains(string(out), "No such image") {
 			return "", fmt.Errorf("error inspecting docker image %q: %s", image, bytes.TrimSpace(out))
 		}
 		logger.Infof("Pulling Docker image %q...\n", image)
