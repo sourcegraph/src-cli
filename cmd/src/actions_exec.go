@@ -637,8 +637,7 @@ fragment repositoryFields on Repository {
 		yellow.Fprintf(os.Stderr, "WARNING: No repositories matched by scopeQuery\n")
 	}
 
-	alert := result.Data.Search.Results.Alert
-	if content, err := alert.Render(); err != nil {
+	if content, err := result.Data.Search.Results.Alert.Render(); err != nil {
 		yellow.Fprint(os.Stderr, err)
 	} else {
 		os.Stderr.WriteString(content)
