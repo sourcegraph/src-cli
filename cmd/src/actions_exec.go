@@ -483,14 +483,7 @@ query ActionRepos($query: String!) {
 					}
 				}
 			}
-			alert {
-				title
-				description
-				proposedQueries {
-					description
-					query
-				}
-			}
+			...SearchResultsAlertFields
 		}
 	}
 }
@@ -508,7 +501,8 @@ fragment repositoryFields on Repository {
 		}
 	}
 }
-`
+` + searchResultsAlertFragment
+
 	type Repository struct {
 		ID, Name           string
 		ExternalRepository struct {

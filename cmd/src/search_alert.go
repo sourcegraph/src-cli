@@ -19,6 +19,8 @@ func init() {
 	}
 }
 
+// searchResultsAlert is a type that can be used to unmarshal values returned by
+// the searchResultsAlertFragment GraphQL fragment below.
 type searchResultsAlert struct {
 	Title           string
 	Description     string
@@ -39,6 +41,21 @@ func (alert *searchResultsAlert) Render() (string, error) {
 	}
 	return b.String(), nil
 }
+
+// searchResultsAlertFragment provides a GraphQL fragment that can be used to
+// hydrate a searchResultsAlert instance.
+const searchResultsAlertFragment = `
+	fragment SearchResultsAlertFields on SearchResults {
+		alert {
+			title
+			description
+			proposedQueries {
+				description
+				query
+			}
+		}
+	}
+`
 
 const searchResultsAlertTemplateContent = `
 {{- color "search-alert-title"}}❗{{.Title}}{{color "nc" -}}{{"\n"}}

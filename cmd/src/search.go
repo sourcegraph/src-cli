@@ -211,18 +211,11 @@ Other tips:
 				}
 				resultCount
 				elapsedMilliseconds
-				alert {
-				  title
-				  description
-				  proposedQueries {
-				   description
-				   query
-				  }
-				}
+				...SearchResultsAlertFields
 			  }
 			}
 		  }
-		`
+		` + searchResultsAlertFragment
 
 		var result struct {
 			Site struct {
