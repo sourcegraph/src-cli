@@ -471,7 +471,9 @@ func actionRepos(ctx context.Context, scopeQuery string, includeUnsupported bool
 		scopeQuery = scopeQuery + " count:999999"
 	}
 
-	query := `
+	// NOTE: This query does not fetch default branch details.
+	// Once we have the list of matching repos we'll fetch the branches in another query
+	searchQuery := `
 query ActionRepos($query: String!) {
 	search(query: $query, version: V2) {
 		results {
@@ -496,14 +498,9 @@ fragment repositoryFields on Repository {
 	externalRepository {
 		serviceType
 	}
-	defaultBranch {
-		name
-		target {
-			oid
-		}
-	}
 }
 `
+
 	type Repository struct {
 		ID, Name           string
 		ExternalRepository struct {
@@ -514,7 +511,8 @@ fragment repositoryFields on Repository {
 			Target struct{ OID string }
 		}
 	}
-	var result struct {
+
+	var searchResult struct {
 		Data struct {
 			Search struct {
 				Results struct {
@@ -540,38 +538,44 @@ fragment repositoryFields on Repository {
 		} `json:"errors,omitempty"`
 	}
 
-	if err := (&apiRequest{
-		query: query,
-		vars: map[string]interface{}{
-			"query": scopeQuery,
-		},
-		// Do not unpack errors and return error. Instead we want to go through
-		// the results and check whether they're complete.
-		// If we don't do this and the query returns an error for _one_
-		// repository because that is still cloning, we don't get any repositories.
-		// Instead we simply want to skip those repositories that are still
-		// being cloned.
-		dontUnpackErrors: true,
-		result:           &result,
-	}).do(); err != nil {
-
-		// Ignore exitCodeError with error == nil, because we explicitly set
-		// dontUnpackErrors, which can lead to an empty exitCodeErr being
-		// returned.
-		exitCodeErr, ok := err.(*exitCodeError)
-		if !ok {
-			return nil, err
+	// Helper function to perform a graphql request
+	doRequest := func(query string, vars map[string]interface{}, dest interface{}) error {
+		if err := (&apiRequest{
+			query: query,
+			vars: map[string]interface{}{
+				"query": scopeQuery,
+			},
+			// Do not unpack errors and return error. Instead we want to go through
+			// the results and check whether they're complete.
+			// If we don't do this and the query returns an error for _one_
+			// repository because that is still cloning, we don't get any repositories.
+			// Instead we simply want to skip those repositories that are still
+			// being cloned.
+			dontUnpackErrors: true,
+			result:           dest,
+		}).do(); err != nil {
+			// Ignore exitCodeError with error == nil, because we explicitly set
+			// dontUnpackErrors, which can lead to an empty exitCodeErr being
+			// returned.
+			exitCodeErr, ok := err.(*exitCodeError)
+			if !ok {
+				return err
+			}
+			if exitCodeErr.error != nil {
+				return exitCodeErr
+			}
 		}
-		if exitCodeErr.error != nil {
-			return nil, exitCodeErr
-		}
+		return nil
 	}
 
-	skipped := []string{}
-	unsupported := []string{}
-	reposByID := map[string]ActionRepo{}
-	for _, searchResult := range result.Data.Search.Results.Results {
+	err = doRequest(searchQuery, map[string]interface{}{"query": scopeQuery}, &searchResult)
+	if err != nil {
+		return nil, err
+	}
 
+	unsupported := make(map[string]struct{})
+	reposByID := map[string]*ActionRepo{}
+	for _, searchResult := range searchResult.Data.Search.Results.Results {
 		var repo Repository
 		if searchResult.Repository.ID != "" {
 			repo = searchResult.Repository
@@ -586,38 +590,116 @@ fragment repositoryFields on Repository {
 
 		// Skip repos from unsupported code hosts but don't report them explicitly.
 		if !includeUnsupported && strings.ToLower(repo.ExternalRepository.ServiceType) != "github" && strings.ToLower(repo.ExternalRepository.ServiceType) != "bitbucketserver" {
-			unsupported = append(unsupported, repo.Name)
-			continue
-		}
-
-		if repo.DefaultBranch == nil || repo.DefaultBranch.Name == "" {
-			skipped = append(skipped, repo.Name)
-			continue
-		}
-
-		if repo.DefaultBranch.Target.OID == "" {
-			skipped = append(skipped, repo.Name)
+			unsupported[repo.Name] = struct{}{}
 			continue
 		}
 
 		if _, ok := reposByID[repo.ID]; !ok {
-			reposByID[repo.ID] = ActionRepo{
-				ID:      repo.ID,
-				Name:    repo.Name,
-				Rev:     repo.DefaultBranch.Target.OID,
-				BaseRef: repo.DefaultBranch.Name,
+			reposByID[repo.ID] = &ActionRepo{
+				ID:   repo.ID,
+				Name: repo.Name,
 			}
+		}
+	}
+
+	reposQueryTemplate := `{
+  repositories(names: [%s]) {
+    nodes {
+      id
+      name
+      defaultBranch {
+        name
+        target {
+          oid
+        }
+      }
+    }
+  }
+}
+
+`
+
+	skipped := make(map[string]struct{})
+
+	// This helper function fetches a subset of repos by name and is used lower down
+	// so that we query in batches.
+	fetchRepos := func(names []string) error {
+		reposQuery := fmt.Sprintf(reposQueryTemplate, strings.Join(names, ","))
+
+		var repoResult struct {
+			Data struct {
+				Repositories struct {
+					Nodes []struct {
+						ID            string `json:"id"`
+						Name          string `json:"name"`
+						DefaultBranch *struct {
+							Name   string `json:"name"`
+							Target struct {
+								OID string `json:"oid"`
+							} `json:"target"`
+						} `json:"defaultBranch"`
+					} `json:"nodes"`
+				} `json:"repositories"`
+			} `json:"data,omitempty"`
+
+			Errors []struct {
+				Message string
+				Path    []interface{}
+			} `json:"errors,omitempty"`
+		}
+
+		err = doRequest(reposQuery, map[string]interface{}{}, &repoResult)
+		if err != nil {
+			return err
+		}
+
+		for _, repo := range repoResult.Data.Repositories.Nodes {
+			if repo.DefaultBranch == nil || repo.DefaultBranch.Name == "" {
+				skipped[repo.Name] = struct{}{}
+				continue
+			}
+			if repo.DefaultBranch.Target.OID == "" {
+				skipped[repo.Name] = struct{}{}
+				continue
+			}
+			existing, ok := reposByID[repo.ID]
+			if !ok {
+				continue
+			}
+			existing.Rev = repo.DefaultBranch.Target.OID
+			existing.BaseRef = repo.DefaultBranch.Name
+		}
+
+		return nil
+	}
+
+	repoNames := make([]string, 0, len(reposByID))
+	for _, r := range reposByID {
+		repoNames = append(repoNames, `"`+r.Name+`"`)
+	}
+
+	// Now that we have the search result and a deduplicated list of repos matched we need to fetch the default branch
+	// details for each repo. We do this in batches to reduce memory pressure on the frontend.
+	batchSize := 100
+	for i := 0; i < len(repoNames); i += batchSize {
+		end := i + batchSize
+		if end > len(repoNames) {
+			end = len(repoNames)
+		}
+		err = fetchRepos(repoNames[i:end])
+		if err != nil {
+			return nil, err
 		}
 	}
 
 	repos := make([]ActionRepo, 0, len(reposByID))
 	for _, repo := range reposByID {
-		repos = append(repos, repo)
+		repos = append(repos, *repo)
 	}
-	for _, r := range skipped {
+	for r := range skipped {
 		logger.Infof("Skipping repository %s because we couldn't determine default branch.\n", r)
 	}
-	for _, r := range unsupported {
+	for r := range unsupported {
 		logger.Infof("# Skipping repository %s because it's on a not supported code host.\n", r)
 	}
 	matchesStr := fmt.Sprintf("%d repositories match.", len(repos))
