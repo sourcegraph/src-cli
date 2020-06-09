@@ -148,6 +148,18 @@ func parseTemplate(text string) (*template.Template, error) {
 
 			return buf.String()
 		},
+
+		// Alert rendering
+		"searchAlertRender": func(alert searchResultsAlert) string {
+			if alert.HasAlert() {
+				if content, err := alert.Render(); err != nil {
+					fmt.Fprintf(os.Stderr, "Error rendering search alert: %v\n", err)
+				} else {
+					return content
+				}
+			}
+			return ""
+		},
 	})
 	return tmpl.Parse(text)
 }

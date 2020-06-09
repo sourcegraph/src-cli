@@ -483,6 +483,14 @@ query ActionRepos($query: String!) {
 					}
 				}
 			}
+			alert {
+				title
+				description
+				proposedQueries {
+					description
+					query
+				}
+			}
 		}
 	}
 }
@@ -527,6 +535,7 @@ fragment repositoryFields on Repository {
 						}
 						Repository Repository `json:"repository"`
 					}
+					Alert searchResultsAlert
 				}
 			}
 		} `json:"data,omitempty"`
@@ -632,6 +641,14 @@ fragment repositoryFields on Repository {
 
 	if len(repos) == 0 && !*verbose {
 		yellow.Fprintf(os.Stderr, "WARNING: No repositories matched by scopeQuery\n")
+	}
+
+	if alert := result.Data.Search.Results.Alert; alert.HasAlert() {
+		if content, err := alert.Render(); err != nil {
+			yellow.Fprint(os.Stderr, err)
+		} else {
+			os.Stderr.WriteString(content)
+		}
 	}
 
 	return repos, nil

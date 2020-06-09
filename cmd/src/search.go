@@ -211,6 +211,14 @@ Other tips:
 				}
 				resultCount
 				elapsedMilliseconds
+				alert {
+				  title
+				  description
+				  proposedQueries {
+				   description
+				   query
+				  }
+				}
 			  }
 			}
 		  }
@@ -281,6 +289,7 @@ type searchResults struct {
 	Cloning, Missing, Timedout []map[string]interface{}
 	ResultCount                int
 	ElapsedMilliseconds        int
+	Alert                      searchResultsAlert
 }
 
 // searchResultsImproved is a superset of what the GraphQL API returns. It
@@ -568,6 +577,9 @@ const searchResultsTemplate = `{{- /* ignore this line for template formatting s
 	{{- with .Missing}}{{color "warning"}}{{"\n"}}({{len .}}) missing:{{color "nc"}} {{join (repoNames .) ", "}}{{end -}}
 	{{- with .Timedout}}{{color "warning"}}{{"\n"}}({{len .}}) timed out:{{color "nc"}} {{join (repoNames .) ", "}}{{end -}}
 	{{"\n"}}
+
+{{- /* Any alert returned from the search */ -}}
+	{{- searchAlertRender .Alert -}}
 
 {{- /* Rendering of results */ -}}
 	{{- range .Results -}}
