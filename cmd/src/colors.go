@@ -40,7 +40,7 @@ var ansiColors = map[string]string{
 
 	// Search alert specific colors.
 	"search-alert-title":                fg256Color(124),
-	"search-alert-description":          fg256Color(172),
+	"search-alert-description":          fg256Color(124),
 	"search-alert-proposed-title":       "",
 	"search-alert-proposed-query":       fg256Color(69),
 	"search-alert-proposed-description": "",
