@@ -52,9 +52,9 @@ func TestRender(t *testing.T) {
 
 		expected := subColourCodes(strings.Join([]string{
 			"[[search-alert-title]]❗foo[[nc]]\n",
-			"[[search-alert-proposed-title]]Did you mean:[[nc]]\n",
-			"[[search-alert-proposed-query]]xyz:abc[[nc]] - [[search-alert-proposed-description]]quux[[nc]]\n",
-			"[[search-alert-proposed-query]]def:ghi[[nc]] - [[search-alert-proposed-description]]baz[[nc]]\n",
+			"[[search-alert-proposed-title]]  Did you mean:[[nc]]\n",
+			"[[search-alert-proposed-query]]  xyz:abc[[nc]] - [[search-alert-proposed-description]]quux[[nc]]\n",
+			"[[search-alert-proposed-query]]  def:ghi[[nc]] - [[search-alert-proposed-description]]baz[[nc]]\n",
 		}, ""))
 		if diff := cmp.Diff(expected, content); diff != "" {
 			t.Errorf("alert without description content incorrect: %s", diff)
@@ -72,7 +72,7 @@ func TestRender(t *testing.T) {
 
 		expected := subColourCodes(strings.Join([]string{
 			"[[search-alert-title]]❗foo[[nc]]\n",
-			"[[search-alert-description]]bar[[nc]]\n",
+			"[[search-alert-description]]  bar[[nc]]\n",
 		}, ""))
 		if diff := cmp.Diff(expected, content); diff != "" {
 			t.Errorf("alert without queries content incorrect: %s", diff)
@@ -87,10 +87,10 @@ func TestRender(t *testing.T) {
 
 		expected := subColourCodes(strings.Join([]string{
 			"[[search-alert-title]]❗foo[[nc]]\n",
-			"[[search-alert-description]]bar[[nc]]\n",
-			"[[search-alert-proposed-title]]Did you mean:[[nc]]\n",
-			"[[search-alert-proposed-query]]xyz:abc[[nc]] - [[search-alert-proposed-description]]quux[[nc]]\n",
-			"[[search-alert-proposed-query]]def:ghi[[nc]] - [[search-alert-proposed-description]]baz[[nc]]\n",
+			"[[search-alert-description]]  bar[[nc]]\n",
+			"[[search-alert-proposed-title]]  Did you mean:[[nc]]\n",
+			"[[search-alert-proposed-query]]  xyz:abc[[nc]] - [[search-alert-proposed-description]]quux[[nc]]\n",
+			"[[search-alert-proposed-query]]  def:ghi[[nc]] - [[search-alert-proposed-description]]baz[[nc]]\n",
 		}, ""))
 		if diff := cmp.Diff(expected, content); diff != "" {
 			t.Errorf("full alert content incorrect: %s", diff)

@@ -62,14 +62,14 @@ const searchResultsAlertTemplateContent = `
 	{{- end -}}
 
 	{{- if gt (len .Description) 0 -}}
-		{{- color "search-alert-description"}}{{.Description}}{{color "nc"}}{{"\n"}}
+		{{- color "search-alert-description"}}  {{.Description}}{{color "nc"}}{{"\n"}}
 	{{- end -}}
 
 	{{- if gt (len .ProposedQueries) 0 -}}
-		{{- color "search-alert-proposed-title"}}Did you mean:{{color "nc" -}}
+		{{- color "search-alert-proposed-title"}}  Did you mean:{{color "nc" -}}
 		{{- "\n" -}}
 		{{- range .ProposedQueries -}}
-			{{- color "search-alert-proposed-query"}}{{.Query}}{{color "nc" -}}
+			{{- color "search-alert-proposed-query"}}  {{.Query}}{{color "nc" -}}
 			{{- " - " -}}
 			{{- color "search-alert-proposed-description"}}{{.Description}}{{color "nc" -}}
 			{{- "\n" -}}
