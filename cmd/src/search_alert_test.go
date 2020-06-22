@@ -50,7 +50,7 @@ func TestRender(t *testing.T) {
 			t.Errorf("unexpected error rendering alert without description: %v", err)
 		}
 
-		expected := subColourCodes(strings.Join([]string{
+		expected := subColorCodes(strings.Join([]string{
 			"[[search-alert-title]]❗foo[[nc]]\n",
 			"[[search-alert-proposed-title]]  Did you mean:[[nc]]\n",
 			"[[search-alert-proposed-query]]  xyz:abc[[nc]] - [[search-alert-proposed-description]]quux[[nc]]\n",
@@ -70,7 +70,7 @@ func TestRender(t *testing.T) {
 			t.Errorf("unexpected error rendering alert without queries: %v", err)
 		}
 
-		expected := subColourCodes(strings.Join([]string{
+		expected := subColorCodes(strings.Join([]string{
 			"[[search-alert-title]]❗foo[[nc]]\n",
 			"[[search-alert-description]]  bar[[nc]]\n",
 		}, ""))
@@ -85,7 +85,7 @@ func TestRender(t *testing.T) {
 			t.Errorf("unexpected error rendering full alert: %v", err)
 		}
 
-		expected := subColourCodes(strings.Join([]string{
+		expected := subColorCodes(strings.Join([]string{
 			"[[search-alert-title]]❗foo[[nc]]\n",
 			"[[search-alert-description]]  bar[[nc]]\n",
 			"[[search-alert-proposed-title]]  Did you mean:[[nc]]\n",
@@ -100,15 +100,15 @@ func TestRender(t *testing.T) {
 
 var subColorCodesRegex = regexp.MustCompile(`\[\[[a-zA-Z0-9-]+\]\]`)
 
-// subColourCodes provides ad-hoc templating of just ANSI colour codes from our
+// subColorCodes provides ad-hoc templating of just ANSI colour codes from our
 // ansiColors map, using a [[colour-code]] syntax.
-func subColourCodes(in string) string {
+func subColorCodes(in string) string {
 	// We could use text/template here, but at a certain point it feels like
 	// we're just reinventing the template string that's a const in
 	// search_alert.go. This allows us to express the colour codes in the
 	// expected string literals above while hopefully maintaining some meaning
 	// to the tests.
-	return subColourCodesRegex.ReplaceAllStringFunc(in, func(code string) string {
+	return subColorCodesRegex.ReplaceAllStringFunc(in, func(code string) string {
 		esc, ok := ansiColors[strings.Trim(code, "[]")]
 		if !ok {
 			panic(fmt.Sprintf("cannot find colour %s", code))
