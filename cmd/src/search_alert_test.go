@@ -98,7 +98,7 @@ func TestRender(t *testing.T) {
 	})
 }
 
-var subColourCodesRegex = regexp.MustCompile(`\[\[[a-zA-Z0-9-]+\]\]`)
+var subColorCodesRegex = regexp.MustCompile(`\[\[[a-zA-Z0-9-]+\]\]`)
 
 // subColourCodes provides ad-hoc templating of just ANSI colour codes from our
 // ansiColors map, using a [[colour-code]] syntax.
