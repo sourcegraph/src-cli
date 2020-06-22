@@ -17,7 +17,7 @@ All notable changes to `src-cli` are documented in this file.
 
 ### Changed
 
-- The terminal UI has been replaced by the logger-based UI that was previously only visible in verbose-mode (`-v`).
+- The terminal UI has been replaced by the logger-based UI that was previously only visible in verbose-mode (`-v`). [#228](https://github.com/sourcegraph/src-cli/pull/228)
 
 ### Fixed
 
