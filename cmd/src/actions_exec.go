@@ -269,11 +269,6 @@ Format of the action JSON files:
 			executor.enqueueRepo(repo)
 		}
 
-		// Execute actions
-		if opts.onUpdate != nil {
-			opts.onUpdate(executor.repos)
-		}
-
 		go executor.start(ctx)
 		err = executor.wait()
 
