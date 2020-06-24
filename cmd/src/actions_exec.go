@@ -448,7 +448,7 @@ fragment repositoryFields on Repository {
 		}
 
 		// Skip repos from unsupported code hosts but don't report them explicitly.
-		if !includeUnsupported && strings.ToLower(repo.ExternalRepository.ServiceType) != "github" && strings.ToLower(repo.ExternalRepository.ServiceType) != "bitbucketserver" {
+		if !includeUnsupported && strings.ToLower(repo.ExternalRepository.ServiceType) != "github" && strings.ToLower(repo.ExternalRepository.ServiceType) != "bitbucketserver" && strings.ToLower(repo.ExternalRepository.ServiceType) != "gitlab" {
 			unsupported = append(unsupported, repo.Name)
 			continue
 		}
