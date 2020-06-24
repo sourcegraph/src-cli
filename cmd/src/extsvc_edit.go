@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -200,27 +199,4 @@ func appendExcludeRepositories(input string, excludeRepoNames []string) (string,
 		return "", err
 	}
 	return jsonx.ApplyEdits(input, edits...)
-}
-
-// jsonxToJSON converts jsonx to plain JSON.
-func jsonxToJSON(text string) ([]byte, error) {
-	data, errs := jsonx.Parse(text, jsonx.ParseOptions{Comments: true, TrailingCommas: true})
-	if len(errs) > 0 {
-		return data, fmt.Errorf("failed to parse JSON: %v", errs)
-	}
-	return data, nil
-}
-
-// jsonxUnmarshal unmarshals jsonx into Go data.
-//
-// This process loses comments, trailing commas, formatting, etc.
-func jsonxUnmarshal(text string, v interface{}) error {
-	data, err := jsonxToJSON(text)
-	if err != nil {
-		return err
-	}
-	if strings.TrimSpace(text) == "" {
-		return nil
-	}
-	return json.Unmarshal(data, v)
 }
