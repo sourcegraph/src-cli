@@ -12,8 +12,8 @@ const actionDefinitionTemplate = `scopeQuery: ""
 steps:
   - type: command
     args:
-	  - echo
-	  - Hello world
+    - echo
+    - Hello world
 `
 
 func init() {
