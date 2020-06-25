@@ -2,11 +2,11 @@ package main
 
 import (
 	"bufio"
-	"bytes"
 	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"os/exec"
@@ -19,43 +19,10 @@ import (
 
 	"github.com/fatih/color"
 	"github.com/ghodss/yaml"
-	multierror "github.com/hashicorp/go-multierror"
 	"github.com/mattn/go-isatty"
 	"github.com/pkg/errors"
-	"github.com/sourcegraph/go-diff/diff"
-	"github.com/sourcegraph/src-cli/schema"
-	"github.com/xeipuuv/gojsonschema"
+	"github.com/sourcegraph/src-cli/internal/campaigns"
 )
-
-type Action struct {
-	ScopeQuery string        `json:"scopeQuery,omitempty"`
-	Steps      []*ActionStep `json:"steps"`
-}
-
-type ActionStep struct {
-	Type      string   `json:"type"`            // "command"
-	Image     string   `json:"image,omitempty"` // Docker image
-	CacheDirs []string `json:"cacheDirs,omitempty"`
-	Args      []string `json:"args,omitempty"`
-
-	// ImageContentDigest is an internal field that should not be set by users.
-	ImageContentDigest string
-}
-
-type PatchInput struct {
-	Repository   string `json:"repository"`
-	BaseRevision string `json:"baseRevision"`
-	BaseRef      string `json:"baseRef"`
-	Patch        string `json:"patch"`
-}
-
-func userCacheDir() (string, error) {
-	userCacheDir, err := os.UserCacheDir()
-	if err != nil {
-		return "", err
-	}
-	return filepath.Join(userCacheDir, "sourcegraph-src"), nil
-}
 
 const defaultTimeout = 60 * time.Minute
 
@@ -65,7 +32,7 @@ Execute an action on code in repositories. The output of an action is a set of p
 
 Examples:
 
-  Execute an action defined in ~/run-gofmt.json:
+  Execute an action defined in ~/run-gofmt.json and save the patches it produced to 'patches.json'
 
 	$ src actions exec -f ~/run-gofmt.json
 
@@ -80,6 +47,10 @@ Examples:
   Execute an action and pipe the patches it produced to 'src campaign patchset create-from-patches':
 
 	$ src actions exec -f ~/run-gofmt.json | src campaign patchset create-from-patches
+
+  Execute an action and save the patches it produced to 'patches.json'
+
+	$ src actions exec -f ~/run-gofmt.json -o patches.json 
 
   Read and execute an action definition from standard input:
 
@@ -129,7 +100,7 @@ Format of the action JSON files:
 		fmt.Println(usage)
 	}
 
-	cacheDir, _ := userCacheDir()
+	cacheDir, _ := campaigns.UserCacheDir()
 	if cacheDir != "" {
 		cacheDir = filepath.Join(cacheDir, "action-exec")
 	}
@@ -138,6 +109,7 @@ Format of the action JSON files:
 
 	var (
 		fileFlag        = flagSet.String("f", "-", "The action file. If not given or '-' standard input is used. (Required)")
+		outputFlag      = flagSet.String("o", "patches.json", "The output file. Will be used as the destination for patches unless the command is being piped in which case patches are piped to stdout")
 		parallelismFlag = flagSet.Int("j", runtime.GOMAXPROCS(0), "The number of parallel jobs.")
 
 		cacheDirFlag   = flagSet.String("cache", displayUserCacheDir, "Directory for caching results.")
@@ -185,18 +157,40 @@ Format of the action JSON files:
 			return err
 		}
 
+		var outputWriter io.Writer
+		if !*createPatchSetFlag && !*forceCreatePatchSetFlag {
+			// If stdout is a pipe, write to pipe, otherwise
+			// write to output file
+			fi, err := os.Stdout.Stat()
+			if err != nil {
+				return err
+			}
+			isPipe := fi.Mode()&os.ModeCharDevice == 0
+
+			if isPipe {
+				outputWriter = os.Stdout
+			} else {
+				f, err := os.Create(*outputFlag)
+				if err != nil {
+					return errors.Wrap(err, "creating output file")
+				}
+				defer f.Close()
+				outputWriter = f
+			}
+		}
+
 		// Convert action file to JSON.
 		jsonActionFile, err := yaml.YAMLToJSONStrict(actionFile)
 		if err != nil {
 			return errors.Wrap(err, "unable to parse action file")
 		}
 
-		err = validateActionDefinition(jsonActionFile)
+		err = campaigns.ValidateActionDefinition(jsonActionFile)
 		if err != nil {
 			return err
 		}
 
-		var action Action
+		var action campaigns.Action
 		if err := jsonxUnmarshal(string(jsonActionFile), &action); err != nil {
 			return errors.Wrap(err, "invalid JSON action file")
 		}
@@ -218,22 +212,21 @@ Format of the action JSON files:
 			os.Exit(2)
 		}()
 
-		logger := newActionLogger(*verbose, *keepLogsFlag)
+		logger := campaigns.NewActionLogger(*verbose, *keepLogsFlag)
 
-		// Build Docker images etc.
-		err = prepareAction(ctx, action)
+		// Fetch Docker images etc.
+		err = campaigns.PrepareAction(ctx, action, logger)
 		if err != nil {
 			return errors.Wrap(err, "Failed to prepare action")
 		}
 
-		opts := actionExecutorOptions{
-			timeout:    *timeoutFlag,
-			keepLogs:   *keepLogsFlag,
-			clearCache: *clearCacheFlag,
-			cache:      actionExecutionDiskCache{dir: *cacheDirFlag},
-		}
-		if !*verbose {
-			opts.onUpdate = newTerminalUI(*keepLogsFlag)
+		opts := campaigns.ExecutorOpts{
+			Endpoint:    cfg.Endpoint,
+			AccessToken: cfg.AccessToken,
+			Timeout:     *timeoutFlag,
+			KeepLogs:    *keepLogsFlag,
+			ClearCache:  *clearCacheFlag,
+			Cache:       campaigns.ExecutionDiskCache{Dir: *cacheDirFlag},
 		}
 
 		// Query repos over which to run action
@@ -242,24 +235,20 @@ Format of the action JSON files:
 		if err != nil {
 			return err
 		}
-		logger.Infof("Use 'src actions scope-query' for help with scoping.\n")
+		logger.Infof("Use 'src actions scope-query' for help with scoping.\n\n")
 
-		logger.Start()
+		totalSteps := len(repos) * len(action.Steps)
+		logger.Start(totalSteps)
 
-		executor := newActionExecutor(action, *parallelismFlag, logger, opts)
+		executor := campaigns.NewExecutor(action, *parallelismFlag, logger, opts)
 		for _, repo := range repos {
-			executor.enqueueRepo(repo)
+			executor.EnqueueRepo(repo)
 		}
 
-		// Execute actions
-		if opts.onUpdate != nil {
-			opts.onUpdate(executor.repos)
-		}
+		go executor.Start(ctx)
+		err = executor.Wait()
 
-		go executor.start(ctx)
-		err = executor.wait()
-
-		patches := executor.allPatches()
+		patches := executor.AllPatches()
 		if len(patches) == 0 {
 			// We call os.Exit because we don't want to return the error
 			// and have it printed.
@@ -273,9 +262,24 @@ Format of the action JSON files:
 				os.Exit(1)
 			}
 
-			logger.ActionSuccess(patches, true)
+			err = json.NewEncoder(outputWriter).Encode(patches)
+			if err != nil {
+				return errors.Wrap(err, "writing patches")
+			}
 
-			return json.NewEncoder(os.Stdout).Encode(patches)
+			logger.ActionSuccess(patches)
+
+			if out, ok := outputWriter.(*os.File); ok && out == os.Stdout {
+				// Don't print instructions when piping
+				return nil
+			}
+
+			// Print instructions when we've written patches to a file, even when not in verbose mode
+			fmt.Fprintf(os.Stderr, "\n\nPatches saved to %s, to create a patch set on your Sourcegraph instance please do the following:\n", *outputFlag)
+			fmt.Fprintln(os.Stderr, "\n ", color.HiCyanString("▶"), fmt.Sprintf("src campaign patchset create-from-patches < %s", *outputFlag))
+			fmt.Fprintln(os.Stderr)
+
+			return nil
 		}
 
 		if err != nil {
@@ -297,7 +301,7 @@ Format of the action JSON files:
 				}
 			}
 		} else {
-			logger.ActionSuccess(patches, false)
+			logger.ActionSuccess(patches)
 		}
 
 		tmpl, err := parseTemplate("{{friendlyPatchSetCreatedMessage .}}")
@@ -316,94 +320,7 @@ Format of the action JSON files:
 	})
 }
 
-func formatValidationErrs(es []error) string {
-	points := make([]string, len(es))
-	for i, err := range es {
-		points[i] = fmt.Sprintf("- %s", err)
-	}
-
-	return fmt.Sprintf(
-		"Validating action definition failed:\n%s\n",
-		strings.Join(points, "\n"))
-}
-
-func validateActionDefinition(def []byte) error {
-	sl := gojsonschema.NewSchemaLoader()
-	sc, err := sl.Compile(gojsonschema.NewStringLoader(schema.ActionSchemaJSON))
-	if err != nil {
-		return errors.Wrapf(err, "failed to compile actions schema")
-	}
-
-	normalized, err := jsonxToJSON(string(def))
-	if err != nil {
-		return err
-	}
-
-	res, err := sc.Validate(gojsonschema.NewBytesLoader(normalized))
-	if err != nil {
-		return errors.Wrap(err, "failed to validate config against schema")
-	}
-
-	errs := &multierror.Error{ErrorFormat: formatValidationErrs}
-	for _, err := range res.Errors() {
-		e := err.String()
-		// Remove `(root): ` from error formatting since these errors are
-		// presented to users.
-		e = strings.TrimPrefix(e, "(root): ")
-		errs = multierror.Append(errs, errors.New(e))
-	}
-
-	return errs.ErrorOrNil()
-}
-
-func prepareAction(ctx context.Context, action Action) error {
-	// Build any Docker images.
-	for _, step := range action.Steps {
-		if step.Type == "docker" {
-			// Set digests for Docker images so we don't cache action runs in 2 different images with
-			// the same tag.
-			var err error
-			step.ImageContentDigest, err = getDockerImageContentDigest(ctx, step.Image)
-			if err != nil {
-				return errors.Wrap(err, "Failed to get Docker image content digest")
-			}
-		}
-	}
-
-	return nil
-}
-
-// getDockerImageContentDigest gets the content digest for the image. Note that this
-// is different from the "distribution digest" (which is what you can use to specify
-// an image to `docker run`, as in `my/image@sha256:xxx`). We need to use the
-// content digest because the distribution digest is only computed for images that
-// have been pulled from or pushed to a registry. See
-// https://windsock.io/explaining-docker-image-ids/ under "A Final Twist" for a good
-// explanation.
-func getDockerImageContentDigest(ctx context.Context, image string) (string, error) {
-	// TODO!(sqs): is image id the right thing to use here? it is NOT the
-	// digest. but the digest is not calculated for all images (unless they are
-	// pulled/pushed from/to a registry), see
-	// https://github.com/moby/moby/issues/32016.
-	out, err := exec.CommandContext(ctx, "docker", "image", "inspect", "--format", "{{.Id}}", "--", image).CombinedOutput()
-	if err != nil {
-		return "", fmt.Errorf("error inspecting docker image (try `docker pull %q` to fix this): %s", image, bytes.TrimSpace(out))
-	}
-	id := string(bytes.TrimSpace(out))
-	if id == "" {
-		return "", fmt.Errorf("unexpected empty docker image content ID for %q", image)
-	}
-	return id, nil
-}
-
-type ActionRepo struct {
-	ID      string
-	Name    string
-	Rev     string
-	BaseRef string
-}
-
-func actionRepos(ctx context.Context, scopeQuery string, includeUnsupported bool, logger *actionLogger) ([]ActionRepo, error) {
+func actionRepos(ctx context.Context, scopeQuery string, includeUnsupported bool, logger *campaigns.ActionLogger) ([]campaigns.ActionRepo, error) {
 	hasCount, err := regexp.MatchString(`count:\d+`, scopeQuery)
 	if err != nil {
 		return nil, err
@@ -428,6 +345,7 @@ query ActionRepos($query: String!) {
 					}
 				}
 			}
+			...SearchResultsAlertFields
 		}
 	}
 }
@@ -445,7 +363,8 @@ fragment repositoryFields on Repository {
 		}
 	}
 }
-`
+` + searchResultsAlertFragment
+
 	type Repository struct {
 		ID, Name           string
 		ExternalRepository struct {
@@ -472,6 +391,7 @@ fragment repositoryFields on Repository {
 						}
 						Repository Repository `json:"repository"`
 					}
+					Alert searchResultsAlert
 				}
 			}
 		} `json:"data,omitempty"`
@@ -511,7 +431,7 @@ fragment repositoryFields on Repository {
 
 	skipped := []string{}
 	unsupported := []string{}
-	reposByID := map[string]ActionRepo{}
+	reposByID := map[string]campaigns.ActionRepo{}
 	for _, searchResult := range result.Data.Search.Results.Results {
 
 		var repo Repository
@@ -543,7 +463,7 @@ fragment repositoryFields on Repository {
 		}
 
 		if _, ok := reposByID[repo.ID]; !ok {
-			reposByID[repo.ID] = ActionRepo{
+			reposByID[repo.ID] = campaigns.ActionRepo{
 				ID:      repo.ID,
 				Name:    repo.Name,
 				Rev:     repo.DefaultBranch.Target.OID,
@@ -552,7 +472,7 @@ fragment repositoryFields on Repository {
 		}
 	}
 
-	repos := make([]ActionRepo, 0, len(reposByID))
+	repos := make([]campaigns.ActionRepo, 0, len(reposByID))
 	for _, repo := range reposByID {
 		repos = append(repos, repo)
 	}
@@ -579,40 +499,16 @@ fragment repositoryFields on Repository {
 		yellow.Fprintf(os.Stderr, "WARNING: No repositories matched by scopeQuery\n")
 	}
 
+	if content, err := result.Data.Search.Results.Alert.Render(); err != nil {
+		yellow.Fprint(os.Stderr, err)
+	} else {
+		os.Stderr.WriteString(content)
+	}
+
 	return repos, nil
 }
 
-func sumDiffStats(fileDiffs []*diff.FileDiff) diff.Stat {
-	sum := diff.Stat{}
-	for _, fileDiff := range fileDiffs {
-		stat := fileDiff.Stat()
-		sum.Added += stat.Added
-		sum.Changed += stat.Changed
-		sum.Deleted += stat.Deleted
-	}
-	return sum
-}
-
-func diffStatDescription(fileDiffs []*diff.FileDiff) string {
-	var plural string
-	if len(fileDiffs) > 1 {
-		plural = "s"
-	}
-
-	return fmt.Sprintf("%d file%s changed", len(fileDiffs), plural)
-}
-
-func diffStatDiagram(stat diff.Stat) string {
-	const maxWidth = 20
-	added := float64(stat.Added + stat.Changed)
-	deleted := float64(stat.Deleted + stat.Changed)
-	if total := added + deleted; total > maxWidth {
-		x := float64(20) / total
-		added *= x
-		deleted *= x
-	}
-	return color.GreenString(strings.Repeat("+", int(added))) + color.RedString(strings.Repeat("-", int(deleted)))
-}
+var yellow = color.New(color.FgYellow)
 
 func isGitAvailable() bool {
 	cmd := exec.Command("git", "version")

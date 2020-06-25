@@ -56,7 +56,7 @@ Notes:
 
 		manifest, err := ioutil.ReadFile(*manifestFlag)
 		if err != nil {
-			return fmt.Errorf("%s\n\nRun this command in a directory with a %s file for an extension.\n\nSee 'src extensions %s -h' for help.", err, *manifestFlag, flagSet.Name())
+			return fmt.Errorf("%s\n\nRun this command in a directory with a %s file for an extension.\n\nSee 'src extensions %s -h' for help", err, *manifestFlag, flagSet.Name())
 		}
 		extensionID := *extensionIDFlag
 		if extensionID == "" {
@@ -178,7 +178,7 @@ func runManifestPrepublishScript(manifest []byte, dir string) error {
 	cmd.Stderr = os.Stderr
 	fmt.Fprintf(os.Stderr, "# sourcegraph:prepublish: %s\n", o.Scripts.SourcegraphPrepublish)
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("sourcegraph:prepublish script failed: %s (see output above)", err)
+		return fmt.Errorf("sourcegraph:prepublish script failed: %w (see output above)", err)
 	}
 	fmt.Fprintln(os.Stderr)
 	return nil
