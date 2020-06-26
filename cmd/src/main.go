@@ -9,8 +9,6 @@ import (
 	"os/user"
 	"path/filepath"
 	"strings"
-
-	"github.com/pkg/errors"
 )
 
 const usageText = `src is a tool that provides access to Sourcegraph instances.
