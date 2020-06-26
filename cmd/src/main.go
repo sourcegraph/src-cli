@@ -26,6 +26,7 @@ Environment variables
 
 The options are:
 
+	-endpoint=                       specifies the endpoint to use e.g. "https://sourcegraph.com" (overrides SRC_ENDPOINT if set)
 	-v                               print verbose output
 
 The commands are:
@@ -49,6 +50,7 @@ Use "src [command] -h" for more information about a command.
 
 var (
 	configPath = flag.String("config", "", "")
+	endpoint   = flag.String("endpoint", "", "")
 	verbose    = flag.Bool("v", false, "print verbose output")
 )
 
@@ -76,14 +78,14 @@ func readConfig() (*config, error) {
 	cfgPath := *configPath
 	userSpecified := *configPath != ""
 
-	u, err := user.Current()
+	user, err := user.Current()
 	if err != nil {
 		return nil, err
 	}
 	if !userSpecified {
-		cfgPath = filepath.Join(u.HomeDir, "src-config.json")
+		cfgPath = filepath.Join(user.HomeDir, "src-config.json")
 	} else if strings.HasPrefix(cfgPath, "~/") {
-		cfgPath = filepath.Join(u.HomeDir, cfgPath[2:])
+		cfgPath = filepath.Join(user.HomeDir, cfgPath[2:])
 	}
 	data, err := ioutil.ReadFile(os.ExpandEnv(cfgPath))
 	if err != nil && (!os.IsNotExist(err) || userSpecified) {
@@ -96,26 +98,17 @@ func readConfig() (*config, error) {
 		}
 	}
 
-	envToken := os.Getenv("SRC_ACCESS_TOKEN")
-	envEndpoint := os.Getenv("SRC_ENDPOINT")
-
-	if userSpecified {
-		// If a config file is present, either zero or both environment variables must be present.
-		// We don't want to partially apply environment variables.
-		if envToken == "" && envEndpoint != "" {
-			return nil, errConfigMerge
-		}
-		if envToken != "" && envEndpoint == "" {
-			return nil, errConfigMerge
-		}
-	}
-
 	// Apply config overrides.
-	if envToken != "" {
+	if envToken := os.Getenv("SRC_ACCESS_TOKEN"); envToken != "" {
 		cfg.AccessToken = envToken
 	}
-	if envEndpoint != "" {
-		cfg.Endpoint = envEndpoint
+	if *endpoint != "" {
+		cfg.Endpoint = *endpoint
+	}
+	if cfg.Endpoint == "" {
+		if endpoint := os.Getenv("SRC_ENDPOINT"); endpoint != "" {
+			cfg.Endpoint = endpoint
+		}
 	}
 	if cfg.Endpoint == "" {
 		cfg.Endpoint = "https://sourcegraph.com"
@@ -125,5 +118,3 @@ func readConfig() (*config, error) {
 
 	return &cfg, nil
 }
-
-var errConfigMerge = errors.New("config merging not supported, zero or both environment variables must be set")
