@@ -8,7 +8,9 @@ import (
 	"log"
 	"os"
 
+	"github.com/ghodss/yaml"
 	"github.com/pkg/errors"
+	"github.com/sourcegraph/src-cli/internal/campaigns"
 )
 
 func init() {
@@ -41,8 +43,8 @@ Examples:
 			return err
 		}
 
+		// Read action file content.
 		var actionFile []byte
-
 		if *fileFlag == "-" {
 			actionFile, err = ioutil.ReadAll(os.Stdin)
 		} else {
@@ -52,8 +54,19 @@ Examples:
 			return err
 		}
 
-		var action Action
-		if err := jsonxUnmarshal(string(actionFile), &action); err != nil {
+		// Convert action file to JSON, if it was yaml.
+		jsonActionFile, err := yaml.YAMLToJSONStrict(actionFile)
+		if err != nil {
+			return errors.Wrap(err, "unable to parse action file")
+		}
+
+		err = campaigns.ValidateActionDefinition(jsonActionFile)
+		if err != nil {
+			return err
+		}
+
+		var action campaigns.Action
+		if err := jsonxUnmarshal(string(jsonActionFile), &action); err != nil {
 			return errors.Wrap(err, "invalid JSON action file")
 		}
 
@@ -67,7 +80,7 @@ Examples:
 			}
 		}
 
-		logger := newActionLogger(*verbose, false)
+		logger := campaigns.NewActionLogger(*verbose, false)
 		repos, err := actionRepos(ctx, action.ScopeQuery, *includeUnsupportedFlag, logger)
 		if err != nil {
 			return err

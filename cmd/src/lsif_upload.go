@@ -10,6 +10,7 @@ import (
 	"github.com/mattn/go-isatty"
 	"github.com/pkg/browser"
 	"github.com/pkg/errors"
+	"github.com/sourcegraph/codeintelutils"
 	"github.com/sourcegraph/src-cli/internal/codeintel"
 )
 
@@ -31,7 +32,7 @@ Examples:
 
   Upload an LSIF dump when the LSIF indexer does not not declare a tool name.
 
-    	$ src lsif upload -indexerName=lsif-elixir
+    	$ src lsif upload -indexer=lsif-elixir
 `
 
 	var flags struct {
@@ -104,7 +105,7 @@ Examples:
 			}
 			defer file.Close()
 
-			if indexer, err := codeintel.ReadIndexerName(file); err != nil {
+			if indexer, err := codeintelutils.ReadIndexerName(file); err != nil {
 				inferErrors = append(inferErrors, inferError{"indexer", err})
 			} else {
 				flags.indexer = &indexer
@@ -163,7 +164,7 @@ Examples:
 
 		uploadID, err := codeintel.UploadIndex(opts)
 		if err != nil {
-			if err == codeintel.ErrUnauthorized {
+			if err == codeintelutils.ErrUnauthorized {
 				if *flags.gitHubToken == "" {
 					return fmt.Errorf("you must provide -github-token=TOKEN, where TOKEN is a GitHub personal access token with 'repo' or 'public_repo' scope")
 				}

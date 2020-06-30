@@ -6,29 +6,27 @@ require (
 	github.com/Masterminds/semver v1.5.0
 	github.com/dustin/go-humanize v1.0.0
 	github.com/fatih/color v1.9.0
-	github.com/gogo/protobuf v1.3.1 // indirect
-	github.com/google/go-cmp v0.4.0
-	github.com/gosuri/uilive v0.0.4
-	github.com/hashicorp/go-multierror v1.0.0
-	github.com/json-iterator/go v1.1.9
+	github.com/ghodss/yaml v1.0.1-0.20190212211648-25d852aebe32
+	github.com/google/go-cmp v0.4.1
+	github.com/hashicorp/go-multierror v1.1.0
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
+	github.com/mattn/go-colorable v0.1.6 // indirect
 	github.com/mattn/go-isatty v0.0.12
-	github.com/mattn/go-runewidth v0.0.8 // indirect
+	github.com/mattn/go-runewidth v0.0.9 // indirect
 	github.com/neelance/parallel v0.0.0-20160708114440-4de9ce63d14c
 	github.com/olekukonko/tablewriter v0.0.4 // indirect
 	github.com/pkg/browser v0.0.0-20180916011732-0a3d74bf9ce4
 	github.com/pkg/errors v0.9.1
 	github.com/segmentio/textio v1.2.0
-	github.com/sourcegraph/go-diff v0.5.1
-	github.com/sourcegraph/jsonx v0.0.0-20190114210550-ba8cb36a8614
-	github.com/sourcegraph/starlight v0.0.0-20200510065702-c68e5b848a14
+	github.com/sourcegraph/codeintelutils v0.0.0-20200602000243-9543a4b9c9f8
+	github.com/sourcegraph/jsonx v0.0.0-20200629203448-1a936bd500cf
 	github.com/ssor/bom v0.0.0-20170718123548-6386211fdfcf // indirect
+	github.com/xeipuuv/gojsonpointer v0.0.0-20190905194746-02993c407bfb // indirect
 	github.com/xeipuuv/gojsonschema v1.2.0
-	go.starlark.net v0.0.0-20200330013621-be5394c419b6
-	golang.org/x/net v0.0.0-20200114155413-6afb5195e5aa
-	golang.org/x/sys v0.0.0-20200124204421-9fbb57f87de9 // indirect
-	jaytaylor.com/html2text v0.0.0-20190408195923-01ec452cbe43
-	sourcegraph.com/sqs/pbtypes v1.0.0 // indirect
+	golang.org/x/net v0.0.0-20200625001655-4c5254603344
+	golang.org/x/sys v0.0.0-20200622214017-ed371f2e16b4 // indirect
+	gopkg.in/yaml.v2 v2.3.0 // indirect
+	jaytaylor.com/html2text v0.0.0-20200412013138-3577fbdbcff7
 )
 
 replace github.com/gosuri/uilive v0.0.4 => github.com/mrnugget/uilive v0.0.4-fix-escape
