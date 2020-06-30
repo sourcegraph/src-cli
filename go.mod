@@ -9,6 +9,7 @@ require (
 	github.com/ghodss/yaml v1.0.1-0.20190212211648-25d852aebe32
 	github.com/google/go-cmp v0.4.1
 	github.com/hashicorp/go-multierror v1.1.0
+	github.com/json-iterator/go v1.1.10
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
 	github.com/mattn/go-colorable v0.1.6 // indirect
 	github.com/mattn/go-isatty v0.0.12
@@ -20,9 +21,11 @@ require (
 	github.com/segmentio/textio v1.2.0
 	github.com/sourcegraph/codeintelutils v0.0.0-20200602000243-9543a4b9c9f8
 	github.com/sourcegraph/jsonx v0.0.0-20200629203448-1a936bd500cf
+	github.com/sourcegraph/starlight v0.0.0-20200510065702-c68e5b848a14
 	github.com/ssor/bom v0.0.0-20170718123548-6386211fdfcf // indirect
 	github.com/xeipuuv/gojsonpointer v0.0.0-20190905194746-02993c407bfb // indirect
 	github.com/xeipuuv/gojsonschema v1.2.0
+	go.starlark.net v0.0.0-20200619143648-50ca820fafb9
 	golang.org/x/net v0.0.0-20200625001655-4c5254603344
 	golang.org/x/sys v0.0.0-20200622214017-ed371f2e16b4 // indirect
 	gopkg.in/yaml.v2 v2.3.0 // indirect
