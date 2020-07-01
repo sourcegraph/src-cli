@@ -134,4 +134,4 @@ func readConfig() (*config, error) {
 	return &cfg, nil
 }
 
-var errConfigMerge = errors.New("config merging not supported, zero or both environment variables must be set")
+var errConfigMerge = errors.New("when using a configuration file, zero or all environment variables must be set")
