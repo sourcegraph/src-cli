@@ -1,6 +1,6 @@
 # Authenticating requests behind a proxy
 
-If your instance is behind an authenticating proxy that requires additional headers, these can be supplied via environment variables:
+If your instance is behind an authenticating proxy that requires additional headers, they can be supplied via environment variables as follows:
 
 ```sh
 SRC_HEADER_NAME=value src search 'foobar'
