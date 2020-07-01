@@ -1,14 +1,14 @@
-build: off
-
-clone_folder: c:\gopath\src\github.com\souregraph/src-cli
-
+version: "{build}"
+clone_folder: c:\gopath\src\github.com\sourcegraph\src-cli
 environment:
   GOPATH: c:\gopath
-
-stack: go 1.14
-
-before_test:
-  - go vet ./...
-
-test_script:
-  - go test ./...
+stack: go 1.14.3
+install:
+  - set PATH=%GOPATH%\bin;c:\go\bin;%PATH%
+  - echo %PATH%
+  - echo %GOPATH%
+  - go version
+  - go env
+  - go get -t -v ./...
+build_script:
+  - go test -v ./...
