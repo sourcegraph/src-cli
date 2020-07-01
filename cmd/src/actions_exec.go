@@ -476,10 +476,7 @@ fragment repositoryFields on Repository {
 	for _, repo := range reposByID {
 		repos = append(repos, repo)
 	}
-	for _, r := range skipped {
-		logger.Infof("Skipping repository %s because we couldn't determine default branch.\n", r)
-	}
-	logger.RepoMatches(len(repos), unsupported)
+	logger.RepoMatches(len(repos), skipped, unsupported)
 
 	if content, err := result.Data.Search.Results.Alert.Render(); err != nil {
 		yellow.Fprint(os.Stderr, err)

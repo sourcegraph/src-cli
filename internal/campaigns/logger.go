@@ -242,7 +242,10 @@ func (a *ActionLogger) DockerStepDone(repoName string, step int, elapsed time.Du
 	a.write(repoName, yellow, "%s Done. (%s)\n", boldBlack.Sprintf("[Step %d]", step), elapsed)
 }
 
-func (a *ActionLogger) RepoMatches(repoCount int, unsupported []string) {
+func (a *ActionLogger) RepoMatches(repoCount int, skipped, unsupported []string) {
+	for _, r := range skipped {
+		a.Infof("Skipping repository %s because we couldn't determine default branch.\n", r)
+	}
 	unsupportedCount := len(unsupported)
 	var matchesStr string
 	if repoCount == 1 {
@@ -255,10 +258,7 @@ func (a *ActionLogger) RepoMatches(repoCount int, unsupported []string) {
 		matchesStr = fmt.Sprintf("%s%d repositories match the scopeQuery.", warnStr, repoCount)
 	}
 	if unsupportedCount > 0 {
-		matchesStr += fmt.Sprintf(" (Including %d on unsupported code hosts.)", unsupportedCount)
-	}
-	if unsupportedCount > 0 {
-		matchesStr += "\n\nThe following repositories were filtered out because they are on a codehost not supported by campaigns (Use -include-unsupported to generate patches for them anyways.):\n"
+		matchesStr += fmt.Sprintf("\n\n%d repositories were filtered out because they are on a codehost not supported by campaigns. (use -include-unsupported to generate patches for them anyway):\n", unsupportedCount)
 		for i, repo := range unsupported {
 			matchesStr += color.HiYellowString("- %s\n", repo)
 			if i == 10 {
