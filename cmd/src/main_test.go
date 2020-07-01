@@ -11,7 +11,7 @@ import (
 )
 
 func TestReadConfig(t *testing.T) {
-	makeTempConfig := func(t *testing.T, c config) (string, func()) {
+	makeTempConfig := func(t *testing.T, c config) string {
 		data, err := json.Marshal(c)
 		if err != nil {
 			t.Fatal(err)
@@ -25,7 +25,8 @@ func TestReadConfig(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		return filePath, func() { os.RemoveAll(tmpDir) }
+		t.Cleanup(func() { os.RemoveAll(tmpDir) })
+		return filePath
 	}
 
 	tests := []struct {
@@ -148,9 +149,7 @@ func TestReadConfig(t *testing.T) {
 			}
 
 			if test.fileContents != nil {
-				p, cleanup := makeTempConfig(t, *test.fileContents)
-				defer cleanup()
-				*configPath = p
+				*configPath = makeTempConfig(t, *test.fileContents)
 			}
 			oldToken := os.Getenv("SRC_ACCESS_TOKEN")
 			defer func() { os.Setenv("SRC_ACCESS_TOKEN", oldToken) }()
