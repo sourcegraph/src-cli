@@ -2,6 +2,7 @@ version: "{build}"
 clone_folder: c:\gopath\src\github.com\sourcegraph\src-cli
 environment:
   GOPATH: c:\gopath
+stack: go 1.14
 install:
   - set PATH=%GOPATH%\bin;c:\go\bin;%PATH%
   - echo %PATH%
