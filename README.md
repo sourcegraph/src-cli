@@ -73,13 +73,7 @@ Point `src` to your instance and access token using environment variables:
 SRC_ENDPOINT=https://sourcegraph.example.com SRC_ACCESS_TOKEN="secret" src search 'foobar'
 ```
 
-If your instance is behind an auth proxy that requires additional headers, these can be supplied via environment variables:
-
-```sh
-SRC_HEADER_NAME=value src search 'foobar'
-```
-
-In this example, the header name-value pair `Name: value` will be threaded to all HTTP requests to your instance. Multiple such headers can be supplied.
+Sourcegraph behind a custom auth proxy? See [auth proxy configuration](./AUTH_PROXY.md) docs.
 
 ### Where to get an access token
 
