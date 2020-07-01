@@ -14,7 +14,6 @@ All notable changes to `src-cli` are documented in this file.
 ### Added
 
 - Pull missing docker images automatically. [#191](https://github.com/sourcegraph/src-cli/pull/191)
-
 - Searches that result in errors will now display any alerts returned by Sourcegraph, including suggestions for how the search could be corrected. [#221](https://github.com/sourcegraph/src-cli/pull/221)
 
 ### Changed
@@ -26,4 +25,3 @@ All notable changes to `src-cli` are documented in this file.
 
 ### Removed
 
-- Remove the `-endpoint` flag. [#225](https://github.com/sourcegraph/src-cli/pull/225)
