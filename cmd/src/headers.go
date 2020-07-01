@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-// getAdditionalHeaders reads the environment for values like SRC_HEADER_NAME=VALUE
+// parseAdditionalHeaders reads the environment for values like SRC_HEADER_NAME=VALUE
 // and creates a `{NAME: VALUE}` map. These headers should be applied to each request
 // to the Sourcegraph instance, as some private instances require special auth or
 // additional proxy values to be passed along with each request.
