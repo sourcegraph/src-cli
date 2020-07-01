@@ -67,8 +67,9 @@ var cfg *config
 
 // config represents the config format.
 type config struct {
-	Endpoint    string `json:"endpoint"`
-	AccessToken string `json:"accessToken"`
+	Endpoint          string            `json:"endpoint"`
+	AccessToken       string            `json:"accessToken"`
+	AdditionalHeaders map[string]string `json:"additionalHeaders"`
 }
 
 // readConfig reads the config file from the given path.
@@ -100,6 +101,8 @@ func readConfig() (*config, error) {
 	if envToken := os.Getenv("SRC_ACCESS_TOKEN"); envToken != "" {
 		cfg.AccessToken = envToken
 	}
+	cfg.AdditionalHeaders = parseAdditionalHeaders()
+
 	if *endpoint != "" {
 		cfg.Endpoint = *endpoint
 	}
