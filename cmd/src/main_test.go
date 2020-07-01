@@ -32,6 +32,7 @@ func TestReadConfig(t *testing.T) {
 		name         string
 		fileContents *config
 		envToken     string
+		envFooHeader string
 		envEndpoint  string
 		flagEndpoint string
 		want         *config
@@ -40,7 +41,8 @@ func TestReadConfig(t *testing.T) {
 		{
 			name: "defaults",
 			want: &config{
-				Endpoint: "https://sourcegraph.com",
+				Endpoint:          "https://sourcegraph.com",
+				AdditionalHeaders: map[string]string{},
 			},
 		},
 		{
@@ -50,8 +52,9 @@ func TestReadConfig(t *testing.T) {
 				AccessToken: "deadbeef",
 			},
 			want: &config{
-				Endpoint:    "https://example.com",
-				AccessToken: "deadbeef",
+				Endpoint:          "https://example.com",
+				AccessToken:       "deadbeef",
+				AdditionalHeaders: map[string]string{},
 			},
 		},
 		{
@@ -83,24 +86,27 @@ func TestReadConfig(t *testing.T) {
 			envToken:    "abc",
 			envEndpoint: "https://override.com",
 			want: &config{
-				Endpoint:    "https://override.com",
-				AccessToken: "abc",
+				Endpoint:          "https://override.com",
+				AccessToken:       "abc",
+				AdditionalHeaders: map[string]string{},
 			},
 		},
 		{
 			name:     "no config file, token from environment",
 			envToken: "abc",
 			want: &config{
-				Endpoint:    "https://sourcegraph.com",
-				AccessToken: "abc",
+				Endpoint:          "https://sourcegraph.com",
+				AccessToken:       "abc",
+				AdditionalHeaders: map[string]string{},
 			},
 		},
 		{
 			name:        "no config file, endpoint from environment",
 			envEndpoint: "https://example.com",
 			want: &config{
-				Endpoint:    "https://example.com",
-				AccessToken: "",
+				Endpoint:          "https://example.com",
+				AccessToken:       "",
+				AdditionalHeaders: map[string]string{},
 			},
 		},
 		{
@@ -108,20 +114,23 @@ func TestReadConfig(t *testing.T) {
 			envEndpoint: "https://example.com",
 			envToken:    "abc",
 			want: &config{
-				Endpoint:    "https://example.com",
-				AccessToken: "abc",
+				Endpoint:          "https://example.com",
+				AccessToken:       "abc",
+				AdditionalHeaders: map[string]string{},
 			},
 		},
 		{
 			name:         "endpoint flag should override config",
 			flagEndpoint: "https://override.com/",
 			fileContents: &config{
-				Endpoint:    "https://example.com/",
-				AccessToken: "deadbeef",
+				Endpoint:          "https://example.com/",
+				AccessToken:       "deadbeef",
+				AdditionalHeaders: map[string]string{},
 			},
 			want: &config{
-				Endpoint:    "https://override.com",
-				AccessToken: "deadbeef",
+				Endpoint:          "https://override.com",
+				AccessToken:       "deadbeef",
+				AdditionalHeaders: map[string]string{},
 			},
 		},
 		{
@@ -130,8 +139,22 @@ func TestReadConfig(t *testing.T) {
 			envEndpoint:  "https://example.com",
 			envToken:     "abc",
 			want: &config{
-				Endpoint:    "https://override.com",
-				AccessToken: "abc",
+				Endpoint:          "https://override.com",
+				AccessToken:       "abc",
+				AdditionalHeaders: map[string]string{},
+			},
+		},
+
+		{
+			name:         "additional header",
+			flagEndpoint: "https://override.com/",
+			envEndpoint:  "https://example.com",
+			envToken:     "abc",
+			envFooHeader: "bar",
+			want: &config{
+				Endpoint:          "https://override.com",
+				AccessToken:       "abc",
+				AdditionalHeaders: map[string]string{"FOO": "bar"},
 			},
 		},
 	}
@@ -161,6 +184,9 @@ func TestReadConfig(t *testing.T) {
 				t.Fatal(err)
 			}
 			if err := os.Setenv("SRC_ENDPOINT", test.envEndpoint); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Setenv("SRC_HEADER_FOO", test.envFooHeader); err != nil {
 				t.Fatal(err)
 			}
 			config, err := readConfig()
