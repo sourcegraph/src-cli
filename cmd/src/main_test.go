@@ -11,7 +11,7 @@ import (
 )
 
 func TestReadConfig(t *testing.T) {
-	makeTempConfig := func(t *testing.T, c config) (string, func()) {
+	makeTempConfig := func(t *testing.T, c config) string {
 		data, err := json.Marshal(c)
 		if err != nil {
 			t.Fatal(err)
@@ -20,12 +20,13 @@ func TestReadConfig(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		t.Cleanup(func() { os.RemoveAll(tmpDir) })
 		filePath := filepath.Join(tmpDir, "config.json")
 		err = ioutil.WriteFile(filePath, data, 0600)
 		if err != nil {
 			t.Fatal(err)
 		}
-		return filePath, func() { os.RemoveAll(tmpDir) }
+		return filePath
 	}
 
 	tests := []struct {
@@ -139,23 +140,13 @@ func TestReadConfig(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			oldConfigPath := *configPath
-			defer func() { *configPath = oldConfigPath }()
-
-			if test.flagEndpoint != "" {
-				val := test.flagEndpoint
-				endpoint = &val
-				defer func() { endpoint = nil }()
-			}
-
-			if test.fileContents != nil {
-				p, cleanup := makeTempConfig(t, *test.fileContents)
-				defer cleanup()
-				*configPath = p
-			}
 			oldToken := os.Getenv("SRC_ACCESS_TOKEN")
-			defer func() { os.Setenv("SRC_ACCESS_TOKEN", oldToken) }()
 			oldEndpoint := os.Getenv("SRC_ENDPOINT")
-			defer func() { os.Setenv("SRC_ENDPOINT", oldEndpoint) }()
+			t.Cleanup(func() {
+				*configPath = oldConfigPath
+				os.Setenv("SRC_ACCESS_TOKEN", oldToken)
+				os.Setenv("SRC_ENDPOINT", oldEndpoint)
+			})
 
 			if err := os.Setenv("SRC_ACCESS_TOKEN", test.envToken); err != nil {
 				t.Fatal(err)
@@ -163,6 +154,17 @@ func TestReadConfig(t *testing.T) {
 			if err := os.Setenv("SRC_ENDPOINT", test.envEndpoint); err != nil {
 				t.Fatal(err)
 			}
+
+			if test.flagEndpoint != "" {
+				val := test.flagEndpoint
+				endpoint = &val
+				t.Cleanup(func() { endpoint = nil })
+			}
+
+			if test.fileContents != nil {
+				*configPath = makeTempConfig(t, *test.fileContents)
+			}
+
 			config, err := readConfig()
 			if diff := cmp.Diff(test.want, config); diff != "" {
 				t.Errorf("config: %v", diff)
