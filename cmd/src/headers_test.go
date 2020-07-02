@@ -14,8 +14,8 @@ func TestParseAdditionalHeaders(t *testing.T) {
 	}{
 		{environ: []string{}, headers: map[string]string{}},
 		{environ: []string{"AUTHORIZATION=foo,bar,baz"}, headers: map[string]string{}},
-		{environ: []string{"SRC_HEADER_AUTHORIZATION=foo,bar,baz"}, headers: map[string]string{"AUTHORIZATION": "foo,bar,baz"}},
-		{environ: []string{"SRC_HEADER_A=foo", "SRC_HEADER_B=bar", "SRC_HEADER_C=baz"}, headers: map[string]string{"A": "foo", "B": "bar", "C": "baz"}},
+		{environ: []string{"SRC_HEADER_AUTHORIZATION=foo,bar,baz"}, headers: map[string]string{"authorization": "foo,bar,baz"}},
+		{environ: []string{"SRC_HEADER_A=foo", "SRC_HEADER_B=bar", "SRC_HEADER_C=baz"}, headers: map[string]string{"a": "foo", "b": "bar", "c": "baz"}},
 		{environ: []string{"SRC_HEADER_A", "SRC_HEADER_B=", "SRC_HEADER_=baz"}, headers: map[string]string{}},
 	}
 

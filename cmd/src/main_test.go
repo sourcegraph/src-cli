@@ -154,7 +154,7 @@ func TestReadConfig(t *testing.T) {
 			want: &config{
 				Endpoint:          "https://override.com",
 				AccessToken:       "abc",
-				AdditionalHeaders: map[string]string{"FOO": "bar"},
+				AdditionalHeaders: map[string]string{"foo": "bar"},
 			},
 		},
 	}

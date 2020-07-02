@@ -33,7 +33,7 @@ func parseAdditionalHeadersFromMap(environ []string) map[string]string {
 			continue
 		}
 
-		additionalHeaders[strings.TrimPrefix(parts[0], additionalHeaderPrefix)] = parts[1]
+		additionalHeaders[strings.ToLower(strings.TrimPrefix(parts[0], additionalHeaderPrefix))] = parts[1]
 	}
 
 	return additionalHeaders
