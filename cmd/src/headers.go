@@ -19,7 +19,17 @@ func parseAdditionalHeadersFromMap(environ []string) map[string]string {
 	additionalHeaders := map[string]string{}
 	for _, value := range environ {
 		parts := strings.SplitN(value, "=", 2)
-		if len(parts) != 2 || len(parts[0]) <= len(additionalHeaderPrefix) || len(parts[1]) == 0 || !strings.HasPrefix(parts[0], additionalHeaderPrefix) {
+		if len(parts) != 2 {
+			continue
+		}
+
+		// Ensure we'll have a non-empty key after trimming
+		if !strings.HasPrefix(parts[0], additionalHeaderPrefix) || len(parts[0]) <= len(additionalHeaderPrefix) {
+			continue
+		}
+
+		// Ensure we have a non-empty value
+		if len(parts[1]) == 0 {
 			continue
 		}
 
