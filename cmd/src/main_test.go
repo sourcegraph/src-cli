@@ -11,24 +11,6 @@ import (
 )
 
 func TestReadConfig(t *testing.T) {
-	makeTempConfig := func(t *testing.T, c config) string {
-		data, err := json.Marshal(c)
-		if err != nil {
-			t.Fatal(err)
-		}
-		tmpDir, err := ioutil.TempDir("", "")
-		if err != nil {
-			t.Fatal(err)
-		}
-		t.Cleanup(func() { os.RemoveAll(tmpDir) })
-		filePath := filepath.Join(tmpDir, "config.json")
-		err = ioutil.WriteFile(filePath, data, 0600)
-		if err != nil {
-			t.Fatal(err)
-		}
-		return filePath
-	}
-
 	tests := []struct {
 		name         string
 		fileContents *config
@@ -139,21 +121,15 @@ func TestReadConfig(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			oldConfigPath := *configPath
-			oldToken := os.Getenv("SRC_ACCESS_TOKEN")
-			oldEndpoint := os.Getenv("SRC_ENDPOINT")
-			t.Cleanup(func() {
-				*configPath = oldConfigPath
-				os.Setenv("SRC_ACCESS_TOKEN", oldToken)
-				os.Setenv("SRC_ENDPOINT", oldEndpoint)
-			})
-
-			if err := os.Setenv("SRC_ACCESS_TOKEN", test.envToken); err != nil {
-				t.Fatal(err)
+			setEnv := func(name, val string) {
+				old := os.Getenv(name)
+				if err := os.Setenv(name, val); err != nil {
+					t.Fatal(err)
+				}
+				t.Cleanup(func() { os.Setenv(name, old) })
 			}
-			if err := os.Setenv("SRC_ENDPOINT", test.envEndpoint); err != nil {
-				t.Fatal(err)
-			}
+			setEnv("SRC_ACCESS_TOKEN", test.envToken)
+			setEnv("SRC_ENDPOINT", test.envEndpoint)
 
 			if test.flagEndpoint != "" {
 				val := test.flagEndpoint
@@ -162,7 +138,24 @@ func TestReadConfig(t *testing.T) {
 			}
 
 			if test.fileContents != nil {
-				*configPath = makeTempConfig(t, *test.fileContents)
+				oldConfigPath := *configPath
+				t.Cleanup(func() { *configPath = oldConfigPath })
+
+				data, err := json.Marshal(*test.fileContents)
+				if err != nil {
+					t.Fatal(err)
+				}
+				tmpDir, err := ioutil.TempDir("", "")
+				if err != nil {
+					t.Fatal(err)
+				}
+				t.Cleanup(func() { os.RemoveAll(tmpDir) })
+				filePath := filepath.Join(tmpDir, "config.json")
+				err = ioutil.WriteFile(filePath, data, 0600)
+				if err != nil {
+					t.Fatal(err)
+				}
+				*configPath = filePath
 			}
 
 			config, err := readConfig()
