@@ -10,16 +10,34 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"text/template"
 	"time"
 
 	jsoniter "github.com/json-iterator/go"
 	"github.com/mattn/go-isatty"
-	"github.com/sourcegraph/starlight"
-	"github.com/sourcegraph/starlight/convert"
-	"go.starlark.net/starlark"
 )
 
-type validator struct{
+type validationSpec struct {
+	FirstAdmin struct {
+		Email    string
+		Username string
+		Password string
+	}
+	WaitRepoCloned struct {
+		Repo                     string
+		MaxTries                 int
+		SleepBetweenTriesSeconds int
+	}
+	SearchQuery     string
+	ExternalService struct {
+		Kind           string
+		DisplayName    string
+		Config         *json.RawMessage
+		DeleteWhenDone bool
+	}
+}
+
+type validator struct {
 	client *vdClient
 }
 
@@ -43,7 +61,7 @@ or
 
 	var (
 		contextFlag = flagSet.String("context", "", `Comma-separated list of key=value pairs to add to the script execution context`)
-		docFlag = flagSet.Bool("doc", false, `Show function documentation`)
+		docFlag     = flagSet.Bool("doc", false, `Show documentation`)
 		secretsFlag = flagSet.String("secrets", "", "Path to a file containing key=value lines. The key value pairs will be added to the script context")
 	)
 
@@ -93,7 +111,7 @@ or
 }
 
 func (vd *validator) printDocumentation() {
-	fmt.Println("TODO(uwedeportivo): write function documentation")
+	fmt.Println("TODO(uwedeportivo): write documentation")
 }
 
 func (vd *validator) parseKVPairs(val string, pairSep string) map[string]string {
@@ -120,33 +138,63 @@ func (vd *validator) readSecrets(path string) (map[string]string, error) {
 }
 
 func (vd *validator) validate(script []byte, scriptContext map[string]string) error {
-	globals := map[string]interface{}{
-		"src_list_external_services": vd.listExternalServices,
-		"src_add_external_service": vd.addExternalService,
-		"src_delete_external_service": vd.deleteExternalService,
-		"src_search_match_count": vd.searchMatchCount,
-		"src_list_cloned_repos": vd.listClonedRepos,
-		"src_wait_repo_cloned": vd.waitRepoCloned,
-		"src_sleep_seconds": vd.sleepSeconds,
-		"src_log": vd.log,
-		"src_run_graphql": vd.runGraphQL,
-		"src_context": scriptContext,
-		"src_create_first_admin": vd.createFirstAdmin,
-		"src_debug": vd.debug,
-	}
-
-	vals, err := starlight.Eval(script, globals, nil)
+	tpl, err := template.New("validate").Parse(string(script))
 	if err != nil {
 		return err
 	}
-	if passed, ok := vals["passed"].(bool); !ok || !passed {
-		return errors.New("failed")
+	var ts bytes.Buffer
+	err = tpl.Execute(&ts, scriptContext)
+	if err != nil {
+		return err
 	}
-	return nil
-}
 
-func (vd *validator) sleepSeconds(num time.Duration) {
-	time.Sleep(time.Second * num)
+	var vspec validationSpec
+	if err := json.Unmarshal(ts.Bytes(), &vspec); err != nil {
+		return err
+	}
+
+	if vspec.FirstAdmin.Username != "" {
+		err = vd.createFirstAdmin(&vspec)
+		if err != nil {
+			return err
+		}
+	}
+
+	if vspec.ExternalService.DisplayName != "" {
+		extSvcID, err := vd.addExternalService(&vspec)
+		if err != nil {
+			return err
+		}
+
+		defer func() {
+			if extSvcID != "" && vspec.ExternalService.DeleteWhenDone {
+				_ = vd.deleteExternalService(extSvcID)
+			}
+		}()
+	}
+
+	if vspec.WaitRepoCloned.Repo != "" {
+		cloned, err := vd.waitRepoCloned(vspec.WaitRepoCloned.Repo, vspec.WaitRepoCloned.SleepBetweenTriesSeconds,
+			vspec.WaitRepoCloned.MaxTries)
+		if err != nil {
+			return err
+		}
+		if !cloned {
+			return fmt.Errorf("repo %s didn't clone", vspec.WaitRepoCloned.Repo)
+		}
+	}
+
+	if vspec.SearchQuery != "" {
+		matchCount, err := vd.searchMatchCount(vspec.SearchQuery)
+		if err != nil {
+			return err
+		}
+		if matchCount == 0 {
+			return fmt.Errorf("search query %s returned no results", vspec.SearchQuery)
+		}
+	}
+
+	return nil
 }
 
 const vdAddExternalServiceQuery = `
@@ -161,9 +209,8 @@ mutation AddExternalService($kind: ExternalServiceKind!, $displayName: String!, 
   }
 }`
 
-func (vd *validator) addExternalService(kind, displayName, config interface{}) (string, error) {
-	dict := vd.convertDict(config)
-	configJson, err := json.MarshalIndent(dict, "", "  ")
+func (vd *validator) addExternalService(vspec *validationSpec) (string, error) {
+	configJson, err := vspec.ExternalService.Config.MarshalJSON()
 	if err != nil {
 		return "", err
 	}
@@ -174,9 +221,9 @@ func (vd *validator) addExternalService(kind, displayName, config interface{}) (
 	}
 
 	err = vd.graphQL(vdAddExternalServiceQuery, map[string]interface{}{
-		"kind": kind,
-		"displayName": displayName,
-		"config": string(configJson),
+		"kind":        vspec.ExternalService.Kind,
+		"displayName": vspec.ExternalService.DisplayName,
+		"config":      string(configJson),
 	}, &resp)
 
 	return resp.AddExternalService.ID, err
@@ -190,7 +237,7 @@ mutation DeleteExternalService($id: ID!) {
 }`
 
 func (vd *validator) deleteExternalService(id string) error {
-	var resp struct {}
+	var resp struct{}
 
 	return vd.graphQL(vdDeleteExternalServiceQuery, map[string]interface{}{
 		"id": id,
@@ -236,7 +283,7 @@ query ListRepos($cloneInProgress: Boolean!, $cloned: Boolean!, $notCloned: Boole
   }
 }`
 
-func (vd *validator) listClonedReposImpl(fs []string) ([]string, error) {
+func (vd *validator) listClonedRepos(fs []string) ([]string, error) {
 	var resp struct {
 		Repositories struct {
 			Nodes []struct {
@@ -247,9 +294,9 @@ func (vd *validator) listClonedReposImpl(fs []string) ([]string, error) {
 
 	err := vd.graphQL(vdListRepos, map[string]interface{}{
 		"cloneInProgress": true,
-		"cloned": true,
-		"notCloned": true,
-		"names": fs,
+		"cloned":          true,
+		"notCloned":       true,
+		"names":           fs,
 	}, &resp)
 
 	names := make([]string, 0, len(resp.Repositories.Nodes))
@@ -260,16 +307,11 @@ func (vd *validator) listClonedReposImpl(fs []string) ([]string, error) {
 	return names, err
 }
 
-func (vd *validator) listClonedRepos(filterNames interface{}) ([]string, error) {
-	fs := vd.convertStringList(filterNames)
-	return vd.listClonedReposImpl(fs)
-}
-
 func (vd *validator) waitRepoCloned(repoName string, sleepSeconds int, maxTries int) (bool, error) {
 	nameFilter := []string{repoName}
 
 	for i := 0; i < maxTries; i++ {
-		names, err := vd.listClonedReposImpl(nameFilter)
+		names, err := vd.listClonedRepos(nameFilter)
 		if err != nil {
 			return false, err
 		}
@@ -279,140 +321,6 @@ func (vd *validator) waitRepoCloned(repoName string, sleepSeconds int, maxTries 
 		time.Sleep(time.Second * time.Duration(sleepSeconds))
 	}
 	return false, nil
-}
-
-func (vd *validator) log(line string) {
-	fmt.Println(line)
-}
-
-func (vd *validator) runGraphQL(query string, vars interface{}) (starlark.Value, error) {
-	resp := map[string]interface{}{}
-	cvars := vd.convertDict(vars)
-
-	err := vd.graphQL(query, cvars, &resp)
-	if err != nil {
-		return nil, err
-	}
-	return vd.makeDict(resp)
-}
-
-const vdListExternalServices = `
-query ExternalServices {
-  externalServices {
-    nodes {
-      id
-      displayName
-    }
-  }
-}`
-
-func (vd *validator) listExternalServices() ([]map[string]string, error) {
-	var resp struct {
-		ExternalServices struct {
-			Nodes []struct {
-				DisplayName string `json:"displayName"`
-				ID string `json:"id"`
-			} `json:"nodes"`
-		} `json:"externalServices"`
-	}
-
-	err := vd.graphQL(vdListExternalServices, map[string]interface{}{}, &resp)
-	if err != nil {
-		return nil, err
-	}
-
-	xs := make([]map[string]string, 0, len(resp.ExternalServices.Nodes))
-	for _, es := range resp.ExternalServices.Nodes {
-		xs = append(xs, map[string]string{"id": es.ID, "displayName": es.DisplayName})
-	}
-
-	return xs, nil
-}
-
-func (vd *validator) makeDict(m map[string]interface{}) (starlark.Value, error) {
-	dict := starlark.Dict{}
-
-	for k, v := range m {
-		var sv starlark.Value
-		var err error
-
-		sk := starlark.String(k)
-		if cv, ok := v.(map[string]interface{}); ok {
-			sv, err = vd.makeDict(cv)
-			if err != nil {
-				return nil, err
-			}
-		} else {
-			sv, err = convert.ToValue(v)
-			if err != nil {
-				return nil, err
-			}
-		}
-		err = dict.SetKey(sk, sv)
-		if err != nil {
-			return nil, err
-		}
-	}
-	return &dict, nil
-}
-
-func (vd *validator) convertDict(val interface{}) map[string]interface{} {
-	dict := val.(map[interface{}]interface{})
-	res := make(map[string]interface{})
-
-	for k, v := range dict {
-		gk := vd.fromStarLark(k).(string)
-		gv := vd.fromStarLark(v)
-
-		res[gk] = gv
-	}
-	return res
-}
-
-func (vd *validator) convertStringList(val interface{}) []string {
-	list := val.([]interface{})
-	res := make([]string, 0, len(list))
-
-	for _, v := range list {
-		gv := v.(string)
-
-		res = append(res, gv)
-	}
-	return res
-}
-
-func (vd *validator) fromStarLark(v interface{}) interface{} {
-	switch v := v.(type) {
-	case starlark.Bool:
-		return bool(v)
-	case starlark.Int:
-		// starlark ints can be signed or unsigned
-		if i, ok := v.Int64(); ok {
-			return i
-		}
-		if i, ok := v.Uint64(); ok {
-			return i
-		}
-		// buh... maybe > maxint64?  Dunno
-		panic(fmt.Errorf("can't convert starlark.Int %q to int", v))
-	case starlark.Float:
-		return float64(v)
-	case starlark.String:
-		return string(v)
-	case *starlark.List:
-		return convert.FromList(v)
-	case starlark.Tuple:
-		return convert.FromTuple(v)
-	case *starlark.Dict:
-		return convert.FromDict(v)
-	case *starlark.Set:
-		return convert.FromSet(v)
-	default:
-		// dunno, hope it's a custom type that the receiver knows how to deal
-		// with. This can happen with custom-written go types that implement
-		// starlark.Value.
-		return v
-	}
 }
 
 // SiteAdminInit initializes the instance with given admin account.
@@ -662,10 +570,11 @@ func (c *vdClient) graphQL(token, query string, variables map[string]interface{}
 	return nil
 }
 
-func (vd *validator) createFirstAdmin(email, username, password string) error {
-	client, err := vd.signIn(cfg.Endpoint, email, password)
+func (vd *validator) createFirstAdmin(vspec *validationSpec) error {
+	client, err := vd.signIn(cfg.Endpoint, vspec.FirstAdmin.Email, vspec.FirstAdmin.Password)
 	if err != nil {
-		client, err = vd.siteAdminInit(cfg.Endpoint, email, username, password)
+		client, err = vd.siteAdminInit(cfg.Endpoint, vspec.FirstAdmin.Email, vspec.FirstAdmin.Username,
+			vspec.FirstAdmin.Password)
 		if err != nil {
 			return err
 		}
@@ -681,12 +590,8 @@ func (vd *validator) graphQL(query string, variables map[string]interface{}, tar
 	}
 
 	return (&apiRequest{
-		query: query,
-		vars:variables,
+		query:  query,
+		vars:   variables,
 		result: target,
 	}).do()
-}
-
-func (vd *validator) debug(val interface{}) {
-	fmt.Printf("%+v\n", val)
 }
