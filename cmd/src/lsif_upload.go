@@ -7,6 +7,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/efritz/pentimento"
 	"github.com/mattn/go-isatty"
@@ -162,6 +163,8 @@ Examples:
 			GitHubToken:          *flags.gitHubToken,
 			File:                 *flags.file,
 			MaxPayloadSizeBytes:  *flags.maxPayloadSizeMb * 1000 * 1000,
+			MaxRetries:           10,
+			RetryInterval:        time.Millisecond * 250,
 			UploadProgressEvents: make(chan codeintelutils.UploadProgressEvent),
 		}
 
