@@ -13,6 +13,7 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/ghodss/yaml"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/mattn/go-isatty"
 )
@@ -78,14 +79,25 @@ or
 			var script []byte
 			var err error
 			if len(flagSet.Args()) == 1 {
-				script, err = ioutil.ReadFile(flagSet.Arg(0))
+				filename := flagSet.Arg(0)
+				script, err = ioutil.ReadFile(filename)
 				if err != nil {
 					return err
+				}
+				if strings.HasSuffix(filename, ".yaml") || strings.HasSuffix(filename, ".yml") {
+					script, err = yaml.YAMLToJSONStrict(script)
+					if err != nil {
+						return err
+					}
 				}
 			}
 			if !isatty.IsTerminal(os.Stdin.Fd()) {
 				// stdin is a pipe not a terminal
 				script, err = ioutil.ReadAll(os.Stdin)
+				if err != nil {
+					return err
+				}
+				script, err = yaml.YAMLToJSONStrict(script)
 				if err != nil {
 					return err
 				}
@@ -111,7 +123,7 @@ or
 }
 
 func (vd *validator) printDocumentation() {
-	fmt.Println("TODO(uwedeportivo): write documentation")
+	fmt.Println("Please visit https://docs.sourcegraph.com/admin/validation for documentation of the validate command.")
 }
 
 func (vd *validator) parseKVPairs(val string, pairSep string) map[string]string {
