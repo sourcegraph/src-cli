@@ -19,7 +19,7 @@ All notable changes to `src-cli` are documented in this file.
 
 ### Removed
 
-- Removed `clone-in-progress` flag.
+- Removed `clone-in-progress` flag. [#246](https://github.com/sourcegraph/src-cli/pull/246)
 
 ## 3.16
 
