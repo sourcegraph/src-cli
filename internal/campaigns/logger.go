@@ -352,7 +352,7 @@ func (w *progressWriter) Write(data []byte) (int, error) {
 		return w.w.Write(data)
 	}
 
-	if !bytes.HasSuffix(data, []byte("\n")) {
+	if !bytes.HasSuffix(data, []byte("\n")) && !bytes.HasSuffix(data, []byte("\n\x1b[0m")) {
 		w.shouldClear = false
 		return w.w.Write(data)
 	}
