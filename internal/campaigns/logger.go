@@ -31,8 +31,6 @@ type ActionLogger struct {
 	verbose  bool
 	keepLogs bool
 
-	highlight func(a ...interface{}) string
-
 	progress *progress
 	out      io.WriteCloser
 
@@ -50,10 +48,9 @@ func NewActionLogger(verbose, keepLogs bool) *ActionLogger {
 	progress := new(progress)
 
 	return &ActionLogger{
-		verbose:   verbose,
-		keepLogs:  keepLogs,
-		highlight: color.New(color.Bold, color.FgGreen).SprintFunc(),
-		progress:  progress,
+		verbose:  verbose,
+		keepLogs: keepLogs,
+		progress: progress,
 		out: &progressWriter{
 			p: progress,
 			w: os.Stderr,
