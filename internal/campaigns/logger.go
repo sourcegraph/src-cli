@@ -374,10 +374,10 @@ func (w *progressWriter) Write(data []byte) (int, error) {
 		bar += ">"
 	}
 	bar += strings.Repeat(" ", maxLength-len(bar))
-	progessText := fmt.Sprintf("[%s] Steps: %d/%d (%s, %s)", bar, w.p.StepsComplete(), w.p.TotalSteps(), boldRed.Sprintf("%d failed", w.p.TotalStepsFailed()), hiGreen.Sprintf("%d patches", w.p.PatchCount()))
-	fmt.Fprint(w.w, progessText)
+	progressText := fmt.Sprintf("[%s] Steps: %d/%d (%s, %s)", bar, w.p.StepsComplete(), w.p.TotalSteps(), boldRed.Sprintf("%d failed", w.p.TotalStepsFailed()), hiGreen.Sprintf("%d patches", w.p.PatchCount()))
+	fmt.Fprint(w.w, progressText)
 	w.shouldClear = true
-	w.progressLogLength = len(progessText)
+	w.progressLogLength = len(progressText)
 	return n, err
 }
 
