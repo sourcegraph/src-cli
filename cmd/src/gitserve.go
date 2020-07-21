@@ -99,12 +99,9 @@ func (s *Serve) Start() error {
 	s.Addr = ln.Addr().String()
 
 	s.Info.Printf("listening on http://%s", s.Addr)
-	h, err := s.handler()
-	if err != nil {
-		return errors.Wrap(err, "configuring server")
-	}
+	s.Info.Printf("serving git repositories from %s", s.Root)
 
-	if err := (&http.Server{Handler: h}).Serve(ln); err != nil {
+	if err := (&http.Server{Handler: s.handler()}).Serve(ln); err != nil {
 		return errors.Wrap(err, "serving")
 	}
 
@@ -130,11 +127,7 @@ type Repo struct {
 	URI  string
 }
 
-func (s *Serve) handler() (http.Handler, error) {
-	s.Info.Printf("serving git repositories from %s", s.Root)
-	s.configureRepos()
-
-	// Start the HTTP server.
+func (s *Serve) handler() http.Handler {
 	mux := &http.ServeMux{}
 
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -199,7 +192,7 @@ func (s *Serve) handler() (http.Handler, error) {
 			s.Info.Printf("%s %s", r.Method, r.URL.Path)
 		}
 		mux.ServeHTTP(w, r)
-	}), nil
+	})
 }
 
 type httpDir struct {
