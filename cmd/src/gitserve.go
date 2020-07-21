@@ -23,7 +23,7 @@ import (
 func init() {
 	flagSet := flag.NewFlagSet("git-serve", flag.ExitOnError)
 	usageFunc := func() {
-		fmt.Fprintf(flag.CommandLine.Output(), `'src git-serve' is a tool which serves your local git repositories over HTTP for Sourcegraph to pull.
+		fmt.Fprintf(flag.CommandLine.Output(), `'src git-serve' serves your local git repositories over HTTP for Sourcegraph to pull.
 
 USAGE
   src [-v] git-serve [-addr :3434] [path/to/dir]
