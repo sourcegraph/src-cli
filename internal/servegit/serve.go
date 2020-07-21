@@ -1,4 +1,4 @@
-package gitserve
+package servegit
 
 import (
 	"bytes"
@@ -50,9 +50,9 @@ func (s *Serve) Start() error {
 }
 
 var indexHTML = template.Must(template.New("").Parse(`<html>
-<head><title>src git-serve</title></head>
+<head><title>src serve-git</title></head>
 <body>
-<h2>src git-serve</h2>
+<h2>src serve-git</h2>
 <pre>
 {{.Explain}}
 <ul>{{range .Links}}
@@ -289,12 +289,12 @@ func explainAddr(addr string) string {
 
 	return fmt.Sprintf(`Serving the repositories at http://%s.
 
-FIRST RUN NOTE: If 'src git-serve' has not yet been setup on Sourcegraph, then you
-need to configure Sourcegraph to sync with 'src git-serve'. Paste the following
+FIRST RUN NOTE: If 'src serve-git' has not yet been setup on Sourcegraph, then you
+need to configure Sourcegraph to sync with 'src serve-git'. Paste the following
 configuration as an Other External Service in Sourcegraph:
 
   {
-    // url is the http url to 'src git-serve' (listening on %s)
+    // url is the http url to 'src serve-git' (listening on %s)
     // url should be reachable by Sourcegraph.
     // "http://host.docker.internal:%s" works from Sourcegraph when using Docker for Desktop.
     "url": "http://host.docker.internal:%s",

@@ -8,18 +8,18 @@ import (
 	"os"
 
 	"github.com/pkg/errors"
-	"github.com/sourcegraph/src-cli/internal/gitserve"
+	"github.com/sourcegraph/src-cli/internal/servegit"
 )
 
 func init() {
-	flagSet := flag.NewFlagSet("git-serve", flag.ExitOnError)
+	flagSet := flag.NewFlagSet("serve-git", flag.ExitOnError)
 	usageFunc := func() {
-		fmt.Fprintf(flag.CommandLine.Output(), `'src git-serve' serves your local git repositories over HTTP for Sourcegraph to pull.
+		fmt.Fprintf(flag.CommandLine.Output(), `'src serve-git' serves your local git repositories over HTTP for Sourcegraph to pull.
 
 USAGE
-  src [-v] git-serve [-addr :3434] [path/to/dir]
+  src [-v] serve-git [-addr :3434] [path/to/dir]
 
-By default 'src git-serve' will recursively serve your current directory on the address ':3434'.
+By default 'src serve-git' will recursively serve your current directory on the address ':3434'.
 `)
 	}
 	var (
@@ -49,13 +49,13 @@ By default 'src git-serve' will recursively serve your current directory on the 
 
 		dbug := log.New(ioutil.Discard, "", log.LstdFlags)
 		if *verbose {
-			dbug = log.New(os.Stderr, "DBUG git-serve: ", log.LstdFlags)
+			dbug = log.New(os.Stderr, "DBUG serve-git: ", log.LstdFlags)
 		}
 
-		s := &gitserve.Serve{
+		s := &servegit.Serve{
 			Addr:  *addrFlag,
 			Root:  repoDir,
-			Info:  log.New(os.Stderr, "git-serve: ", log.LstdFlags),
+			Info:  log.New(os.Stderr, "serve-git: ", log.LstdFlags),
 			Debug: dbug,
 		}
 		return s.Start()

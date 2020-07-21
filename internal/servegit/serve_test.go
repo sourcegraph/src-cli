@@ -1,4 +1,4 @@
-package gitserve
+package servegit
 
 import (
 	"encoding/json"
