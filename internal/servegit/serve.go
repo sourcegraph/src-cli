@@ -126,7 +126,23 @@ func (s *Serve) handler() http.Handler {
 		_ = enc.Encode(&resp)
 	})
 
-	mux.Handle("/repos/", http.StripPrefix("/repos/", http.FileServer(httpDir{http.Dir(s.Root)})))
+	fs := http.FileServer(http.Dir(s.Root))
+	svc := &gitServiceHandler{
+		Dir: func(name string) string {
+			return filepath.Join(s.Root, filepath.FromSlash(name))
+		},
+		Debug: s.Debug,
+	}
+	mux.Handle("/repos/", http.StripPrefix("/repos/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Use git service if git is trying to clone. Otherwise show http.FileServer for convenience
+		for _, suffix := range []string{"/info/refs", "/git-upload-pack"} {
+			if strings.HasSuffix(r.URL.Path, suffix) {
+				svc.ServeHTTP(w, r)
+				return
+			}
+		}
+		fs.ServeHTTP(w, r)
+	})))
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !strings.Contains(r.URL.Path, "/.git/objects/") { // exclude noisy path
@@ -134,27 +150,6 @@ func (s *Serve) handler() http.Handler {
 		}
 		mux.ServeHTTP(w, r)
 	})
-}
-
-type httpDir struct {
-	http.Dir
-}
-
-// Wraps the http.Dir to inject subdir "/.git" to the path.
-func (d httpDir) Open(name string) (http.File, error) {
-	// Backwards compatibility for old config, skip if name already contains "/.git/".
-	if !strings.Contains(name, "/.git/") {
-		// Loops over subpaths that are requested by Git client to find the insert point.
-		// The order of slice matters, must try to match "/objects/" before "/info/"
-		// because there is a path "/objects/info/" exists.
-		for _, sp := range []string{"/objects/", "/info/", "/HEAD"} {
-			if i := strings.LastIndex(name, sp); i > 0 {
-				name = name[:i] + "/.git" + name[i:]
-				break
-			}
-		}
-	}
-	return d.Dir.Open(name)
 }
 
 // configureRepos finds all .git directories and configures them to be served.
