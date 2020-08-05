@@ -2,14 +2,13 @@ package campaigns
 
 import (
 	"archive/zip"
+	"bytes"
 	"context"
-	"crypto/sha256"
-	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
-	"net/url"
 	"os"
 	"os/exec"
 	"path"
@@ -17,19 +16,20 @@ import (
 	"strings"
 	"time"
 
+	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
-	"golang.org/x/net/context/ctxhttp"
+	"github.com/sourcegraph/src-cli/internal/api"
+	"github.com/sourcegraph/src-cli/internal/campaigns/graphql"
 )
 
-func runAction(ctx context.Context, endpoint, accessToken string, additionalHeaders map[string]string, prefix, repoName, rev string, steps []*ActionStep, logger *ActionLogger) ([]byte, error) {
-	logger.RepoStarted(repoName, rev, steps)
-
-	zipFile, err := fetchRepositoryArchive(ctx, endpoint, accessToken, additionalHeaders, repoName, rev)
+func runSteps(ctx context.Context, client api.Client, repo *graphql.Repository, steps []Step, logger *TaskLogger) ([]byte, error) {
+	zipFile, err := fetchRepositoryArchive(ctx, client, repo)
 	if err != nil {
 		return nil, errors.Wrap(err, "Fetching ZIP archive failed")
 	}
 	defer os.Remove(zipFile.Name())
 
+	prefix := "changeset-" + repo.Slug()
 	volumeDir, err := unzipToTempDir(ctx, zipFile.Name(), prefix)
 	if err != nil {
 		return nil, errors.Wrap(err, "Unzipping the ZIP archive failed")
@@ -58,93 +58,73 @@ func runAction(ctx context.Context, endpoint, accessToken string, additionalHead
 	}
 
 	for i, step := range steps {
-		switch step.Type {
-		case "command":
-			logger.CommandStepStarted(repoName, i, step.Args)
+		logger.Logf("[Step %d] docker run %s", i+1, step.image)
 
-			cmd := exec.CommandContext(ctx, step.Args[0], step.Args[1:]...)
-			cmd.Dir = volumeDir
-
-			if stdout, stderr, ok := logger.RepoStdoutStderr(repoName); ok {
-				cmd.Stdout = stdout
-				cmd.Stderr = stderr
-			}
-
-			if err := cmd.Run(); err != nil {
-				logger.CommandStepErrored(repoName, i, err)
-				return nil, errors.Wrap(err, "run command")
-			}
-			logger.CommandStepDone(repoName, i)
-
-		case "docker":
-			logger.DockerStepStarted(repoName, i, step.Image)
-
-			cidFile, err := ioutil.TempFile(tempDirPrefix, prefix+"-container-id")
-			if err != nil {
-				return nil, errors.Wrap(err, "Creating a CID file failed")
-			}
-			_ = os.Remove(cidFile.Name()) // docker exits if this file exists upon `docker run` starting
-			defer func() {
-				cid, err := ioutil.ReadFile(cidFile.Name())
-				_ = os.Remove(cidFile.Name())
-				if err == nil {
-					ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
-					defer cancel()
-					_ = exec.CommandContext(ctx, "docker", "rm", "-f", "--", string(cid)).Run()
-				}
-			}()
-
-			const workDir = "/work"
-			cmd := exec.CommandContext(ctx, "docker", "run",
-				"--rm",
-				"--cidfile", cidFile.Name(),
-				"--workdir", workDir,
-				"--mount", fmt.Sprintf("type=bind,source=%s,target=%s", volumeDir, workDir),
-			)
-			for _, cacheDir := range step.CacheDirs {
-				// persistentCacheDir returns a host directory that persists across runs of this
-				// action for this repository. It is useful for (e.g.) yarn and npm caches.
-				persistentCacheDir := func(containerDir string) (string, error) {
-					baseCacheDir, err := UserCacheDir()
-					if err != nil {
-						return "", err
-					}
-					b := sha256.Sum256([]byte(fmt.Sprintf("%s:%s:%s", step.Image, repoName, rev)))
-					return filepath.Join(baseCacheDir, "action-exec-cache-dir",
-						base64.RawURLEncoding.EncodeToString(b[:16]),
-						strings.TrimPrefix(cacheDir, string(os.PathSeparator))), nil
-				}
-
-				hostDir, err := persistentCacheDir(cacheDir)
-				if err != nil {
-					return nil, err
-				}
-				if err := os.MkdirAll(hostDir, 0700); err != nil {
-					return nil, err
-				}
-				cmd.Args = append(cmd.Args, "--mount", fmt.Sprintf("type=bind,source=%s,target=%s", hostDir, cacheDir))
-			}
-			cmd.Args = append(cmd.Args, "--", step.Image)
-			cmd.Args = append(cmd.Args, step.Args...)
-			cmd.Dir = volumeDir
-
-			if stdout, stderr, ok := logger.RepoStdoutStderr(repoName); ok {
-				cmd.Stdout = stdout
-				cmd.Stderr = stderr
-			}
-
-			t0 := time.Now()
-			err = cmd.Run()
-			elapsed := time.Since(t0).Round(time.Millisecond)
-			if err != nil {
-				logger.DockerStepErrored(repoName, i, err, elapsed)
-				return nil, errors.Wrapf(err, "Running Docker container for image %q failed", step.Image)
-			}
-			logger.DockerStepDone(repoName, i, elapsed)
-
-		default:
-			return nil, fmt.Errorf("unrecognized run type %q", step.Type)
+		cidFile, err := ioutil.TempFile(tempDirPrefix, prefix+"-container-id")
+		if err != nil {
+			return nil, errors.Wrap(err, "Creating a CID file failed")
 		}
+		_ = os.Remove(cidFile.Name()) // docker exits if this file exists upon `docker run` starting
+		defer func() {
+			cid, err := ioutil.ReadFile(cidFile.Name())
+			_ = os.Remove(cidFile.Name())
+			if err == nil {
+				ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+				defer cancel()
+				_ = exec.CommandContext(ctx, "docker", "rm", "-f", "--", string(cid)).Run()
+			}
+		}()
+
+		// For now, we only support shell scripts provided via the Run field.
+		shell, containerTemp, err := probeImageForShell(ctx, step.image)
+		if err != nil {
+			return nil, errors.Wrapf(err, "probing image %q for shell", step.image)
+		}
+
+		// Set up a temporary file on the host filesystem to contain the
+		// script.
+		fp, err := ioutil.TempFile(tempDirPrefix, "")
+		if err != nil {
+			return nil, errors.Wrap(err, "creating temporary file")
+		}
+		hostTemp := fp.Name()
+		defer os.Remove(hostTemp)
+		if _, err := fp.WriteString(step.Run); err != nil {
+			return nil, errors.Wrapf(err, "writing to temporary file %q", hostTemp)
+		}
+		fp.Close()
+
+		const workDir = "/work"
+		cmd := exec.CommandContext(ctx, "docker", "run",
+			"--rm",
+			"--cidfile", cidFile.Name(),
+			"--workdir", workDir,
+			"--mount", fmt.Sprintf("type=bind,source=%s,target=%s", volumeDir, workDir),
+			"--mount", fmt.Sprintf("type=bind,source=%s,target=%s,ro", hostTemp, containerTemp),
+		)
+		for k, v := range step.Env {
+			cmd.Args = append(cmd.Args, "-e", k+"="+v)
+		}
+		cmd.Args = append(cmd.Args, "--", step.image, shell, containerTemp)
+		cmd.Dir = volumeDir
+		cmd.Stdout = logger.PrefixWriter("stdout")
+		cmd.Stderr = logger.PrefixWriter("stderr")
+
+		a, err := json.Marshal(cmd.Args)
+		if err != nil {
+			panic(err)
+		}
+		logger.Log(string(a))
+
+		t0 := time.Now()
+		err = cmd.Run()
+		elapsed := time.Since(t0).Round(time.Millisecond)
+		if err != nil {
+			logger.Logf("[Step %d] took %s; error running Docker container: %+v", i+1, elapsed, err)
+			return nil, errors.Wrapf(err, "Running Docker container for image %q failed", step.image)
+		}
+		logger.Logf("[Step %d] complete in %s", i+1, elapsed)
+
 	}
 
 	if _, err := runGitCmd("add", "--all"); err != nil {
@@ -179,34 +159,23 @@ func unzipToTempDir(ctx context.Context, zipFile, prefix string) (string, error)
 	return volumeDir, unzip(zipFile, volumeDir)
 }
 
-func fetchRepositoryArchive(ctx context.Context, endpoint, accessToken string, additionalHeaders map[string]string, repoName, rev string) (*os.File, error) {
-	zipURL, err := repositoryZipArchiveURL(endpoint, repoName, rev, "")
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("GET", zipURL.String(), nil)
+func fetchRepositoryArchive(ctx context.Context, client api.Client, repo *graphql.Repository) (*os.File, error) {
+	req, err := client.NewHTTPRequest(ctx, "GET", repositoryZipArchiveURL(repo), nil)
 	if err != nil {
 		return nil, err
 	}
 	req.Header.Set("Accept", "application/zip")
-	if accessToken != "" {
-		req.Header.Set("Authorization", "token "+accessToken)
-	}
-	for k, v := range additionalHeaders {
-		req.Header.Set(k, v)
-	}
-	resp, err := ctxhttp.Do(ctx, nil, req)
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("unable to fetch archive (HTTP %d from %s)", resp.StatusCode, zipURL)
+		return nil, fmt.Errorf("unable to fetch archive (HTTP %d from %s)", resp.StatusCode, req.URL.String())
 	}
 
-	f, err := ioutil.TempFile(tempDirPrefix, strings.Replace(repoName, "/", "-", -1)+".zip")
+	f, err := ioutil.TempFile(tempDirPrefix, strings.Replace(repo.Name, "/", "-", -1)+".zip")
 	if err != nil {
 		return nil, err
 	}
@@ -218,16 +187,8 @@ func fetchRepositoryArchive(ctx context.Context, endpoint, accessToken string, a
 	return f, nil
 }
 
-func repositoryZipArchiveURL(endpoint, repoName, rev, token string) (*url.URL, error) {
-	u, err := url.Parse(endpoint)
-	if err != nil {
-		return nil, err
-	}
-	if token != "" {
-		u.User = url.User(token)
-	}
-	u.Path = path.Join(u.Path, repoName+"@"+rev, "-", "raw")
-	return u, nil
+func repositoryZipArchiveURL(repo *graphql.Repository) string {
+	return path.Join("", repo.Name+"@"+repo.DefaultBranch.Name, "-", "raw")
 }
 
 func unzip(zipFile, dest string) error {
@@ -283,4 +244,50 @@ func unzip(zipFile, dest string) error {
 	}
 
 	return nil
+}
+
+func probeImageForShell(ctx context.Context, image string) (shell, tempfile string, err error) {
+	// We need to know two things to be able to run a shell script:
+	//
+	// 1. Which shell is available. We're going to look for /bin/bash and then
+	//    /bin/sh, in that order. (Sorry, tcsh users.)
+	// 2. Where to put the shell script in the container so that we don't
+	//    clobber any actual user data.
+	//
+	// We can do these together: although it's not part of POSIX proper, every
+	// *nix made in the last decade or more has mktemp(1) available. We know
+	// that mktemp will give us a file name that doesn't exist in the image if
+	// we run it as part of the command. We can also probe for the shell at the
+	// same time by trying to run /bin/bash -c mktemp,
+	// followed by /bin/sh -c mktemp.
+
+	// First, let's set up the base command we'll be using.
+	args := []string{"run", "--rm", image}
+
+	// We'll also set up our error.
+	err = new(multierror.Error)
+
+	// Now we can iterate through our shell options and try to run mktemp with
+	// them.
+	for _, shell = range []string{"/bin/bash", "/bin/sh"} {
+		stdout := new(bytes.Buffer)
+		stderr := new(bytes.Buffer)
+
+		cmd := exec.CommandContext(ctx, "docker", append(args, shell, "-c", "mktemp")...)
+		cmd.Stdout = stdout
+		cmd.Stderr = stderr
+
+		if runErr := cmd.Run(); runErr != nil {
+			err = multierror.Append(err, errors.Wrapf(runErr, "probing shell %q:\n%s", shell, stderr.String()))
+		} else {
+			// Even if there were previous errors, we can now ignore them.
+			err = nil
+			tempfile = strings.TrimSpace(stdout.String())
+			return
+		}
+	}
+
+	// If we got here, then all the attempts to probe the shell failed. Let's
+	// admit defeat and return. At least err is already in place.
+	return
 }
