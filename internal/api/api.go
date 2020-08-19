@@ -139,20 +139,19 @@ func (r *request) do(ctx context.Context, result interface{}) (bool, error) {
 	}
 
 	// Create the JSON object.
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(map[string]interface{}{
+	reqBody, err := json.Marshal(map[string]interface{}{
 		"query":     r.query,
 		"variables": r.vars,
-	}); err != nil {
+	})
+	if err != nil {
 		return false, err
 	}
 
 	// Create the HTTP request.
-	req, err := r.client.NewHTTPRequest(ctx, "POST", "graphql", nil)
+	req, err := r.client.NewHTTPRequest(ctx, "POST", "graphql", bytes.NewBuffer(reqBody))
 	if err != nil {
 		return false, err
 	}
-	req.Body = ioutil.NopCloser(&buf)
 
 	// Perform the request.
 	resp, err := http.DefaultClient.Do(req)
