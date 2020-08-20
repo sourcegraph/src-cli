@@ -128,7 +128,7 @@ Examples:
 		specs, err := svc.ExecuteCampaignSpec(ctx, executor, campaignSpec, func(statuses []*campaigns.TaskStatus) {
 			if progress == nil {
 				progress = out.Progress([]output.ProgressBar{{
-					Label: "Executing campaign spec",
+					Label: "Executing steps",
 					Max:   float64(len(statuses)),
 				}}, nil)
 			}
