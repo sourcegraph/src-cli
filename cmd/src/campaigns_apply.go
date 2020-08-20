@@ -190,7 +190,7 @@ Examples:
 			block.Writef("%s%s", cfg.Endpoint, campaign.URL)
 		} else {
 			out.Write("")
-			block := out.Block(output.Line(successEmoji, successColor, "To apply the campaign, go to:"))
+			block := out.Block(output.Line(successEmoji, successColor, "To preview or apply the campaign spec, go to:"))
 			block.Writef("%s%s", cfg.Endpoint, url)
 		}
 
