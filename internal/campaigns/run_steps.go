@@ -160,7 +160,7 @@ func unzipToTempDir(ctx context.Context, zipFile, prefix string) (string, error)
 }
 
 func fetchRepositoryArchive(ctx context.Context, client api.Client, repo *graphql.Repository) (*os.File, error) {
-	req, err := client.NewHTTPRequest(ctx, "GET", repositoryZipArchiveURL(repo), nil)
+	req, err := client.NewHTTPRequest(ctx, "GET", repositoryZipArchivePath(repo), nil)
 	if err != nil {
 		return nil, err
 	}
