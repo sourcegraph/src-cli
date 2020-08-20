@@ -42,7 +42,7 @@ Examples:
 	flagSet := flag.NewFlagSet("apply", flag.ExitOnError)
 	var (
 		allowUnsupportedFlag = flagSet.Bool("allow-unsupported", false, "Allow unsupported code hosts.")
-		applyFlag            = flagSet.Bool("apply", false, "Immediately apply the campaign.")
+		applyFlag            = flagSet.Bool("apply", false, "Immediately apply the campaign spec to create or update a campaign.")
 		cacheDirFlag         = flagSet.String("cache", cacheDir, "Directory for caching results.")
 		clearCacheFlag       = flagSet.Bool("clear-cache", false, "If true, clears the cache and executes all steps anew.")
 		fileFlag             = flagSet.String("f", "", "The campaign spec file to read.")
