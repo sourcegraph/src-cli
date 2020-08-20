@@ -27,7 +27,7 @@ type ServiceOpts struct {
 }
 
 var (
-	ErrMalformedOnQueryOrRepository = errors.New("malformed on field; missing either a repository name or a query")
+	ErrMalformedOnQueryOrRepository = errors.New("malformed 'on' field; missing either a repository name or a query")
 )
 
 func NewService(opts *ServiceOpts) *Service {
