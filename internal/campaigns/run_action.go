@@ -187,7 +187,7 @@ func fetchRepositoryArchive(ctx context.Context, client api.Client, repo *graphq
 	return f, nil
 }
 
-func repositoryZipArchiveURL(repo *graphql.Repository) string {
+func repositoryZipArchivePath(repo *graphql.Repository) string {
 	return path.Join("", repo.Name+"@"+repo.DefaultBranch.Name, "-", "raw")
 }
 
