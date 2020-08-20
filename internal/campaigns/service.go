@@ -319,7 +319,7 @@ func (svc *Service) ResolveRepositories(ctx context.Context, spec *CampaignSpec)
 				types = append(types, t)
 			}
 
-			return nil, errors.Errorf("unknown code host types: %s", strings.Join(types, ", "))
+			return nil, errors.Errorf("found repositories on unsupported code hosts: %s", strings.Join(types, ", "))
 		}
 	}
 
