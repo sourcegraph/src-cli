@@ -177,12 +177,12 @@ Examples:
 		completePending(pending, "Creating campaign spec on Sourcegraph")
 
 		if *applyFlag {
-			pending := createPending(out, "Applying campaign")
+			pending := createPending(out, "Applying campaign spec")
 			campaign, err := svc.ApplyCampaign(ctx, id)
 			if err != nil {
 				return err
 			}
-			completePending(pending, "Applying campaign")
+			completePending(pending, "Applying campaign spec")
 
 			out.Write("")
 			block := out.Block(output.Line(successEmoji, successColor, "Campaign applied!"))
