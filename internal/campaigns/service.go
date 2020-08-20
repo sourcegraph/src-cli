@@ -343,12 +343,8 @@ func (svc *Service) ResolveRepositoriesOn(ctx context.Context, on *OnQueryOrRepo
 }
 
 const repositoryNameQuery = `
-query Repository(
-    $name: String!,
-) {
-    repository(
-        name: $name
-    ) {
+query Repository($name: String!) {
+    repository(name: $name) {
         ...repositoryFields
     }
 }
