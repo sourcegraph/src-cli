@@ -295,7 +295,7 @@ func (svc *Service) ResolveRepositories(ctx context.Context, spec *CampaignSpec)
 	for _, on := range spec.On {
 		repos, err := svc.ResolveRepositoriesOn(ctx, &on)
 		if err != nil {
-			return nil, errors.Wrapf(err, "resolving %q", on.Label())
+			return nil, errors.Wrapf(err, "resolving %q", on.String())
 		}
 
 		unknownTypes := map[string]struct{}{}

@@ -70,7 +70,7 @@ Examples:
 		for _, on := range spec.On {
 			repos, err := svc.ResolveRepositoriesOn(ctx, &on)
 			if err != nil {
-				return err
+				return errors.Wrapf(err, "Resolving %q", on.String())
 			}
 
 			max := 0
@@ -92,7 +92,7 @@ Examples:
 			if *verbose {
 				if err := execTemplate(tmpl, campaignsRepositoryTemplateInput{
 					Max:                 max,
-					Query:               on.Label(),
+					Query:               on.String(),
 					RepoCount:           len(repos),
 					Repos:               repos,
 					SourcegraphEndpoint: cfg.Endpoint,

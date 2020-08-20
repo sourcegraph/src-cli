@@ -102,7 +102,7 @@ func (spec *CampaignSpec) Validate() error {
 	return errs
 }
 
-func (on *OnQueryOrRepository) Label() string {
+func (on *OnQueryOrRepository) String() string {
 	if on.RepositoriesMatchingQuery != "" {
 		return on.RepositoriesMatchingQuery
 	} else if on.Repository != "" {
