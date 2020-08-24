@@ -11,8 +11,8 @@ import (
 
 func init() {
 	usage := `
-'src campaigns apply' is used to apply a campaign on a Sourcegraph instance,
-creating it if necessary.
+'src campaigns apply' is used to apply a campaign spec on a Sourcegraph instance,
+creating or updating the described campaign if necessary.
 
 Usage:
 
@@ -20,7 +20,7 @@ Usage:
 
 Examples:
 
-    $ src campagins apply -f campaign.spec.yaml -namespace myorg -apply
+    $ src campagins apply -f campaign.spec.yaml -namespace myorg
 
 `
 

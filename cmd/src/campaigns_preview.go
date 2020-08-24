@@ -11,7 +11,7 @@ import (
 
 func init() {
 	usage := `
-'src campaigns preview' is used to create a campaign spec on a Sourcegraph
+'src campaigns preview' is executes the steps in a campaign spec and uploads it to a Sourcegraph
 instance, ready to be previewed and applied.
 
 Usage:
