@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"reflect"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -287,9 +288,12 @@ func (svc *Service) ResolveNamespace(ctx context.Context, namespace string) (str
 }
 
 func (svc *Service) ResolveRepositories(ctx context.Context, spec *CampaignSpec) ([]*Repository, error) {
-	final := []*Repository{}
-	seen := map[string]struct{}{}
+	seen := map[string]*Repository{}
 	unsupported := unsupportedRepoSet{}
+
+	// We'll sort the On slice so that we iterate over the repositories from
+	// most to least specific.
+	sort.Sort(spec.On)
 
 	// TODO: this could be trivially parallelised in the future.
 	for _, on := range spec.On {
@@ -299,7 +303,14 @@ func (svc *Service) ResolveRepositories(ctx context.Context, spec *CampaignSpec)
 		}
 
 		for _, repo := range repos {
-			if _, ok := seen[repo.ID]; !ok {
+			if _, ok := seen[repo.ID]; ok {
+				// If the repo has already been seen but doesn't have a
+				// changeset template from its more specific matches, we need
+				// to ensure it gets this changeset template, if one exists.
+				if seen[repo.ID].template == nil {
+					seen[repo.ID].template = on.ChangesetTemplate
+				}
+			} else {
 				switch st := strings.ToLower(repo.ExternalRepository.ServiceType); st {
 				case "github", "gitlab", "bitbucketserver":
 
@@ -307,16 +318,24 @@ func (svc *Service) ResolveRepositories(ctx context.Context, spec *CampaignSpec)
 					unsupported.appendRepo(repo)
 				}
 
-				seen[repo.ID] = struct{}{}
-				// TODO: implement better template resolution than "first rule
-				// wins".
-				final = append(final, &Repository{repo, on.ChangesetTemplate})
+				seen[repo.ID] = &Repository{repo, on.ChangesetTemplate}
 			}
 		}
 	}
 
 	if unsupported.hasUnsupported() && !svc.allowUnsupported {
 		return nil, unsupported
+	}
+
+	final := []*Repository{}
+	for _, repo := range seen {
+		// The final fallback, if a changeset template wasn't attached to any
+		// of the on objects, is to use the changeset template from the
+		// campaign spec.
+		if repo.template == nil {
+			repo.template = spec.ChangesetTemplate
+		}
+		final = append(final, repo)
 	}
 
 	return final, nil
