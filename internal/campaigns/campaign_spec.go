@@ -1,8 +1,6 @@
 package campaigns
 
 import (
-	"fmt"
-
 	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
 	"github.com/sourcegraph/src-cli/schema"
@@ -27,12 +25,12 @@ import (
 //    pointers, which is ugly and inefficient.
 
 type CampaignSpec struct {
-	Name              string                `json:"name,omitempty" yaml:"name"`
-	Description       string                `json:"description,omitempty" yaml:"description"`
-	On                []OnQueryOrRepository `json:"on,omitempty" yaml:"on"`
-	Steps             []Step                `json:"steps,omitempty" yaml:"steps"`
-	ImportChangesets  []ImportChangeset     `json:"importChangesets,omitempty" yaml:"importChangesets"`
-	ChangesetTemplate *ChangesetTemplate    `json:"changesetTemplate,omitempty" yaml:"changesetTemplate"`
+	Name              string                        `json:"name,omitempty" yaml:"name"`
+	Description       string                        `json:"description,omitempty" yaml:"description"`
+	On                OnQueryOrRepositoryCollection `json:"on,omitempty" yaml:"on"`
+	Steps             []Step                        `json:"steps,omitempty" yaml:"steps"`
+	ImportChangesets  []ImportChangeset             `json:"importChangesets,omitempty" yaml:"importChangesets"`
+	ChangesetTemplate *ChangesetTemplate            `json:"changesetTemplate,omitempty" yaml:"changesetTemplate"`
 }
 
 type ChangesetTemplate struct {
@@ -50,13 +48,6 @@ type ExpandedGitCommitDescription struct {
 type ImportChangeset struct {
 	Repository  string        `json:"repository" yaml:"repository"`
 	ExternalIDs []interface{} `json:"externalIDs" yaml:"externalIDs"`
-}
-
-type OnQueryOrRepository struct {
-	RepositoriesMatchingQuery string             `json:"repositoriesMatchingQuery,omitempty" yaml:"repositoriesMatchingQuery"`
-	Repository                string             `json:"repository,omitempty" yaml:"repository"`
-	Branch                    string             `json:"branch,omitempty" yaml:"branch"`
-	ChangesetTemplate         *ChangesetTemplate `json:"changesetTemplate,omitempty" yaml:"changesetTemplate"`
 }
 
 type Step struct {
@@ -102,14 +93,4 @@ func (spec *CampaignSpec) Validate() error {
 		errs = multierror.Append(errs, errors.New(verr.String()))
 	}
 	return errs
-}
-
-func (on *OnQueryOrRepository) String() string {
-	if on.RepositoriesMatchingQuery != "" {
-		return on.RepositoriesMatchingQuery
-	} else if on.Repository != "" {
-		return "r:" + on.Repository
-	}
-
-	return fmt.Sprintf("%v", *on)
 }
