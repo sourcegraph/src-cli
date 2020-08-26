@@ -28,7 +28,7 @@ func (e unsupportedRepoSet) Error() string {
 	return fmt.Sprintf(
 		"found repositories on unsupported code hosts: %s\nrepositories:\n\t%s",
 		strings.Join(types, ", "),
-		strings.Join(repos, ", "),
+		strings.Join(repos, "\n\t"),
 	)
 }
 
