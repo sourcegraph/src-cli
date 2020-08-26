@@ -168,7 +168,11 @@ func (svc *Service) ExecuteCampaignSpec(ctx context.Context, x Executor, spec *C
 
 	statuses := make([]*TaskStatus, 0, len(repos))
 	for _, repo := range repos {
-		ts := x.AddTask(repo, spec.Steps, spec.ChangesetTemplate)
+		ct := repo.template
+		if ct == nil {
+			ct = spec.ChangesetTemplate
+		}
+		ts := x.AddTask(repo.Repository, spec.Steps, ct)
 		statuses = append(statuses, ts)
 	}
 
@@ -282,8 +286,8 @@ func (svc *Service) ResolveNamespace(ctx context.Context, namespace string) (str
 	return "", errors.New("no user or organization found")
 }
 
-func (svc *Service) ResolveRepositories(ctx context.Context, spec *CampaignSpec) ([]*graphql.Repository, error) {
-	final := []*graphql.Repository{}
+func (svc *Service) ResolveRepositories(ctx context.Context, spec *CampaignSpec) ([]*Repository, error) {
+	final := []*Repository{}
 	seen := map[string]struct{}{}
 	unsupported := unsupportedRepoSet{}
 
@@ -304,7 +308,9 @@ func (svc *Service) ResolveRepositories(ctx context.Context, spec *CampaignSpec)
 				}
 
 				seen[repo.ID] = struct{}{}
-				final = append(final, repo)
+				// TODO: implement better template resolution than "first rule
+				// wins".
+				final = append(final, &Repository{repo, on.ChangesetTemplate})
 			}
 		}
 	}

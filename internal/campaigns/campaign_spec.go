@@ -53,9 +53,10 @@ type ImportChangeset struct {
 }
 
 type OnQueryOrRepository struct {
-	RepositoriesMatchingQuery string `json:"repositoriesMatchingQuery,omitempty" yaml:"repositoriesMatchingQuery"`
-	Repository                string `json:"repository,omitempty" yaml:"repository"`
-	Branch                    string `json:"branch,omitempty" yaml:"branch"`
+	RepositoriesMatchingQuery string             `json:"repositoriesMatchingQuery,omitempty" yaml:"repositoriesMatchingQuery"`
+	Repository                string             `json:"repository,omitempty" yaml:"repository"`
+	Branch                    string             `json:"branch,omitempty" yaml:"branch"`
+	ChangesetTemplate         *ChangesetTemplate `json:"changesetTemplate,omitempty" yaml:"changesetTemplate"`
 }
 
 type Step struct {
