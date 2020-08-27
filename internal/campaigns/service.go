@@ -293,7 +293,7 @@ func (svc *Service) ResolveRepositories(ctx context.Context, spec *CampaignSpec)
 
 	// We'll sort the On slice so that we iterate over the repositories from
 	// most to least specific.
-	sort.Sort(spec.On)
+	sort.Stable(spec.On)
 
 	// TODO: this could be trivially parallelised in the future.
 	for _, on := range spec.On {

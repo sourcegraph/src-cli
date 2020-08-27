@@ -18,50 +18,74 @@ func TestOn_SortInterface(t *testing.T) {
 		"long query":  {RepositoriesMatchingQuery: "f:README.md r:a/b"},
 	}
 
-	for name, want := range map[string]OnQueryOrRepositoryCollection{
+	for name, tc := range map[string]struct {
+		want    OnQueryOrRepositoryCollection
+		reverse bool
+	}{
 		"one query only, Vasily": {
-			ons["short query"],
+			want: OnQueryOrRepositoryCollection{
+				ons["short query"],
+			},
+			reverse: true,
 		},
 		"one repo, one query": {
-			ons["repo A"], ons["short query"],
+			want: OnQueryOrRepositoryCollection{
+				ons["repo A"], ons["short query"],
+			},
+			reverse: true,
 		},
 		"two queries, same length": {
-			ons["short query"], ons["short query"],
+			want: OnQueryOrRepositoryCollection{
+				ons["short query"], ons["short query"],
+			},
+			reverse: true,
 		},
 		"two queries, different lengths": {
-			ons["long query"], ons["short query"],
+			want: OnQueryOrRepositoryCollection{
+				ons["long query"], ons["short query"],
+			},
+			reverse: true,
 		},
 		"two repos, no branches": {
-			ons["repo A"], ons["repo B"],
+			want: OnQueryOrRepositoryCollection{
+				ons["repo A"], ons["repo B"],
+			},
+			reverse: true,
 		},
 		"two repos, one branch": {
-			ons["repo B main"], ons["repo B"],
+			want: OnQueryOrRepositoryCollection{
+				ons["repo B main"], ons["repo B"],
+			},
+			reverse: true,
 		},
 		"two repos, two branches": {
-			ons["repo B main"], ons["repo B xxx"],
+			want: OnQueryOrRepositoryCollection{
+				ons["repo B main"], ons["repo B xxx"],
+			},
+			// We don't want to do a reverse test here because it relies on
+			// stable sorting, since the collection items are considered equal.
+			reverse: false,
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
-			// For each test case, we'll try the original order we're given,
-			// plus a reverse order, to ensure the sort function is actually
-			// doing something.
-			have := make(OnQueryOrRepositoryCollection, len(want))
-			copy(have, want)
+			have := make(OnQueryOrRepositoryCollection, len(tc.want))
+			copy(have, tc.want)
 
-			sort.Sort(have)
-			if diff := cmp.Diff(have, want); diff != "" {
+			sort.Stable(have)
+			if diff := cmp.Diff(have, tc.want); diff != "" {
 				t.Error(diff)
 			}
 
-			// Reverse the slice.
-			for i, j := len(want)-1, 0; i >= 0; i-- {
-				have[j] = want[i]
-				j++
-			}
+			if tc.reverse {
+				for i, j := len(tc.want)-1, 0; i >= 0; i-- {
+					have[j] = tc.want[i]
+					j++
+				}
 
-			sort.Sort(have)
-			if diff := cmp.Diff(have, want); diff != "" {
-				t.Error(diff)
+				sort.Stable(have)
+				if diff := cmp.Diff(have, tc.want); diff != "" {
+					t.Error(diff)
+				}
 			}
 		})
 	}

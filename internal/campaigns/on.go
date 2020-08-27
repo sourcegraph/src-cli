@@ -33,10 +33,11 @@ func (coll OnQueryOrRepositoryCollection) Less(i, j int) bool {
 	if iIsRepo, jIsRepo := coll[i].isRepository(), coll[j].isRepository(); iIsRepo && jIsRepo {
 		// If the repositories are the same, then we'll prioritise the
 		// repository with a branch. If they both have branches, then we'll
-		// sort the branches lexicographically.
+		// punt and let the first one win, provided the collection is sorted
+		// with sort.Stable().
 		if coll[i].Repository == coll[j].Repository {
 			if iHasBranch, jHasBranch := coll[i].Branch != "", coll[j].Branch != ""; iHasBranch && jHasBranch {
-				return strings.Compare(coll[i].Branch, coll[j].Branch) < 0
+				return false
 			} else if iHasBranch {
 				return true
 			} else if jHasBranch {
