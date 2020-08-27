@@ -58,6 +58,9 @@ const CampaignSpecJSON = `{
               "branch": {
                 "type": "string",
                 "description": "The branch on the repository to propose changes to. If unset, the repository's default branch is used."
+              },
+              "changesetTemplate": {
+                "$ref": "#/definitions/changesetTemplate"
               }
             }
           }
