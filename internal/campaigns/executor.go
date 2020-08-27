@@ -145,7 +145,10 @@ func (x *executor) do(ctx context.Context, task *Task) (err error) {
 			err = errors.Wrapf(err, "checking cache for %q", task.Repository.Name)
 			return
 		} else if result != nil && len(result.Commits) == 1 {
-			// Build the changeset spec.
+			// Build a new changeset spec. We don't want to use `result` as is,
+			// because the changesetTemplate may have changed. In that case
+			// the diff would still be valid, so we take it from the cache,
+			// but we still build a new ChangesetSpec from the task.
 			diff := result.Commits[0].Diff
 			spec := createChangesetSpec(task, diff)
 
