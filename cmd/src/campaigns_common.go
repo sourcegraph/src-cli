@@ -176,8 +176,19 @@ func campaignsExecute(ctx context.Context, out *output.Output, svc *campaigns.Se
 	}
 	imageProgress.Complete()
 
+	pending = out.Pending(output.Line("", campaignsPendingColor, "Resolving repositories"))
+	repos, err := svc.ResolveRepositories(ctx, campaignSpec)
+	if err != nil {
+		if _, ok := err.(campaigns.UnsupportedRepoSet); ok {
+			pending.Complete(output.Line(campaignsSuccessEmoji, campaignsSuccessColor, "Resolved repositories. Found unsupported codehosts."))
+		} else {
+			return "", "", errors.Wrap(err, "resolving repositories")
+		}
+	} else {
+		pending.Complete(output.Line(campaignsSuccessEmoji, campaignsSuccessColor, "Resolved repositories."))
+	}
 	var progress output.Progress
-	specs, err := svc.ExecuteCampaignSpec(ctx, executor, campaignSpec, func(statuses []*campaigns.TaskStatus) {
+	specs, err := svc.ExecuteCampaignSpec(ctx, repos, executor, campaignSpec, func(statuses []*campaigns.TaskStatus) {
 		if progress == nil {
 			progress = out.Progress([]output.ProgressBar{{
 				Label: "Executing steps",
