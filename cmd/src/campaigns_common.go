@@ -59,7 +59,7 @@ func newCampaignsApplyFlags(flagSet *flag.FlagSet, cacheDir, tempDir string) *ca
 	)
 	flagSet.StringVar(
 		&caf.tempDir, "tmp", tempDir,
-		"Directory for storing temporary data, such as repository archives when executing campaign specs or log files. Default is /tmp. Can also be set with environment variable SRC_CAMPAIGNS_TMP_DIR. .",
+		"Directory for storing temporary data, such as repository archives when executing campaign specs or log files. Default is /tmp. Can also be set with environment variable SRC_CAMPAIGNS_TMP_DIR.",
 	)
 	flagSet.StringVar(
 		&caf.file, "f", "",
