@@ -179,14 +179,21 @@ func campaignsExecute(ctx context.Context, out *output.Output, svc *campaigns.Se
 	pending = campaignsCreatePending(out, "Resolving repositories")
 	repos, err := svc.ResolveRepositories(ctx, campaignSpec)
 	if err != nil {
-		if _, ok := err.(campaigns.UnsupportedRepoSet); ok {
-			campaignsCompletePending(pending, "Resolved repositories. Found unsupported codehosts.")
+		if repoSet, ok := err.(campaigns.UnsupportedRepoSet); ok {
+			campaignsCompletePending(pending, "Resolved repositories.")
+
+			block := out.Block(output.Line(" ", output.StyleWarning, "Some repositories are hosted on unsupported code hosts and will be skipped. Use the -allow-unsupported flag to avoid skipping them."))
+			for repo := range repoSet {
+				block.Write(repo.Name)
+			}
+			block.Close()
 		} else {
 			return "", "", errors.Wrap(err, "resolving repositories")
 		}
 	} else {
 		campaignsCompletePending(pending, "Resolved repositories.")
 	}
+
 	var progress output.Progress
 	specs, err := svc.ExecuteCampaignSpec(ctx, repos, executor, campaignSpec, func(statuses []*campaigns.TaskStatus) {
 		if progress == nil {
