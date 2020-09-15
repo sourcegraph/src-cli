@@ -19,7 +19,7 @@ All notable changes to `src-cli` are documented in this file.
 
 - Repositories without a default branch are skipped when applying/previewing a campaign spec. [#312](https://github.com/sourcegraph/src-cli/pull/312)
 - Log files produced when applying/previewing a campaign spec now have the `.log` file extension for easier opening. [#315](https://github.com/sourcegraph/src-cli/pull/315)
-- If the `repositoriesMatchingQuery:` query in a campaign spec yields repositories on unsupported code hosts the process is no longer aborted, but the repositories simply skipped. [#314](https://github.com/sourcegraph/src-cli/pull/314)
+- Campaign specs that apply to unsupported repositories will no longer generate an error. Instead, those repositories will be skipped by default and the campaign will be applied to the supported repositories only. [#314](https://github.com/sourcegraph/src-cli/pull/314)
 
 ### Fixed
 
