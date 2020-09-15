@@ -112,11 +112,15 @@ func campaignsDefaultTempDirPrefix() string {
 	if p != "" {
 		return p
 	}
-	// We use an explicit prefix for our temp directories, because otherwise Go
-	// would use $TMPDIR, which is set to `/var/folders` per default on macOS. But
-	// Docker for Mac doesn't have `/var/folders` in its default set of shared
-	// folders, but it does have `/tmp` in there.
-	return "/tmp"
+	// On macOS, we use an explicit prefix for our temp directories, because
+	// otherwise Go would use $TMPDIR, which is set to `/var/folders` per
+	// default on macOS. But Docker for Mac doesn't have `/var/folders` in its
+	// default set of shared folders, but it does have `/tmp` in there.
+	if runtime.GOOS == "darwin" {
+		return "/tmp"
+
+	}
+	return os.TempDir()
 }
 
 func campaignsOpenFileFlag(flag *string) (io.ReadCloser, error) {
