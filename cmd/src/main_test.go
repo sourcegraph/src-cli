@@ -154,6 +154,13 @@ func TestReadConfig(t *testing.T) {
 			setEnv("SRC_ACCESS_TOKEN", test.envToken)
 			setEnv("SRC_ENDPOINT", test.envEndpoint)
 
+			tmpDir, err := ioutil.TempDir("", "")
+			if err != nil {
+				t.Fatal(err)
+			}
+			testHomeDir = tmpDir
+			t.Cleanup(func() { os.RemoveAll(tmpDir) })
+
 			if test.flagEndpoint != "" {
 				val := test.flagEndpoint
 				endpoint = &val
@@ -168,11 +175,6 @@ func TestReadConfig(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				tmpDir, err := ioutil.TempDir("", "")
-				if err != nil {
-					t.Fatal(err)
-				}
-				t.Cleanup(func() { os.RemoveAll(tmpDir) })
 				filePath := filepath.Join(tmpDir, "config.json")
 				err = ioutil.WriteFile(filePath, data, 0600)
 				if err != nil {
@@ -180,11 +182,11 @@ func TestReadConfig(t *testing.T) {
 				}
 				*configPath = filePath
 			}
-      
+
 			if err := os.Setenv("SRC_HEADER_FOO", test.envFooHeader); err != nil {
 				t.Fatal(err)
 			}
-      
+
 			config, err := readConfig()
 			if diff := cmp.Diff(test.want, config); diff != "" {
 				t.Errorf("config: %v", diff)
