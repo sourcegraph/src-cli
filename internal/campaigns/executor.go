@@ -1,6 +1,7 @@
 package campaigns
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"os/exec"
@@ -287,4 +288,33 @@ func createChangesetSpec(task *Task, diff string) *ChangesetSpec {
 			Published: task.Template.Published,
 		},
 	}
+}
+
+func gitAuthorDetails() (name string, email string, err error) {
+	// user did not provide author info, so let's ask git
+	var nameCmd = exec.Command("git", "config", "user.name")
+	var emailCmd = exec.Command("git", "config", "user.email")
+
+	var nameBuf, emailBuf bytes.Buffer
+	nameCmd.Stdout = &nameBuf
+	emailCmd.Stdout = &emailBuf
+
+	if err = nameCmd.Run(); err != nil {
+		return
+	}
+	if err = emailCmd.Run(); err != nil {
+		return
+	}
+
+	name = nameBuf.String()
+	email = emailBuf.String()
+
+	// if both values are good, return them
+	if len(name) > 0 && len(email) > 0 {
+		return
+	}
+
+	err = errors.New("either git author name or email is empty")
+
+	return
 }
