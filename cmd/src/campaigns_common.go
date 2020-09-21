@@ -8,11 +8,13 @@ import (
 	"os"
 	"path"
 	"runtime"
+	"strings"
 	"time"
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/neelance/parallel"
 	"github.com/pkg/errors"
+	"github.com/sourcegraph/go-diff/diff"
 	"github.com/sourcegraph/src-cli/internal/api"
 	"github.com/sourcegraph/src-cli/internal/campaigns"
 	"github.com/sourcegraph/src-cli/internal/output"
@@ -222,6 +224,8 @@ func campaignsExecute(ctx context.Context, out *output.Output, svc *campaigns.Se
 	}
 
 	var progress output.Progress
+	var maxRepoName int
+	completed := map[string]bool{}
 	specs, err := svc.ExecuteCampaignSpec(ctx, repos, executor, campaignSpec, func(statuses []*campaigns.TaskStatus) {
 		if progress == nil {
 			progress = out.Progress([]output.ProgressBar{{
@@ -230,14 +234,47 @@ func campaignsExecute(ctx context.Context, out *output.Output, svc *campaigns.Se
 			}}, nil)
 		}
 
-		complete := 0
+		unloggedCompleted := []*campaigns.TaskStatus{}
+
 		for _, ts := range statuses {
-			if !ts.FinishedAt.IsZero() {
-				complete += 1
+			if len(ts.RepoName) > maxRepoName {
+				maxRepoName = len(ts.RepoName)
 			}
+
+			if ts.FinishedAt.IsZero() {
+				continue
+			}
+
+			if !completed[ts.RepoName] {
+				completed[ts.RepoName] = true
+				unloggedCompleted = append(unloggedCompleted, ts)
+			}
+
 		}
-		progress.SetValue(0, float64(complete))
+
+		progress.SetValue(0, float64(len(completed)))
+
+		for _, ts := range unloggedCompleted {
+			fileDiffs, err := diff.ParseMultiFileDiff([]byte(ts.ChangesetSpec.Commits[0].Diff))
+			if err != nil {
+				panic(err)
+			}
+
+			var statusText string
+			if ts.ChangesetSpec == nil {
+				statusText = "No diff"
+			} else {
+				statusText = diffStatDescription(fileDiffs) + " " + diffStatDiagram(sumDiffStats(fileDiffs))
+			}
+
+			if ts.Cached {
+				statusText += " (cached)"
+			}
+
+			progress.Verbosef("%-*s %s", maxRepoName, ts.RepoName, statusText)
+		}
 	})
+
 	if err != nil {
 		return "", "", err
 	}
@@ -329,5 +366,40 @@ func formatTaskExecutionErr(err campaigns.TaskExecutionErr) string {
 		output.StyleReset,
 		err.Err,
 		err.Logfile,
+	)
+}
+
+func sumDiffStats(fileDiffs []*diff.FileDiff) diff.Stat {
+	sum := diff.Stat{}
+	for _, fileDiff := range fileDiffs {
+		stat := fileDiff.Stat()
+		sum.Added += stat.Added
+		sum.Changed += stat.Changed
+		sum.Deleted += stat.Deleted
+	}
+	return sum
+}
+
+func diffStatDescription(fileDiffs []*diff.FileDiff) string {
+	var plural string
+	if len(fileDiffs) > 1 {
+		plural = "s"
+	}
+
+	return fmt.Sprintf("%d file%s changed", len(fileDiffs), plural)
+}
+
+func diffStatDiagram(stat diff.Stat) string {
+	const maxWidth = 20
+	added := float64(stat.Added + stat.Changed)
+	deleted := float64(stat.Deleted + stat.Changed)
+	if total := added + deleted; total > maxWidth {
+		x := float64(20) / total
+		added *= x
+		deleted *= x
+	}
+	return fmt.Sprintf("%s%s%s%s",
+		output.StyleLinesAdded, strings.Repeat("+", int(added)),
+		output.StyleLinesDeleted, strings.Repeat("-", int(deleted)),
 	)
 }
