@@ -229,7 +229,7 @@ func campaignsExecute(ctx context.Context, out *output.Output, svc *campaigns.Se
 	specs, err := svc.ExecuteCampaignSpec(ctx, repos, executor, campaignSpec, func(statuses []*campaigns.TaskStatus) {
 		if progress == nil {
 			progress = out.Progress([]output.ProgressBar{{
-				Label: "Executing steps",
+				Label: fmt.Sprintf("Executing steps in %d repositories", len(statuses)),
 				Max:   float64(len(statuses)),
 			}}, nil)
 		}
@@ -255,15 +255,16 @@ func campaignsExecute(ctx context.Context, out *output.Output, svc *campaigns.Se
 		progress.SetValue(0, float64(len(completed)))
 
 		for _, ts := range unloggedCompleted {
-			fileDiffs, err := diff.ParseMultiFileDiff([]byte(ts.ChangesetSpec.Commits[0].Diff))
-			if err != nil {
-				panic(err)
-			}
-
 			var statusText string
+
 			if ts.ChangesetSpec == nil {
-				statusText = "No diff"
+				statusText = "No changes"
 			} else {
+				fileDiffs, err := diff.ParseMultiFileDiff([]byte(ts.ChangesetSpec.Commits[0].Diff))
+				if err != nil {
+					panic(err)
+				}
+
 				statusText = diffStatDescription(fileDiffs) + " " + diffStatDiagram(sumDiffStats(fileDiffs))
 			}
 
