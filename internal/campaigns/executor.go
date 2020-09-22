@@ -11,7 +11,18 @@ import (
 	"github.com/pkg/errors"
 	"github.com/sourcegraph/src-cli/internal/api"
 	"github.com/sourcegraph/src-cli/internal/campaigns/graphql"
+	"github.com/sourcegraph/src-cli/internal/output"
 )
+
+type taskExecutionErr struct {
+	stepErr    error
+	logfile    string
+	repository string
+}
+
+func (e taskExecutionErr) Error() string {
+	return fmt.Sprintf("%s%s%s:\n%s\nLog: %s\n", output.StyleBold, e.repository, output.StyleReset, e.stepErr, e.logfile)
+}
 
 type Executor interface {
 	AddTask(repo *graphql.Repository, steps []Step, template *ChangesetTemplate) *TaskStatus
@@ -186,7 +197,11 @@ func (x *executor) do(ctx context.Context, task *Task) (err error) {
 	}
 	defer func() {
 		if err != nil {
-			err = errors.Wrapf(err, "Error executing task. The log file can be found at:\n%s\n", log.Path())
+			err = taskExecutionErr{
+				stepErr:    err,
+				logfile:    log.Path(),
+				repository: task.Repository.Name,
+			}
 			log.MarkErrored()
 		}
 		log.Close()

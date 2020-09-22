@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-multierror"
+	"github.com/neelance/parallel"
 	"github.com/pkg/errors"
 	"github.com/sourcegraph/src-cli/internal/api"
 	"github.com/sourcegraph/src-cli/internal/campaigns"
@@ -276,4 +277,22 @@ func campaignsExecute(ctx context.Context, out *output.Output, svc *campaigns.Se
 	campaignsCompletePending(pending, "Creating campaign spec on Sourcegraph")
 
 	return id, url, nil
+}
+
+// printExecutionError is used to print the possible error returned by
+// campaignsExecute.
+func printExecutionError(out *output.Output, err error) {
+	out.Write("")
+	var block *output.Block
+	if parErr, ok := err.(parallel.Errors); ok && len(parErr) > 1 {
+		block = out.Block(output.Linef(output.EmojiFailure, output.StyleWarning, "%d errors:", len(parErr)))
+		for _, e := range parErr {
+			block.Write(e.Error())
+		}
+	} else {
+		block = out.Block(output.Linef(output.EmojiFailure, output.StyleWarning, "Error:"))
+		block.Write(err.Error())
+	}
+	block.Close()
+	out.Write("")
 }
