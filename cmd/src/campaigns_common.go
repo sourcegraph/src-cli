@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"flag"
+	"fmt"
 	"io"
 	"os"
 	"path"
@@ -283,16 +284,50 @@ func campaignsExecute(ctx context.Context, out *output.Output, svc *campaigns.Se
 // campaignsExecute.
 func printExecutionError(out *output.Output, err error) {
 	out.Write("")
+
+	writeErr := func(block *output.Block, err error) {
+		if block == nil {
+			return
+		}
+
+		if taskErr, ok := err.(campaigns.TaskExecutionErr); ok {
+			block.Write(formatTaskExecutionErr(taskErr))
+		} else {
+			block.Write(err.Error())
+		}
+	}
+
 	var block *output.Block
-	if parErr, ok := err.(parallel.Errors); ok && len(parErr) > 1 {
-		block = out.Block(output.Linef(output.EmojiFailure, output.StyleWarning, "%d errors:", len(parErr)))
+	singleErrHeader := output.Line(output.EmojiFailure, output.StyleWarning, "Error:")
+
+	if parErr, ok := err.(parallel.Errors); ok {
+		if len(parErr) > 1 {
+			block = out.Block(output.Linef(output.EmojiFailure, output.StyleWarning, "%d errors:", len(parErr)))
+		} else {
+			block = out.Block(singleErrHeader)
+		}
+
 		for _, e := range parErr {
-			block.Write(e.Error())
+			writeErr(block, e)
 		}
 	} else {
-		block = out.Block(output.Linef(output.EmojiFailure, output.StyleWarning, "Error:"))
-		block.Write(err.Error())
+		block = out.Block(singleErrHeader)
+		writeErr(block, err)
 	}
-	block.Close()
+
+	if block != nil {
+		block.Close()
+	}
 	out.Write("")
+}
+
+func formatTaskExecutionErr(err campaigns.TaskExecutionErr) string {
+	return fmt.Sprintf(
+		"%s%s%s:\n%s\nLog: %s\n",
+		output.StyleBold,
+		err.Repository,
+		output.StyleReset,
+		err.Err,
+		err.Logfile,
+	)
 }

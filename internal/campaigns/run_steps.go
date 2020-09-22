@@ -137,7 +137,7 @@ func runSteps(ctx context.Context, client api.Client, repo *graphql.Repository, 
 		if err != nil {
 			logger.Logf("[Step %d] took %s; error running Docker container: %+v", i+1, elapsed, err)
 
-			return nil, StepFailedErr{
+			return nil, stepFailedErr{
 				Err:         err,
 				Args:        cmd.Args,
 				Run:         step.Run,
@@ -309,7 +309,7 @@ func probeImageForShell(ctx context.Context, image string) (shell, tempfile stri
 	return
 }
 
-type StepFailedErr struct {
+type stepFailedErr struct {
 	Run       string
 	Container string
 
@@ -322,7 +322,7 @@ type StepFailedErr struct {
 	Err error
 }
 
-func (e StepFailedErr) Error() string {
+func (e stepFailedErr) Error() string {
 	var out strings.Builder
 
 	fmtRun := func(run string) string {

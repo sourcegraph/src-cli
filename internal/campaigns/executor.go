@@ -11,17 +11,21 @@ import (
 	"github.com/pkg/errors"
 	"github.com/sourcegraph/src-cli/internal/api"
 	"github.com/sourcegraph/src-cli/internal/campaigns/graphql"
-	"github.com/sourcegraph/src-cli/internal/output"
 )
 
-type taskExecutionErr struct {
-	stepErr    error
-	logfile    string
-	repository string
+type TaskExecutionErr struct {
+	Err        error
+	Logfile    string
+	Repository string
 }
 
-func (e taskExecutionErr) Error() string {
-	return fmt.Sprintf("%s%s%s:\n%s\nLog: %s\n", output.StyleBold, e.repository, output.StyleReset, e.stepErr, e.logfile)
+func (e TaskExecutionErr) Error() string {
+	return fmt.Sprintf(
+		"execution in %s failed: %s (see %s for details)",
+		e.Repository,
+		e.Err,
+		e.Logfile,
+	)
 }
 
 type Executor interface {
@@ -197,10 +201,10 @@ func (x *executor) do(ctx context.Context, task *Task) (err error) {
 	}
 	defer func() {
 		if err != nil {
-			err = taskExecutionErr{
-				stepErr:    err,
-				logfile:    log.Path(),
-				repository: task.Repository.Name,
+			err = TaskExecutionErr{
+				Err:        err,
+				Logfile:    log.Path(),
+				Repository: task.Repository.Name,
 			}
 			log.MarkErrored()
 		}
