@@ -60,7 +60,7 @@ func TestExecutor_Integration(t *testing.T) {
 		Creator:     creator,
 		TempDir:     testTempDir,
 		Parallelism: runtime.GOMAXPROCS(0),
-		Timeout:     1 * time.Second,
+		Timeout:     5 * time.Second,
 	}
 
 	called := false
