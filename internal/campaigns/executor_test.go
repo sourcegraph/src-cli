@@ -38,7 +38,7 @@ func TestExecutor_Integration(t *testing.T) {
 	}
 
 	steps := []Step{
-		{Run: `echo -e "foobar\n" >> README.md`, Container: "doesntmatter:13"},
+		{Run: `echo -e "foobar\n" >> README.md`, Container: "alpine:13"},
 		{Run: `go fmt main.go`, Container: "doesntmatter:13"},
 	}
 
@@ -114,12 +114,11 @@ func TestExecutor_Integration(t *testing.T) {
 func addToPath(t *testing.T, relPath string) {
 	t.Helper()
 
-	oldPath := os.Getenv("PATH")
 	dummyDockerPath, err := filepath.Abs("testdata/dummydocker")
 	if err != nil {
 		t.Fatal(err)
 	}
-	os.Setenv("PATH", dummyDockerPath+":"+oldPath)
+	os.Setenv("PATH", fmt.Sprintf("%s%c%s", dummyDockerPath, os.PathListSeparator, os.Getenv("PATH")))
 }
 
 func newZipHandler(t *testing.T, repo, branch string, files map[string]string) http.HandlerFunc {
