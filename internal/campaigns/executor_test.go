@@ -22,6 +22,10 @@ import (
 )
 
 func TestExecutor_Integration(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Test doesn't work on Windows because dummydocker is written in bash")
+	}
+
 	addToPath(t, "testdata/dummydocker")
 
 	repo := &graphql.Repository{
