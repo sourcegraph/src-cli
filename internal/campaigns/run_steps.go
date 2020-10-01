@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"text/template"
 	"time"
 
 	"github.com/hashicorp/go-multierror"
@@ -60,6 +61,8 @@ func runSteps(ctx context.Context, wc *WorkspaceCreator, repo *graphql.Repositor
 		return nil, errors.Wrap(err, "git commit failed")
 	}
 
+	results := make([]StepResult, len(steps))
+
 	for i, step := range steps {
 		logger.Logf("[Step %d] docker run %s %q", i+1, step.Container, step.Run)
 		reportProgress(step.Run)
@@ -93,8 +96,18 @@ func runSteps(ctx context.Context, wc *WorkspaceCreator, repo *graphql.Repositor
 		}
 		hostTemp := fp.Name()
 		defer os.Remove(hostTemp)
-		if _, err := fp.WriteString(step.Run); err != nil {
-			return nil, errors.Wrapf(err, "writing to temporary file %q", hostTemp)
+
+		stepContext := StepContext{Repository: repo}
+		if i > 0 {
+			stepContext.PreviousStep = results[i-1]
+		}
+		tmpl, err := parseStepRun(stepContext, step.Run)
+		if err != nil {
+			return nil, errors.Wrap(err, "parsing step run")
+		}
+
+		if err := tmpl.Execute(fp, stepContext); err != nil {
+			return nil, errors.Wrap(err, "executing template")
 		}
 		fp.Close()
 
@@ -141,10 +154,22 @@ func runSteps(ctx context.Context, wc *WorkspaceCreator, repo *graphql.Repositor
 		}
 
 		logger.Logf("[Step %d] complete in %s", i+1, elapsed)
-	}
 
-	if _, err := runGitCmd("add", "--all"); err != nil {
-		return nil, errors.Wrap(err, "git add failed")
+		if _, err := runGitCmd("add", "--all"); err != nil {
+			return nil, errors.Wrap(err, "git add failed")
+		}
+
+		statusOut, err := runGitCmd("status", "--porcelain")
+		if err != nil {
+			return nil, errors.Wrap(err, "git status failed")
+		}
+
+		changes, err := parseGitStatus(statusOut)
+		if err != nil {
+			return nil, errors.Wrap(err, "parsing git status output")
+		}
+
+		results[i] = StepResult{Changes: changes}
 	}
 
 	reportProgress("Calculating diff")
@@ -160,6 +185,67 @@ func runSteps(ctx context.Context, wc *WorkspaceCreator, repo *graphql.Repositor
 	}
 
 	return diffOut, err
+}
+
+func parseStepRun(stepCtx StepContext, run string) (*template.Template, error) {
+	t := template.New("step-run").Delims("${{", "}}")
+
+	funcMap := template.FuncMap{
+		"repository_name": func() string { return stepCtx.Repository.Name },
+	}
+
+	funcMap["modified_files"] = stepCtx.PreviousStep.ModifiedFiles
+
+	t.Funcs(funcMap)
+
+	return t.Parse(run)
+}
+
+type StepContext struct {
+	PreviousStep StepResult
+	Repository   *graphql.Repository
+}
+
+type StepChanges struct {
+	Modified []string
+	Added    []string
+	Deleted  []string
+}
+
+type StepResult struct {
+	Changes StepChanges
+}
+
+func (r StepResult) ModifiedFiles() string { return strings.Join(r.Changes.Modified, " ") }
+func (r StepResult) AddedFiles() string    { return strings.Join(r.Changes.Added, " ") }
+func (r StepResult) DeletedFiles() string  { return strings.Join(r.Changes.Deleted, " ") }
+
+func parseGitStatus(out []byte) (StepChanges, error) {
+	result := StepChanges{}
+
+	stripped := strings.TrimSpace(string(out))
+	if len(stripped) == 0 {
+		return result, nil
+	}
+
+	for _, line := range strings.Split(stripped, "\n") {
+		if len(line) < 4 {
+			return result, fmt.Errorf("git status line has unrecognized format: %q", line)
+		}
+
+		file := line[3:len(line)]
+
+		switch line[0] {
+		case 'M':
+			result.Modified = append(result.Modified, file)
+		case 'A':
+			result.Added = append(result.Added, file)
+		case 'D':
+			result.Deleted = append(result.Deleted, file)
+		}
+	}
+
+	return result, nil
 }
 
 func probeImageForShell(ctx context.Context, image string) (shell, tempfile string, err error) {
