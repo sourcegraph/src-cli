@@ -98,6 +98,23 @@ func TestExecutor_Integration(t *testing.T) {
 			executorTimeout: 100 * time.Millisecond,
 			wantErrInclude:  "execution in github.com/sourcegraph/src-cli failed: Timeout reached. Execution took longer than 100ms.",
 		},
+		{
+			name:  "templated",
+			repos: []*graphql.Repository{srcCLIRepo},
+			archives: []mockRepoArchive{
+				{repo: srcCLIRepo, files: map[string]string{
+					"README.md": "# Welcome to the README\n",
+					"main.go":   "package main\n\nfunc main() {\n\tfmt.Println(     \"Hello World\")\n}\n",
+				}},
+			},
+			steps: []Step{
+				{Run: `go fmt main.go`, Container: "doesntmatter:13"},
+				{Run: `touch modified-${{ modified_files }}.md`, Container: "alpine:13"},
+			},
+			wantFilesChanged: map[string][]string{
+				srcCLIRepo.ID: []string{"main.go", "modified-main.go.md"},
+			},
+		},
 	}
 
 	for _, tc := range tests {
@@ -154,6 +171,7 @@ func TestExecutor_Integration(t *testing.T) {
 					t.Fatalf("wrong number of commits. want=%d, have=%d", want, have)
 				}
 
+				t.Logf("diff=%s\n", spec.Commits[0].Diff)
 				fileDiffs, err := diff.ParseMultiFileDiff([]byte(spec.Commits[0].Diff))
 				if err != nil {
 					t.Fatalf("failed to parse diff: %s", err)
@@ -170,8 +188,13 @@ func TestExecutor_Integration(t *testing.T) {
 
 				diffsByName := map[string]*diff.FileDiff{}
 				for _, fd := range fileDiffs {
-					diffsByName[fd.OrigName] = fd
+					if fd.NewName == "/dev/null" {
+						diffsByName[fd.OrigName] = fd
+					} else {
+						diffsByName[fd.NewName] = fd
+					}
 				}
+
 				for _, file := range wantFiles {
 					if _, ok := diffsByName[file]; !ok {
 						t.Errorf("%s was not changed", file)
