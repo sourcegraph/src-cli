@@ -97,7 +97,6 @@ func TestExecutor_Integration(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-
 			ts := httptest.NewServer(newZipArchivesMux(t, tc.archives))
 			defer ts.Close()
 
@@ -122,10 +121,7 @@ func TestExecutor_Integration(t *testing.T) {
 				opts.Timeout = 5 * time.Second
 			}
 
-			called := false
-			updateFn := func(task *Task, ts TaskStatus) { called = true }
-
-			executor := newExecutor(opts, client, updateFn)
+			executor := newExecutor(opts, client, nil)
 
 			template := &ChangesetTemplate{}
 			for _, r := range tc.repos {
@@ -142,10 +138,6 @@ func TestExecutor_Integration(t *testing.T) {
 			}
 			if tc.wantErrInclude != "" {
 				return
-			}
-
-			if !called {
-				t.Fatalf("update was not called")
 			}
 
 			if have, want := len(specs), len(tc.wantFilesChanged); have != want {
