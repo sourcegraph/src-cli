@@ -191,7 +191,10 @@ func parseStepRun(stepCtx StepContext, run string) (*template.Template, error) {
 	t := template.New("step-run").Delims("${{", "}}")
 
 	funcMap := template.FuncMap{
-		"repository_name": func() string { return stepCtx.Repository.Name },
+		"repository_name":    func() string { return stepCtx.Repository.Name },
+		"search_results":     stepCtx.Repository.FileMatchPathList,
+		"search_result_list": stepCtx.Repository.FileMatchPathList,
+		"join":               func(sl []string, sep string) string { return strings.Join(sl, sep) },
 	}
 
 	funcMap["modified_files"] = stepCtx.PreviousStep.ModifiedFiles
