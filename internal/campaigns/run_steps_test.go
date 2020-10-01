@@ -60,6 +60,20 @@ func TestParseStepRun(t *testing.T) {
 			run:  `${{ modified_files }} ${{ repository_name }}`,
 			want: ` github.com/sourcegraph/src-cli`,
 		},
+		{
+			stepCtx: StepContext{
+				Repository: &graphql.Repository{
+					Name: "github.com/sourcegraph/src-cli",
+					FileMatches: map[string]bool{
+						"README.md": true,
+						"main.go":   true,
+					},
+				},
+			},
+
+			run:  `${{ search_results }}`,
+			want: `README.md main.go`,
+		},
 	}
 
 	for _, tc := range tests {

@@ -30,6 +30,8 @@ type Repository struct {
 	URL                string
 	ExternalRepository struct{ ServiceType string }
 	DefaultBranch      *Branch
+
+	FileMatches map[string]bool
 }
 
 func (r *Repository) BaseRef() string {
@@ -42,4 +44,23 @@ func (r *Repository) Rev() string {
 
 func (r *Repository) Slug() string {
 	return strings.ReplaceAll(r.Name, "/", "-")
+}
+
+func (r *Repository) FileMatchPaths() string {
+	files := []string{}
+	for f := range r.FileMatches {
+		files = append(files, f)
+	}
+	return strings.Join(files, " ")
+}
+
+type fileMatchPathList []string
+
+func (f fileMatchPathList) String() string { return strings.Join(f, " ") }
+
+func (r *Repository) FileMatchPathList() (list fileMatchPathList) {
+	for f := range r.FileMatches {
+		list = append(list, f)
+	}
+	return list
 }
