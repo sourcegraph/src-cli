@@ -205,19 +205,11 @@ func newProgressWithStatusBarsTTY(bars []*ProgressBar, statusBars []*FancyLine, 
 }
 
 func (p *progressWithStatusBarsTTY) draw() {
-	for _, line := range p.statusBars {
-		if line == nil {
+	for _, statusBar := range p.statusBars {
+		if statusBar == nil {
 			continue
 		}
-
-		p.o.clearCurrentLine()
-
-		var buf bytes.Buffer
-
-		line.write(&buf, p.o.caps)
-
-		// Straight up copied from (*pendingTTY).write, see comment/warnings there
-		fmt.Fprint(p.o.w, runewidth.Truncate(buf.String(), p.o.caps.Width, "...\n"))
+		p.writeStatusBar(statusBar)
 	}
 
 	for _, bar := range p.bars {
@@ -236,4 +228,17 @@ func (p *progressWithStatusBarsTTY) moveToOrigin() {
 
 func (p *progressWithStatusBarsTTY) writeBar(bar *ProgressBar) {
 	writeProgressBar(p.o, bar, p.opts, p.emojiWidth, p.labelWidth, p.pendingEmoji)
+}
+
+func (p *progressWithStatusBarsTTY) writeStatusBar(statusBar *FancyLine) {
+	p.o.clearCurrentLine()
+
+	var out bytes.Buffer
+	if statusBar.emoji != "" {
+		fmt.Fprint(&out, statusBar.emoji+" ")
+	}
+	fmt.Fprintf(&out, "%s"+statusBar.format+"%s", p.o.caps.formatArgs(append(append([]interface{}{statusBar.style}, statusBar.args...), StyleReset))...)
+	(&out).Write([]byte("\n"))
+
+	fmt.Fprint(p.o.w, runewidth.Truncate(out.String(), p.o.caps.Width, "...\n"))
 }
