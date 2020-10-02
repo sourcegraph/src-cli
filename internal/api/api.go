@@ -13,10 +13,11 @@ import (
 	"strings"
 
 	"github.com/hashicorp/go-multierror"
-	"github.com/jig/teereadcloser"
+	ioaux "github.com/jig/teereadcloser"
 	"github.com/kballard/go-shellquote"
 	"github.com/mattn/go-isatty"
 	"github.com/pkg/errors"
+	"github.com/sourcegraph/codeintelutils"
 )
 
 // Client instances provide methods to create API requests.
@@ -126,6 +127,7 @@ func (c *client) NewHTTPRequest(ctx context.Context, method, p string, body io.R
 	for k, v := range c.opts.AdditionalHeaders {
 		req.Header.Set(k, v)
 	}
+	req.Header.Set("Content-Encoding", "gzip")
 	return req, nil
 }
 
@@ -164,7 +166,8 @@ func (r *request) do(ctx context.Context, result interface{}) (bool, error) {
 	}
 
 	// Create the HTTP request.
-	req, err := r.client.NewHTTPRequest(ctx, "POST", ".api/graphql", bytes.NewBuffer(reqBody))
+	zipped := codeintelutils.Gzip(bytes.NewBuffer(reqBody))
+	req, err := r.client.NewHTTPRequest(ctx, "POST", ".api/graphql", zipped)
 	if err != nil {
 		return false, err
 	}
