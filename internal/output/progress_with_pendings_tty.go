@@ -1,6 +1,7 @@
 package output
 
 import (
+	"bytes"
 	"fmt"
 	"math"
 	"strings"
@@ -9,8 +10,9 @@ import (
 	"github.com/mattn/go-runewidth"
 )
 
-type progressTTY struct {
-	bars []*ProgressBar
+type progressWithPendingsTTY struct {
+	bars  []*ProgressBar
+	lines []*FancyLine
 
 	o    *Output
 	opts ProgressOpts
@@ -21,7 +23,7 @@ type progressTTY struct {
 	spinner      *spinner
 }
 
-func (p *progressTTY) Complete() {
+func (p *progressWithPendingsTTY) Complete() {
 	p.spinner.stop()
 
 	p.o.lock.Lock()
@@ -33,9 +35,9 @@ func (p *progressTTY) Complete() {
 	p.drawInSitu()
 }
 
-func (p *progressTTY) Close() { p.Destroy() }
+func (p *progressWithPendingsTTY) Close() { p.Destroy() }
 
-func (p *progressTTY) Destroy() {
+func (p *progressWithPendingsTTY) Destroy() {
 	p.spinner.stop()
 
 	p.o.lock.Lock()
@@ -50,7 +52,7 @@ func (p *progressTTY) Destroy() {
 	p.moveToOrigin()
 }
 
-func (p *progressTTY) SetLabel(i int, label string) {
+func (p *progressWithPendingsTTY) SetLabel(i int, label string) {
 	p.o.lock.Lock()
 	defer p.o.lock.Unlock()
 
@@ -59,7 +61,7 @@ func (p *progressTTY) SetLabel(i int, label string) {
 	p.drawInSitu()
 }
 
-func (p *progressTTY) SetValue(i int, v float64) {
+func (p *progressWithPendingsTTY) SetValue(i int, v float64) {
 	p.o.lock.Lock()
 	defer p.o.lock.Unlock()
 
@@ -67,25 +69,25 @@ func (p *progressTTY) SetValue(i int, v float64) {
 	p.drawInSitu()
 }
 
-func (p *progressTTY) Verbose(s string) {
+func (p *progressWithPendingsTTY) Verbose(s string) {
 	if p.o.opts.Verbose {
 		p.Write(s)
 	}
 }
 
-func (p *progressTTY) Verbosef(format string, args ...interface{}) {
+func (p *progressWithPendingsTTY) Verbosef(format string, args ...interface{}) {
 	if p.o.opts.Verbose {
 		p.Writef(format, args...)
 	}
 }
 
-func (p *progressTTY) VerboseLine(line FancyLine) {
+func (p *progressWithPendingsTTY) VerboseLine(line FancyLine) {
 	if p.o.opts.Verbose {
 		p.WriteLine(line)
 	}
 }
 
-func (p *progressTTY) Write(s string) {
+func (p *progressWithPendingsTTY) Write(s string) {
 	p.o.lock.Lock()
 	defer p.o.lock.Unlock()
 
@@ -95,7 +97,7 @@ func (p *progressTTY) Write(s string) {
 	p.draw()
 }
 
-func (p *progressTTY) Writef(format string, args ...interface{}) {
+func (p *progressWithPendingsTTY) Writef(format string, args ...interface{}) {
 	p.o.lock.Lock()
 	defer p.o.lock.Unlock()
 
@@ -106,7 +108,7 @@ func (p *progressTTY) Writef(format string, args ...interface{}) {
 	p.draw()
 }
 
-func (p *progressTTY) WriteLine(line FancyLine) {
+func (p *progressWithPendingsTTY) WriteLine(line FancyLine) {
 	p.o.lock.Lock()
 	defer p.o.lock.Unlock()
 
@@ -116,9 +118,50 @@ func (p *progressTTY) WriteLine(line FancyLine) {
 	p.draw()
 }
 
-func newProgressTTY(bars []*ProgressBar, o *Output, opts *ProgressOpts) *progressTTY {
-	p := &progressTTY{
-		bars:         bars,
+func (p *progressWithPendingsTTY) Updatef(i int, format string, args ...interface{}) {
+	p.o.lock.Lock()
+	defer p.o.lock.Unlock()
+
+	if p.lines[i] != nil {
+		p.lines[i].style = StylePending
+		p.lines[i].emoji = p.pendingEmoji
+		p.lines[i].format = format
+		p.lines[i].args = args
+	}
+
+	p.drawInSitu()
+	// p.o.moveUp(1)
+	// p.o.clearCurrentLine()
+	// p.write(p.line)
+}
+
+func (p *progressWithPendingsTTY) CompletePending(i int, message FancyLine) {
+	// p.spinner.stop()
+
+	p.o.lock.Lock()
+	defer p.o.lock.Unlock()
+
+	p.lines[i] = &message
+
+	p.drawInSitu()
+}
+
+func (p *progressWithPendingsTTY) DestroyPending(i int) {
+	// p.spinner.stop()
+
+	p.o.lock.Lock()
+	defer p.o.lock.Unlock()
+
+	p.lines[i] = nil
+
+	p.drawInSitu()
+}
+
+func newProgressWithPendingsTTY(bars []*ProgressBar, lines []*FancyLine, o *Output, opts *ProgressOpts) *progressWithPendingsTTY {
+	p := &progressWithPendingsTTY{
+		bars:  bars,
+		lines: lines,
+
 		o:            o,
 		emojiWidth:   3,
 		pendingEmoji: spinnerStrings[0],
@@ -164,6 +207,12 @@ func newProgressTTY(bars []*ProgressBar, o *Output, opts *ProgressOpts) *progres
 				p.o.lock.Lock()
 				defer p.o.lock.Unlock()
 
+				for _, line := range p.lines {
+					if line.emoji != EmojiSuccess {
+						line.emoji = s
+					}
+				}
+
 				p.moveToOrigin()
 				p.draw()
 			}()
@@ -173,22 +222,37 @@ func newProgressTTY(bars []*ProgressBar, o *Output, opts *ProgressOpts) *progres
 	return p
 }
 
-func (p *progressTTY) draw() {
+func (p *progressWithPendingsTTY) draw() {
+	for _, line := range p.lines {
+		if line == nil {
+			continue
+		}
+
+		p.o.clearCurrentLine()
+
+		var buf bytes.Buffer
+
+		line.write(&buf, p.o.caps)
+
+		// Straight up copied from (*pendingTTY).write, see comment/warnings there
+		fmt.Fprint(p.o.w, runewidth.Truncate(buf.String(), p.o.caps.Width, "...\n"))
+	}
+
 	for _, bar := range p.bars {
 		p.writeBar(bar)
 	}
 }
 
-func (p *progressTTY) drawInSitu() {
+func (p *progressWithPendingsTTY) drawInSitu() {
 	p.moveToOrigin()
 	p.draw()
 }
 
-func (p *progressTTY) moveToOrigin() {
-	p.o.moveUp(len(p.bars))
+func (p *progressWithPendingsTTY) moveToOrigin() {
+	p.o.moveUp(len(p.lines) + len(p.bars))
 }
 
-func (p *progressTTY) writeBar(bar *ProgressBar) {
+func (p *progressWithPendingsTTY) writeBar(bar *ProgressBar) {
 	p.o.clearCurrentLine()
 
 	value := bar.Value
