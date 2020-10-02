@@ -139,8 +139,8 @@ func (o *Output) Progress(bars []ProgressBar, opts *ProgressOpts) Progress {
 // context.
 //
 // A Progress instance must be disposed of via the Complete or Destroy methods.
-func (o *Output) ProgressWithPendings(bars []ProgressBar, messages []FancyLine, opts *ProgressOpts) ProgressWithPendings {
-	return newProgressWithPendings(bars, messages, o, opts)
+func (o *Output) ProgressWithPendings(bars []ProgressBar, messages []FancyLine, opts *ProgressOpts) ProgressWithStatusBars {
+	return newProgressWithStatusBars(bars, messages, o, opts)
 }
 
 // The utility functions below do not make checks for whether the terminal is a

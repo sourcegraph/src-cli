@@ -1,16 +1,16 @@
 package output
 
 import (
+	"bytes"
 	"fmt"
-	"math"
-	"strings"
 	"time"
 
 	"github.com/mattn/go-runewidth"
 )
 
-type progressTTY struct {
-	bars []*ProgressBar
+type progressWithStatusBarsTTY struct {
+	bars       []*ProgressBar
+	statusBars []*FancyLine
 
 	o    *Output
 	opts ProgressOpts
@@ -21,7 +21,7 @@ type progressTTY struct {
 	spinner      *spinner
 }
 
-func (p *progressTTY) Complete() {
+func (p *progressWithStatusBarsTTY) Complete() {
 	p.spinner.stop()
 
 	p.o.lock.Lock()
@@ -33,9 +33,9 @@ func (p *progressTTY) Complete() {
 	p.drawInSitu()
 }
 
-func (p *progressTTY) Close() { p.Destroy() }
+func (p *progressWithStatusBarsTTY) Close() { p.Destroy() }
 
-func (p *progressTTY) Destroy() {
+func (p *progressWithStatusBarsTTY) Destroy() {
 	p.spinner.stop()
 
 	p.o.lock.Lock()
@@ -50,7 +50,7 @@ func (p *progressTTY) Destroy() {
 	p.moveToOrigin()
 }
 
-func (p *progressTTY) SetLabel(i int, label string) {
+func (p *progressWithStatusBarsTTY) SetLabel(i int, label string) {
 	p.o.lock.Lock()
 	defer p.o.lock.Unlock()
 
@@ -59,7 +59,7 @@ func (p *progressTTY) SetLabel(i int, label string) {
 	p.drawInSitu()
 }
 
-func (p *progressTTY) SetValue(i int, v float64) {
+func (p *progressWithStatusBarsTTY) SetValue(i int, v float64) {
 	p.o.lock.Lock()
 	defer p.o.lock.Unlock()
 
@@ -67,25 +67,25 @@ func (p *progressTTY) SetValue(i int, v float64) {
 	p.drawInSitu()
 }
 
-func (p *progressTTY) Verbose(s string) {
+func (p *progressWithStatusBarsTTY) Verbose(s string) {
 	if p.o.opts.Verbose {
 		p.Write(s)
 	}
 }
 
-func (p *progressTTY) Verbosef(format string, args ...interface{}) {
+func (p *progressWithStatusBarsTTY) Verbosef(format string, args ...interface{}) {
 	if p.o.opts.Verbose {
 		p.Writef(format, args...)
 	}
 }
 
-func (p *progressTTY) VerboseLine(line FancyLine) {
+func (p *progressWithStatusBarsTTY) VerboseLine(line FancyLine) {
 	if p.o.opts.Verbose {
 		p.WriteLine(line)
 	}
 }
 
-func (p *progressTTY) Write(s string) {
+func (p *progressWithStatusBarsTTY) Write(s string) {
 	p.o.lock.Lock()
 	defer p.o.lock.Unlock()
 
@@ -95,7 +95,7 @@ func (p *progressTTY) Write(s string) {
 	p.draw()
 }
 
-func (p *progressTTY) Writef(format string, args ...interface{}) {
+func (p *progressWithStatusBarsTTY) Writef(format string, args ...interface{}) {
 	p.o.lock.Lock()
 	defer p.o.lock.Unlock()
 
@@ -106,7 +106,7 @@ func (p *progressTTY) Writef(format string, args ...interface{}) {
 	p.draw()
 }
 
-func (p *progressTTY) WriteLine(line FancyLine) {
+func (p *progressWithStatusBarsTTY) WriteLine(line FancyLine) {
 	p.o.lock.Lock()
 	defer p.o.lock.Unlock()
 
@@ -116,9 +116,34 @@ func (p *progressTTY) WriteLine(line FancyLine) {
 	p.draw()
 }
 
-func newProgressTTY(bars []*ProgressBar, o *Output, opts *ProgressOpts) *progressTTY {
-	p := &progressTTY{
-		bars:         bars,
+func (p *progressWithStatusBarsTTY) StatusBarUpdatef(i int, format string, args ...interface{}) {
+	p.o.lock.Lock()
+	defer p.o.lock.Unlock()
+
+	if p.statusBars[i] != nil {
+		p.statusBars[i].style = StylePending
+		p.statusBars[i].emoji = p.pendingEmoji
+		p.statusBars[i].format = format
+		p.statusBars[i].args = args
+	}
+
+	p.drawInSitu()
+}
+
+func (p *progressWithStatusBarsTTY) StatusBarComplete(i int, message FancyLine) {
+	p.o.lock.Lock()
+	defer p.o.lock.Unlock()
+
+	p.statusBars[i] = &message
+
+	p.drawInSitu()
+}
+
+func newProgressWithStatusBarsTTY(bars []*ProgressBar, statusBars []*FancyLine, o *Output, opts *ProgressOpts) *progressWithStatusBarsTTY {
+	p := &progressWithStatusBarsTTY{
+		bars:       bars,
+		statusBars: statusBars,
+
 		o:            o,
 		emojiWidth:   3,
 		pendingEmoji: spinnerStrings[0],
@@ -164,6 +189,12 @@ func newProgressTTY(bars []*ProgressBar, o *Output, opts *ProgressOpts) *progres
 				p.o.lock.Lock()
 				defer p.o.lock.Unlock()
 
+				for _, line := range p.statusBars {
+					if line.emoji != EmojiSuccess {
+						line.emoji = s
+					}
+				}
+
 				p.moveToOrigin()
 				p.draw()
 			}()
@@ -173,82 +204,36 @@ func newProgressTTY(bars []*ProgressBar, o *Output, opts *ProgressOpts) *progres
 	return p
 }
 
-func (p *progressTTY) draw() {
+func (p *progressWithStatusBarsTTY) draw() {
+	for _, line := range p.statusBars {
+		if line == nil {
+			continue
+		}
+
+		p.o.clearCurrentLine()
+
+		var buf bytes.Buffer
+
+		line.write(&buf, p.o.caps)
+
+		// Straight up copied from (*pendingTTY).write, see comment/warnings there
+		fmt.Fprint(p.o.w, runewidth.Truncate(buf.String(), p.o.caps.Width, "...\n"))
+	}
+
 	for _, bar := range p.bars {
 		p.writeBar(bar)
 	}
 }
 
-func (p *progressTTY) drawInSitu() {
+func (p *progressWithStatusBarsTTY) drawInSitu() {
 	p.moveToOrigin()
 	p.draw()
 }
 
-func (p *progressTTY) moveToOrigin() {
-	p.o.moveUp(len(p.bars))
+func (p *progressWithStatusBarsTTY) moveToOrigin() {
+	p.o.moveUp(len(p.statusBars) + len(p.bars))
 }
 
-func (p *progressTTY) writeBar(bar *ProgressBar) {
+func (p *progressWithStatusBarsTTY) writeBar(bar *ProgressBar) {
 	writeProgressBar(p.o, bar, p.opts, p.emojiWidth, p.labelWidth, p.pendingEmoji)
-}
-
-// TODO: should this be a method on *Output?
-func writeProgressBar(
-	o *Output,
-	bar *ProgressBar,
-	opts ProgressOpts,
-	emojiWidth, labelWidth int, // TODO: This should probably be in an opts param
-	pendingEmoji string,
-) {
-	o.clearCurrentLine()
-
-	value := bar.Value
-	if bar.Value >= bar.Max {
-		o.writeStyle(opts.SuccessStyle)
-		fmt.Fprint(o.w, runewidth.FillRight(opts.SuccessEmoji, emojiWidth))
-		value = bar.Max
-	} else {
-		o.writeStyle(opts.PendingStyle)
-		fmt.Fprint(o.w, runewidth.FillRight(pendingEmoji, emojiWidth))
-	}
-
-	fmt.Fprint(o.w, runewidth.FillRight(runewidth.Truncate(bar.Label, labelWidth, "..."), labelWidth))
-
-	// The bar width is the width of the terminal, minus the label width, minus
-	// two spaces.
-	barWidth := o.caps.Width - labelWidth - emojiWidth - 2
-
-	// Unicode box drawing gives us eight possible bar widths, so we need to
-	// calculate both the bar width and then the final character, if any.
-	var segments int
-	if bar.Max > 0 {
-		segments = int(math.Round((float64(8*barWidth) * value) / bar.Max))
-	}
-
-	fillWidth := segments / 8
-	remainder := segments % 8
-	if remainder == 0 {
-		if fillWidth > barWidth {
-			fillWidth = barWidth
-		}
-	} else {
-		if fillWidth+1 > barWidth {
-			fillWidth = barWidth - 1
-		}
-	}
-
-	fmt.Fprintf(o.w, "  ")
-	fmt.Fprint(o.w, strings.Repeat("█", fillWidth))
-	fmt.Fprintln(o.w, []string{
-		"",
-		"▏",
-		"▎",
-		"▍",
-		"▌",
-		"▋",
-		"▊",
-		"▉",
-	}[remainder])
-
-	o.writeStyle(StyleReset)
 }
