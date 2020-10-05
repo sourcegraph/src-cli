@@ -1,7 +1,6 @@
 package output
 
 import (
-	"bytes"
 	"fmt"
 	"time"
 
@@ -262,9 +261,6 @@ func (p *progressWithStatusBarsTTY) determineStatusBarLabelWidth() {
 }
 
 func (p *progressWithStatusBarsTTY) writeStatusBar(i int, statusBar *StatusBar) {
-	p.o.clearCurrentLine()
-
-	var out bytes.Buffer
 
 	emoji := p.pendingEmoji
 	style := StylePending
@@ -273,14 +269,12 @@ func (p *progressWithStatusBarsTTY) writeStatusBar(i int, statusBar *StatusBar) 
 		style = StyleSuccess
 	}
 
-	fmt.Fprint(&out, style)
-	fmt.Fprint(&out, " "+emoji+" ")
-
 	labelFillWidth := p.statusBarLabelWidth + 2
-	fmt.Fprint(&out, runewidth.FillRight(runewidth.Truncate(statusBar.label, p.statusBarLabelWidth, "..."), labelFillWidth))
+	label := runewidth.FillRight(runewidth.Truncate(statusBar.label, p.statusBarLabelWidth, "..."), labelFillWidth)
 
-	fmt.Fprintf(&out, statusBar.format+"%s", p.o.caps.formatArgs(append(statusBar.args, StyleReset))...)
-	(&out).Write([]byte("\n"))
+	textMaxLength := p.o.caps.Width - (p.emojiWidth + 1) - labelFillWidth
+	text := runewidth.Truncate(fmt.Sprintf(statusBar.format, p.o.caps.formatArgs(statusBar.args)...), textMaxLength, "...")
 
-	fmt.Fprint(p.o.w, runewidth.Truncate(out.String(), p.o.caps.Width+3, "...\n"))
+	p.o.clearCurrentLine()
+	fmt.Fprint(p.o.w, style, " ", emoji, " ", label, text, StyleReset, "\n")
 }
