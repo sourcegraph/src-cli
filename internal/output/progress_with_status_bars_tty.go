@@ -83,11 +83,6 @@ func (p *progressWithStatusBarsTTY) Complete() {
 		bar.Value = bar.Max
 	}
 
-	// TODO: This makes the statusBars disappear when completing the
-	// progressbar but it's a bit janky
-	// p.o.moveUp(len(p.statusBars) + len(p.bars))
-	// p.statusBars = p.statusBars[0:0]
-
 	p.drawInSitu()
 }
 
@@ -100,7 +95,8 @@ func (p *progressWithStatusBarsTTY) Destroy() {
 	defer p.o.lock.Unlock()
 
 	p.moveToOrigin()
-	for i := 0; i < len(p.bars); i += 1 {
+
+	for i := 0; i < len(p.bars)+len(p.statusBars); i += 1 {
 		p.o.clearCurrentLine()
 		p.o.moveDown(1)
 	}
@@ -179,13 +175,10 @@ func (p *progressWithStatusBarsTTY) StatusBarResetf(i int, label, format string,
 	defer p.o.lock.Unlock()
 
 	if p.statusBars[i] != nil {
-		p.statusBars[i].completed = false
-		p.statusBars[i].label = label
-		p.statusBars[i].format = format
-		p.statusBars[i].args = args
+		p.statusBars[i].Resetf(label, format, args...)
 	}
-	p.determineStatusBarLabelWidth()
 
+	p.determineStatusBarLabelWidth()
 	p.drawInSitu()
 }
 
@@ -194,21 +187,18 @@ func (p *progressWithStatusBarsTTY) StatusBarUpdatef(i int, format string, args 
 	defer p.o.lock.Unlock()
 
 	if p.statusBars[i] != nil {
-		p.statusBars[i].format = format
-		p.statusBars[i].args = args
+		p.statusBars[i].Updatef(format, args...)
 	}
 
 	p.drawInSitu()
 }
 
-func (p *progressWithStatusBarsTTY) StatusBarComplete(i int, format string, args ...interface{}) {
+func (p *progressWithStatusBarsTTY) StatusBarCompletef(i int, format string, args ...interface{}) {
 	p.o.lock.Lock()
 	defer p.o.lock.Unlock()
 
 	if p.statusBars[i] != nil {
-		p.statusBars[i].completed = true
-		p.statusBars[i].format = format
-		p.statusBars[i].args = args
+		p.statusBars[i].Completef(format, args...)
 	}
 
 	p.drawInSitu()
@@ -264,7 +254,9 @@ func (p *progressWithStatusBarsTTY) determineStatusBarLabelWidth() {
 		}
 	}
 
-	if maxWidth := p.o.caps.Width/2 - p.emojiWidth; (p.statusBarLabelWidth + 2) > maxWidth {
+	statusBarEmojiWidth := p.emojiWidth + 1 // statusBars have a space more at
+	// the beginning
+	if maxWidth := p.o.caps.Width/2 - statusBarEmojiWidth; (p.statusBarLabelWidth + 2) > maxWidth {
 		p.statusBarLabelWidth = maxWidth - 2
 	}
 }
@@ -280,19 +272,15 @@ func (p *progressWithStatusBarsTTY) writeStatusBar(i int, statusBar *StatusBar) 
 		emoji = EmojiSuccess
 		style = StyleSuccess
 	}
-	box := "┣ "
-	if i == 0 {
-		box = "┏ "
-	}
 
-	fmt.Fprintf(&out, "%s", p.o.caps.formatArgs([]interface{}{style})...)
+	fmt.Fprint(&out, style)
+	fmt.Fprint(&out, " "+emoji+" ")
 
-	fmt.Fprint(&out, box+emoji+" ")
-	fmt.Fprint(&out, runewidth.FillRight(runewidth.Truncate(statusBar.label, p.statusBarLabelWidth, "..."), p.statusBarLabelWidth))
-	fmt.Fprint(&out, "  ")
+	labelFillWidth := p.statusBarLabelWidth + 2
+	fmt.Fprint(&out, runewidth.FillRight(runewidth.Truncate(statusBar.label, p.statusBarLabelWidth, "..."), labelFillWidth))
 
 	fmt.Fprintf(&out, statusBar.format+"%s", p.o.caps.formatArgs(append(statusBar.args, StyleReset))...)
 	(&out).Write([]byte("\n"))
 
-	fmt.Fprint(p.o.w, runewidth.Truncate(out.String(), p.o.caps.Width, "...\n"))
+	fmt.Fprint(p.o.w, runewidth.Truncate(out.String(), p.o.caps.Width+3, "...\n"))
 }

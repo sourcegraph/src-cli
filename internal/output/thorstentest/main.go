@@ -84,9 +84,9 @@ func main() {
 					}
 
 				} else if elapsed > 4*time.Second && elapsed < 5*time.Second {
-					progress.StatusBarComplete(1, `Done!`)
+					progress.StatusBarCompletef(1, `Done!`)
 					if elapsed > (4*time.Second + 500*time.Millisecond) {
-						progress.StatusBarComplete(0, `Done!`)
+						progress.StatusBarCompletef(0, `Done!`)
 					}
 				}
 			}
@@ -102,9 +102,9 @@ func main() {
 					progress.StatusBarUpdatef(0, `comby -in-place 'fmt.Sprintf("%%d", :[v])' 'strconv.Itoa(:[v])' main.go (%s)`, elapsed)
 				}
 			} else if elapsed > 7*time.Second && elapsed < 8*time.Second {
-				progress.StatusBarComplete(0, `Done!`)
+				progress.StatusBarCompletef(0, "Done!")
 				if elapsed > (7*time.Second + 320*time.Millisecond) {
-					progress.StatusBarComplete(1, `Done!`)
+					progress.StatusBarCompletef(1, "Done!")
 				}
 			}
 
