@@ -134,8 +134,7 @@ func (p *progressWithStatusBarsTTY) determineStatusBarLabelWidth() {
 		}
 	}
 
-	statusBarEmojiWidth := p.emojiWidth + 1 // statusBars have a space more at
-	// the beginning
+	statusBarEmojiWidth := p.emojiWidth + 1 // statusBars have one more space at start
 	if maxWidth := p.o.caps.Width/2 - statusBarEmojiWidth; (p.statusBarLabelWidth + 2) > maxWidth {
 		p.statusBarLabelWidth = maxWidth - 2
 	}
