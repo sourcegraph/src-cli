@@ -155,5 +155,54 @@ func (p *progressWithStatusBarsTTY) writeStatusBar(i int, statusBar *StatusBar) 
 	text := runewidth.Truncate(fmt.Sprintf(statusBar.format, p.o.caps.formatArgs(statusBar.args)...), textMaxLength, "...")
 
 	p.o.clearCurrentLine()
-	fmt.Fprint(p.o.w, style, " ", emoji, " ", label, text, StyleReset, "\n")
+	fmt.Fprint(p.o.w, style, " ", runewidth.FillLeft(emoji, p.emojiWidth+1), " ", label, text, StyleReset, "\n")
+}
+
+func (p *progressWithStatusBarsTTY) Verbose(s string) {
+	if p.o.opts.Verbose {
+		p.Write(s)
+	}
+}
+
+func (p *progressWithStatusBarsTTY) Verbosef(format string, args ...interface{}) {
+	if p.o.opts.Verbose {
+		p.Writef(format, args...)
+	}
+}
+
+func (p *progressWithStatusBarsTTY) VerboseLine(line FancyLine) {
+	if p.o.opts.Verbose {
+		p.WriteLine(line)
+	}
+}
+
+func (p *progressWithStatusBarsTTY) Write(s string) {
+	p.o.lock.Lock()
+	defer p.o.lock.Unlock()
+
+	p.moveToOrigin()
+	p.o.clearCurrentLine()
+	fmt.Fprintln(p.o.w, s)
+	p.draw()
+}
+
+func (p *progressWithStatusBarsTTY) Writef(format string, args ...interface{}) {
+	p.o.lock.Lock()
+	defer p.o.lock.Unlock()
+
+	p.moveToOrigin()
+	p.o.clearCurrentLine()
+	fmt.Fprintf(p.o.w, format, p.o.caps.formatArgs(args)...)
+	fmt.Fprint(p.o.w, "\n")
+	p.draw()
+}
+
+func (p *progressWithStatusBarsTTY) WriteLine(line FancyLine) {
+	p.o.lock.Lock()
+	defer p.o.lock.Unlock()
+
+	p.moveToOrigin()
+	p.o.clearCurrentLine()
+	line.write(p.o.w, p.o.caps)
+	p.draw()
 }
