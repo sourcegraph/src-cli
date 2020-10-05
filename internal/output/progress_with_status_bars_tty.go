@@ -8,9 +8,61 @@ import (
 	"github.com/mattn/go-runewidth"
 )
 
+func newProgressWithStatusBarsTTY(bars []*ProgressBar, statusBars []*StatusBar, o *Output, opts *ProgressOpts) *progressWithStatusBarsTTY {
+	p := &progressWithStatusBarsTTY{
+		bars:       bars,
+		statusBars: statusBars,
+
+		o:            o,
+		emojiWidth:   3,
+		pendingEmoji: spinnerStrings[0],
+		spinner:      newSpinner(100 * time.Millisecond),
+	}
+
+	if opts != nil {
+		p.opts = *opts
+	} else {
+		p.opts = ProgressOpts{
+			SuccessEmoji: "\u2705",
+			SuccessStyle: StyleSuccess,
+			PendingStyle: StylePending,
+		}
+	}
+
+	if w := runewidth.StringWidth(p.opts.SuccessEmoji); w > p.emojiWidth {
+		p.emojiWidth = w + 1
+	}
+
+	p.determineLabelWidth()
+	p.determineStatusBarLabelWidth()
+
+	p.o.lock.Lock()
+	defer p.o.lock.Unlock()
+
+	p.draw()
+
+	go func() {
+		for s := range p.spinner.C {
+			func() {
+				p.pendingEmoji = s
+
+				p.o.lock.Lock()
+				defer p.o.lock.Unlock()
+
+				p.moveToOrigin()
+				p.draw()
+			}()
+		}
+	}()
+
+	return p
+}
+
 type progressWithStatusBarsTTY struct {
-	bars       []*ProgressBar
-	statusBars []*FancyLine
+	bars []*ProgressBar
+
+	statusBars          []*StatusBar
+	statusBarLabelWidth int
 
 	o    *Output
 	opts ProgressOpts
@@ -30,6 +82,12 @@ func (p *progressWithStatusBarsTTY) Complete() {
 	for _, bar := range p.bars {
 		bar.Value = bar.Max
 	}
+
+	// TODO: This makes the statusBars disappear when completing the
+	// progressbar but it's a bit janky
+	// p.o.moveUp(len(p.statusBars) + len(p.bars))
+	// p.statusBars = p.statusBars[0:0]
+
 	p.drawInSitu()
 }
 
@@ -116,13 +174,26 @@ func (p *progressWithStatusBarsTTY) WriteLine(line FancyLine) {
 	p.draw()
 }
 
+func (p *progressWithStatusBarsTTY) StatusBarResetf(i int, label, format string, args ...interface{}) {
+	p.o.lock.Lock()
+	defer p.o.lock.Unlock()
+
+	if p.statusBars[i] != nil {
+		p.statusBars[i].completed = false
+		p.statusBars[i].label = label
+		p.statusBars[i].format = format
+		p.statusBars[i].args = args
+	}
+	p.determineStatusBarLabelWidth()
+
+	p.drawInSitu()
+}
+
 func (p *progressWithStatusBarsTTY) StatusBarUpdatef(i int, format string, args ...interface{}) {
 	p.o.lock.Lock()
 	defer p.o.lock.Unlock()
 
 	if p.statusBars[i] != nil {
-		p.statusBars[i].style = StylePending
-		p.statusBars[i].emoji = p.pendingEmoji
 		p.statusBars[i].format = format
 		p.statusBars[i].args = args
 	}
@@ -130,86 +201,25 @@ func (p *progressWithStatusBarsTTY) StatusBarUpdatef(i int, format string, args 
 	p.drawInSitu()
 }
 
-func (p *progressWithStatusBarsTTY) StatusBarComplete(i int, message FancyLine) {
+func (p *progressWithStatusBarsTTY) StatusBarComplete(i int, format string, args ...interface{}) {
 	p.o.lock.Lock()
 	defer p.o.lock.Unlock()
 
-	p.statusBars[i] = &message
+	if p.statusBars[i] != nil {
+		p.statusBars[i].completed = true
+		p.statusBars[i].format = format
+		p.statusBars[i].args = args
+	}
 
 	p.drawInSitu()
 }
 
-func newProgressWithStatusBarsTTY(bars []*ProgressBar, statusBars []*FancyLine, o *Output, opts *ProgressOpts) *progressWithStatusBarsTTY {
-	p := &progressWithStatusBarsTTY{
-		bars:       bars,
-		statusBars: statusBars,
-
-		o:            o,
-		emojiWidth:   3,
-		pendingEmoji: spinnerStrings[0],
-		spinner:      newSpinner(100 * time.Millisecond),
-	}
-
-	if opts != nil {
-		p.opts = *opts
-	} else {
-		p.opts = ProgressOpts{
-			SuccessEmoji: "\u2705",
-			SuccessStyle: StyleSuccess,
-			PendingStyle: StylePending,
-		}
-	}
-
-	if w := runewidth.StringWidth(p.opts.SuccessEmoji); w > p.emojiWidth {
-		p.emojiWidth = w + 1
-	}
-
-	p.labelWidth = 0
-	for _, bar := range bars {
-		bar.labelWidth = runewidth.StringWidth(bar.Label)
-		if bar.labelWidth > p.labelWidth {
-			p.labelWidth = bar.labelWidth
-		}
-	}
-
-	if maxWidth := p.o.caps.Width/2 - p.emojiWidth; (p.labelWidth + 2) > maxWidth {
-		p.labelWidth = maxWidth - 2
-	}
-
-	p.o.lock.Lock()
-	defer p.o.lock.Unlock()
-
-	p.draw()
-
-	go func() {
-		for s := range p.spinner.C {
-			func() {
-				p.pendingEmoji = s
-
-				p.o.lock.Lock()
-				defer p.o.lock.Unlock()
-
-				for _, line := range p.statusBars {
-					if line.emoji != EmojiSuccess {
-						line.emoji = s
-					}
-				}
-
-				p.moveToOrigin()
-				p.draw()
-			}()
-		}
-	}()
-
-	return p
-}
-
 func (p *progressWithStatusBarsTTY) draw() {
-	for _, statusBar := range p.statusBars {
+	for i, statusBar := range p.statusBars {
 		if statusBar == nil {
 			continue
 		}
-		p.writeStatusBar(statusBar)
+		p.writeStatusBar(i, statusBar)
 	}
 
 	for _, bar := range p.bars {
@@ -230,14 +240,58 @@ func (p *progressWithStatusBarsTTY) writeBar(bar *ProgressBar) {
 	writeProgressBar(p.o, bar, p.opts, p.emojiWidth, p.labelWidth, p.pendingEmoji)
 }
 
-func (p *progressWithStatusBarsTTY) writeStatusBar(statusBar *FancyLine) {
+func (p *progressWithStatusBarsTTY) determineLabelWidth() {
+	p.labelWidth = 0
+	for _, bar := range p.bars {
+		bar.labelWidth = runewidth.StringWidth(bar.Label)
+		if bar.labelWidth > p.labelWidth {
+			p.labelWidth = bar.labelWidth
+		}
+	}
+
+	if maxWidth := p.o.caps.Width/2 - p.emojiWidth; (p.labelWidth + 2) > maxWidth {
+		p.labelWidth = maxWidth - 2
+	}
+
+}
+
+func (p *progressWithStatusBarsTTY) determineStatusBarLabelWidth() {
+	p.statusBarLabelWidth = 0
+	for _, bar := range p.statusBars {
+		labelWidth := runewidth.StringWidth(bar.label)
+		if labelWidth > p.statusBarLabelWidth {
+			p.statusBarLabelWidth = labelWidth
+		}
+	}
+
+	if maxWidth := p.o.caps.Width/2 - p.emojiWidth; (p.statusBarLabelWidth + 2) > maxWidth {
+		p.statusBarLabelWidth = maxWidth - 2
+	}
+}
+
+func (p *progressWithStatusBarsTTY) writeStatusBar(i int, statusBar *StatusBar) {
 	p.o.clearCurrentLine()
 
 	var out bytes.Buffer
-	if statusBar.emoji != "" {
-		fmt.Fprint(&out, statusBar.emoji+" ")
+
+	emoji := p.pendingEmoji
+	style := StylePending
+	if statusBar.completed {
+		emoji = EmojiSuccess
+		style = StyleSuccess
 	}
-	fmt.Fprintf(&out, "%s"+statusBar.format+"%s", p.o.caps.formatArgs(append(append([]interface{}{statusBar.style}, statusBar.args...), StyleReset))...)
+	box := "┣ "
+	if i == 0 {
+		box = "┏ "
+	}
+
+	fmt.Fprintf(&out, "%s", p.o.caps.formatArgs([]interface{}{style})...)
+
+	fmt.Fprint(&out, box+emoji+" ")
+	fmt.Fprint(&out, runewidth.FillRight(runewidth.Truncate(statusBar.label, p.statusBarLabelWidth, "..."), p.statusBarLabelWidth))
+	fmt.Fprint(&out, "  ")
+
+	fmt.Fprintf(&out, statusBar.format+"%s", p.o.caps.formatArgs(append(statusBar.args, StyleReset))...)
 	(&out).Write([]byte("\n"))
 
 	fmt.Fprint(p.o.w, runewidth.Truncate(out.String(), p.o.caps.Width, "...\n"))

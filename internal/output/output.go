@@ -134,13 +134,13 @@ func (o *Output) Progress(bars []ProgressBar, opts *ProgressOpts) Progress {
 	return newProgress(bars, o, opts)
 }
 
-// ProgressWithPendings sets up a new progress bar context with Pending
+// ProgressWithStatusBars sets up a new progress bar context with StatusBar
 // contexts. This should not be invoked if there is an active Block or Pending
 // context.
 //
 // A Progress instance must be disposed of via the Complete or Destroy methods.
-func (o *Output) ProgressWithPendings(bars []ProgressBar, messages []FancyLine, opts *ProgressOpts) ProgressWithStatusBars {
-	return newProgressWithStatusBars(bars, messages, o, opts)
+func (o *Output) ProgressWithStatusBars(bars []ProgressBar, statusBars []*StatusBar, opts *ProgressOpts) ProgressWithStatusBars {
+	return newProgressWithStatusBars(bars, statusBars, o, opts)
 }
 
 // The utility functions below do not make checks for whether the terminal is a

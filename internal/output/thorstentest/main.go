@@ -28,11 +28,11 @@ func main() {
 	})
 
 	var wg sync.WaitGroup
-	progress := out.ProgressWithPendings([]output.ProgressBar{
+	progress := out.ProgressWithStatusBars([]output.ProgressBar{
 		{Label: "Running steps", Max: 1.0},
-	}, []output.FancyLine{
-		output.Linef("", output.StylePending, "Starting worker..."),
-		output.Linef("", output.StylePending, "Starting worker..."),
+	}, []*output.StatusBar{
+		output.NewStatusBarWithLabel("github.com/sourcegraph/src-cli"),
+		output.NewStatusBarWithLabel("github.com/sourcegraph/sourcegraph"),
 	}, nil)
 
 	wg.Add(1)
@@ -68,36 +68,43 @@ func main() {
 
 			elapsed := time.Since(start)
 
-			if elapsed < 1*time.Second {
-				progress.StatusBarUpdatef(0, "github.com/sourcegraph/src-cli     - Downloading archive... (%s)", elapsed)
-				progress.StatusBarUpdatef(1, "github.com/sourcegraph/sourcegraph - Downloading archive... (%s)", elapsed)
-			} else if elapsed > 1*time.Second && elapsed < 2*time.Second {
-				progress.StatusBarUpdatef(0, `github.com/sourcegraph/src-cli     - comby -in-place 'fmt.Sprintf("%%d", :[v])' 'strconv.Itoa(:[v])' main.go (%s)`, elapsed)
-				progress.StatusBarUpdatef(1, `github.com/sourcegraph/sourcegraph - comby -in-place 'fmt.Sprintf("%%d", :[v])' 'strconv.Itoa(:[v])' pkg/main.go pkg/utils.go (%s)`, elapsed)
-			} else if elapsed > 2*time.Second && elapsed < 4*time.Second {
-				progress.StatusBarUpdatef(0, `github.com/sourcegraph/src-cli     - goimports -w main.go (%s)`, elapsed)
-				if elapsed > (2*time.Second + 500*time.Millisecond) {
-					progress.StatusBarUpdatef(1, `github.com/sourcegraph/sourcegraph - goimports -w pkg/main.go pkg/utils.go (%s)`, elapsed)
+			if elapsed < 5*time.Second {
+				if elapsed < 1*time.Second {
+					progress.StatusBarUpdatef(0, "Downloading archive... (%s)", elapsed)
+					progress.StatusBarUpdatef(1, "Downloading archive... (%s)", elapsed)
+
+				} else if elapsed > 1*time.Second && elapsed < 2*time.Second {
+					progress.StatusBarUpdatef(0, `comby -in-place 'fmt.Sprintf("%%d", :[v])' 'strconv.Itoa(:[v])' main.go (%s)`, elapsed)
+					progress.StatusBarUpdatef(1, `comby -in-place 'fmt.Sprintf("%%d", :[v])' 'strconv.Itoa(:[v])' pkg/main.go pkg/utils.go (%s)`, elapsed)
+
+				} else if elapsed > 2*time.Second && elapsed < 4*time.Second {
+					progress.StatusBarUpdatef(0, `goimports -w main.go (%s)`, elapsed)
+					if elapsed > (2*time.Second + 500*time.Millisecond) {
+						progress.StatusBarUpdatef(1, `goimports -w pkg/main.go pkg/utils.go (%s)`, elapsed)
+					}
+
+				} else if elapsed > 4*time.Second && elapsed < 5*time.Second {
+					progress.StatusBarComplete(1, `Done!`)
+					if elapsed > (4*time.Second + 500*time.Millisecond) {
+						progress.StatusBarComplete(0, `Done!`)
+					}
 				}
-			} else if elapsed > 4*time.Second && elapsed < 5*time.Second {
-				progress.StatusBarComplete(1, output.Line(output.EmojiSuccess, output.StyleSuccess, `github.com/sourcegraph/sourcegraph - Done!`))
-				if elapsed > (4*time.Second + 500*time.Millisecond) {
-					progress.StatusBarComplete(0, output.Line(output.EmojiSuccess, output.StyleSuccess, `github.com/sourcegraph/src-cli     - Done!`))
-				}
-			} else if elapsed > 5*time.Second && elapsed < 6*time.Second {
-				progress.StatusBarUpdatef(0, `github.com/sourcegraph/utils  - Downloading archive...`)
+			}
+
+			if elapsed > 5*time.Second && elapsed < 6*time.Second {
+				progress.StatusBarResetf(0, "github.com/sourcegraph/code-intel", `Downloading archive...`)
 				if elapsed > (5*time.Second + 200*time.Millisecond) {
-					progress.StatusBarUpdatef(1, `github.com/sourcegraph/nachos - Downloading archive...`)
+					progress.StatusBarResetf(1, "github.com/sourcegraph/srcx86", `Downloading archive...`)
 				}
 			} else if elapsed > 6*time.Second && elapsed < 7*time.Second {
-				progress.StatusBarUpdatef(1, `github.com/sourcegraph/nachos - comby -in-place 'fmt.Sprintf("%%d", :[v])' 'strconv.Itoa(:[v])' main.go (%s)`, elapsed)
+				progress.StatusBarUpdatef(1, `comby -in-place 'fmt.Sprintf("%%d", :[v])' 'strconv.Itoa(:[v])' main.go (%s)`, elapsed)
 				if elapsed > (6*time.Second + 100*time.Millisecond) {
-					progress.StatusBarUpdatef(0, `github.com/sourcegraph/utils  - comby -in-place 'fmt.Sprintf("%%d", :[v])' 'strconv.Itoa(:[v])' main.go (%s)`, elapsed)
+					progress.StatusBarUpdatef(0, `comby -in-place 'fmt.Sprintf("%%d", :[v])' 'strconv.Itoa(:[v])' main.go (%s)`, elapsed)
 				}
 			} else if elapsed > 7*time.Second && elapsed < 8*time.Second {
-				progress.StatusBarComplete(0, output.Line(output.EmojiSuccess, output.StyleSuccess, `github.com/sourcegraph/utils   - Done!`))
+				progress.StatusBarComplete(0, `Done!`)
 				if elapsed > (7*time.Second + 320*time.Millisecond) {
-					progress.StatusBarComplete(1, output.Line(output.EmojiSuccess, output.StyleSuccess, `github.com/sourcegraph/nachos   - Done!`))
+					progress.StatusBarComplete(1, `Done!`)
 				}
 			}
 

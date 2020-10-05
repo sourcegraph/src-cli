@@ -8,3 +8,7 @@ type StatusBar struct {
 	format string
 	args   []interface{}
 }
+
+func NewStatusBarWithLabel(label string) *StatusBar {
+	return &StatusBar{label: label}
+}
