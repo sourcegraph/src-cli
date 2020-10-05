@@ -9,6 +9,12 @@ import (
 	"github.com/mattn/go-runewidth"
 )
 
+var defaultProgressTTYOpts = ProgressOpts{
+	SuccessEmoji: "\u2705",
+	SuccessStyle: StyleSuccess,
+	PendingStyle: StylePending,
+}
+
 type progressTTY struct {
 	bars []*ProgressBar
 
@@ -128,17 +134,10 @@ func newProgressTTY(bars []*ProgressBar, o *Output, opts *ProgressOpts) *progres
 	if opts != nil {
 		p.opts = *opts
 	} else {
-		p.opts = ProgressOpts{
-			SuccessEmoji: "\u2705",
-			SuccessStyle: StyleSuccess,
-			PendingStyle: StylePending,
-		}
+		p.opts = defaultProgressTTYOpts
 	}
 
-	if w := runewidth.StringWidth(p.opts.SuccessEmoji); w > p.emojiWidth {
-		p.emojiWidth = w + 1
-	}
-
+	p.determineEmojiWidth()
 	p.determineLabelWidth()
 
 	p.o.lock.Lock()
@@ -161,6 +160,12 @@ func newProgressTTY(bars []*ProgressBar, o *Output, opts *ProgressOpts) *progres
 	}()
 
 	return p
+}
+
+func (p *progressTTY) determineEmojiWidth() {
+	if w := runewidth.StringWidth(p.opts.SuccessEmoji); w > p.emojiWidth {
+		p.emojiWidth = w + 1
+	}
 }
 
 func (p *progressTTY) determineLabelWidth() {

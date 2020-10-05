@@ -22,17 +22,10 @@ func newProgressWithStatusBarsTTY(bars []*ProgressBar, statusBars []*StatusBar, 
 	if opts != nil {
 		p.opts = *opts
 	} else {
-		p.opts = ProgressOpts{
-			SuccessEmoji: "\u2705",
-			SuccessStyle: StyleSuccess,
-			PendingStyle: StylePending,
-		}
+		p.opts = defaultProgressTTYOpts
 	}
 
-	if w := runewidth.StringWidth(p.opts.SuccessEmoji); w > p.emojiWidth {
-		p.emojiWidth = w + 1
-	}
-
+	p.determineEmojiWidth()
 	p.determineLabelWidth()
 	p.determineStatusBarLabelWidth()
 
