@@ -139,17 +139,7 @@ func newProgressTTY(bars []*ProgressBar, o *Output, opts *ProgressOpts) *progres
 		p.emojiWidth = w + 1
 	}
 
-	p.labelWidth = 0
-	for _, bar := range bars {
-		bar.labelWidth = runewidth.StringWidth(bar.Label)
-		if bar.labelWidth > p.labelWidth {
-			p.labelWidth = bar.labelWidth
-		}
-	}
-
-	if maxWidth := p.o.caps.Width/2 - p.emojiWidth; (p.labelWidth + 2) > maxWidth {
-		p.labelWidth = maxWidth - 2
-	}
+	p.determineLabelWidth()
 
 	p.o.lock.Lock()
 	defer p.o.lock.Unlock()
@@ -173,6 +163,20 @@ func newProgressTTY(bars []*ProgressBar, o *Output, opts *ProgressOpts) *progres
 	return p
 }
 
+func (p *progressTTY) determineLabelWidth() {
+	p.labelWidth = 0
+	for _, bar := range p.bars {
+		bar.labelWidth = runewidth.StringWidth(bar.Label)
+		if bar.labelWidth > p.labelWidth {
+			p.labelWidth = bar.labelWidth
+		}
+	}
+
+	if maxWidth := p.o.caps.Width/2 - p.emojiWidth; (p.labelWidth + 2) > maxWidth {
+		p.labelWidth = maxWidth - 2
+	}
+}
+
 func (p *progressTTY) draw() {
 	for _, bar := range p.bars {
 		p.writeBar(bar)
@@ -189,34 +193,23 @@ func (p *progressTTY) moveToOrigin() {
 }
 
 func (p *progressTTY) writeBar(bar *ProgressBar) {
-	writeProgressBar(p.o, bar, p.opts, p.emojiWidth, p.labelWidth, p.pendingEmoji)
-}
-
-// TODO: should this be a method on *Output?
-func writeProgressBar(
-	o *Output,
-	bar *ProgressBar,
-	opts ProgressOpts,
-	emojiWidth, labelWidth int, // TODO: This should probably be in an opts param
-	pendingEmoji string,
-) {
-	o.clearCurrentLine()
+	p.o.clearCurrentLine()
 
 	value := bar.Value
 	if bar.Value >= bar.Max {
-		o.writeStyle(opts.SuccessStyle)
-		fmt.Fprint(o.w, runewidth.FillRight(opts.SuccessEmoji, emojiWidth))
+		p.o.writeStyle(p.opts.SuccessStyle)
+		fmt.Fprint(p.o.w, runewidth.FillRight(p.opts.SuccessEmoji, p.emojiWidth))
 		value = bar.Max
 	} else {
-		o.writeStyle(opts.PendingStyle)
-		fmt.Fprint(o.w, runewidth.FillRight(pendingEmoji, emojiWidth))
+		p.o.writeStyle(p.opts.PendingStyle)
+		fmt.Fprint(p.o.w, runewidth.FillRight(p.pendingEmoji, p.emojiWidth))
 	}
 
-	fmt.Fprint(o.w, runewidth.FillRight(runewidth.Truncate(bar.Label, labelWidth, "..."), labelWidth))
+	fmt.Fprint(p.o.w, runewidth.FillRight(runewidth.Truncate(bar.Label, p.labelWidth, "..."), p.labelWidth))
 
 	// The bar width is the width of the terminal, minus the label width, minus
 	// two spaces.
-	barWidth := o.caps.Width - labelWidth - emojiWidth - 2
+	barWidth := p.o.caps.Width - p.labelWidth - p.emojiWidth - 2
 
 	// Unicode box drawing gives us eight possible bar widths, so we need to
 	// calculate both the bar width and then the final character, if any.
@@ -237,9 +230,9 @@ func writeProgressBar(
 		}
 	}
 
-	fmt.Fprintf(o.w, "  ")
-	fmt.Fprint(o.w, strings.Repeat("█", fillWidth))
-	fmt.Fprintln(o.w, []string{
+	fmt.Fprintf(p.o.w, "  ")
+	fmt.Fprint(p.o.w, strings.Repeat("█", fillWidth))
+	fmt.Fprintln(p.o.w, []string{
 		"",
 		"▏",
 		"▎",
@@ -250,5 +243,5 @@ func writeProgressBar(
 		"▉",
 	}[remainder])
 
-	o.writeStyle(StyleReset)
+	p.o.writeStyle(StyleReset)
 }
