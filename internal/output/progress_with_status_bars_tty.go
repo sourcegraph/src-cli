@@ -157,6 +157,11 @@ func (p *progressWithStatusBarsTTY) moveToOrigin() {
 	p.o.moveUp(len(p.statusBars) + len(p.bars))
 }
 
+func (p *progressWithStatusBarsTTY) drawInSitu() {
+	p.moveToOrigin()
+	p.draw()
+}
+
 func (p *progressWithStatusBarsTTY) determineStatusBarLabelWidth() {
 	p.statusBarLabelWidth = 0
 	for _, bar := range p.statusBars {
