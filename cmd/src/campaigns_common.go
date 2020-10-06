@@ -240,12 +240,12 @@ func campaignsExecute(ctx context.Context, out *output.Output, svc *campaigns.Se
 		campaignsCompletePending(pending, "Resolved repositories")
 	}
 
-	execProgress, execProgressComplete := executeCampaignSpecProgress(out, opts.Parallelism)
-	specs, err := svc.ExecuteCampaignSpec(ctx, repos, executor, campaignSpec, execProgress)
+	p := newCampaignProgressPrinter(out, opts.Parallelism)
+	specs, err := svc.ExecuteCampaignSpec(ctx, repos, executor, campaignSpec, p.PrintStatuses)
 	if err != nil {
 		return "", "", err
 	}
-	execProgressComplete()
+	p.Complete()
 
 	if logFiles := executor.LogFiles(); len(logFiles) > 0 && flags.keepLogs {
 		func() {
@@ -408,136 +408,4 @@ func contextCancelOnInterrupt(parent context.Context) (context.Context, func()) 
 		signal.Stop(c)
 		ctxCancel()
 	}
-}
-
-// executeCampaignSpecProgress returns a function that can be passed to
-// (*Service).ExecuteCampaignSpec as the "progress" function.
-//
-// It prints a progress bar and, if verbose mode is activated, diff stats of
-// the produced diffs.
-//
-// The second return value is the "complete" function that completes the
-// progress bar and should be called after ExecuteCampaignSpec returns
-// successfully.
-func executeCampaignSpecProgress(out *output.Output, maxStatusBars int) (func(statuses []*campaigns.TaskStatus), func()) {
-	var (
-		progress       output.ProgressWithStatusBars
-		maxRepoName    int
-		completedTasks = map[string]bool{}
-	)
-
-	runningTasks := map[string]*campaigns.TaskStatus{}
-	repoStatusBar := map[string]int{}
-	statusBarRepo := map[int]string{}
-
-	complete := func() {
-		if progress != nil {
-			progress.Complete()
-		}
-	}
-
-	progressFunc := func(statuses []*campaigns.TaskStatus) {
-		if progress == nil {
-			statusBars := []*output.StatusBar{}
-			for i := 0; i < maxStatusBars; i++ {
-				statusBars = append(statusBars, output.NewStatusBarWithLabel("Starting worker..."))
-			}
-
-			progress = out.ProgressWithStatusBars([]output.ProgressBar{{
-				Label: fmt.Sprintf("Executing steps in %d repositories", len(statuses)),
-				Max:   float64(len(statuses)),
-			}}, statusBars, nil)
-		}
-
-		unloggedCompleted := []*campaigns.TaskStatus{}
-
-		currentlyRunning := []*campaigns.TaskStatus{}
-
-		for _, ts := range statuses {
-			if len(ts.RepoName) > maxRepoName {
-				maxRepoName = len(ts.RepoName)
-			}
-
-			if !ts.Running && !ts.FinishedAt.IsZero() {
-				if !completedTasks[ts.RepoName] {
-					completedTasks[ts.RepoName] = true
-					unloggedCompleted = append(unloggedCompleted, ts)
-				}
-				if _, ok := runningTasks[ts.RepoName]; ok {
-					delete(runningTasks, ts.RepoName)
-
-					// Free slot
-					idx := repoStatusBar[ts.RepoName]
-					delete(statusBarRepo, idx)
-				}
-
-			} else if ts.Running {
-				currentlyRunning = append(currentlyRunning, ts)
-			}
-
-		}
-
-		started := map[string]*campaigns.TaskStatus{}
-		runningIndex := 0
-		for _, ts := range currentlyRunning {
-			if _, ok := runningTasks[ts.RepoName]; !ok {
-				started[ts.RepoName] = ts
-				runningTasks[ts.RepoName] = ts
-
-				// Find free slot
-				_, ok := statusBarRepo[runningIndex]
-				for ok {
-					runningIndex += 1
-					_, ok = statusBarRepo[runningIndex]
-				}
-
-				statusBarRepo[runningIndex] = ts.RepoName
-				repoStatusBar[ts.RepoName] = runningIndex
-			}
-		}
-
-		progress.SetValue(0, float64(len(completedTasks)))
-
-		for _, ts := range unloggedCompleted {
-			var statusText string
-
-			if ts.ChangesetSpec == nil {
-				statusText = "No changes"
-			} else {
-				fileDiffs, err := diff.ParseMultiFileDiff([]byte(ts.ChangesetSpec.Commits[0].Diff))
-				if err != nil {
-					panic(err)
-				}
-
-				statusText = diffStatDescription(fileDiffs) + " " + diffStatDiagram(sumDiffStats(fileDiffs))
-			}
-
-			if ts.Cached {
-				statusText += " (cached)"
-			}
-
-			progress.Verbosef("%-*s %s", maxRepoName, ts.RepoName, statusText)
-
-			if idx, ok := repoStatusBar[ts.RepoName]; ok {
-				// Log that this task completed, but only if there is no
-				// currently executing one in this bar, to avoid flicker.
-				if _, ok := statusBarRepo[idx]; !ok {
-					progress.StatusBarCompletef(idx, "Done in %s", time.Since(ts.StartedAt).Truncate(time.Millisecond))
-				}
-				delete(repoStatusBar, ts.RepoName)
-			}
-		}
-
-		for statusBar, repo := range statusBarRepo {
-			if ts, ok := started[repo]; ok {
-				progress.StatusBarResetf(statusBar, repo, "%s (%s)", ts.CurrentlyExecuting, time.Since(ts.StartedAt).Truncate(time.Millisecond))
-				continue
-			}
-
-			ts := runningTasks[repo]
-			progress.StatusBarUpdatef(statusBar, "%s (%s)", ts.CurrentlyExecuting, time.Since(ts.StartedAt).Truncate(time.Millisecond))
-		}
-	}
-
-	return progressFunc, complete
 }
