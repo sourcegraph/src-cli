@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/sourcegraph/go-diff/diff"
 	"github.com/sourcegraph/src-cli/internal/campaigns"
@@ -171,7 +172,12 @@ func taskStatusText(ts *campaigns.TaskStatus) (string, error) {
 		}
 	} else if ts.IsRunning() {
 		if ts.CurrentlyExecuting != "" {
-			statusText = fmt.Sprintf("%s (%s)", ts.CurrentlyExecuting, ts.Runtime())
+			lines := strings.Split(ts.CurrentlyExecuting, "\n")
+			if len(lines) > 1 {
+				statusText = fmt.Sprintf("%s ... (%s)", lines[0], ts.Runtime())
+			} else {
+				statusText = fmt.Sprintf("%s (%s)", lines[0], ts.Runtime())
+			}
 		} else {
 			statusText = fmt.Sprintf("... %s", ts.Runtime())
 		}
