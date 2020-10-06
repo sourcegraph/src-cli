@@ -68,7 +68,7 @@ func (p *progressWithStatusBarsTTY) Destroy() {
 
 	p.moveToOrigin()
 
-	for i := 0; i < len(p.bars)+len(p.statusBars); i += 1 {
+	for i := 0; i < p.lines(); i += 1 {
 		p.o.clearCurrentLine()
 		p.o.moveDown(1)
 	}
@@ -82,7 +82,8 @@ func (p *progressWithStatusBarsTTY) Complete() {
 	p.o.lock.Lock()
 	defer p.o.lock.Unlock()
 
-	for i := 0; i < len(p.statusBars); i += 1 {
+	// +1 because of the line between progress and status bars
+	for i := 0; i < len(p.statusBars)+1; i += 1 {
 		p.o.moveUp(1)
 		p.o.clearCurrentLine()
 	}
@@ -94,6 +95,10 @@ func (p *progressWithStatusBarsTTY) Complete() {
 
 	p.o.moveUp(len(p.bars))
 	p.draw()
+}
+
+func (p *progressWithStatusBarsTTY) lines() int {
+	return len(p.bars) + len(p.statusBars) + 1
 }
 
 func (p *progressWithStatusBarsTTY) SetLabel(i int, label string) {
@@ -152,6 +157,10 @@ func (p *progressWithStatusBarsTTY) draw() {
 		p.writeBar(bar)
 	}
 
+	if len(p.statusBars) > 0 {
+		fmt.Fprint(p.o.w, StylePending, "┃\n")
+	}
+
 	for i, statusBar := range p.statusBars {
 		if statusBar == nil {
 			continue
@@ -162,7 +171,7 @@ func (p *progressWithStatusBarsTTY) draw() {
 }
 
 func (p *progressWithStatusBarsTTY) moveToOrigin() {
-	p.o.moveUp(len(p.statusBars) + len(p.bars))
+	p.o.moveUp(p.lines())
 }
 
 func (p *progressWithStatusBarsTTY) drawInSitu() {
@@ -179,7 +188,7 @@ func (p *progressWithStatusBarsTTY) determineStatusBarLabelWidth() {
 		}
 	}
 
-	statusBarPrefixWidth := 2 // statusBars have box char and space
+	statusBarPrefixWidth := 4 // statusBars have box char and space
 	if maxWidth := p.o.caps.Width/2 - statusBarPrefixWidth; (p.statusBarLabelWidth + 2) > maxWidth {
 		p.statusBarLabelWidth = maxWidth - 2
 	}
@@ -192,9 +201,9 @@ func (p *progressWithStatusBarsTTY) writeStatusBar(last bool, statusBar *StatusB
 		// emoji = EmojiSuccess
 		style = StyleSuccess
 	}
-	box := "┣"
+	box := "┣━━"
 	if last {
-		box = "┗"
+		box = "┗━━"
 	}
 
 	labelFillWidth := p.statusBarLabelWidth + 2

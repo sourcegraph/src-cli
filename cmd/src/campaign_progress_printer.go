@@ -173,10 +173,11 @@ func taskStatusText(ts *campaigns.TaskStatus) (string, error) {
 	} else if ts.IsRunning() {
 		if ts.CurrentlyExecuting != "" {
 			lines := strings.Split(ts.CurrentlyExecuting, "\n")
+			escapedLine := strings.ReplaceAll(lines[0], "%", "%%")
 			if len(lines) > 1 {
-				statusText = fmt.Sprintf("%s ... (%s)", lines[0], ts.Runtime())
+				statusText = fmt.Sprintf("%s ... (%s)", escapedLine, ts.Runtime())
 			} else {
-				statusText = fmt.Sprintf("%s (%s)", lines[0], ts.Runtime())
+				statusText = fmt.Sprintf("%s (%s)", escapedLine, ts.Runtime())
 			}
 		} else {
 			statusText = fmt.Sprintf("... %s", ts.Runtime())
