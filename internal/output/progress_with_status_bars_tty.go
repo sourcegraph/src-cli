@@ -58,6 +58,8 @@ type progressWithStatusBarsTTY struct {
 	statusBarLabelWidth int
 }
 
+func (p *progressWithStatusBarsTTY) Close() { p.Destroy() }
+
 func (p *progressWithStatusBarsTTY) Destroy() {
 	p.spinner.stop()
 
@@ -72,6 +74,36 @@ func (p *progressWithStatusBarsTTY) Destroy() {
 	}
 
 	p.moveToOrigin()
+}
+
+func (p *progressWithStatusBarsTTY) Complete() {
+	p.spinner.stop()
+
+	p.o.lock.Lock()
+	defer p.o.lock.Unlock()
+
+	for _, bar := range p.bars {
+		bar.Value = bar.Max
+	}
+
+	p.drawInSitu()
+}
+
+func (p *progressWithStatusBarsTTY) SetLabel(i int, label string) {
+	p.o.lock.Lock()
+	defer p.o.lock.Unlock()
+
+	p.bars[i].Label = label
+	p.bars[i].labelWidth = runewidth.StringWidth(label)
+	p.drawInSitu()
+}
+
+func (p *progressWithStatusBarsTTY) SetValue(i int, v float64) {
+	p.o.lock.Lock()
+	defer p.o.lock.Unlock()
+
+	p.bars[i].Value = v
+	p.drawInSitu()
 }
 
 func (p *progressWithStatusBarsTTY) StatusBarResetf(i int, label, format string, args ...interface{}) {
