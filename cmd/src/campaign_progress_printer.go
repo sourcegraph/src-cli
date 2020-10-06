@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/sourcegraph/go-diff/diff"
 	"github.com/sourcegraph/src-cli/internal/campaigns"
@@ -60,7 +59,7 @@ func (p *campaignProgressPrinter) PrintStatuses(statuses []*campaigns.TaskStatus
 		p.initProgressBar(statuses)
 	}
 
-	unloggedCompleted := []*campaigns.TaskStatus{}
+	newlyCompleted := []*campaigns.TaskStatus{}
 	currentlyRunning := []*campaigns.TaskStatus{}
 
 	for _, ts := range statuses {
@@ -68,11 +67,12 @@ func (p *campaignProgressPrinter) PrintStatuses(statuses []*campaigns.TaskStatus
 			p.maxRepoName = len(ts.RepoName)
 		}
 
-		if !ts.Running && !ts.FinishedAt.IsZero() {
+		if ts.IsCompleted() {
 			if !p.completedTasks[ts.RepoName] {
 				p.completedTasks[ts.RepoName] = true
-				unloggedCompleted = append(unloggedCompleted, ts)
+				newlyCompleted = append(newlyCompleted, ts)
 			}
+
 			if _, ok := p.runningTasks[ts.RepoName]; ok {
 				delete(p.runningTasks, ts.RepoName)
 
@@ -80,7 +80,9 @@ func (p *campaignProgressPrinter) PrintStatuses(statuses []*campaigns.TaskStatus
 				idx := p.repoStatusBar[ts.RepoName]
 				delete(p.statusBarRepo, idx)
 			}
-		} else if ts.Running {
+		}
+
+		if ts.IsRunning() {
 			currentlyRunning = append(currentlyRunning, ts)
 		}
 
@@ -88,41 +90,32 @@ func (p *campaignProgressPrinter) PrintStatuses(statuses []*campaigns.TaskStatus
 
 	p.progress.SetValue(0, float64(len(p.completedTasks)))
 
-	started := map[string]*campaigns.TaskStatus{}
-	runningIndex := 0
+	newlyStarted := map[string]*campaigns.TaskStatus{}
+	statusBarIndex := 0
 	for _, ts := range currentlyRunning {
-		if _, ok := p.runningTasks[ts.RepoName]; !ok {
-			started[ts.RepoName] = ts
-			p.runningTasks[ts.RepoName] = ts
-
-			// Find free slot
-			_, ok := p.statusBarRepo[runningIndex]
-			for ok {
-				runningIndex += 1
-				_, ok = p.statusBarRepo[runningIndex]
-			}
-
-			p.statusBarRepo[runningIndex] = ts.RepoName
-			p.repoStatusBar[ts.RepoName] = runningIndex
+		if _, ok := p.runningTasks[ts.RepoName]; ok {
+			continue
 		}
+
+		newlyStarted[ts.RepoName] = ts
+		p.runningTasks[ts.RepoName] = ts
+
+		// Find free slot
+		_, ok := p.statusBarRepo[statusBarIndex]
+		for ok {
+			statusBarIndex += 1
+			_, ok = p.statusBarRepo[statusBarIndex]
+		}
+
+		p.statusBarRepo[statusBarIndex] = ts.RepoName
+		p.repoStatusBar[ts.RepoName] = statusBarIndex
 	}
 
-	for _, ts := range unloggedCompleted {
-		var statusText string
-
-		if ts.ChangesetSpec == nil {
-			statusText = "No changes"
-		} else {
-			fileDiffs, err := diff.ParseMultiFileDiff([]byte(ts.ChangesetSpec.Commits[0].Diff))
-			if err != nil {
-				panic(err)
-			}
-
-			statusText = diffStatDescription(fileDiffs) + " " + diffStatDiagram(sumDiffStats(fileDiffs))
-		}
-
-		if ts.Cached {
-			statusText += " (cached)"
+	for _, ts := range newlyCompleted {
+		statusText, err := taskStatusText(ts)
+		if err != nil {
+			p.progress.Verbosef("%-*s failed to display status: %s", p.maxRepoName, ts.RepoName, err)
+			continue
 		}
 
 		p.progress.Verbosef("%-*s %s", p.maxRepoName, ts.RepoName, statusText)
@@ -131,19 +124,58 @@ func (p *campaignProgressPrinter) PrintStatuses(statuses []*campaigns.TaskStatus
 			// Log that this task completed, but only if there is no
 			// currently executing one in this bar, to avoid flicker.
 			if _, ok := p.statusBarRepo[idx]; !ok {
-				p.progress.StatusBarCompletef(idx, "Done in %s", time.Since(ts.StartedAt).Truncate(time.Millisecond))
+				p.progress.StatusBarCompletef(idx, statusText)
 			}
 			delete(p.repoStatusBar, ts.RepoName)
 		}
 	}
 
 	for statusBar, repo := range p.statusBarRepo {
-		if ts, ok := started[repo]; ok {
-			p.progress.StatusBarResetf(statusBar, repo, "%s (%s)", ts.CurrentlyExecuting, time.Since(ts.StartedAt).Truncate(time.Millisecond))
+		ts, ok := p.runningTasks[repo]
+		if !ok {
+			// This should not happen
 			continue
 		}
 
-		ts := p.runningTasks[repo]
-		p.progress.StatusBarUpdatef(statusBar, "%s (%s)", ts.CurrentlyExecuting, time.Since(ts.StartedAt).Truncate(time.Millisecond))
+		statusText, err := taskStatusText(ts)
+		if err != nil {
+			p.progress.Verbosef("%-*s failed to display status: %s", p.maxRepoName, ts.RepoName, err)
+			continue
+		}
+
+		if _, ok := newlyStarted[repo]; ok {
+			p.progress.StatusBarResetf(statusBar, ts.RepoName, statusText)
+		} else {
+			p.progress.StatusBarUpdatef(statusBar, statusText)
+		}
 	}
+}
+
+func taskStatusText(ts *campaigns.TaskStatus) (string, error) {
+	var statusText string
+
+	if ts.IsCompleted() {
+		if ts.ChangesetSpec == nil {
+			statusText = "No changes"
+		} else {
+			fileDiffs, err := diff.ParseMultiFileDiff([]byte(ts.ChangesetSpec.Commits[0].Diff))
+			if err != nil {
+				return "", err
+			}
+
+			statusText = diffStatDescription(fileDiffs) + " " + diffStatDiagram(sumDiffStats(fileDiffs))
+		}
+
+		if ts.Cached {
+			statusText += " (cached)"
+		}
+	} else if ts.IsRunning() {
+		if ts.CurrentlyExecuting != "" {
+			statusText = fmt.Sprintf("%s (%s)", ts.CurrentlyExecuting, ts.Runtime())
+		} else {
+			statusText = fmt.Sprintf("... %s", ts.Runtime())
+		}
+	}
+
+	return statusText, nil
 }

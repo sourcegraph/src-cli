@@ -60,12 +60,31 @@ type TaskStatus struct {
 	FinishedAt time.Time
 
 	// TODO: add current step and progress fields.
-	Running            bool
 	CurrentlyExecuting string
 
 	// Result fields.
 	ChangesetSpec *ChangesetSpec
 	Err           error
+}
+
+func (ts *TaskStatus) IsRunning() bool {
+	return !ts.StartedAt.IsZero() && ts.FinishedAt.IsZero()
+}
+
+func (ts *TaskStatus) IsCompleted() bool {
+	return !ts.StartedAt.IsZero() && !ts.FinishedAt.IsZero()
+}
+
+func (ts *TaskStatus) Runtime() time.Duration {
+	if ts.IsCompleted() {
+		return ts.FinishedAt.Sub(ts.StartedAt).Truncate(time.Second)
+	}
+
+	if ts.IsRunning() {
+		return time.Since(ts.StartedAt).Truncate(time.Second)
+	}
+
+	return 0
 }
 
 type executor struct {
@@ -158,7 +177,6 @@ func (x *executor) do(ctx context.Context, task *Task) (err error) {
 	// Ensure that the status is updated when we're done.
 	defer func() {
 		status.FinishedAt = time.Now()
-		status.Running = false
 		status.CurrentlyExecuting = ""
 		status.Err = err
 		x.updateTaskStatus(task, status)
@@ -166,7 +184,6 @@ func (x *executor) do(ctx context.Context, task *Task) (err error) {
 
 	// We're away!
 	status.StartedAt = time.Now()
-	status.Running = true
 	x.updateTaskStatus(task, status)
 
 	// Check if the task is cached.

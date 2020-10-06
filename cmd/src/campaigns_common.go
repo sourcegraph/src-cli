@@ -372,9 +372,10 @@ func diffStatDiagram(stat diff.Stat) string {
 		added *= x
 		deleted *= x
 	}
-	return fmt.Sprintf("%s%s%s%s",
+	return fmt.Sprintf("%s%s%s%s%s",
 		output.StyleLinesAdded, strings.Repeat("+", int(added)),
 		output.StyleLinesDeleted, strings.Repeat("-", int(deleted)),
+		output.StyleReset,
 	)
 }
 
