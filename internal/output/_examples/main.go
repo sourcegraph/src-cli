@@ -151,17 +151,17 @@ func demoProgressWithBars(out *output.Output, duration time.Duration) {
 
 			if elapsed < 5*time.Second {
 				if elapsed < 1*time.Second {
-					progress.StatusBarUpdatef(0, "Downloading archive... (%s)", elapsed)
-					progress.StatusBarUpdatef(1, "Downloading archive... (%s)", elapsed)
+					progress.StatusBarUpdatef(0, "Downloading archive...")
+					progress.StatusBarUpdatef(1, "Downloading archive...")
 
 				} else if elapsed > 1*time.Second && elapsed < 2*time.Second {
-					progress.StatusBarUpdatef(0, `comby -in-place 'fmt.Sprintf("%%d", :[v])' 'strconv.Itoa(:[v])' main.go (%s)`, elapsed)
-					progress.StatusBarUpdatef(1, `comby -in-place 'fmt.Sprintf("%%d", :[v])' 'strconv.Itoa(:[v])' pkg/main.go pkg/utils.go (%s)`, elapsed)
+					progress.StatusBarUpdatef(0, `comby -in-place 'fmt.Sprintf("%%d", :[v])' 'strconv.Itoa(:[v])' main.go`)
+					progress.StatusBarUpdatef(1, `comby -in-place 'fmt.Sprintf("%%d", :[v])' 'strconv.Itoa(:[v])' pkg/main.go pkg/utils.go`)
 
 				} else if elapsed > 2*time.Second && elapsed < 4*time.Second {
-					progress.StatusBarUpdatef(0, `goimports -w main.go (%s)`, elapsed)
+					progress.StatusBarUpdatef(0, `goimports -w main.go`)
 					if elapsed > (2*time.Second + 500*time.Millisecond) {
-						progress.StatusBarUpdatef(1, `goimports -w pkg/main.go pkg/utils.go (%s)`, elapsed)
+						progress.StatusBarUpdatef(1, `goimports -w pkg/main.go pkg/utils.go`)
 					}
 
 				} else if elapsed > 4*time.Second && elapsed < 5*time.Second {
@@ -178,9 +178,9 @@ func demoProgressWithBars(out *output.Output, duration time.Duration) {
 					progress.StatusBarResetf(1, "github.com/sourcegraph/srcx86", `Downloading archive...`)
 				}
 			} else if elapsed > 6*time.Second && elapsed < 7*time.Second {
-				progress.StatusBarUpdatef(1, `comby -in-place 'fmt.Sprintf("%%d", :[v])' 'strconv.Itoa(:[v])' main.go (%s)`, elapsed)
+				progress.StatusBarUpdatef(1, `comby -in-place 'fmt.Sprintf("%%d", :[v])' 'strconv.Itoa(:[v])' main.go (%s)`)
 				if elapsed > (6*time.Second + 100*time.Millisecond) {
-					progress.StatusBarUpdatef(0, `comby -in-place 'fmt.Sprintf("%%d", :[v])' 'strconv.Itoa(:[v])' main.go (%s)`, elapsed)
+					progress.StatusBarUpdatef(0, `comby -in-place 'fmt.Sprintf("%%d", :[v])' 'strconv.Itoa(:[v])' main.go`)
 				}
 			} else if elapsed > 7*time.Second && elapsed < 8*time.Second {
 				progress.StatusBarCompletef(0, "Done!")

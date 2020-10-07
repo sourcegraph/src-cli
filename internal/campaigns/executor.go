@@ -75,18 +75,6 @@ func (ts *TaskStatus) IsCompleted() bool {
 	return !ts.StartedAt.IsZero() && !ts.FinishedAt.IsZero()
 }
 
-func (ts *TaskStatus) Runtime() time.Duration {
-	if ts.IsCompleted() {
-		return ts.FinishedAt.Sub(ts.StartedAt).Truncate(time.Second)
-	}
-
-	if ts.IsRunning() {
-		return time.Since(ts.StartedAt).Truncate(time.Second)
-	}
-
-	return 0
-}
-
 type executor struct {
 	ExecutorOpts
 

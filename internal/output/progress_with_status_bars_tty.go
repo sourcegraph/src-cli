@@ -195,25 +195,32 @@ func (p *progressWithStatusBarsTTY) determineStatusBarLabelWidth() {
 }
 
 func (p *progressWithStatusBarsTTY) writeStatusBar(last bool, statusBar *StatusBar) {
-	// emoji := p.pendingEmoji
 	style := StylePending
 	if statusBar.completed {
-		// emoji = EmojiSuccess
 		style = StyleSuccess
 	}
-	box := "┣━━"
+	box := "┣━━ "
 	if last {
-		box = "┗━━"
+		box = "┗━━ "
 	}
+
+	boxWidth := runewidth.StringWidth(box)
 
 	labelFillWidth := p.statusBarLabelWidth + 2
 	label := runewidth.FillRight(runewidth.Truncate(statusBar.label, p.statusBarLabelWidth, "..."), labelFillWidth)
 
-	textMaxLength := p.o.caps.Width - (p.emojiWidth + 1) - labelFillWidth
+	duration := statusBar.runtime().String()
+	durationLength := runewidth.StringWidth(duration)
+
+	textMaxLength := p.o.caps.Width - boxWidth - labelFillWidth - (durationLength + 2)
 	text := runewidth.Truncate(fmt.Sprintf(statusBar.format, p.o.caps.formatArgs(statusBar.args)...), textMaxLength, "...")
+	textLength := runewidth.StringWidth(text)
+
+	durationMaxWidth := textMaxLength - textLength + (durationLength + 2)
+	durationText := runewidth.FillLeft(duration, durationMaxWidth)
 
 	p.o.clearCurrentLine()
-	fmt.Fprint(p.o.w, style, box, " ", label, text, StyleReset, "\n")
+	fmt.Fprint(p.o.w, style, box, label, StyleReset, text, StyleBold, durationText, StyleReset, "\n")
 }
 
 func (p *progressWithStatusBarsTTY) Verbose(s string) {
