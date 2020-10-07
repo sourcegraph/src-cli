@@ -73,7 +73,13 @@ Examples:
 			}
 		}
 
-		return tmpl.Execute(f, map[string]interface{}{"Author": author})
+		err = tmpl.Execute(f, map[string]interface{}{"Author": author})
+		if err != nil {
+			return errors.Wrap(err, "failed to write campaign spec to file")
+		}
+
+		fmt.Printf("%s created.\n", *fileFlag)
+		return nil
 	}
 
 	campaignsCommands = append(campaignsCommands, &command{
