@@ -203,8 +203,7 @@ func (p *progressWithStatusBarsTTY) writeStatusBar(last bool, statusBar *StatusB
 	if last {
 		box = "┗━━ "
 	}
-
-	boxWidth := runewidth.StringWidth(box)
+	const boxWidth = 4
 
 	labelFillWidth := p.statusBarLabelWidth + 2
 	label := runewidth.FillRight(runewidth.Truncate(statusBar.label, p.statusBarLabelWidth, "..."), labelFillWidth)
