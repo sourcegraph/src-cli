@@ -32,7 +32,7 @@ Examples:
 	flagSet := flag.NewFlagSet("new", flag.ExitOnError)
 
 	var (
-		fileFlag = flagSet.String("f", "campaign.yaml", "The name of campaign spec file to create.")
+		fileFlag = flagSet.String("f", "campaign.yaml", "The name of the campaign spec file to create.")
 	)
 
 	handler := func(args []string) error {
