@@ -16,6 +16,28 @@ func (p *progressWithStatusBarsSimple) Complete() {
 	writeStatusBars(p.Output, p.statusBars)
 }
 
+func (p *progressWithStatusBarsSimple) StatusBarUpdatef(i int, format string, args ...interface{}) {
+	if p.statusBars[i] != nil {
+		p.statusBars[i].Updatef(format, args...)
+	}
+}
+
+func (p *progressWithStatusBarsSimple) StatusBarCompletef(i int, format string, args ...interface{}) {
+	if p.statusBars[i] != nil {
+		wasComplete := p.statusBars[i].completed
+		p.statusBars[i].Completef(format, args...)
+		if !wasComplete {
+			writeStatusBar(p.Output, p.statusBars[i])
+		}
+	}
+}
+
+func (p *progressWithStatusBarsSimple) StatusBarResetf(i int, label, format string, args ...interface{}) {
+	if p.statusBars[i] != nil {
+		p.statusBars[i].Resetf(label, format, args...)
+	}
+}
+
 func newProgressWithStatusBarsSimple(bars []*ProgressBar, statusBars []*StatusBar, o *Output) *progressWithStatusBarsSimple {
 	p := &progressWithStatusBarsSimple{
 		progressSimple: &progressSimple{
@@ -35,6 +57,7 @@ func newProgressWithStatusBarsSimple(bars []*ProgressBar, statusBars []*StatusBa
 			case <-ticker.C:
 				if p.Output.opts.Verbose {
 					writeBars(p.Output, p.bars)
+					writeStatusBars(p.Output, p.statusBars)
 				}
 
 			case c := <-p.done:
