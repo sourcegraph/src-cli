@@ -213,7 +213,10 @@ func (p *progressWithStatusBarsTTY) writeStatusBar(last bool, statusBar *StatusB
 
 	textMaxLength := p.o.caps.Width - boxWidth - labelFillWidth - (durationLength + 2)
 	text := runewidth.Truncate(fmt.Sprintf(statusBar.format, p.o.caps.formatArgs(statusBar.args)...), textMaxLength, "...")
-	textLength := runewidth.StringWidth(text)
+
+	// The text might contain invisible control characters, so we need to
+	// exclude them when counting length
+	textLength := visibleStringWidth(text)
 
 	durationMaxWidth := textMaxLength - textLength + (durationLength + 2)
 	durationText := runewidth.FillLeft(duration, durationMaxWidth)
