@@ -158,7 +158,8 @@ func (p *progressWithStatusBarsTTY) draw() {
 	}
 
 	if len(p.statusBars) > 0 {
-		fmt.Fprint(p.o.w, StylePending, "┃", runewidth.FillLeft("\n", p.o.caps.Width-1))
+		fmt.Fprint(p.o.w, StylePending, "│", runewidth.FillLeft("\n", p.o.caps.Width-1))
+
 	}
 
 	for i, statusBar := range p.statusBars {
@@ -199,9 +200,9 @@ func (p *progressWithStatusBarsTTY) writeStatusBar(last bool, statusBar *StatusB
 	if statusBar.completed {
 		style = StyleSuccess
 	}
-	box := "┣━━ "
+	box := "├── "
 	if last {
-		box = "┗━━ "
+		box = "└── "
 	}
 	const boxWidth = 4
 
