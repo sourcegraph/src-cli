@@ -40,12 +40,11 @@ Examples:
 			return err
 		}
 
-		if _, err := os.Stat(*fileFlag); !os.IsNotExist(err) {
-			return fmt.Errorf("file %s already exists", *fileFlag)
-		}
-
-		f, err := os.Create(*fileFlag)
+		f, err := os.OpenFile(*fileFlag, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
 		if err != nil {
+			if os.IsExist(err) {
+				return fmt.Errorf("file %s already exists", *fileFlag)
+			}
 			return errors.Wrapf(err, "failed to create file %s", *fileFlag)
 		}
 		defer f.Close()
@@ -62,13 +61,13 @@ Examples:
 
 		// Try to get better default values from git, ignore any errors.
 		if err := checkExecutable("git", "version"); err == nil {
-			gitAuthorName, err := getGitConfig("user.name")
-			if err == nil && gitAuthorName != "" {
-				author.Name = gitAuthorName
-			}
+			var gitAuthorName, gitAuthorEmail string
 
-			gitAuthorEmail, err := getGitConfig("user.email")
-			if err == nil && gitAuthorEmail != "" {
+			gitAuthorName, err = getGitConfig("user.name")
+			gitAuthorEmail, err = getGitConfig("user.email")
+
+			if err == nil && gitAuthorName != "" && gitAuthorEmail != "" {
+				author.Name = gitAuthorName
 				author.Email = gitAuthorEmail
 			}
 		}
