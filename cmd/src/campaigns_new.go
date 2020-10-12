@@ -32,7 +32,7 @@ Examples:
 	flagSet := flag.NewFlagSet("new", flag.ExitOnError)
 
 	var (
-		fileFlag = flagSet.String("f", "campaign.yaml", "The name of the campaign spec file to create.")
+		fileFlag = flagSet.String("f", "campaign.yaml", "The name of campaign spec file to create.")
 	)
 
 	handler := func(args []string) error {
@@ -102,15 +102,18 @@ func getGitConfig(attribute string) (string, error) {
 	return strings.TrimSpace(string(out)), nil
 }
 
-const campaignSpecTmpl = `name: hello-world-campaign
-description: This campaign adds Hello World to READMEs
+const campaignSpecTmpl = `name: NAME-OF-YOUR-CAMPAIGN
+description: DESCRIPTION-OF-YOUR-CAMPAIGN
 
-# Find all repositories that contain a README.md file.
+
+# "on" specifies on which repositories to execute the "steps"
 on:
+  # Example: find all repositories that contain a README.md file.
   - repositoriesMatchingQuery: file:README.md
 
-# In each repository, run this command. Each repository's resulting diff is captured.
+# steps are run in each repository. Each repository's resulting diff is captured.
 steps:
+  # Example: append "Hello World" to every README.md
   - run: echo "Hello World" | tee -a $(find -name README.md)
     container: alpine:3
 
@@ -118,7 +121,9 @@ steps:
 changesetTemplate:
   title: Hello World
   body: This adds Hello World to the README
-  branch: campaigns/hello-world # Push the commit to this branch.
+
+  branch: BRANCH-NAME-IN-EACH-REPOSITORY # Push the commit to this branch.
+
   commit:
     author:
       name: {{ .Author.Name }}
