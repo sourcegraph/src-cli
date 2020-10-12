@@ -286,15 +286,15 @@ func (vd *validator) searchMatchCount(searchStr string) (int, error) {
 }
 
 const vdListRepos = `
-query ListRepos($cloneInProgress: Boolean!, $cloned: Boolean!, $notCloned: Boolean!, $names: [String!]) {
+query ListRepos($names: [String!]) {
   repositories(
-    cloned: $cloneInProgress
-    cloneInProgress: $cloned
-    notCloned: $notCloned
     names: $names
   ) {
     nodes {
       name
+      mirrorInfo {
+         cloned
+      }
     }
   }
 }`
@@ -304,20 +304,22 @@ func (vd *validator) listClonedRepos(fs []string) ([]string, error) {
 		Repositories struct {
 			Nodes []struct {
 				Name string `json:"name"`
+				MirrorInfo struct {
+					Cloned bool `json:"cloned"`
+				} `json:"mirrorInfo"`
 			} `json:"nodes"`
 		} `json:"repositories"`
 	}
 
 	err := vd.graphQL(vdListRepos, map[string]interface{}{
-		"cloneInProgress": true,
-		"cloned":          true,
-		"notCloned":       true,
 		"names":           fs,
 	}, &resp)
 
 	names := make([]string, 0, len(resp.Repositories.Nodes))
 	for _, node := range resp.Repositories.Nodes {
-		names = append(names, node.Name)
+		if node.MirrorInfo.Cloned {
+			names = append(names, node.Name)
+		}
 	}
 
 	return names, err
