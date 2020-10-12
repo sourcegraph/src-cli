@@ -49,7 +49,7 @@ EXPERIMENTAL: 'validate' is an experimental command in the 'src' tool.
 
 Usage:
 
-	src validate [options] <script-file>
+	src validate [options] src-validate.yml
 or
     cat <script-file> | src validate [options]
 `
