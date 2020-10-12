@@ -118,15 +118,19 @@ func (c *client) NewRequest(query string, vars map[string]interface{}) Request {
 
 func (c *client) NewHTTPRequest(ctx context.Context, method, p string, body io.Reader) (*http.Request, error) {
 	if c.supportsGzip == nil {
-		version, err := c.getSourcegraphVersion(ctx)
-		if err != nil {
-			return nil, err
-		}
-		supportsGzip, err := sourcegraphVersionCheck(version, ">= 3.21.0", "2020-10-12")
-		if err != nil {
-			return nil, err
-		}
+		// set to false, unless we have a new enough version
+		supportsGzip := false
 		c.supportsGzip = &supportsGzip
+
+		version, err := c.getSourcegraphVersion(ctx)
+
+		// ignore errors; we only care if the version is sufficently new
+		if err == nil {
+			supportsGzip, err = sourcegraphVersionCheck(version, ">= 3.21.0", "2020-10-12")
+			if err == nil {
+				c.supportsGzip = &supportsGzip
+			}
+		}
 	}
 
 	if *c.supportsGzip && body != nil {
