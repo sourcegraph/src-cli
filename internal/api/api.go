@@ -15,7 +15,7 @@ import (
 
 	"github.com/Masterminds/semver"
 	"github.com/hashicorp/go-multierror"
-	ioaux "github.com/jig/teereadcloser"
+	"github.com/jig/teereadcloser"
 	"github.com/kballard/go-shellquote"
 	"github.com/mattn/go-isatty"
 	"github.com/pkg/errors"
