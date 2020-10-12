@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -13,9 +14,10 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/ghodss/yaml"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/mattn/go-isatty"
+	"github.com/sourcegraph/src-cli/internal/api"
+	"gopkg.in/yaml.v2"
 )
 
 type validationSpec struct {
@@ -39,7 +41,8 @@ type validationSpec struct {
 }
 
 type validator struct {
-	client *vdClient
+	client    *vdClient
+	apiClient api.Client
 }
 
 func init() {
@@ -52,6 +55,8 @@ Usage:
 	src validate [options] src-validate.yml
 or
     cat src-validate.yml | src validate [options]
+
+Please visit https://docs.sourcegraph.com/admin/validation for documentation of the validate command.
 `
 	flagSet := flag.NewFlagSet("validate", flag.ExitOnError)
 	usageFunc := func() {
@@ -62,68 +67,60 @@ or
 
 	var (
 		contextFlag = flagSet.String("context", "", `Comma-separated list of key=value pairs to add to the script execution context`)
-		docFlag     = flagSet.Bool("doc", false, `Show documentation`)
 		secretsFlag = flagSet.String("secrets", "", "Path to a file containing key=value lines. The key value pairs will be added to the script context")
+		apiFlags        = api.NewFlags(flagSet)
 	)
+	
+	handler := func(args []string) error {
+		flagSet.Parse(args)
 
-	vd := &validator{}
+		client := cfg.apiClient(apiFlags, flagSet.Output())
+
+		vd := &validator{
+			apiClient: client,
+		}
+
+		var script []byte
+		var isYaml bool
+
+		var err error
+		if len(flagSet.Args()) == 1 {
+			filename := flagSet.Arg(0)
+			script, err = ioutil.ReadFile(filename)
+			if err != nil {
+				return err
+			}
+			if strings.HasSuffix(filename, ".yaml") || strings.HasSuffix(filename, ".yml") {
+				isYaml = true
+			}
+		}
+		if !isatty.IsTerminal(os.Stdin.Fd()) {
+			// stdin is a pipe not a terminal
+			script, err = ioutil.ReadAll(os.Stdin)
+			isYaml = true
+		}
+
+		ctxm := vd.parseKVPairs(*contextFlag, ",")
+
+		if *secretsFlag != "" {
+			sm, err := vd.readSecrets(*secretsFlag)
+			if err != nil {
+				return err
+			}
+
+			for k, v := range sm {
+				ctxm[k] = v
+			}
+		}
+
+		return vd.validate(script, ctxm, isYaml)
+	}
 
 	commands = append(commands, &command{
 		flagSet: flagSet,
-		handler: func(args []string) error {
-			if *docFlag {
-				vd.printDocumentation()
-				return nil
-			}
-
-			var script []byte
-			var err error
-			if len(flagSet.Args()) == 1 {
-				filename := flagSet.Arg(0)
-				script, err = ioutil.ReadFile(filename)
-				if err != nil {
-					return err
-				}
-				if strings.HasSuffix(filename, ".yaml") || strings.HasSuffix(filename, ".yml") {
-					script, err = yaml.YAMLToJSONStrict(script)
-					if err != nil {
-						return err
-					}
-				}
-			}
-			if !isatty.IsTerminal(os.Stdin.Fd()) {
-				// stdin is a pipe not a terminal
-				script, err = ioutil.ReadAll(os.Stdin)
-				if err != nil {
-					return err
-				}
-				script, err = yaml.YAMLToJSONStrict(script)
-				if err != nil {
-					return err
-				}
-			}
-
-			ctxm := vd.parseKVPairs(*contextFlag, ",")
-
-			if *secretsFlag != "" {
-				sm, err := vd.readSecrets(*secretsFlag)
-				if err != nil {
-					return err
-				}
-
-				for k, v := range sm {
-					ctxm[k] = v
-				}
-			}
-
-			return vd.validate(script, ctxm)
-		},
+		handler: handler,
 		usageFunc: usageFunc,
 	})
-}
-
-func (vd *validator) printDocumentation() {
-	fmt.Println("Please visit https://docs.sourcegraph.com/admin/validation for documentation of the validate command.")
 }
 
 func (vd *validator) parseKVPairs(val string, pairSep string) map[string]string {
@@ -149,7 +146,7 @@ func (vd *validator) readSecrets(path string) (map[string]string, error) {
 	return vd.parseKVPairs(string(bs), "\n"), nil
 }
 
-func (vd *validator) validate(script []byte, scriptContext map[string]string) error {
+func (vd *validator) validate(script []byte, scriptContext map[string]string, isYaml bool) error {
 	tpl, err := template.New("validate").Parse(string(script))
 	if err != nil {
 		return err
@@ -161,8 +158,15 @@ func (vd *validator) validate(script []byte, scriptContext map[string]string) er
 	}
 
 	var vspec validationSpec
-	if err := json.Unmarshal(ts.Bytes(), &vspec); err != nil {
-		return err
+
+	if isYaml {
+		if err := yaml.Unmarshal(ts.Bytes(), &vspec); err != nil {
+			return err
+		}
+	} else {
+		if err := json.Unmarshal(ts.Bytes(), &vspec); err != nil {
+			return err
+		}
 	}
 
 	if vspec.FirstAdmin.Username != "" {
@@ -522,6 +526,29 @@ func (c *vdClient) currentUserID() (string, error) {
 	return resp.Data.CurrentUser.ID, nil
 }
 
+// graphqlError wraps a raw JSON error returned from a GraphQL endpoint.
+type graphqlError struct{ v interface{} }
+
+func (g *graphqlError) Error() string {
+	j, _ := json.MarshalIndent(g.v, "", "  ")
+	return string(j)
+}
+
+// jsonCopy is a cheaty method of copying an already-decoded JSON (src)
+// response into its destination (dst) that would usually be passed to e.g.
+// json.Unmarshal.
+//
+// We could do this with reflection, obviously, but it would be much more
+// complex and JSON re-marshaling should be cheap enough anyway. Can improve in
+// the future.
+func jsonCopy(dst, src interface{}) error {
+	data, err := json.Marshal(src)
+	if err != nil {
+		return err
+	}
+	return json.NewDecoder(bytes.NewReader(data)).Decode(dst)
+}
+
 // GraphQL makes a GraphQL request to the server on behalf of the user authenticated by the client.
 // An optional token can be passed to impersonate other users.
 func (c *vdClient) graphQL(token, query string, variables map[string]interface{}, target interface{}) error {
@@ -601,9 +628,9 @@ func (vd *validator) graphQL(query string, variables map[string]interface{}, tar
 		return vd.client.graphQL("", query, variables, target)
 	}
 
-	return (&apiRequest{
-		query:  query,
-		vars:   variables,
-		result: target,
-	}).do()
+	_, err := vd.apiClient.NewRequest(query, variables).Do(context.TODO(), target)
+	if err != nil {
+		return err
+	}
+	return nil
 }
