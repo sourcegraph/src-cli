@@ -47,8 +47,10 @@ Examples:
 		gitHubToken          *string
 		open                 *bool
 		json                 *bool
+		noProgress           *bool
 		maxPayloadSizeMb     *int
 		ignoreUploadFailures *bool
+		uploadRoute          *string
 	}
 
 	flagSet := flag.NewFlagSet("upload", flag.ExitOnError)
@@ -60,8 +62,10 @@ Examples:
 	flags.gitHubToken = flagSet.String("github-token", "", `A GitHub access token with 'public_repo' scope that Sourcegraph uses to verify you have access to the repository.`)
 	flags.open = flagSet.Bool("open", false, `Open the LSIF upload page in your browser.`)
 	flags.json = flagSet.Bool("json", false, `Output relevant state in JSON on success.`)
+	flags.noProgress = flagSet.Bool("no-progress", false, `Do not display a progress bar.`)
 	flags.maxPayloadSizeMb = flagSet.Int("max-payload-size", 100, `The maximum upload size (in megabytes). Indexes exceeding this limit will be uploaded over multiple HTTP requests.`)
 	flags.ignoreUploadFailures = flagSet.Bool("ignore-upload-failure", false, `Exit with status code zero on upload failure.`)
+	flags.uploadRoute = flagSet.String("upload-route", "/.api/lsif/upload", "The path of the upload route.")
 
 	parseAndValidateFlags := func(args []string) error {
 		flagSet.Parse(args)
@@ -93,7 +97,7 @@ Examples:
 		}
 
 		if !isFlagSet(flagSet, "root") {
-			if root, err := codeintel.InferRoot(*flags.root); err != nil {
+			if root, err := codeintel.InferRoot(*flags.file); err != nil {
 				inferErrors = append(inferErrors, inferError{"root", err})
 			} else {
 				flags.root = &root
@@ -157,6 +161,7 @@ Examples:
 			Endpoint:             cfg.Endpoint,
 			AccessToken:          cfg.AccessToken,
 			AdditionalHeaders:    cfg.AdditionalHeaders,
+			Path:                 *flags.uploadRoute,
 			Repo:                 *flags.repo,
 			Commit:               *flags.commit,
 			Root:                 *flags.root,
@@ -175,7 +180,7 @@ Examples:
 		go func() {
 			defer wg.Done()
 
-			if *flags.json {
+			if *flags.json || *flags.noProgress {
 				return
 			}
 
@@ -233,7 +238,7 @@ Examples:
 			fmt.Println(string(serialized))
 		} else {
 			fmt.Printf("LSIF dump successfully uploaded for processing.\n")
-			fmt.Printf("View processing status at %s.\n", uploadURL)
+			fmt.Printf("View processing status at %s\n", uploadURL)
 		}
 
 		if *flags.open {
