@@ -51,7 +51,7 @@ Usage:
 
 	src validate [options] src-validate.yml
 or
-    cat <script-file> | src validate [options]
+    cat src-validate.yml | src validate [options]
 `
 	flagSet := flag.NewFlagSet("validate", flag.ExitOnError)
 	usageFunc := func() {
