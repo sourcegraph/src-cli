@@ -2,7 +2,7 @@ package api
 
 import "testing"
 
-func TestSourcegraphVersionCheck(t *testing.T) {
+func TestCheckSourcegraphVersion(t *testing.T) {
 	for _, tc := range []struct {
 		currentVersion, constraint, minDate string
 		expected                            bool
@@ -62,7 +62,7 @@ func TestSourcegraphVersionCheck(t *testing.T) {
 			expected:       true,
 		},
 	} {
-		actual, err := sourcegraphVersionCheck(tc.currentVersion, tc.constraint, tc.minDate)
+		actual, err := CheckSourcegraphVersion(tc.currentVersion, tc.constraint, tc.minDate)
 		if err != nil {
 			t.Errorf("err: %s", err)
 		}
