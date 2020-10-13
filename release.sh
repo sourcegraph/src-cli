@@ -1,12 +1,16 @@
 #!/usr/bin/env bash
 
-# Have you read DEVELOPMENT.md before running this script?
-#
-# No? Please stop and do so.
-#
-# Yes? You know what to do!
-
 set -euf -o pipefail
+
+read -p 'Have you read DEVELOPMENT.md? [y/N] ' -n 1 -r
+echo
+case "$REPLY" in
+    Y|y) ;;
+    *)
+        echo 'Please read the Releasing section of DEVELOPMENT.md before running this script.'
+        exit 1
+        ;;
+esac
 
 if ! echo "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
   echo "\$VERSION is not in MAJOR.MINOR.PATCH format"
