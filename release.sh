@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 
+# If you haven't already read DEVELOPMENT.md, please stop and do so. Running
+# this script is _not_ the first thing you need to do to make a release.
+
 set -euf -o pipefail
 
 if ! echo "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
