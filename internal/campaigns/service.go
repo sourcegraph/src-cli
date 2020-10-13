@@ -49,10 +49,8 @@ const sourcegraphVersionQuery = `query SourcegraphVersion {
 // current version of the Sourcegraph instance.
 func (svc *Service) getSourcegraphVersion(ctx context.Context) (string, error) {
 	var result struct {
-		Data struct {
-			Site struct {
-				ProductVersion string
-			}
+		Site struct {
+			ProductVersion string
 		}
 	}
 
@@ -61,7 +59,7 @@ func (svc *Service) getSourcegraphVersion(ctx context.Context) (string, error) {
 		return "", err
 	}
 
-	return result.Data.Site.ProductVersion, err
+	return result.Site.ProductVersion, err
 }
 
 // DetermineFeatureFlags fetches the version of the configured Sourcegraph
@@ -75,7 +73,7 @@ func (svc *Service) DetermineFeatureFlags(ctx context.Context) error {
 
 	supportsGzip, err := api.CheckSourcegraphVersion(version, ">= 3.21.0", "2020-10-12")
 	if err != nil {
-		return errors.Wrap(err, "version returned by Sourcegraph instance is invalid")
+		return errors.Wrap(err, "failed to check version returned by Sourcegraph")
 	}
 	svc.useGzipCompression = supportsGzip
 
