@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 
-# If you haven't already read DEVELOPMENT.md, please stop and do so. Running
-# this script is _not_ the first thing you need to do to make a release.
+# Have you read DEVELOPMENT.md before running this script?
+#
+# No? Please stop and do so.
+#
+# Yes? You know what to do!
 
 set -euf -o pipefail
 
