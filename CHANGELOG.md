@@ -9,6 +9,12 @@
 
 All notable changes to `src-cli` are documented in this file.
 
+## Unreleased
+
+### Added
+
+- New experimental command `src validate` validates a Sourcegraph installation.
+
 ## 3.17.0
 
 ### Added
