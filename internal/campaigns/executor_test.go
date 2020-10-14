@@ -171,7 +171,6 @@ func TestExecutor_Integration(t *testing.T) {
 					t.Fatalf("wrong number of commits. want=%d, have=%d", want, have)
 				}
 
-				t.Logf("diff=%s\n", spec.Commits[0].Diff)
 				fileDiffs, err := diff.ParseMultiFileDiff([]byte(spec.Commits[0].Diff))
 				if err != nil {
 					t.Fatalf("failed to parse diff: %s", err)
