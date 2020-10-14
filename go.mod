@@ -18,7 +18,7 @@ require (
 	github.com/olekukonko/tablewriter v0.0.4 // indirect
 	github.com/pkg/browser v0.0.0-20180916011732-0a3d74bf9ce4
 	github.com/pkg/errors v0.9.1
-	github.com/sourcegraph/campaignutils v0.0.0-20200930165749-a8777d33a817
+	github.com/sourcegraph/campaignutils v0.0.0-20201014123437-b528d0e91e0c
 	github.com/sourcegraph/codeintelutils v0.0.0-20200824140252-1db3aed5cf58
 	github.com/sourcegraph/go-diff v0.6.0
 	github.com/sourcegraph/jsonx v0.0.0-20200629203448-1a936bd500cf
@@ -32,5 +32,3 @@ require (
 )
 
 replace github.com/gosuri/uilive v0.0.4 => github.com/mrnugget/uilive v0.0.4-fix-escape
-
-replace github.com/sourcegraph/campaignutils => /Users/erik/Code/sourcegraph/campaignutils
