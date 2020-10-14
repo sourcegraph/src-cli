@@ -49,7 +49,7 @@ func TestParseStepRun(t *testing.T) {
 				},
 			},
 
-			run:  `${{ modified_files }} ${{ repository_name }}`,
+			run:  `${{ .PreviousStep.ModifiedFiles }} ${{ .Repository.Name }}`,
 			want: `go.mod github.com/sourcegraph/src-cli`,
 		},
 		{
@@ -57,7 +57,7 @@ func TestParseStepRun(t *testing.T) {
 				Repository: &graphql.Repository{Name: "github.com/sourcegraph/src-cli"},
 			},
 
-			run:  `${{ modified_files }} ${{ repository_name }}`,
+			run:  `${{ .PreviousStep.ModifiedFiles }} ${{ .Repository.Name }}`,
 			want: ` github.com/sourcegraph/src-cli`,
 		},
 		{
@@ -71,7 +71,7 @@ func TestParseStepRun(t *testing.T) {
 				},
 			},
 
-			run:  `${{ search_results }}`,
+			run:  `${{ .Repository.SearchResultPaths }}`,
 			want: `README.md main.go`,
 		},
 	}

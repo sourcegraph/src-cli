@@ -109,7 +109,7 @@ func TestExecutor_Integration(t *testing.T) {
 			},
 			steps: []Step{
 				{Run: `go fmt main.go`, Container: "doesntmatter:13"},
-				{Run: `touch modified-${{ modified_files }}.md`, Container: "alpine:13"},
+				{Run: `touch modified-${{ .PreviousStep.ModifiedFiles }}.md`, Container: "alpine:13"},
 			},
 			wantFilesChanged: map[string][]string{
 				srcCLIRepo.ID: []string{"main.go", "modified-main.go.md"},
