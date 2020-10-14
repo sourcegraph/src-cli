@@ -188,20 +188,7 @@ func runSteps(ctx context.Context, wc *WorkspaceCreator, repo *graphql.Repositor
 }
 
 func parseStepRun(stepCtx StepContext, run string) (*template.Template, error) {
-	t := template.New("step-run").Delims("${{", "}}")
-
-	funcMap := template.FuncMap{
-		"repository_name":    func() string { return stepCtx.Repository.Name },
-		"search_results":     stepCtx.Repository.FileMatchPathList,
-		"search_result_list": stepCtx.Repository.FileMatchPathList,
-		"join":               func(sl []string, sep string) string { return strings.Join(sl, sep) },
-	}
-
-	funcMap["modified_files"] = stepCtx.PreviousStep.ModifiedFiles
-
-	t.Funcs(funcMap)
-
-	return t.Parse(run)
+	return template.New("step-run").Delims("${{", "}}").Parse(run)
 }
 
 type StepContext struct {

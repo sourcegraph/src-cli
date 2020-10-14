@@ -46,21 +46,13 @@ func (r *Repository) Slug() string {
 	return strings.ReplaceAll(r.Name, "/", "-")
 }
 
-func (r *Repository) FileMatchPaths() string {
-	files := []string{}
-	for f := range r.FileMatches {
-		files = append(files, f)
-	}
-	return strings.Join(files, " ")
-}
-
-type fileMatchPathList []string
-
-func (f fileMatchPathList) String() string { return strings.Join(f, " ") }
-
-func (r *Repository) FileMatchPathList() (list fileMatchPathList) {
+func (r *Repository) SearchResultPaths() (list fileMatchPathList) {
 	for f := range r.FileMatches {
 		list = append(list, f)
 	}
 	return list
 }
+
+type fileMatchPathList []string
+
+func (f fileMatchPathList) String() string { return strings.Join(f, " ") }
