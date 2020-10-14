@@ -32,3 +32,5 @@ require (
 )
 
 replace github.com/gosuri/uilive v0.0.4 => github.com/mrnugget/uilive v0.0.4-fix-escape
+
+replace github.com/sourcegraph/campaignutils => /Users/erik/Code/sourcegraph/campaignutils
