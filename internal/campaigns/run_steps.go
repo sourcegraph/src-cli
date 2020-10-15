@@ -65,7 +65,6 @@ func runSteps(ctx context.Context, wc *WorkspaceCreator, repo *graphql.Repositor
 
 	for i, step := range steps {
 		logger.Logf("[Step %d] docker run %s %q", i+1, step.Container, step.Run)
-		reportProgress(step.Run)
 
 		cidFile, err := ioutil.TempFile(tempDir, repo.Slug()+"-container-id")
 		if err != nil {
@@ -101,15 +100,19 @@ func runSteps(ctx context.Context, wc *WorkspaceCreator, repo *graphql.Repositor
 		if i > 0 {
 			stepContext.PreviousStep = results[i-1]
 		}
+
 		tmpl, err := parseStepRun(stepContext, step.Run)
 		if err != nil {
 			return nil, errors.Wrap(err, "parsing step run")
 		}
 
-		if err := tmpl.Execute(fp, stepContext); err != nil {
+		var buf bytes.Buffer
+		if err := tmpl.Execute(io.MultiWriter(&buf, fp), stepContext); err != nil {
 			return nil, errors.Wrap(err, "executing template")
 		}
 		fp.Close()
+
+		reportProgress(buf.String())
 
 		const workDir = "/work"
 		cmd := exec.CommandContext(ctx, "docker", "run",
