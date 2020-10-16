@@ -33,8 +33,8 @@ func (e TaskExecutionErr) Error() string {
 }
 
 func (e TaskExecutionErr) StatusText() string {
-	if texter, ok := e.Err.(interface{ StatusText() string }); ok {
-		return texter.StatusText()
+	if stepErr, ok := e.Err.(stepFailedErr); ok {
+		return stepErr.SingleLineError()
 	}
 	return e.Err.Error()
 }
