@@ -262,3 +262,10 @@ func (e stepFailedErr) Error() string {
 
 	return out.String()
 }
+
+func (e stepFailedErr) StatusText() string {
+	if len(e.Stderr) > 0 {
+		return strings.Split(e.Stderr, "\n")[0]
+	}
+	return e.Err.Error()
+}
