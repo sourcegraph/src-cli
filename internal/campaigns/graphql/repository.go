@@ -1,6 +1,9 @@
 package graphql
 
-import "strings"
+import (
+	"sort"
+	"strings"
+)
 
 const RepositoryFieldsFragment = `
 fragment repositoryFields on Repository {
@@ -47,10 +50,12 @@ func (r *Repository) Slug() string {
 }
 
 func (r *Repository) SearchResultPaths() (list fileMatchPathList) {
+	var files []string
 	for f := range r.FileMatches {
-		list = append(list, f)
+		files = append(files, f)
 	}
-	return list
+	sort.Strings(files)
+	return fileMatchPathList(files)
 }
 
 type fileMatchPathList []string

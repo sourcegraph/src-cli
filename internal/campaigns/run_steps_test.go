@@ -77,7 +77,7 @@ func TestParseStepRun(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		parsed, err := parseStepRun(tc.stepCtx, tc.run)
+		parsed, err := parseStepRun(tc.run)
 		if err != nil {
 			t.Fatal(err)
 		}
