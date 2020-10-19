@@ -66,6 +66,8 @@ func runSteps(ctx context.Context, wc *WorkspaceCreator, repo *graphql.Repositor
 	for i, step := range steps {
 		logger.Logf("[Step %d] docker run %s %q", i+1, step.Container, step.Run)
 
+		reportProgress(step.Run)
+
 		cidFile, err := ioutil.TempFile(tempDir, repo.Slug()+"-container-id")
 		if err != nil {
 			return nil, errors.Wrap(err, "Creating a CID file failed")
@@ -89,30 +91,52 @@ func runSteps(ctx context.Context, wc *WorkspaceCreator, repo *graphql.Repositor
 
 		// Set up a temporary file on the host filesystem to contain the
 		// script.
-		fp, err := ioutil.TempFile(tempDir, "")
+		scriptFile, err := ioutil.TempFile(tempDir, "")
 		if err != nil {
 			return nil, errors.Wrap(err, "creating temporary file")
 		}
-		hostTemp := fp.Name()
-		defer os.Remove(hostTemp)
+		defer os.Remove(scriptFile.Name())
+
+		scriptFile.WriteString(step.Run)
+		if err := scriptFile.Close(); err != nil {
+			return nil, errors.Wrap(err, "closing temporary file")
+		}
 
 		stepContext := StepContext{Repository: repo}
 		if i > 0 {
 			stepContext.PreviousStep = results[i-1]
 		}
 
-		tmpl, err := parseStepRun(stepContext, step.Run)
+		// Temporary file to hold the search results
+		searchResultsFile, err := ioutil.TempFile(tempDir, "")
 		if err != nil {
-			return nil, errors.Wrap(err, "parsing step run")
+			return nil, errors.Wrap(err, "creating temporary file")
+		}
+		defer os.Remove(searchResultsFile.Name())
+
+		for _, result := range repo.SearchResultPaths() {
+			searchResultsFile.WriteString(result + "\n")
+		}
+		if err := searchResultsFile.Close(); err != nil {
+			return nil, errors.Wrap(err, "closing temporary file")
 		}
 
-		var buf bytes.Buffer
-		if err := tmpl.Execute(io.MultiWriter(&buf, fp), stepContext); err != nil {
-			return nil, errors.Wrap(err, "executing template")
+		// Temporary file to hold the modified files of the previous step
+		modifiedFilesFile, err := ioutil.TempFile(tempDir, "")
+		if err != nil {
+			return nil, errors.Wrap(err, "creating temporary file")
 		}
-		fp.Close()
+		defer os.Remove(modifiedFilesFile.Name())
 
-		reportProgress(buf.String())
+		if i > 0 {
+			for _, f := range stepContext.PreviousStep.Changes.Modified {
+				modifiedFilesFile.WriteString(f + "\n")
+			}
+		}
+
+		if err := modifiedFilesFile.Close(); err != nil {
+			return nil, errors.Wrap(err, "closing temporary file")
+		}
 
 		const workDir = "/work"
 		cmd := exec.CommandContext(ctx, "docker", "run",
@@ -120,7 +144,9 @@ func runSteps(ctx context.Context, wc *WorkspaceCreator, repo *graphql.Repositor
 			"--cidfile", cidFile.Name(),
 			"--workdir", workDir,
 			"--mount", fmt.Sprintf("type=bind,source=%s,target=%s", volumeDir, workDir),
-			"--mount", fmt.Sprintf("type=bind,source=%s,target=%s,ro", hostTemp, containerTemp),
+			"--mount", fmt.Sprintf("type=bind,source=%s,target=%s,ro", scriptFile.Name(), containerTemp),
+			"--mount", fmt.Sprintf("type=bind,source=%s,target=%s,ro", searchResultsFile.Name(), "/src/search-results"),
+			"--mount", fmt.Sprintf("type=bind,source=%s,target=%s,ro", modifiedFilesFile.Name(), "/src/previous-step/modified-files"),
 			"--entrypoint", shell,
 		)
 		for k, v := range step.Env {
