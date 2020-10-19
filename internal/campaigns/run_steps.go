@@ -101,7 +101,7 @@ func runSteps(ctx context.Context, wc *WorkspaceCreator, repo *graphql.Repositor
 			stepContext.PreviousStep = results[i-1]
 		}
 
-		tmpl, err := parseStepRun(stepContext, step.Run)
+		tmpl, err := parseStepRun(step.Run)
 		if err != nil {
 			return nil, errors.Wrap(err, "parsing step run")
 		}
@@ -190,7 +190,7 @@ func runSteps(ctx context.Context, wc *WorkspaceCreator, repo *graphql.Repositor
 	return diffOut, err
 }
 
-func parseStepRun(stepCtx StepContext, run string) (*template.Template, error) {
+func parseStepRun(run string) (*template.Template, error) {
 	return template.New("step-run").Delims("${{", "}}").Parse(run)
 }
 
