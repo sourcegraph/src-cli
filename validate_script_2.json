@@ -1,8 +1,0 @@
-{
-  "firstAdmin": {
-    "email": "uwe@sourcegraph.com",
-    "username": "uwe",
-    "password": "testtesttest",
-    "createAccessToken": true
-  }
-}
