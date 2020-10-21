@@ -25,7 +25,7 @@ All notable changes to `src-cli` are documented in this file.
 
 ### Fixed
 
-- The `src lsif upload` command now respects `SRC_HEADER_` environment variables for multipart uploads. These environment variables are described [here](AUTH_PROXY.md). [#???](https://github.com/sourcegraph/src-cli/pull/???)
+- The `src lsif upload` command now respects `SRC_HEADER_` environment variables for multipart uploads. These environment variables are described [here](AUTH_PROXY.md). [#360](https://github.com/sourcegraph/src-cli/pull/360)
 
 ## 3.21.3
 
