@@ -85,6 +85,26 @@ func TestParseStepRun(t *testing.T) {
 			name:    "lower-case aliases",
 			stepCtx: stepCtx,
 			run: `${{ repository.search_result_paths }}
+		${{ repository.name }}
+		${{ previous_step.modified_files }}
+		${{ previous_step.added_files }}
+		${{ previous_step.deleted_files }}
+		${{ previous_step.stdout }}
+		${{ previous_step.stderr}}
+		`,
+			want: `README.md main.go
+		github.com/sourcegraph/src-cli
+		go.mod
+		main.go.swp
+		.DS_Store
+		this is stdout
+		this is stderr
+		`,
+		},
+		{
+			name:    "emtpy context and aliases",
+			stepCtx: &StepContext{},
+			run: `${{ repository.search_result_paths }}
 ${{ repository.name }}
 ${{ previous_step.modified_files }}
 ${{ previous_step.added_files }}
@@ -92,13 +112,13 @@ ${{ previous_step.deleted_files }}
 ${{ previous_step.stdout }}
 ${{ previous_step.stderr}}
 `,
-			want: `README.md main.go
-github.com/sourcegraph/src-cli
-go.mod
-main.go.swp
-.DS_Store
-this is stdout
-this is stderr
+			want: `
+
+
+
+
+
+
 `,
 		},
 	}

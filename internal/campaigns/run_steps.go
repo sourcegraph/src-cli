@@ -316,19 +316,36 @@ type StepContext struct {
 func (stepCtx *StepContext) ToFuncMap() template.FuncMap {
 	return template.FuncMap{
 		"previous_step": func() map[string]interface{} {
-			return map[string]interface{}{
+			result := map[string]interface{}{
 				"modified_files": stepCtx.PreviousStep.ModifiedFiles(),
 				"added_files":    stepCtx.PreviousStep.AddedFiles(),
 				"deleted_files":  stepCtx.PreviousStep.DeletedFiles(),
-				"stdout":         stepCtx.PreviousStep.Stdout.String(),
-				"stderr":         stepCtx.PreviousStep.Stderr.String(),
 			}
+
+			if stepCtx.PreviousStep.Stdout != nil {
+				result["stdout"] = stepCtx.PreviousStep.Stdout.String()
+			} else {
+				result["stdout"] = ""
+			}
+
+			if stepCtx.PreviousStep.Stderr != nil {
+				result["stderr"] = stepCtx.PreviousStep.Stderr.String()
+			} else {
+				result["stderr"] = ""
+			}
+
+			return result
 		},
 		"repository": func() map[string]interface{} {
-			return map[string]interface{}{
-				"search_result_paths": stepCtx.Repository.SearchResultPaths(),
-				"name":                stepCtx.Repository.Name,
+			result := map[string]interface{}{}
+			if stepCtx.Repository != nil {
+				result["search_result_paths"] = stepCtx.Repository.SearchResultPaths()
+				result["name"] = stepCtx.Repository.Name
+			} else {
+				result["search_result_paths"] = ""
+				result["name"] = ""
 			}
+			return result
 		},
 	}
 }
@@ -352,13 +369,28 @@ type StepChanges struct {
 }
 
 // ModifiedFiles returns the files modified by a step, whitespace-separated in a single string.
-func (r StepResult) ModifiedFiles() string { return strings.Join(r.Files.Modified, " ") }
+func (r StepResult) ModifiedFiles() string {
+	if len(r.Files.Modified) == 0 {
+		return ""
+	}
+	return strings.Join(r.Files.Modified, " ")
+}
 
 // AddedFiles returns the files added by a step, whitespace-separated in a single string.
-func (r StepResult) AddedFiles() string { return strings.Join(r.Files.Added, " ") }
+func (r StepResult) AddedFiles() string {
+	if len(r.Files.Added) == 0 {
+		return ""
+	}
+	return strings.Join(r.Files.Added, " ")
+}
 
 // DeletedFiles returns the files deleted by a step, whitespace-separated in a single string.
-func (r StepResult) DeletedFiles() string { return strings.Join(r.Files.Deleted, " ") }
+func (r StepResult) DeletedFiles() string {
+	if len(r.Files.Deleted) == 0 {
+		return ""
+	}
+	return strings.Join(r.Files.Deleted, " ")
+}
 
 func parseGitStatus(out []byte) (StepChanges, error) {
 	result := StepChanges{}
@@ -373,7 +405,7 @@ func parseGitStatus(out []byte) (StepChanges, error) {
 			return result, fmt.Errorf("git status line has unrecognized format: %q", line)
 		}
 
-		file := line[3:len(line)]
+		file := line[3:]
 
 		switch line[0] {
 		case 'M':
