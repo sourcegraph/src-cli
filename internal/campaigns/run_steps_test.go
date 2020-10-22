@@ -32,52 +32,79 @@ D  to_be_deleted.txt
 }
 
 func TestParseStepRun(t *testing.T) {
+	stepCtx := &StepContext{
+		PreviousStep: StepResult{
+			Files: StepChanges{
+				Modified: []string{"go.mod"},
+				Added:    []string{"main.go.swp"},
+				Deleted:  []string{".DS_Store"},
+			},
+			Stdout: bytes.NewBufferString("this is stdout"),
+			Stderr: bytes.NewBufferString("this is stderr"),
+		},
+		Repository: &graphql.Repository{
+			Name: "github.com/sourcegraph/src-cli",
+			FileMatches: map[string]bool{
+				"README.md": true,
+				"main.go":   true,
+			},
+		},
+	}
+
 	tests := []struct {
-		stepCtx StepContext
+		name    string
+		stepCtx *StepContext
 		run     string
 		want    string
 	}{
 		{
-			stepCtx: StepContext{
-				Repository: &graphql.Repository{Name: "github.com/sourcegraph/src-cli"},
-				PreviousStep: StepResult{
-					Changes: StepChanges{
-						Modified: []string{"go.mod"},
-						Added:    []string{"main.go.swp"},
-						Deleted:  []string{".DS_Store"},
-					},
-				},
-			},
-
-			run:  `${{ .PreviousStep.ModifiedFiles }} ${{ .Repository.Name }}`,
-			want: `go.mod github.com/sourcegraph/src-cli`,
+			name:    "previous step file changes",
+			stepCtx: stepCtx,
+			run:     `${{ .PreviousStep.ModifiedFiles }} ${{ .PreviousStep.AddedFiles }} ${{ .PreviousStep.DeletedFiles }}`,
+			want:    `go.mod main.go.swp .DS_Store`,
 		},
 		{
-			stepCtx: StepContext{
-				Repository: &graphql.Repository{Name: "github.com/sourcegraph/src-cli"},
-			},
-
-			run:  `${{ .PreviousStep.ModifiedFiles }} ${{ .Repository.Name }}`,
-			want: ` github.com/sourcegraph/src-cli`,
+			name:    "previous step output",
+			stepCtx: stepCtx,
+			run:     `${{ .PreviousStep.Stdout }} ${{ .PreviousStep.Stderr }}`,
+			want:    `this is stdout this is stderr`,
 		},
 		{
-			stepCtx: StepContext{
-				Repository: &graphql.Repository{
-					Name: "github.com/sourcegraph/src-cli",
-					FileMatches: map[string]bool{
-						"README.md": true,
-						"main.go":   true,
-					},
-				},
-			},
-
-			run:  `${{ .Repository.SearchResultPaths }}`,
-			want: `README.md main.go`,
+			name:    "repository name",
+			stepCtx: stepCtx,
+			run:     `${{ .Repository.Name }}`,
+			want:    `github.com/sourcegraph/src-cli`,
+		},
+		{
+			name:    "search result paths",
+			stepCtx: stepCtx,
+			run:     `${{ .Repository.SearchResultPaths }}`,
+			want:    `README.md main.go`,
+		},
+		{
+			name:    "lower-case aliases",
+			stepCtx: stepCtx,
+			run: `${{ repository.search_result_paths }}
+${{ repository.name }}
+${{ previous_step.modified_files }}
+${{ previous_step.added_files }}
+${{ previous_step.deleted_files }}
+${{ previous_step.stdout }}
+${{ previous_step.stderr}}
+`,
+			want: `README.md main.go
+github.com/sourcegraph/src-cli
+go.mod
+main.go.swp
+.DS_Store
+this is stdout
+this is stderr
+`,
 		},
 	}
 
 	for _, tc := range tests {
-		parsed, err := parseStepRun(tc.run)
+		parsed, err := parseStepRun(tc.run, tc.stepCtx)
 		if err != nil {
 			t.Fatal(err)
 		}

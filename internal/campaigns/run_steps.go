@@ -101,7 +101,7 @@ func runSteps(ctx context.Context, wc *WorkspaceCreator, repo *graphql.Repositor
 			stepContext.PreviousStep = results[i-1]
 		}
 
-		tmpl, err := parseStepRun(step.Run)
+		tmpl, err := parseStepRun(step.Run, &stepContext)
 		if err != nil {
 			return nil, errors.Wrap(err, "parsing step run")
 		}
@@ -172,7 +172,7 @@ func runSteps(ctx context.Context, wc *WorkspaceCreator, repo *graphql.Repositor
 			return nil, errors.Wrap(err, "parsing git status output")
 		}
 
-		results[i] = StepResult{Changes: changes}
+		results[i] = StepResult{Files: changes, Stdout: &stdoutBuffer, Stderr: &stderrBuffer}
 	}
 
 	reportProgress("Calculating diff")
@@ -188,57 +188,6 @@ func runSteps(ctx context.Context, wc *WorkspaceCreator, repo *graphql.Repositor
 	}
 
 	return diffOut, err
-}
-
-func parseStepRun(run string) (*template.Template, error) {
-	return template.New("step-run").Delims("${{", "}}").Parse(run)
-}
-
-type StepContext struct {
-	PreviousStep StepResult
-	Repository   *graphql.Repository
-}
-
-type StepChanges struct {
-	Modified []string
-	Added    []string
-	Deleted  []string
-}
-
-type StepResult struct {
-	Changes StepChanges
-}
-
-func (r StepResult) ModifiedFiles() string { return strings.Join(r.Changes.Modified, " ") }
-func (r StepResult) AddedFiles() string    { return strings.Join(r.Changes.Added, " ") }
-func (r StepResult) DeletedFiles() string  { return strings.Join(r.Changes.Deleted, " ") }
-
-func parseGitStatus(out []byte) (StepChanges, error) {
-	result := StepChanges{}
-
-	stripped := strings.TrimSpace(string(out))
-	if len(stripped) == 0 {
-		return result, nil
-	}
-
-	for _, line := range strings.Split(stripped, "\n") {
-		if len(line) < 4 {
-			return result, fmt.Errorf("git status line has unrecognized format: %q", line)
-		}
-
-		file := line[3:len(line)]
-
-		switch line[0] {
-		case 'M':
-			result.Modified = append(result.Modified, file)
-		case 'A':
-			result.Added = append(result.Added, file)
-		case 'D':
-			result.Deleted = append(result.Deleted, file)
-		}
-	}
-
-	return result, nil
 }
 
 func probeImageForShell(ctx context.Context, image string) (shell, tempfile string, err error) {
@@ -349,4 +298,92 @@ func (e stepFailedErr) SingleLineError() string {
 	}
 
 	return strings.Split(out, "\n")[0]
+}
+
+func parseStepRun(run string, stepCtx *StepContext) (*template.Template, error) {
+	return template.New("step-run").Delims("${{", "}}").Funcs(stepCtx.ToFuncMap()).Parse(run)
+}
+
+// StepContext represents the contextual information available when executing a
+// step that's defined in a campaign spec.
+type StepContext struct {
+	PreviousStep StepResult
+	Repository   *graphql.Repository
+}
+
+// ToFuncMap returns a template.FuncMap to access fields on the StepContext in a
+// text/template.
+func (stepCtx *StepContext) ToFuncMap() template.FuncMap {
+	return template.FuncMap{
+		"previous_step": func() map[string]interface{} {
+			return map[string]interface{}{
+				"modified_files": stepCtx.PreviousStep.ModifiedFiles(),
+				"added_files":    stepCtx.PreviousStep.AddedFiles(),
+				"deleted_files":  stepCtx.PreviousStep.DeletedFiles(),
+				"stdout":         stepCtx.PreviousStep.Stdout.String(),
+				"stderr":         stepCtx.PreviousStep.Stderr.String(),
+			}
+		},
+		"repository": func() map[string]interface{} {
+			return map[string]interface{}{
+				"search_result_paths": stepCtx.Repository.SearchResultPaths(),
+				"name":                stepCtx.Repository.Name,
+			}
+		},
+	}
+}
+
+// StepResult represents the result of a previously executed step.
+type StepResult struct {
+	// Files are the changes made to files by the step.
+	Files StepChanges
+
+	// Stdout is the output produced by the step on standard out.
+	Stdout *bytes.Buffer
+	// Stderr is the output produced by the step on standard error.
+	Stderr *bytes.Buffer
+}
+
+// StepChanges are the changes made to files by a previous step in a repository.
+type StepChanges struct {
+	Modified []string
+	Added    []string
+	Deleted  []string
+}
+
+// ModifiedFiles returns the files modified by a step, whitespace-separated in a single string.
+func (r StepResult) ModifiedFiles() string { return strings.Join(r.Files.Modified, " ") }
+
+// AddedFiles returns the files added by a step, whitespace-separated in a single string.
+func (r StepResult) AddedFiles() string { return strings.Join(r.Files.Added, " ") }
+
+// DeletedFiles returns the files deleted by a step, whitespace-separated in a single string.
+func (r StepResult) DeletedFiles() string { return strings.Join(r.Files.Deleted, " ") }
+
+func parseGitStatus(out []byte) (StepChanges, error) {
+	result := StepChanges{}
+
+	stripped := strings.TrimSpace(string(out))
+	if len(stripped) == 0 {
+		return result, nil
+	}
+
+	for _, line := range strings.Split(stripped, "\n") {
+		if len(line) < 4 {
+			return result, fmt.Errorf("git status line has unrecognized format: %q", line)
+		}
+
+		file := line[3:len(line)]
+
+		switch line[0] {
+		case 'M':
+			result.Modified = append(result.Modified, file)
+		case 'A':
+			result.Added = append(result.Added, file)
+		case 'D':
+			result.Deleted = append(result.Deleted, file)
+		}
+	}
+
+	return result, nil
 }
