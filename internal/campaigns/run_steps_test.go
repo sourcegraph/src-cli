@@ -42,7 +42,7 @@ func TestParseStepRun(t *testing.T) {
 			Stdout: bytes.NewBufferString("this is stdout"),
 			Stderr: bytes.NewBufferString("this is stderr"),
 		},
-		Repository: &graphql.Repository{
+		Repository: graphql.Repository{
 			Name: "github.com/sourcegraph/src-cli",
 			FileMatches: map[string]bool{
 				"README.md": true,
@@ -102,7 +102,27 @@ func TestParseStepRun(t *testing.T) {
 		`,
 		},
 		{
-			name:    "emtpy context and aliases",
+			name:    "empty context",
+			stepCtx: &StepContext{},
+			run: `${{ .Repository.SearchResultPaths }}
+${{ .Repository.Name }}
+${{ previous_step.modified_files }}
+${{ previous_step.added_files }}
+${{ previous_step.deleted_files }}
+${{ previous_step.stdout }}
+${{ previous_step.stderr}}
+`,
+			want: `
+
+
+
+
+
+
+`,
+		},
+		{
+			name:    "empty context and aliases",
 			stepCtx: &StepContext{},
 			run: `${{ repository.search_result_paths }}
 ${{ repository.name }}

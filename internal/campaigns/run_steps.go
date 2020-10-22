@@ -96,7 +96,7 @@ func runSteps(ctx context.Context, wc *WorkspaceCreator, repo *graphql.Repositor
 		hostTemp := fp.Name()
 		defer os.Remove(hostTemp)
 
-		stepContext := StepContext{Repository: repo}
+		stepContext := StepContext{Repository: *repo}
 		if i > 0 {
 			stepContext.PreviousStep = results[i-1]
 		}
@@ -308,7 +308,7 @@ func parseStepRun(run string, stepCtx *StepContext) (*template.Template, error) 
 // step that's defined in a campaign spec.
 type StepContext struct {
 	PreviousStep StepResult
-	Repository   *graphql.Repository
+	Repository   graphql.Repository
 }
 
 // ToFuncMap returns a template.FuncMap to access fields on the StepContext in a
@@ -337,15 +337,10 @@ func (stepCtx *StepContext) ToFuncMap() template.FuncMap {
 			return result
 		},
 		"repository": func() map[string]interface{} {
-			result := map[string]interface{}{}
-			if stepCtx.Repository != nil {
-				result["search_result_paths"] = stepCtx.Repository.SearchResultPaths()
-				result["name"] = stepCtx.Repository.Name
-			} else {
-				result["search_result_paths"] = ""
-				result["name"] = ""
+			return map[string]interface{}{
+				"search_result_paths": stepCtx.Repository.SearchResultPaths(),
+				"name":                stepCtx.Repository.Name,
 			}
-			return result
 		},
 	}
 }
