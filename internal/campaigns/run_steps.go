@@ -9,6 +9,7 @@ import (
 	"io/ioutil"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"text/template"
 	"time"
@@ -18,7 +19,7 @@ import (
 	"github.com/sourcegraph/src-cli/internal/campaigns/graphql"
 )
 
-func runSteps(ctx context.Context, wc *WorkspaceCreator, repo *graphql.Repository, steps []Step, logger *TaskLogger, tempDir string, reportProgress func(string)) ([]byte, error) {
+func runSteps(ctx context.Context, specFilePath string, wc *WorkspaceCreator, repo *graphql.Repository, steps []Step, logger *TaskLogger, tempDir string, reportProgress func(string)) ([]byte, error) {
 	reportProgress("Downloading archive")
 
 	volumeDir, err := wc.Create(ctx, repo)
@@ -101,6 +102,25 @@ func runSteps(ctx context.Context, wc *WorkspaceCreator, repo *graphql.Repositor
 			stepContext.PreviousStep = results[i-1]
 		}
 
+		files, err := parseStepFiles(specFilePath, step.Files, &stepContext)
+		if err != nil {
+			return nil, errors.Wrap(err, "parsing step files")
+		}
+
+		// "filename-in-container" -> "local-temp-file"
+		filesToMount := make(map[string]string, len(files))
+		for name, content := range files {
+			fp, err := ioutil.TempFile(tempDir, "")
+			if err != nil {
+				return nil, errors.Wrap(err, "creating temporary file")
+			}
+			defer os.Remove(fp.Name())
+
+			fp.WriteString(content)
+
+			filesToMount[name] = fp.Name()
+		}
+
 		tmpl, err := parseStepRun(step.Run, &stepContext)
 		if err != nil {
 			return nil, errors.Wrap(err, "parsing step run")
@@ -115,14 +135,20 @@ func runSteps(ctx context.Context, wc *WorkspaceCreator, repo *graphql.Repositor
 		reportProgress(buf.String())
 
 		const workDir = "/work"
-		cmd := exec.CommandContext(ctx, "docker", "run",
+		args := []string{
+			"run",
 			"--rm",
 			"--cidfile", cidFile.Name(),
 			"--workdir", workDir,
 			"--mount", fmt.Sprintf("type=bind,source=%s,target=%s", volumeDir, workDir),
 			"--mount", fmt.Sprintf("type=bind,source=%s,target=%s,ro", hostTemp, containerTemp),
-			"--entrypoint", shell,
-		)
+		}
+		for target, source := range filesToMount {
+			args = append(args, "--mount", fmt.Sprintf("type=bind,source=%s,target=%s,ro", source, target))
+		}
+		args = append(args, "--entrypoint", shell)
+
+		cmd := exec.CommandContext(ctx, "docker", args...)
 		for k, v := range step.Env {
 			cmd.Args = append(cmd.Args, "-e", k+"="+v)
 		}
@@ -148,7 +174,7 @@ func runSteps(ctx context.Context, wc *WorkspaceCreator, repo *graphql.Repositor
 			return nil, stepFailedErr{
 				Err:         err,
 				Args:        cmd.Args,
-				Run:         step.Run,
+				Run:         buf.String(),
 				Container:   step.Container,
 				TmpFilename: containerTemp,
 				Stdout:      strings.TrimSpace(stdoutBuffer.String()),
@@ -304,6 +330,51 @@ func parseStepRun(run string, stepCtx *StepContext) (*template.Template, error) 
 	return template.New("step-run").Delims("${{", "}}").Funcs(stepCtx.ToFuncMap()).Parse(run)
 }
 
+func parseStepFiles(specFilePath string, files map[string]string, stepCtx *StepContext) (map[string]string, error) {
+	containerFiles := make(map[string]string, len(files))
+
+	fnMap := stepCtx.ToFuncMap()
+
+	if specFilePath == "-" {
+		specFilePath = ""
+	}
+	basePath := filepath.Dir(specFilePath)
+
+	for fileName, fileRaw := range files {
+		// If the file exists relative to the campaign spec, we read it and
+		// mount it.
+		localFileName := filepath.Join(basePath, fileRaw)
+		ok, err := fileExists(localFileName)
+		if err != nil {
+			return containerFiles, err
+		}
+		if ok {
+			content, err := ioutil.ReadFile(localFileName)
+			if err != nil {
+				return containerFiles, err
+			}
+			containerFiles[fileName] = string(content)
+			continue
+		}
+		// Otherwise, we treat the file contents as a template and render it
+		// into a buffer that we then mount into the code host.
+		var out bytes.Buffer
+
+		tmpl, err := template.New(fileName).Delims("${{", "}}").Funcs(fnMap).Parse(fileRaw)
+		if err != nil {
+			return containerFiles, err
+		}
+
+		if err := tmpl.Execute(&out, stepCtx); err != nil {
+			return containerFiles, err
+		}
+
+		containerFiles[fileName] = out.String()
+	}
+
+	return containerFiles, nil
+}
+
 // StepContext represents the contextual information available when executing a
 // step that's defined in a campaign spec.
 type StepContext struct {
@@ -315,6 +386,9 @@ type StepContext struct {
 // text/template.
 func (stepCtx *StepContext) ToFuncMap() template.FuncMap {
 	return template.FuncMap{
+		"join": func(list []string, sep string) string {
+			return strings.Join(list, sep)
+		},
 		"previous_step": func() map[string]interface{} {
 			result := map[string]interface{}{
 				"modified_files": stepCtx.PreviousStep.ModifiedFiles(),
