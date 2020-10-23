@@ -237,12 +237,15 @@ func campaignsExecute(ctx context.Context, out *output.Output, svc *campaigns.Se
 		campaignsCompletePending(pending, "Resolved repositories")
 	}
 
-	p := newCampaignProgressPrinter(out, opts.Parallelism)
-	specs, err := svc.ExecuteCampaignSpec(ctx, repos, executor, campaignSpec, p.PrintStatuses)
+	// p := newCampaignProgressPrinter(out, opts.Parallelism)
+	// specs, err := svc.ExecuteCampaignSpec(ctx, repos, executor, campaignSpec, p.PrintStatuses)
+	specs, err := svc.ExecuteCampaignSpec(ctx, repos, executor, campaignSpec, func(ts []*campaigns.TaskStatus) {
+		fmt.Printf("len(ts)=%d\n", len(ts))
+	})
 	if err != nil {
 		return "", "", err
 	}
-	p.Complete()
+	// p.Complete()
 
 	if logFiles := executor.LogFiles(); len(logFiles) > 0 && flags.keepLogs {
 		func() {

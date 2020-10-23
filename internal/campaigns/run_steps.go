@@ -330,7 +330,7 @@ func parseStepRun(run string, stepCtx *StepContext) (*template.Template, error) 
 	return template.New("step-run").Delims("${{", "}}").Funcs(stepCtx.ToFuncMap()).Parse(run)
 }
 
-func parseStepFiles(specFilePath string, files map[string]string, stepCtx *StepContext) (map[string]string, error) {
+func parseStepFiles(specFilePath string, files map[string]interface{}, stepCtx *StepContext) (map[string]string, error) {
 	containerFiles := make(map[string]string, len(files))
 
 	fnMap := stepCtx.ToFuncMap()
@@ -343,24 +343,28 @@ func parseStepFiles(specFilePath string, files map[string]string, stepCtx *StepC
 	for fileName, fileRaw := range files {
 		// If the file exists relative to the campaign spec, we read it and
 		// mount it.
-		localFileName := filepath.Join(basePath, fileRaw)
-		ok, err := fileExists(localFileName)
-		if err != nil {
-			return containerFiles, err
-		}
-		if ok {
-			content, err := ioutil.ReadFile(localFileName)
+		fmt.Printf("fileraw=%T\n", fileRaw)
+		if local, ok := fileRaw.(StepLocalFileMount); ok {
+			fmt.Printf("local=%s\n", local)
+			localFileName := filepath.Join(basePath, local.FromFile)
+			ok, err := fileExists(localFileName)
 			if err != nil {
 				return containerFiles, err
 			}
-			containerFiles[fileName] = string(content)
-			continue
+			if ok {
+				content, err := ioutil.ReadFile(localFileName)
+				if err != nil {
+					return containerFiles, err
+				}
+				containerFiles[fileName] = string(content)
+				continue
+			}
 		}
 		// Otherwise, we treat the file contents as a template and render it
 		// into a buffer that we then mount into the code host.
 		var out bytes.Buffer
 
-		tmpl, err := template.New(fileName).Delims("${{", "}}").Funcs(fnMap).Parse(fileRaw)
+		tmpl, err := template.New(fileName).Delims("${{", "}}").Funcs(fnMap).Parse(fileRaw.(string))
 		if err != nil {
 			return containerFiles, err
 		}
