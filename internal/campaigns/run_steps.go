@@ -9,7 +9,6 @@ import (
 	"io/ioutil"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 	"text/template"
 	"time"
@@ -19,7 +18,7 @@ import (
 	"github.com/sourcegraph/src-cli/internal/campaigns/graphql"
 )
 
-func runSteps(ctx context.Context, specFilePath string, wc *WorkspaceCreator, repo *graphql.Repository, steps []Step, logger *TaskLogger, tempDir string, reportProgress func(string)) ([]byte, error) {
+func runSteps(ctx context.Context, wc *WorkspaceCreator, repo *graphql.Repository, steps []Step, logger *TaskLogger, tempDir string, reportProgress func(string)) ([]byte, error) {
 	reportProgress("Downloading archive")
 
 	volumeDir, err := wc.Create(ctx, repo)
@@ -102,7 +101,7 @@ func runSteps(ctx context.Context, specFilePath string, wc *WorkspaceCreator, re
 			stepContext.PreviousStep = results[i-1]
 		}
 
-		files, err := parseStepFiles(specFilePath, step.Files, &stepContext)
+		files, err := parseStepFiles(step.Files, &stepContext)
 		if err != nil {
 			return nil, errors.Wrap(err, "parsing step files")
 		}
@@ -330,37 +329,13 @@ func parseStepRun(run string, stepCtx *StepContext) (*template.Template, error) 
 	return template.New("step-run").Delims("${{", "}}").Funcs(stepCtx.ToFuncMap()).Parse(run)
 }
 
-func parseStepFiles(specFilePath string, files map[string]interface{}, stepCtx *StepContext) (map[string]string, error) {
+func parseStepFiles(files map[string]interface{}, stepCtx *StepContext) (map[string]string, error) {
 	containerFiles := make(map[string]string, len(files))
 
 	fnMap := stepCtx.ToFuncMap()
 
-	if specFilePath == "-" {
-		specFilePath = ""
-	}
-	basePath := filepath.Dir(specFilePath)
-
 	for fileName, fileRaw := range files {
-		// If the file exists relative to the campaign spec, we read it and
-		// mount it.
-		fmt.Printf("fileraw=%T\n", fileRaw)
-		if local, ok := fileRaw.(StepLocalFileMount); ok {
-			fmt.Printf("local=%s\n", local)
-			localFileName := filepath.Join(basePath, local.FromFile)
-			ok, err := fileExists(localFileName)
-			if err != nil {
-				return containerFiles, err
-			}
-			if ok {
-				content, err := ioutil.ReadFile(localFileName)
-				if err != nil {
-					return containerFiles, err
-				}
-				containerFiles[fileName] = string(content)
-				continue
-			}
-		}
-		// Otherwise, we treat the file contents as a template and render it
+		// We treat the file contents as a template and render it
 		// into a buffer that we then mount into the code host.
 		var out bytes.Buffer
 

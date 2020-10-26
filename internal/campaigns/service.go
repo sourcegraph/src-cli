@@ -198,7 +198,6 @@ type ExecutorOpts struct {
 	VerboseLogger bool
 	TempDir       string
 	CacheDir      string
-	SpecFilePath  string
 }
 
 func (svc *Service) NewExecutor(opts ExecutorOpts) Executor {

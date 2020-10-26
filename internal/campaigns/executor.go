@@ -248,7 +248,7 @@ func (x *executor) do(ctx context.Context, task *Task) (err error) {
 	defer cancel()
 
 	// Actually execute the steps.
-	diff, err := runSteps(runCtx, x.SpecFilePath, x.creator, task.Repository, task.Steps, log, x.tempDir, func(currentlyExecuting string) {
+	diff, err := runSteps(runCtx, x.creator, task.Repository, task.Steps, log, x.tempDir, func(currentlyExecuting string) {
 		status.CurrentlyExecuting = currentlyExecuting
 		x.updateTaskStatus(task, status)
 	})

@@ -174,13 +174,12 @@ func campaignsExecute(ctx context.Context, out *output.Output, svc *campaigns.Se
 	}
 
 	opts := campaigns.ExecutorOpts{
-		Cache:        svc.NewExecutionCache(flags.cacheDir),
-		Creator:      svc.NewWorkspaceCreator(flags.cacheDir, flags.cleanArchives),
-		ClearCache:   flags.clearCache,
-		KeepLogs:     flags.keepLogs,
-		Timeout:      flags.timeout,
-		TempDir:      flags.tempDir,
-		SpecFilePath: flags.file,
+		Cache:      svc.NewExecutionCache(flags.cacheDir),
+		Creator:    svc.NewWorkspaceCreator(flags.cacheDir, flags.cleanArchives),
+		ClearCache: flags.clearCache,
+		KeepLogs:   flags.keepLogs,
+		Timeout:    flags.timeout,
+		TempDir:    flags.tempDir,
 	}
 	if flags.parallelism <= 0 {
 		opts.Parallelism = runtime.GOMAXPROCS(0)
@@ -237,15 +236,12 @@ func campaignsExecute(ctx context.Context, out *output.Output, svc *campaigns.Se
 		campaignsCompletePending(pending, "Resolved repositories")
 	}
 
-	// p := newCampaignProgressPrinter(out, opts.Parallelism)
-	// specs, err := svc.ExecuteCampaignSpec(ctx, repos, executor, campaignSpec, p.PrintStatuses)
-	specs, err := svc.ExecuteCampaignSpec(ctx, repos, executor, campaignSpec, func(ts []*campaigns.TaskStatus) {
-		fmt.Printf("len(ts)=%d\n", len(ts))
-	})
+	p := newCampaignProgressPrinter(out, opts.Parallelism)
+	specs, err := svc.ExecuteCampaignSpec(ctx, repos, executor, campaignSpec, p.PrintStatuses)
 	if err != nil {
 		return "", "", err
 	}
-	// p.Complete()
+	p.Complete()
 
 	if logFiles := executor.LogFiles(); len(logFiles) > 0 && flags.keepLogs {
 		func() {

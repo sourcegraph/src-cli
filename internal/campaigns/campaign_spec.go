@@ -71,10 +71,6 @@ type Step struct {
 	image string
 }
 
-type StepLocalFileMount struct {
-	FromFile string `json:"fromFile,omitempty"`
-}
-
 func ParseCampaignSpec(data []byte) (*CampaignSpec, error) {
 	var spec CampaignSpec
 	if err := yaml.UnmarshalValidate(schema.CampaignSpecJSON, data, &spec); err != nil {
