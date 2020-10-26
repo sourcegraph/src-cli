@@ -120,6 +120,11 @@ func runSteps(ctx context.Context, wc *WorkspaceCreator, repo *graphql.Repositor
 			filesToMount[name] = fp.Name()
 		}
 
+		env, err := parseStepEnv(step.Env, &stepContext)
+		if err != nil {
+			return nil, errors.Wrap(err, "parsing step files")
+		}
+
 		tmpl, err := parseStepRun(step.Run, &stepContext)
 		if err != nil {
 			return nil, errors.Wrap(err, "parsing step run")
@@ -145,12 +150,14 @@ func runSteps(ctx context.Context, wc *WorkspaceCreator, repo *graphql.Repositor
 		for target, source := range filesToMount {
 			args = append(args, "--mount", fmt.Sprintf("type=bind,source=%s,target=%s,ro", source, target))
 		}
+
+		for k, v := range env {
+			args = append(args, "-e", k+"="+v)
+		}
+
 		args = append(args, "--entrypoint", shell)
 
 		cmd := exec.CommandContext(ctx, "docker", args...)
-		for k, v := range step.Env {
-			cmd.Args = append(cmd.Args, "-e", k+"="+v)
-		}
 		cmd.Args = append(cmd.Args, "--", step.image, containerTemp)
 		cmd.Dir = volumeDir
 
@@ -352,6 +359,31 @@ func parseStepFiles(files map[string]interface{}, stepCtx *StepContext) (map[str
 	}
 
 	return containerFiles, nil
+}
+
+func parseStepEnv(env map[string]string, stepCtx *StepContext) (map[string]string, error) {
+	parsedEnv := make(map[string]string, len(env))
+
+	fnMap := stepCtx.ToFuncMap()
+
+	for k, v := range env {
+		// We treat the file contents as a template and render it
+		// into a buffer that we then mount into the code host.
+		var out bytes.Buffer
+
+		tmpl, err := template.New(k).Delims("${{", "}}").Funcs(fnMap).Parse(v)
+		if err != nil {
+			return parsedEnv, err
+		}
+
+		if err := tmpl.Execute(&out, stepCtx); err != nil {
+			return parsedEnv, err
+		}
+
+		parsedEnv[k] = out.String()
+	}
+
+	return parsedEnv, nil
 }
 
 // StepContext represents the contextual information available when executing a
