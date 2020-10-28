@@ -63,10 +63,10 @@ type OnQueryOrRepository struct {
 }
 
 type Step struct {
-	Run       string                 `json:"run,omitempty" yaml:"run"`
-	Container string                 `json:"container,omitempty" yaml:"container"`
-	Env       map[string]string      `json:"env,omitempty" yaml:"env"`
-	Files     map[string]interface{} `json:"files,omitempty" yaml:"files"`
+	Run       string            `json:"run,omitempty" yaml:"run"`
+	Container string            `json:"container,omitempty" yaml:"container"`
+	Env       map[string]string `json:"env,omitempty" yaml:"env"`
+	Files     map[string]string `json:"files,omitempty" yaml:"files"`
 
 	image string
 }

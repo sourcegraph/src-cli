@@ -66,6 +66,11 @@ func runSteps(ctx context.Context, wc *WorkspaceCreator, repo *graphql.Repositor
 	for i, step := range steps {
 		logger.Logf("[Step %d] docker run %s %q", i+1, step.Container, step.Run)
 
+		stepContext := StepContext{Repository: *repo}
+		if i > 0 {
+			stepContext.PreviousStep = results[i-1]
+		}
+
 		cidFile, err := ioutil.TempFile(tempDir, repo.Slug()+"-container-id")
 		if err != nil {
 			return nil, errors.Wrap(err, "Creating a CID file failed")
@@ -89,55 +94,53 @@ func runSteps(ctx context.Context, wc *WorkspaceCreator, repo *graphql.Repositor
 
 		// Set up a temporary file on the host filesystem to contain the
 		// script.
-		fp, err := ioutil.TempFile(tempDir, "")
+		runScriptFile, err := ioutil.TempFile(tempDir, "")
 		if err != nil {
 			return nil, errors.Wrap(err, "creating temporary file")
 		}
-		hostTemp := fp.Name()
-		defer os.Remove(hostTemp)
+		defer os.Remove(runScriptFile.Name())
 
-		stepContext := StepContext{Repository: *repo}
-		if i > 0 {
-			stepContext.PreviousStep = results[i-1]
+		// Parse step.Run as a template...
+		tmpl, err := parseAsTemplate("step-run", step.Run, &stepContext)
+		if err != nil {
+			return nil, errors.Wrap(err, "parsing step run")
 		}
 
-		files, err := parseStepFiles(step.Files, &stepContext)
+		// ... and render it into a buffer and the temp file we just created.
+		var runScript bytes.Buffer
+		if err := tmpl.Execute(io.MultiWriter(&runScript, runScriptFile), stepContext); err != nil {
+			return nil, errors.Wrap(err, "executing template")
+		}
+		runScriptFile.Close()
+
+		// Parse and render the step.Files.
+		files, err := renderStepFiles(step.Files, &stepContext)
 		if err != nil {
 			return nil, errors.Wrap(err, "parsing step files")
 		}
 
-		// "filename-in-container" -> "local-temp-file"
-		filesToMount := make(map[string]string, len(files))
+		// Create temp files with the rendered content of step.Files so that we
+		// can mount them into the container.
+		filesToMount := make(map[string]*os.File, len(files))
 		for name, content := range files {
 			fp, err := ioutil.TempFile(tempDir, "")
 			if err != nil {
 				return nil, errors.Wrap(err, "creating temporary file")
 			}
-			defer os.Remove(fp.Name())
+			if _, err := io.Copy(fp, content); err != nil {
+				return nil, errors.Wrap(err, "writing to temporary file")
+			}
 
-			fp.WriteString(content)
-
-			filesToMount[name] = fp.Name()
+			filesToMount[name] = fp
 		}
 
-		env, err := parseStepEnv(step.Env, &stepContext)
+		// Render the step.Env variables as templates.
+		env, err := renderStepEnv(step.Env, &stepContext)
 		if err != nil {
 			return nil, errors.Wrap(err, "parsing step files")
 		}
 
-		tmpl, err := parseStepRun(step.Run, &stepContext)
-		if err != nil {
-			return nil, errors.Wrap(err, "parsing step run")
-		}
-
-		var buf bytes.Buffer
-		if err := tmpl.Execute(io.MultiWriter(&buf, fp), stepContext); err != nil {
-			return nil, errors.Wrap(err, "executing template")
-		}
-		fp.Close()
-
-		reportProgress(buf.String())
-
+		reportProgress(runScript.String())
 		const workDir = "/work"
 		args := []string{
 			"run",
@@ -145,10 +148,11 @@ func runSteps(ctx context.Context, wc *WorkspaceCreator, repo *graphql.Repositor
 			"--cidfile", cidFile.Name(),
 			"--workdir", workDir,
 			"--mount", fmt.Sprintf("type=bind,source=%s,target=%s", volumeDir, workDir),
-			"--mount", fmt.Sprintf("type=bind,source=%s,target=%s,ro", hostTemp, containerTemp),
+			"--mount", fmt.Sprintf("type=bind,source=%s,target=%s,ro", runScriptFile.Name(), containerTemp),
 		}
 		for target, source := range filesToMount {
-			args = append(args, "--mount", fmt.Sprintf("type=bind,source=%s,target=%s,ro", source, target))
+			args = append(args, "--mount", fmt.Sprintf("type=bind,source=%s,target=%s,ro", source.Name(), target))
+			defer os.Remove(source.Name())
 		}
 
 		for k, v := range env {
@@ -180,7 +184,7 @@ func runSteps(ctx context.Context, wc *WorkspaceCreator, repo *graphql.Repositor
 			return nil, stepFailedErr{
 				Err:         err,
 				Args:        cmd.Args,
-				Run:         buf.String(),
+				Run:         runScript.String(),
 				Container:   step.Container,
 				TmpFilename: containerTemp,
 				Stdout:      strings.TrimSpace(stdoutBuffer.String()),
@@ -332,21 +336,19 @@ func (e stepFailedErr) SingleLineError() string {
 	return strings.Split(out, "\n")[0]
 }
 
-func parseStepRun(run string, stepCtx *StepContext) (*template.Template, error) {
-	return template.New("step-run").Delims("${{", "}}").Funcs(stepCtx.ToFuncMap()).Parse(run)
+func parseAsTemplate(name, input string, stepCtx *StepContext) (*template.Template, error) {
+	return template.New(name).Delims("${{", "}}").Funcs(stepCtx.ToFuncMap()).Parse(input)
 }
 
-func parseStepFiles(files map[string]interface{}, stepCtx *StepContext) (map[string]string, error) {
-	containerFiles := make(map[string]string, len(files))
-
-	fnMap := stepCtx.ToFuncMap()
+func renderStepFiles(files map[string]string, stepCtx *StepContext) (map[string]io.Reader, error) {
+	containerFiles := make(map[string]io.Reader, len(files))
 
 	for fileName, fileRaw := range files {
 		// We treat the file contents as a template and render it
 		// into a buffer that we then mount into the code host.
 		var out bytes.Buffer
 
-		tmpl, err := template.New(fileName).Delims("${{", "}}").Funcs(fnMap).Parse(fileRaw.(string))
+		tmpl, err := parseAsTemplate(fileName, fileRaw, stepCtx)
 		if err != nil {
 			return containerFiles, err
 		}
@@ -355,13 +357,13 @@ func parseStepFiles(files map[string]interface{}, stepCtx *StepContext) (map[str
 			return containerFiles, err
 		}
 
-		containerFiles[fileName] = out.String()
+		containerFiles[fileName] = &out
 	}
 
 	return containerFiles, nil
 }
 
-func parseStepEnv(env map[string]string, stepCtx *StepContext) (map[string]string, error) {
+func renderStepEnv(env map[string]string, stepCtx *StepContext) (map[string]string, error) {
 	parsedEnv := make(map[string]string, len(env))
 
 	fnMap := stepCtx.ToFuncMap()
