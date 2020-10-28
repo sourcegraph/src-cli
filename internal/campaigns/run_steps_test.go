@@ -31,7 +31,7 @@ D  to_be_deleted.txt
 	}
 }
 
-func TestParseStepRun(t *testing.T) {
+func TestParsingAndRenderingTemplates(t *testing.T) {
 	stepCtx := &StepContext{
 		PreviousStep: StepResult{
 			Files: StepChanges{
@@ -144,7 +144,7 @@ ${{ previous_step.stderr}}
 	}
 
 	for _, tc := range tests {
-		parsed, err := parseStepRun(tc.run, tc.stepCtx)
+		parsed, err := parseAsTemplate("testing", tc.run, tc.stepCtx)
 		if err != nil {
 			t.Fatal(err)
 		}
