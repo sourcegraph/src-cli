@@ -111,7 +111,9 @@ func runSteps(ctx context.Context, wc *WorkspaceCreator, repo *graphql.Repositor
 		if err := tmpl.Execute(io.MultiWriter(&runScript, runScriptFile), stepContext); err != nil {
 			return nil, errors.Wrap(err, "executing template")
 		}
-		runScriptFile.Close()
+		if err := runScriptFile.Close(); err != nil {
+			return nil, errors.Wrap(err, "closing temporary file")
+		}
 
 		// Parse and render the step.Files.
 		files, err := renderStepFiles(step.Files, &stepContext)
@@ -127,8 +129,14 @@ func runSteps(ctx context.Context, wc *WorkspaceCreator, repo *graphql.Repositor
 			if err != nil {
 				return nil, errors.Wrap(err, "creating temporary file")
 			}
+			defer os.Remove(fp.Name())
+
 			if _, err := io.Copy(fp, content); err != nil {
 				return nil, errors.Wrap(err, "writing to temporary file")
+			}
+
+			if err := fp.Close(); err != nil {
+				return nil, errors.Wrap(err, "closing temporary file")
 			}
 
 			filesToMount[name] = fp
@@ -152,7 +160,6 @@ func runSteps(ctx context.Context, wc *WorkspaceCreator, repo *graphql.Repositor
 		}
 		for target, source := range filesToMount {
 			args = append(args, "--mount", fmt.Sprintf("type=bind,source=%s,target=%s,ro", source.Name(), target))
-			defer os.Remove(source.Name())
 		}
 
 		for k, v := range env {
