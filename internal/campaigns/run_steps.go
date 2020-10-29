@@ -409,6 +409,9 @@ func (stepCtx *StepContext) ToFuncMap() template.FuncMap {
 		"join": func(list []string, sep string) string {
 			return strings.Join(list, sep)
 		},
+		"split": func(s string, sep string) []string {
+			return strings.Split(s, sep)
+		},
 		"previous_step": func() map[string]interface{} {
 			result := map[string]interface{}{
 				"modified_files": stepCtx.PreviousStep.ModifiedFiles(),
@@ -457,29 +460,14 @@ type StepChanges struct {
 	Deleted  []string
 }
 
-// ModifiedFiles returns the files modified by a step, whitespace-separated in a single string.
-func (r StepResult) ModifiedFiles() string {
-	if len(r.Files.Modified) == 0 {
-		return ""
-	}
-	return strings.Join(r.Files.Modified, " ")
-}
+// ModifiedFiles returns the files modified by a step.
+func (r StepResult) ModifiedFiles() []string { return r.Files.Modified }
 
-// AddedFiles returns the files added by a step, whitespace-separated in a single string.
-func (r StepResult) AddedFiles() string {
-	if len(r.Files.Added) == 0 {
-		return ""
-	}
-	return strings.Join(r.Files.Added, " ")
-}
+// AddedFiles returns the files added by a step.
+func (r StepResult) AddedFiles() []string { return r.Files.Added }
 
 // DeletedFiles returns the files deleted by a step, whitespace-separated in a single string.
-func (r StepResult) DeletedFiles() string {
-	if len(r.Files.Deleted) == 0 {
-		return ""
-	}
-	return strings.Join(r.Files.Deleted, " ")
-}
+func (r StepResult) DeletedFiles() []string { return r.Files.Deleted }
 
 func parseGitStatus(out []byte) (StepChanges, error) {
 	result := StepChanges{}
