@@ -14,6 +14,7 @@ M  another_file.go
 A  new_file.txt
 A  barfoo/new_file.txt
 D  to_be_deleted.txt
+R  README.md -> README.markdown
 `
 	parsed, err := parseGitStatus([]byte(input))
 	if err != nil {
@@ -24,6 +25,7 @@ D  to_be_deleted.txt
 		Modified: []string{"README.md", "another_file.go"},
 		Added:    []string{"new_file.txt", "barfoo/new_file.txt"},
 		Deleted:  []string{"to_be_deleted.txt"},
+		Renamed:  []string{"README.markdown"},
 	}
 
 	if !cmp.Equal(want, parsed) {
@@ -38,6 +40,7 @@ func TestParsingAndRenderingTemplates(t *testing.T) {
 				Modified: []string{"go.mod"},
 				Added:    []string{"main.go.swp"},
 				Deleted:  []string{".DS_Store"},
+				Renamed:  []string{"new-filename.txt"},
 			},
 			Stdout: bytes.NewBufferString("this is stdout"),
 			Stderr: bytes.NewBufferString("this is stderr"),
@@ -60,8 +63,16 @@ func TestParsingAndRenderingTemplates(t *testing.T) {
 		{
 			name:    "previous step file changes",
 			stepCtx: stepCtx,
-			run:     `${{ .PreviousStep.ModifiedFiles }} ${{ .PreviousStep.AddedFiles }} ${{ .PreviousStep.DeletedFiles }}`,
-			want:    `go.mod main.go.swp .DS_Store`,
+			run: `${{ .PreviousStep.ModifiedFiles }}
+${{ .PreviousStep.AddedFiles }}
+${{ .PreviousStep.DeletedFiles }}
+${{ .PreviousStep.RenamedFiles }}
+`,
+			want: `[go.mod]
+[main.go.swp]
+[.DS_Store]
+[new-filename.txt]
+`,
 		},
 		{
 			name:    "previous step output",
@@ -89,14 +100,16 @@ func TestParsingAndRenderingTemplates(t *testing.T) {
 		${{ previous_step.modified_files }}
 		${{ previous_step.added_files }}
 		${{ previous_step.deleted_files }}
+		${{ previous_step.renamed_files }}
 		${{ previous_step.stdout }}
 		${{ previous_step.stderr}}
 		`,
 			want: `README.md main.go
 		github.com/sourcegraph/src-cli
-		go.mod
-		main.go.swp
-		.DS_Store
+		[go.mod]
+		[main.go.swp]
+		[.DS_Store]
+		[new-filename.txt]
 		this is stdout
 		this is stderr
 		`,
@@ -109,14 +122,16 @@ ${{ .Repository.Name }}
 ${{ previous_step.modified_files }}
 ${{ previous_step.added_files }}
 ${{ previous_step.deleted_files }}
+${{ previous_step.renamed_files }}
 ${{ previous_step.stdout }}
 ${{ previous_step.stderr}}
 `,
 			want: `
 
-
-
-
+[]
+[]
+[]
+[]
 
 
 `,
@@ -129,14 +144,16 @@ ${{ repository.name }}
 ${{ previous_step.modified_files }}
 ${{ previous_step.added_files }}
 ${{ previous_step.deleted_files }}
+${{ previous_step.renamed_files }}
 ${{ previous_step.stdout }}
 ${{ previous_step.stderr}}
 `,
 			want: `
 
-
-
-
+[]
+[]
+[]
+[]
 
 
 `,
@@ -144,18 +161,20 @@ ${{ previous_step.stderr}}
 	}
 
 	for _, tc := range tests {
-		parsed, err := parseAsTemplate("testing", tc.run, tc.stepCtx)
-		if err != nil {
-			t.Fatal(err)
-		}
+		t.Run(tc.name, func(t *testing.T) {
+			parsed, err := parseAsTemplate("testing", tc.run, tc.stepCtx)
+			if err != nil {
+				t.Fatal(err)
+			}
 
-		var out bytes.Buffer
-		if err := parsed.Execute(&out, tc.stepCtx); err != nil {
-			t.Fatalf("executing template failed: %s", err)
-		}
+			var out bytes.Buffer
+			if err := parsed.Execute(&out, tc.stepCtx); err != nil {
+				t.Fatalf("executing template failed: %s", err)
+			}
 
-		if out.String() != tc.want {
-			t.Fatalf("wrong output:\n%s", cmp.Diff(tc.want, out.String()))
-		}
+			if out.String() != tc.want {
+				t.Fatalf("wrong output:\n%s", cmp.Diff(tc.want, out.String()))
+			}
+		})
 	}
 }

@@ -417,6 +417,7 @@ func (stepCtx *StepContext) ToFuncMap() template.FuncMap {
 				"modified_files": stepCtx.PreviousStep.ModifiedFiles(),
 				"added_files":    stepCtx.PreviousStep.AddedFiles(),
 				"deleted_files":  stepCtx.PreviousStep.DeletedFiles(),
+				"renamed_files":  stepCtx.PreviousStep.RenamedFiles(),
 			}
 
 			if stepCtx.PreviousStep.Stdout != nil {
@@ -458,6 +459,7 @@ type StepChanges struct {
 	Modified []string
 	Added    []string
 	Deleted  []string
+	Renamed  []string
 }
 
 // ModifiedFiles returns the files modified by a step.
@@ -466,8 +468,11 @@ func (r StepResult) ModifiedFiles() []string { return r.Files.Modified }
 // AddedFiles returns the files added by a step.
 func (r StepResult) AddedFiles() []string { return r.Files.Added }
 
-// DeletedFiles returns the files deleted by a step, whitespace-separated in a single string.
+// DeletedFiles returns the files deleted by a step.
 func (r StepResult) DeletedFiles() []string { return r.Files.Deleted }
+
+// RenamedFiles returns the new name of files that have been renamed by a step.
+func (r StepResult) RenamedFiles() []string { return r.Files.Renamed }
 
 func parseGitStatus(out []byte) (StepChanges, error) {
 	result := StepChanges{}
@@ -491,6 +496,10 @@ func parseGitStatus(out []byte) (StepChanges, error) {
 			result.Added = append(result.Added, file)
 		case 'D':
 			result.Deleted = append(result.Deleted, file)
+		case 'R':
+			files := strings.Split(file, " -> ")
+			newFile := files[len(files)-1]
+			result.Renamed = append(result.Renamed, newFile)
 		}
 	}
 
