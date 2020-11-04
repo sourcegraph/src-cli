@@ -25,7 +25,7 @@ func TestMkdirAll(t *testing.T) {
 		}
 
 		if have := mustGetPerm(t, filepath.Join(base, "exist")); have != 0750 {
-			t.Errorf("unexpected permissions: have=%O want=%O", have, 0750)
+			t.Errorf("unexpected permissions: have=%o want=%o", have, 0750)
 		}
 
 		if !isDir(t, filepath.Join(base, "exist")) {
@@ -39,7 +39,7 @@ func TestMkdirAll(t *testing.T) {
 		}
 
 		if have := mustGetPerm(t, filepath.Join(base, "new")); have != 0750 {
-			t.Errorf("unexpected permissions: have=%O want=%O", have, 0750)
+			t.Errorf("unexpected permissions: have=%o want=%o", have, 0750)
 		}
 
 		if !isDir(t, filepath.Join(base, "new")) {
@@ -113,11 +113,11 @@ func TestEnsureAll(t *testing.T) {
 	}
 	for _, dir := range dirs {
 		if have := mustGetPerm(t, dir); have != 0750 {
-			t.Errorf("unexpected permissions on %q: have=%O want=%O", dir, have, 0750)
+			t.Errorf("unexpected permissions on %q: have=%o want=%o", dir, have, 0750)
 		}
 	}
 	if have := mustGetPerm(t, base); have != 0700 {
-		t.Errorf("unexpected permissions on base %q: have=%O want=%O", base, have, 0700)
+		t.Errorf("unexpected permissions on base %q: have=%o want=%o", base, have, 0700)
 	}
 
 	// Finally, let's ensure we get an error when we try to ensure a directory
