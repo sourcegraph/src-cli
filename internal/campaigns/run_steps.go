@@ -97,6 +97,12 @@ func runSteps(ctx context.Context, wc *WorkspaceCreator, repo *graphql.Repositor
 		}
 		defer os.Remove(runScriptFile.Name())
 
+		// This file needs to be readable within the container regardless of
+		// the user the container is running as.
+		if err := runScriptFile.Chmod(0644); err != nil {
+			return nil, errors.Wrap(err, "setting permissions on the temporary file")
+		}
+
 		// Parse step.Run as a template...
 		tmpl, err := parseAsTemplate("step-run", step.Run, &stepContext)
 		if err != nil {
