@@ -24,8 +24,8 @@ func TestMkdirAll(t *testing.T) {
 			t.Errorf("unexpected non-nil error: %v", err)
 		}
 
-		if have := mustGetPerm(t, filepath.Join(base, "exist")); have != 0750 {
-			t.Errorf("unexpected permissions: have=%o want=%o", have, 0750)
+		if err := mustHavePerm(t, filepath.Join(base, "exist"), 0750); err != nil {
+			t.Error(err)
 		}
 
 		if !isDir(t, filepath.Join(base, "exist")) {
@@ -38,8 +38,8 @@ func TestMkdirAll(t *testing.T) {
 			t.Errorf("unexpected non-nil error: %v", err)
 		}
 
-		if have := mustGetPerm(t, filepath.Join(base, "new")); have != 0750 {
-			t.Errorf("unexpected permissions: have=%o want=%o", have, 0750)
+		if err := mustHavePerm(t, filepath.Join(base, "new"), 0750); err != nil {
+			t.Error(err)
 		}
 
 		if !isDir(t, filepath.Join(base, "new")) {
@@ -56,31 +56,6 @@ func TestMkdirAll(t *testing.T) {
 
 		err = mkdirAll(base, "file", 0750)
 		if _, ok := err.(errPathExistsAsFile); !ok {
-			t.Errorf("unexpected error of type %T: %v", err, err)
-		}
-	})
-
-	t.Run("Stat generates a non-IsNotExist error", func(t *testing.T) {
-		// We'll create a directory and a file within it, remove the execute bit
-		// on the directory, and then stat() the file to cause a failure.
-		if err := os.MkdirAll(filepath.Join(base, "locked"), 0700); err != nil {
-			t.Fatal(err)
-		}
-
-		f, err := os.Create(filepath.Join(base, "locked", "file"))
-		if err != nil {
-			t.Fatal(err)
-		}
-		f.Close()
-
-		if err := os.Chmod(filepath.Join(base, "locked"), 0600); err != nil {
-			t.Fatal(err)
-		}
-
-		err = mkdirAll(base, "locked/file", 0750)
-		if err == nil {
-			t.Errorf("unexpected nil error")
-		} else if _, ok := err.(errPathExistsAsFile); ok {
 			t.Errorf("unexpected error of type %T: %v", err, err)
 		}
 	})
@@ -112,12 +87,12 @@ func TestEnsureAll(t *testing.T) {
 		t.Errorf("unexpected non-nil error: %v", err)
 	}
 	for _, dir := range dirs {
-		if have := mustGetPerm(t, dir); have != 0750 {
-			t.Errorf("unexpected permissions on %q: have=%o want=%o", dir, have, 0750)
+		if err := mustHavePerm(t, dir, 0750); err != nil {
+			t.Error(err)
 		}
 	}
-	if have := mustGetPerm(t, base); have != 0700 {
-		t.Errorf("unexpected permissions on base %q: have=%o want=%o", base, have, 0700)
+	if err := mustHavePerm(t, base, 0700); err != nil {
+		t.Error(err)
 	}
 
 	// Finally, let's ensure we get an error when we try to ensure a directory
