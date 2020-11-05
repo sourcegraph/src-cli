@@ -68,11 +68,24 @@ func runSteps(ctx context.Context, wc *WorkspaceCreator, repo *graphql.Repositor
 			stepContext.PreviousStep = results[i-1]
 		}
 
+		// Find a location that we can use for a cidfile, which will contain the
+		// container ID that is used below. We can then use this to remove the
+		// container on a successful run, rather than leaving it dangling.
 		cidFile, err := ioutil.TempFile(tempDir, repo.Slug()+"-container-id")
 		if err != nil {
 			return nil, errors.Wrap(err, "Creating a CID file failed")
 		}
-		_ = os.Remove(cidFile.Name()) // docker exits if this file exists upon `docker run` starting
+
+		// However, Docker will fail if the cidfile actually exists, so we need
+		// to remove it. Because Windows can't remove open files, we'll first
+		// close it, even though that's unnecessary elsewhere.
+		cidFile.Close()
+		if err = os.Remove(cidFile.Name()); err != nil {
+			return nil, errors.Wrap(err, "removing cidfile")
+		}
+
+		// Since we went to all that effort, we can now defer a function that
+		// uses the cidfile to clean up after this function is done.
 		defer func() {
 			cid, err := ioutil.ReadFile(cidFile.Name())
 			_ = os.Remove(cidFile.Name())
@@ -110,6 +123,19 @@ func runSteps(ctx context.Context, wc *WorkspaceCreator, repo *graphql.Repositor
 		}
 		if err := runScriptFile.Close(); err != nil {
 			return nil, errors.Wrap(err, "closing temporary file")
+		}
+
+		// This file needs to be readable within the container regardless of the
+		// user the container is running as, so we'll set the appropriate group
+		// and other bits to make it so.
+		//
+		// A fun note: although os.File exposes a Chmod() method, we can't
+		// unconditionally use it because Windows cannot change the attributes
+		// of an open file. Rather than going to the trouble of having
+		// conditionally compiled files here, instead we'll just wait until the
+		// file is closed to twiddle the permission bits. Which is now!
+		if err := os.Chmod(runScriptFile.Name(), 0644); err != nil {
+			return nil, errors.Wrap(err, "setting permissions on the temporary file")
 		}
 
 		// Parse and render the step.Files.
