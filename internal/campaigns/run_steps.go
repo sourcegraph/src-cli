@@ -150,6 +150,7 @@ func runSteps(ctx context.Context, wc *WorkspaceCreator, repo *graphql.Repositor
 		args := []string{
 			"run",
 			"--rm",
+			"--init",
 			"--cidfile", cidFile.Name(),
 			"--workdir", workDir,
 			"--mount", fmt.Sprintf("type=bind,source=%s,target=%s", volumeDir, workDir),

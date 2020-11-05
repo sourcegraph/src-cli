@@ -17,6 +17,8 @@ All notable changes to `src-cli` are documented in this file.
 
 ### Fixed
 
+- Unresponsive containers started by `src campaign [apply|preview]` can now be killed by hitting Ctrl-C. Previously the signal wasn't properly forwarded to the process in the container.
+
 ## 3.21.5
 
 ### Added
