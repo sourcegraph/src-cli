@@ -17,6 +17,8 @@ All notable changes to `src-cli` are documented in this file.
 
 ### Fixed
 
+- Executing campaigns on Windows would fail due to obscure `--cidfile` errors: namely, the temporary cidfile would not be removed before `docker run` was invoked. This has been fixed. [#368](https://github.com/sourcegraph/src-cli/pull/368)
+
 ## 3.21.5
 
 ### Added
