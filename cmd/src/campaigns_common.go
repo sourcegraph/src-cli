@@ -169,10 +169,6 @@ func campaignsExecute(ctx context.Context, out *output.Output, svc *campaigns.Se
 		defer specFile.Close()
 	}
 
-	if flags.namespace == "" {
-		errs = multierror.Append(errs, &usageError{errors.New("a namespace must be provided with -namespace")})
-	}
-
 	opts := campaigns.ExecutorOpts{
 		Cache:      svc.NewExecutionCache(flags.cacheDir),
 		Creator:    svc.NewWorkspaceCreator(flags.cacheDir, flags.cleanArchives),

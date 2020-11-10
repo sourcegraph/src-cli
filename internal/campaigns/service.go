@@ -312,7 +312,33 @@ query NamespaceQuery($name: String!) {
 }
 `
 
+const usernameQuery = `
+query {
+    currentUser {
+        username
+    }
+}
+`
+
 func (svc *Service) ResolveNamespace(ctx context.Context, namespace string) (string, error) {
+	if namespace == "" {
+		// if no namespace is provided, default to username as namespace
+		var resp struct {
+			Data struct {
+				CurrentUser struct {
+					Username string `json:"username"`
+				} `json:"currentUser"`
+			} `json:"data"`
+		}
+		if ok, err := svc.client.NewRequest(usernameQuery, nil).DoRaw(ctx, &resp); err != nil || !ok {
+			return "", errors.WithMessage(err, "failed to resolve namespace: no user logged in")
+		}
+
+		namespace = resp.Data.CurrentUser.Username
+		// TODO: could I just do this?
+		//return namespace, nil
+	}
+
 	var result struct {
 		Data struct {
 			User         *struct{ ID string }
@@ -332,7 +358,7 @@ func (svc *Service) ResolveNamespace(ctx context.Context, namespace string) (str
 	if result.Data.Organization != nil {
 		return result.Data.Organization.ID, nil
 	}
-	return "", errors.New("no user or organization found")
+	return "", errors.New("failed to resolve namespace `" + namespace + "`: no user or organization found")
 }
 
 func (svc *Service) ResolveRepositories(ctx context.Context, spec *CampaignSpec) ([]*graphql.Repository, error) {
