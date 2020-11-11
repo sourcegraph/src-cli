@@ -315,18 +315,18 @@ query NamespaceQuery($name: String!) {
 const usernameQuery = `
 query {
     currentUser {
-        username
+        id
     }
 }
 `
 
 func (svc *Service) ResolveNamespace(ctx context.Context, namespace string) (string, error) {
 	if namespace == "" {
-		// if no namespace is provided, default to username as namespace
+		// if no namespace is provided, default to logged in user as namespace
 		var resp struct {
 			Data struct {
 				CurrentUser struct {
-					Username string `json:"username"`
+					ID string `json:"id"`
 				} `json:"currentUser"`
 			} `json:"data"`
 		}
@@ -334,9 +334,7 @@ func (svc *Service) ResolveNamespace(ctx context.Context, namespace string) (str
 			return "", errors.WithMessage(err, "failed to resolve namespace: no user logged in")
 		}
 
-		namespace = resp.Data.CurrentUser.Username
-		// TODO: could I just do this?
-		//return namespace, nil
+		return resp.Data.CurrentUser.ID, nil
 	}
 
 	var result struct {
