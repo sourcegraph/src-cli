@@ -39,6 +39,8 @@ func runSteps(ctx context.Context, wc *WorkspaceCreator, repo *graphql.Repositor
 			// looking warnings.
 			"GIT_AUTHOR_NAME=Sourcegraph",
 			"GIT_AUTHOR_EMAIL=campaigns@sourcegraph.com",
+			"GIT_COMMITTER_NAME=Sourcegraph",
+			"GIT_COMMITTER_EMAIL=campaigns@sourcegraph.com",
 		}
 		cmd.Dir = volumeDir
 		out, err := cmd.CombinedOutput()
