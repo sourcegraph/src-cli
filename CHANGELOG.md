@@ -17,6 +17,8 @@ All notable changes to `src-cli` are documented in this file.
 
 ### Fixed
 
+- `src campaign [apply|preview]` could sometimes fail to parse the produced diffs in a repository in case `git` was configured to use a custom `diff` program. The fix is to ignore any `git` configuration. [#373](https://github.com/sourcegraph/src-cli/pull/373)
+
 ### Removed
 
 ## 3.21.7
