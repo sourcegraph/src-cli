@@ -334,6 +334,9 @@ func (svc *Service) ResolveNamespace(ctx context.Context, namespace string) (str
 			return "", errors.WithMessage(err, "failed to resolve namespace: no user logged in")
 		}
 
+                 if resp.Data.CurrentUser.ID == "" {
+                     return nil, errors.New("cannot resolve current user")
+                 }
 		return resp.Data.CurrentUser.ID, nil
 	}
 
