@@ -313,7 +313,7 @@ query NamespaceQuery($name: String!) {
 `
 
 const usernameQuery = `
-query {
+query GetCurrentUserID {
     currentUser {
         id
     }
