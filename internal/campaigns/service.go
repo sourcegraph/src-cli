@@ -359,7 +359,7 @@ func (svc *Service) ResolveNamespace(ctx context.Context, namespace string) (str
 	if result.Data.Organization != nil {
 		return result.Data.Organization.ID, nil
 	}
-	return "", errors.New("failed to resolve namespace `" + namespace + "`: no user or organization found")
+	return "", fmt.Errorf("failed to resolve namespace %q: no user or organization found", namespace)
 }
 
 func (svc *Service) ResolveRepositories(ctx context.Context, spec *CampaignSpec) ([]*graphql.Repository, error) {
