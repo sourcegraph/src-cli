@@ -21,6 +21,8 @@ Usage:
 Examples:
 
     $ src campaigns apply -f campaign.spec.yaml
+  
+    $ src campaigns apply -f campaign.spec.yaml -namespace myorg
 
 `
 
