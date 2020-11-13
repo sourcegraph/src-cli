@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"runtime"
 	"strings"
 
 	ioaux "github.com/jig/teereadcloser"
@@ -161,6 +162,7 @@ func (c *client) createHTTPRequest(ctx context.Context, method, p string, body i
 	if err != nil {
 		return nil, err
 	}
+	req.Header.Set("User-Agent", fmt.Sprintf("src-cli/%s %s %s", "XXX", runtime.GOOS, runtime.GOARCH))
 	if c.opts.AccessToken != "" {
 		req.Header.Set("Authorization", "token "+c.opts.AccessToken)
 	}

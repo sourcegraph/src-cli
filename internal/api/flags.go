@@ -9,6 +9,7 @@ type Flags struct {
 	getCurl            *bool
 	trace              *bool
 	insecureSkipVerify *bool
+	userAgentTelemetry *bool
 }
 
 func (f *Flags) Trace() bool {
@@ -26,15 +27,18 @@ func NewFlags(flagSet *flag.FlagSet) *Flags {
 		getCurl:            flagSet.Bool("get-curl", false, "Print the curl command for executing this query and exit (WARNING: includes printing your access token!)"),
 		trace:              flagSet.Bool("trace", false, "Log the trace ID for requests. See https://docs.sourcegraph.com/admin/observability/tracing"),
 		insecureSkipVerify: flagSet.Bool("insecure-skip-verify", false, "Skip validation of TLS certificates against trusted chains"),
+		userAgentTelemetry: flagSet.Bool("user-agent-telemetry", true, "Include the operating system and architecture in the User-Agent sent with requests to Sourcegraph (default: true)"),
 	}
 }
 
 func defaultFlags() *Flags {
-	d := false
+	f := false
+	t := true
 	return &Flags{
-		dump:               &d,
-		getCurl:            &d,
-		trace:              &d,
-		insecureSkipVerify: &d,
+		dump:               &f,
+		getCurl:            &f,
+		trace:              &f,
+		insecureSkipVerify: &f,
+		userAgentTelemetry: &t,
 	}
 }
