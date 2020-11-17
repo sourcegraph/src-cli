@@ -17,6 +17,8 @@ All notable changes to `src-cli` are documented in this file.
 
 ### Fixed
 
+- `src campaign [validate|apply|preview]` now print an error and usage information if a user accidentally provides an additional argument. [#384](https://github.com/sourcegraph/src-cli/pull/384)
+
 ### Removed
 
 ## 3.22.0
