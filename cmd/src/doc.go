@@ -235,8 +235,7 @@ type docGroupContext struct {
 }
 
 const (
-	docCommandTemplate = `
-# ` + "`" + `src {{ .FQCN }}` + "`" + `
+	docCommandTemplate = `# ` + "`" + `src {{ .FQCN }}` + "`" + `
 
 {{ if .Flags }}
 ## Flags
@@ -256,8 +255,7 @@ const (
 ` + "```" + `
 	`
 
-	docGroupTemplate = `
-# ` + "`" + `src{{ if .FQCN }} {{ .FQCN }}{{ end }}` + "`" + `
+	docGroupTemplate = `# ` + "`" + `src{{ if .FQCN }} {{ .FQCN }}{{ end }}` + "`" + `
 
 ## Subcommands
 
