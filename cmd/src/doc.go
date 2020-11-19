@@ -35,6 +35,13 @@ Examples:
 	handler := func(args []string) error {
 		flagSet.Parse(args)
 
+		out := output.NewOutput(flagSet.Output(), output.OutputOpts{Verbose: *verbose})
+		if *outputFlag == "" {
+			out.WriteLine(output.Line(output.EmojiFailure, output.StyleWarning, "output directory must be set via -o"))
+			flagSet.Usage()
+			return &exitCodeError{exitCode: 1}
+		}
+
 		dr, err := newDocRenderer()
 		if err != nil {
 			return err
@@ -52,8 +59,6 @@ Examples:
 			"repos":        &reposCommands,
 			"users":        &usersCommands,
 		}
-
-		out := output.NewOutput(flagSet.Output(), output.OutputOpts{Verbose: *verbose})
 
 		pending := out.Pending(output.Line("", output.StylePending, "Rendering Markdown..."))
 		count := 0
