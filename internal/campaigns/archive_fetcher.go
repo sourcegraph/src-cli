@@ -36,11 +36,10 @@ func (wc *WorkspaceCreator) Create(ctx context.Context, repo *graphql.Repository
 	if !exists {
 		err = fetchRepositoryArchive(ctx, wc.client, repo, path)
 		if err != nil {
-			if errors.Is(err, context.Canceled) || errors.Cause(err) == context.Canceled {
-				// If the context got cancelled while we were downloading the
-				// file, we remove the partially downloaded file.
-				os.Remove(path)
-			}
+			// If the context got cancelled, or we ran out of disk space, or
+			// ... while we were downloading the file, we remove the partially
+			// downloaded file.
+			os.Remove(path)
 
 			return "", errors.Wrap(err, "fetching ZIP archive")
 		}
