@@ -10,6 +10,7 @@ import (
 	"strings"
 	"text/template"
 
+	"github.com/pkg/errors"
 	"github.com/sourcegraph/src-cli/internal/output"
 )
 
@@ -149,7 +150,36 @@ type docRenderer struct {
 }
 
 func newDocRenderer() (*docRenderer, error) {
-	ct, err := template.New("command").Parse(docCommandTemplate)
+	ct := template.New("command")
+	ct = ct.Funcs(template.FuncMap{
+		"sanitise": func(v string) (string, error) {
+			// Just replacing the home directory will probably cover off most
+			// cases, but we'll do the user cache and config as well just to be
+			// safe.
+			cache, err := os.UserCacheDir()
+			if err != nil {
+				return "", errors.Wrap(err, "getting user cache dir")
+			}
+
+			config, err := os.UserConfigDir()
+			if err != nil {
+				return "", errors.Wrap(err, "getting user config dir")
+			}
+
+			home, err := os.UserHomeDir()
+			if err != nil {
+				return "", errors.Wrap(err, "getting home dir")
+			}
+
+			v = strings.ReplaceAll(v, cache, "~/.cache")
+			v = strings.ReplaceAll(v, config, "~/.config")
+			v = strings.ReplaceAll(v, home, "~")
+
+			return v, nil
+		},
+	})
+
+	ct, err := ct.Parse(docCommandTemplate)
 	if err != nil {
 		return nil, err
 	}
@@ -249,14 +279,14 @@ const (
 |------|-------------|---------------|
 {{- range .Flags -}}
 {{- "\n" -}}
-| ` + "`" + `-{{ .Name }}` + "`" + ` | {{ .Usage }} | {{ if .DefValue }}` + "`" + `{{ .DefValue }}` + "`" + `{{ end }} |
+| ` + "`" + `-{{ .Name }}` + "`" + ` | {{ .Usage }} | {{ if .DefValue }}` + "`" + `{{ sanitise .DefValue }}` + "`" + `{{ end }} |
 {{- end }}
 {{ end }}
 
 ## Usage
 
 ` + "```" + `
-{{ .Usage }}
+{{ sanitise .Usage }}
 ` + "```" + `
 	`
 
