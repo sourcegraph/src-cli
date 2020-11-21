@@ -24,6 +24,33 @@ type ExecutionCacheKey struct {
 	*Task
 }
 
+func (key ExecutionCacheKey) MarshalJSON() ([]byte, error) {
+	// We have to resolve the step environments and include them in the cache
+	// key to ensure that the cache is properly invalidated when an environment
+	// variable changes.
+	//
+	// Note that we don't base the cache key on the entire global environment:
+	// if an unrelated environment variable changes, that's fine. We're only
+	// interested in the ones that actually make it into the step container.
+	global := os.Environ()
+	envs := make([]map[string]string, len(key.Task.Steps))
+	for i, step := range key.Task.Steps {
+		env, err := step.Env.Resolve(global)
+		if err != nil {
+			return nil, errors.Wrapf(err, "resolving environment for step %d", i)
+		}
+		envs[i] = env
+	}
+
+	return json.Marshal(struct {
+		*Task
+		Environments []map[string]string
+	}{
+		Task:         key.Task,
+		Environments: envs,
+	})
+}
+
 type ExecutionCache interface {
 	Get(ctx context.Context, key ExecutionCacheKey) (result *ChangesetSpec, err error)
 	Set(ctx context.Context, key ExecutionCacheKey, result *ChangesetSpec) error
