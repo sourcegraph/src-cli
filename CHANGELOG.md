@@ -15,6 +15,8 @@ All notable changes to `src-cli` are documented in this file.
 
 ### Changed
 
+- `src campaign [apply|preview]` now prints more detailed information about the diffs produced in each repository when run in verbose mode with `-v`. [#390](https://github.com/sourcegraph/src-cli/pull/390)
+
 ### Fixed
 
 - If `src campaign [validate|apply|preview]` was aborted while it was downloading repository archives it could leave behind partial ZIP files that would produce an error on the next run. This is now fixed by deleting partial files on abort. [#388](https://github.com/sourcegraph/src-cli/pull/388)
