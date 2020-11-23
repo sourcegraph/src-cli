@@ -234,6 +234,10 @@ func campaignsExecute(ctx context.Context, out *output.Output, svc *campaigns.Se
 		campaignsCompletePending(pending, "Resolved repositories")
 	}
 
+	for _, r := range repos {
+		fmt.Printf("Name=%s, BaseRef()=%s, Rev()=%s\n", r.Name, r.BaseRef(), r.Rev())
+	}
+
 	p := newCampaignProgressPrinter(out, *verbose, opts.Parallelism)
 	specs, err := svc.ExecuteCampaignSpec(ctx, repos, executor, campaignSpec, p.PrintStatuses)
 	if err != nil {

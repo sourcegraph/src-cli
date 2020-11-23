@@ -363,8 +363,7 @@ func (svc *Service) ResolveNamespace(ctx context.Context, namespace string) (str
 }
 
 func (svc *Service) ResolveRepositories(ctx context.Context, spec *CampaignSpec) ([]*graphql.Repository, error) {
-	final := []*graphql.Repository{}
-	seen := map[string]struct{}{}
+	seen := map[string]*graphql.Repository{}
 	unsupported := UnsupportedRepoSet{}
 
 	// TODO: this could be trivially parallelised in the future.
@@ -375,11 +374,12 @@ func (svc *Service) ResolveRepositories(ctx context.Context, spec *CampaignSpec)
 		}
 
 		for _, repo := range repos {
-			if _, ok := seen[repo.ID]; !ok {
-				if repo.DefaultBranch == nil {
-					continue
-				}
-				seen[repo.ID] = struct{}{}
+			if !repo.HasBranch() {
+				continue
+			}
+
+			if other, ok := seen[repo.ID]; !ok {
+				seen[repo.ID] = repo
 				switch st := strings.ToLower(repo.ExternalRepository.ServiceType); st {
 				case "github", "gitlab", "bitbucketserver":
 				default:
@@ -388,10 +388,17 @@ func (svc *Service) ResolveRepositories(ctx context.Context, spec *CampaignSpec)
 						continue
 					}
 				}
-
-				final = append(final, repo)
+			} else {
+				// If we've already seen this repository, we overwrite the
+				// Branches field with the latest value we have
+				other.Branches = repo.Branches
 			}
 		}
+	}
+
+	final := make([]*graphql.Repository, 0, len(seen))
+	for _, repo := range seen {
+		final = append(final, repo)
 	}
 
 	if unsupported.hasUnsupported() && !svc.allowUnsupported {
@@ -404,6 +411,12 @@ func (svc *Service) ResolveRepositories(ctx context.Context, spec *CampaignSpec)
 func (svc *Service) ResolveRepositoriesOn(ctx context.Context, on *OnQueryOrRepository) ([]*graphql.Repository, error) {
 	if on.RepositoriesMatchingQuery != "" {
 		return svc.resolveRepositorySearch(ctx, on.RepositoriesMatchingQuery)
+	} else if on.Repository != "" && on.Branch != "" {
+		repo, err := svc.resolveRepositoryNameAndBranch(ctx, on.Repository, on.Branch)
+		if err != nil {
+			return nil, err
+		}
+		return []*graphql.Repository{repo}, nil
 	} else if on.Repository != "" {
 		repo, err := svc.resolveRepositoryName(ctx, on.Repository)
 		if err != nil {
@@ -434,6 +447,32 @@ func (svc *Service) resolveRepositoryName(ctx context.Context, name string) (*gr
 	}
 	if result.Repository == nil {
 		return nil, errors.New("no repository found")
+	}
+	return result.Repository, nil
+}
+
+const repositoryNameAndBranchQuery = `
+query Repository($name: String!, $queryBranch: Boolean!, $branch: String!) {
+	repository(name: $name) {
+        ...repositoryFieldsWithBranch
+    }
+}
+` + graphql.RepositoryWithBranchFragment
+
+func (svc *Service) resolveRepositoryNameAndBranch(ctx context.Context, name, branch string) (*graphql.Repository, error) {
+	var result struct{ Repository *graphql.Repository }
+	if ok, err := svc.client.NewRequest(repositoryNameAndBranchQuery, map[string]interface{}{
+		"name":        name,
+		"queryBranch": true,
+		"branch":      branch,
+	}).Do(ctx, &result); err != nil || !ok {
+		return nil, err
+	}
+	if result.Repository == nil {
+		return nil, errors.New("no repository found")
+	}
+	if len(result.Repository.Branches.Nodes) == 0 {
+		return nil, fmt.Errorf("no branch matching %q found for repository %s", branch, name)
 	}
 	return result.Repository, nil
 }
