@@ -46,15 +46,6 @@ func TestExecutor_Integration(t *testing.T) {
 			Name:   "main",
 			Target: graphql.Target{OID: "f00b4r3r"},
 		},
-
-		Branches: graphql.Branches{
-			Nodes: []*graphql.Branch{
-				&graphql.Branch{
-					Name:   "other-branch",
-					Target: graphql.Target{OID: "0therbr4nch"},
-				},
-			},
-		},
 	}
 
 	tests := []struct {

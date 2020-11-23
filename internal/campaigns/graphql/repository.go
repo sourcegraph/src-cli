@@ -22,8 +22,8 @@ fragment repositoryFields on Repository {
 }
 `
 
-const RepositoryWithBranchFragment = `
-fragment repositoryFieldsWithBranch on Repository {
+const RepositoryWithCommitFragment = `
+fragment repositoryFieldsWithCommit on Repository {
     id
     name
     url
@@ -36,13 +36,8 @@ fragment repositoryFieldsWithBranch on Repository {
             oid
         }
     }
-	branches(query: $branch, first: 1) @include(if:$queryBranch){
-	    nodes {
-		    name
-            target {
-                oid
-            }
-		}
+    commit(rev: $rev) @include(if:$queryCommit) {
+        oid
 	}
 }
 `
@@ -67,26 +62,37 @@ type Repository struct {
 	ExternalRepository struct{ ServiceType string }
 
 	DefaultBranch *Branch
-	Branches      Branches
+
+	Commit Target
+	// Branch is populated by resolveRepositoryNameAndBranch with the queried
+	// branch's name and the contents of the Commit property.
+	Branch Branch
 
 	FileMatches map[string]bool
 }
 
 func (r *Repository) HasBranch() bool {
-	return r.DefaultBranch != nil || len(r.Branches.Nodes) != 0
+	return r.DefaultBranch != nil || (r.Commit.OID != "" && r.Branch.Name != "")
 }
 
 func (r *Repository) BaseRef() string {
-	if len(r.Branches.Nodes) != 0 {
-		return r.Branches.Nodes[0].Name
+	if r.Branch.Name != "" {
+		return ensurePrefix(r.Branch.Name)
 	}
 
 	return r.DefaultBranch.Name
 }
 
+func ensurePrefix(rev string) string {
+	if strings.HasPrefix(rev, "refs/heads/") {
+		return rev
+	}
+	return "refs/heads/" + rev
+}
+
 func (r *Repository) Rev() string {
-	if len(r.Branches.Nodes) != 0 {
-		return r.Branches.Nodes[0].Target.OID
+	if r.Branch.Target.OID != "" {
+		return r.Branch.Target.OID
 	}
 
 	return r.DefaultBranch.Target.OID

@@ -390,8 +390,9 @@ func (svc *Service) ResolveRepositories(ctx context.Context, spec *CampaignSpec)
 				}
 			} else {
 				// If we've already seen this repository, we overwrite the
-				// Branches field with the latest value we have
-				other.Branches = repo.Branches
+				// Commit/Branch fields with the latest value we have
+				other.Commit = repo.Commit
+				other.Branch = repo.Branch
 			}
 		}
 	}
@@ -452,28 +453,34 @@ func (svc *Service) resolveRepositoryName(ctx context.Context, name string) (*gr
 }
 
 const repositoryNameAndBranchQuery = `
-query Repository($name: String!, $queryBranch: Boolean!, $branch: String!) {
+query Repository($name: String!, $queryCommit: Boolean!, $rev: String!) {
 	repository(name: $name) {
-        ...repositoryFieldsWithBranch
+        ...repositoryFieldsWithCommit
     }
 }
-` + graphql.RepositoryWithBranchFragment
+` + graphql.RepositoryWithCommitFragment
 
 func (svc *Service) resolveRepositoryNameAndBranch(ctx context.Context, name, branch string) (*graphql.Repository, error) {
 	var result struct{ Repository *graphql.Repository }
 	if ok, err := svc.client.NewRequest(repositoryNameAndBranchQuery, map[string]interface{}{
 		"name":        name,
-		"queryBranch": true,
-		"branch":      branch,
+		"queryCommit": true,
+		"rev":         branch,
 	}).Do(ctx, &result); err != nil || !ok {
 		return nil, err
 	}
 	if result.Repository == nil {
 		return nil, errors.New("no repository found")
 	}
-	if len(result.Repository.Branches.Nodes) == 0 {
+	if result.Repository.Commit.OID == "" {
 		return nil, fmt.Errorf("no branch matching %q found for repository %s", branch, name)
 	}
+
+	result.Repository.Branch = graphql.Branch{
+		Name:   branch,
+		Target: result.Repository.Commit,
+	}
+
 	return result.Repository, nil
 }
 
