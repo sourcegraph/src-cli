@@ -21,7 +21,7 @@ fragment repositoryFields on Repository {
     }
     commit(rev: $rev) @include(if:$queryCommit) {
         oid
-	}
+    }
 }
 `
 
@@ -32,10 +32,6 @@ type Target struct {
 type Branch struct {
 	Name   string
 	Target Target
-}
-
-type Branches struct {
-	Nodes []*Branch
 }
 
 type Repository struct {
