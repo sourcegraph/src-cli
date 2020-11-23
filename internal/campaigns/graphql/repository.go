@@ -19,23 +19,6 @@ fragment repositoryFields on Repository {
             oid
         }
     }
-}
-`
-
-const RepositoryWithCommitFragment = `
-fragment repositoryFieldsWithCommit on Repository {
-    id
-    name
-    url
-    externalRepository {
-        serviceType
-    }
-    defaultBranch {
-        name
-        target {
-            oid
-        }
-    }
     commit(rev: $rev) @include(if:$queryCommit) {
         oid
 	}

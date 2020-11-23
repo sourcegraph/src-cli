@@ -163,13 +163,9 @@ func TestWorkspaceCreator_Create(t *testing.T) {
 			ID:            "src-cli-with-non-main-branch",
 			Name:          "github.com/sourcegraph/src-cli",
 			DefaultBranch: &graphql.Branch{Name: "main", Target: graphql.Target{OID: "d34db33f"}},
-			Branches: struct {
-				Nodes []*graphql.Branch
-			}{
-				Nodes: []*graphql.Branch{
-					&graphql.Branch{Name: "other-branch", Target: graphql.Target{OID: otherBranchOID}},
-				},
-			},
+
+			Commit: graphql.Target{OID: otherBranchOID},
+			Branch: graphql.Branch{Name: "other-branch", Target: graphql.Target{OID: otherBranchOID}},
 		}
 
 		archive := mockRepoArchive{repo: repo, files: map[string]string{}}

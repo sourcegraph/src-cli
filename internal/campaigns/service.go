@@ -432,7 +432,7 @@ func (svc *Service) ResolveRepositoriesOn(ctx context.Context, on *OnQueryOrRepo
 }
 
 const repositoryNameQuery = `
-query Repository($name: String!) {
+query Repository($name: String!, $queryCommit: Boolean!, $rev: String) {
     repository(name: $name) {
         ...repositoryFields
     }
@@ -442,7 +442,9 @@ query Repository($name: String!) {
 func (svc *Service) resolveRepositoryName(ctx context.Context, name string) (*graphql.Repository, error) {
 	var result struct{ Repository *graphql.Repository }
 	if ok, err := svc.client.NewRequest(repositoryNameQuery, map[string]interface{}{
-		"name": name,
+		"name":        name,
+		"queryCommit": false,
+		"rev":         "",
 	}).Do(ctx, &result); err != nil || !ok {
 		return nil, err
 	}
@@ -452,17 +454,9 @@ func (svc *Service) resolveRepositoryName(ctx context.Context, name string) (*gr
 	return result.Repository, nil
 }
 
-const repositoryNameAndBranchQuery = `
-query Repository($name: String!, $queryCommit: Boolean!, $rev: String!) {
-	repository(name: $name) {
-        ...repositoryFieldsWithCommit
-    }
-}
-` + graphql.RepositoryWithCommitFragment
-
 func (svc *Service) resolveRepositoryNameAndBranch(ctx context.Context, name, branch string) (*graphql.Repository, error) {
 	var result struct{ Repository *graphql.Repository }
-	if ok, err := svc.client.NewRequest(repositoryNameAndBranchQuery, map[string]interface{}{
+	if ok, err := svc.client.NewRequest(repositoryNameQuery, map[string]interface{}{
 		"name":        name,
 		"queryCommit": true,
 		"rev":         branch,
@@ -488,6 +482,8 @@ func (svc *Service) resolveRepositoryNameAndBranch(ctx context.Context, name, br
 const repositorySearchQuery = `
 query ChangesetRepos(
     $query: String!,
+	$queryCommit: Boolean!,
+	$rev: String!,
 ) {
     search(query: $query, version: V2) {
         results {
@@ -517,7 +513,9 @@ func (svc *Service) resolveRepositorySearch(ctx context.Context, query string) (
 		}
 	}
 	if ok, err := svc.client.NewRequest(repositorySearchQuery, map[string]interface{}{
-		"query": setDefaultQueryCount(query),
+		"query":       setDefaultQueryCount(query),
+		"queryCommit": false,
+		"rev":         "",
 	}).Do(ctx, &result); err != nil || !ok {
 		return nil, err
 	}
