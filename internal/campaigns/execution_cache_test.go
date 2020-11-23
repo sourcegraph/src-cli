@@ -1,7 +1,6 @@
 package campaigns
 
 import (
-	"encoding/json"
 	"os"
 	"testing"
 
@@ -31,7 +30,7 @@ func TestExecutionCacheKey(t *testing.T) {
 	key := ExecutionCacheKey{&Task{Steps: steps}}
 
 	// All righty. Let's get ourselves a baseline cache key here.
-	initial, err := json.Marshal(key)
+	initial, err := key.Key()
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
@@ -41,7 +40,7 @@ func TestExecutionCacheKey(t *testing.T) {
 	if err := os.Setenv(testExecutionCacheKeyEnv+"_UNRELATED", "foo"); err != nil {
 		t.Fatal(err)
 	}
-	have, err := json.Marshal(key)
+	have, err := key.Key()
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
@@ -54,7 +53,7 @@ func TestExecutionCacheKey(t *testing.T) {
 	if err := os.Setenv(testExecutionCacheKeyEnv, "foo"); err != nil {
 		t.Fatal(err)
 	}
-	have, err = json.Marshal(key)
+	have, err = key.Key()
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
@@ -66,7 +65,7 @@ func TestExecutionCacheKey(t *testing.T) {
 	if err := os.Setenv(testExecutionCacheKeyEnv, "bar"); err != nil {
 		t.Fatal(err)
 	}
-	again, err := json.Marshal(key)
+	again, err := key.Key()
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
@@ -79,7 +78,7 @@ func TestExecutionCacheKey(t *testing.T) {
 	if err := os.Unsetenv(testExecutionCacheKeyEnv); err != nil {
 		t.Fatal(err)
 	}
-	have, err = json.Marshal(key)
+	have, err = key.Key()
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}

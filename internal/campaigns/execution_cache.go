@@ -24,7 +24,9 @@ type ExecutionCacheKey struct {
 	*Task
 }
 
-func (key ExecutionCacheKey) MarshalJSON() ([]byte, error) {
+// Key converts the key into a string form that can be used to uniquely identify
+// the cache key in a more concise form than the entire Task.
+func (key ExecutionCacheKey) Key() (string, error) {
 	// We have to resolve the step environments and include them in the cache
 	// key to ensure that the cache is properly invalidated when an environment
 	// variable changes.
@@ -37,18 +39,24 @@ func (key ExecutionCacheKey) MarshalJSON() ([]byte, error) {
 	for i, step := range key.Task.Steps {
 		env, err := step.Env.Resolve(global)
 		if err != nil {
-			return nil, errors.Wrapf(err, "resolving environment for step %d", i)
+			return "", errors.Wrapf(err, "resolving environment for step %d", i)
 		}
 		envs[i] = env
 	}
 
-	return json.Marshal(struct {
+	raw, err := json.Marshal(struct {
 		*Task
 		Environments []map[string]string
 	}{
 		Task:         key.Task,
 		Environments: envs,
 	})
+	if err != nil {
+		return "", err
+	}
+
+	hash := sha256.Sum256(raw)
+	return base64.RawURLEncoding.EncodeToString(hash[:16]), nil
 }
 
 type ExecutionCache interface {
@@ -62,13 +70,10 @@ type ExecutionDiskCache struct {
 }
 
 func (c ExecutionDiskCache) cacheFilePath(key ExecutionCacheKey) (string, error) {
-	keyJSON, err := json.Marshal(key)
+	keyString, err := key.Key()
 	if err != nil {
-		return "", errors.Wrap(err, "Failed to marshal JSON when generating action cache key")
+		return "", errors.Wrap(err, "calculating execution cache key")
 	}
-
-	b := sha256.Sum256(keyJSON)
-	keyString := base64.RawURLEncoding.EncodeToString(b[:16])
 
 	return filepath.Join(c.Dir, keyString+".json"), nil
 }
