@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
 	"github.com/sourcegraph/src-cli/internal/api"
 	"github.com/sourcegraph/src-cli/internal/campaigns/graphql"
@@ -192,6 +193,7 @@ type ExecutorOpts struct {
 	KeepLogs   bool
 	TempDir    string
 	CacheDir   string
+	SkipErrors bool
 }
 
 func (svc *Service) NewExecutor(opts ExecutorOpts) Executor {
@@ -215,7 +217,7 @@ func (svc *Service) SetDockerImages(ctx context.Context, spec *CampaignSpec, pro
 	return nil
 }
 
-func (svc *Service) ExecuteCampaignSpec(ctx context.Context, repos []*graphql.Repository, x Executor, spec *CampaignSpec, progress func([]*TaskStatus)) ([]*ChangesetSpec, error) {
+func (svc *Service) ExecuteCampaignSpec(ctx context.Context, repos []*graphql.Repository, x Executor, spec *CampaignSpec, progress func([]*TaskStatus), skipErrors bool) ([]*ChangesetSpec, error) {
 	statuses := make([]*TaskStatus, 0, len(repos))
 	for _, repo := range repos {
 		ts := x.AddTask(repo, spec.Steps, spec.ChangesetTemplate)
@@ -242,6 +244,8 @@ func (svc *Service) ExecuteCampaignSpec(ctx context.Context, repos []*graphql.Re
 		}()
 	}
 
+	var errs *multierror.Error
+
 	x.Start(ctx)
 	specs, err := x.Wait()
 	if progress != nil {
@@ -249,14 +253,23 @@ func (svc *Service) ExecuteCampaignSpec(ctx context.Context, repos []*graphql.Re
 		done <- struct{}{}
 	}
 	if err != nil {
-		return nil, err
+		if skipErrors {
+			errs = multierror.Append(errs, err)
+		} else {
+			return nil, err
+		}
 	}
 
 	// Add external changeset specs.
 	for _, ic := range spec.ImportChangesets {
 		repo, err := svc.resolveRepositoryName(ctx, ic.Repository)
 		if err != nil {
-			return nil, errors.Wrapf(err, "resolving repository name %q", ic.Repository)
+			wrapped := errors.Wrapf(err, "resolving repository name %q", ic.Repository)
+			if skipErrors {
+				errs = multierror.Append(errs, wrapped)
+			} else {
+				return nil, wrapped
+			}
 		}
 
 		for _, id := range ic.ExternalIDs {
@@ -274,7 +287,12 @@ func (svc *Service) ExecuteCampaignSpec(ctx context.Context, repos []*graphql.Re
 			case float64:
 				sid = strconv.FormatFloat(tid, 'f', -1, 64)
 			default:
-				return nil, errors.Errorf("cannot convert value of type %T into a valid external ID: expected string or int", id)
+				err := errors.Errorf("cannot convert value of type %T into a valid external ID: expected string or int", id)
+				if skipErrors {
+					errs = multierror.Append(errs, err)
+				} else {
+					return nil, err
+				}
 			}
 
 			specs = append(specs, &ChangesetSpec{
@@ -284,7 +302,7 @@ func (svc *Service) ExecuteCampaignSpec(ctx context.Context, repos []*graphql.Re
 		}
 	}
 
-	return specs, nil
+	return specs, errs.ErrorOrNil()
 }
 
 func (svc *Service) ParseCampaignSpec(in io.Reader) (*CampaignSpec, string, error) {

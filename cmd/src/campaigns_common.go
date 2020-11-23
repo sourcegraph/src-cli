@@ -42,6 +42,7 @@ type campaignsApplyFlags struct {
 	parallelism      int
 	timeout          time.Duration
 	cleanArchives    bool
+	skipErrors       bool
 }
 
 func newCampaignsApplyFlags(flagSet *flag.FlagSet, cacheDir, tempDir string) *campaignsApplyFlags {
@@ -94,6 +95,10 @@ func newCampaignsApplyFlags(flagSet *flag.FlagSet, cacheDir, tempDir string) *ca
 	flagSet.BoolVar(
 		&caf.cleanArchives, "clean-archives", true,
 		"If true, deletes downloaded repository archives after executing campaign steps.",
+	)
+	flagSet.BoolVar(
+		&caf.skipErrors, "skip-errors", false,
+		"If true, errors encountered while executing steps in a repository won't stop the execution of the campaign spec but only cause that repository to be skipped.",
 	)
 
 	flagSet.BoolVar(verbose, "v", false, "print verbose output")
@@ -235,11 +240,16 @@ func campaignsExecute(ctx context.Context, out *output.Output, svc *campaigns.Se
 	}
 
 	p := newCampaignProgressPrinter(out, *verbose, opts.Parallelism)
-	specs, err := svc.ExecuteCampaignSpec(ctx, repos, executor, campaignSpec, p.PrintStatuses)
-	if err != nil {
+	specs, err := svc.ExecuteCampaignSpec(ctx, repos, executor, campaignSpec, p.PrintStatuses, flags.skipErrors)
+	if err != nil && !flags.skipErrors {
 		return "", "", err
+
 	}
 	p.Complete()
+	if err != nil && flags.skipErrors {
+		printExecutionError(out, err)
+		out.WriteLine(output.Line(output.EmojiWarning, output.StyleWarning, "Skipping errors because -skip-errors was used."))
+	}
 
 	if logFiles := executor.LogFiles(); len(logFiles) > 0 && flags.keepLogs {
 		func() {
@@ -350,7 +360,6 @@ func printExecutionError(out *output.Output, err error) {
 	if block != nil {
 		block.Close()
 	}
-	out.Write("")
 }
 
 func formatTaskExecutionErr(err campaigns.TaskExecutionErr) string {
