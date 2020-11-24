@@ -294,8 +294,6 @@ func campaignsExecute(ctx context.Context, out *output.Output, svc *campaigns.Se
 	return id, url, nil
 }
 
-var useSkipErrorsNotice = output.Line(output.EmojiLightbulb, output.StylePending, "Use -skip-errors to skip the errors and upload the campaign spec regardless.")
-
 // campaignsParseSpec parses and validates the given campaign spec. If the spec
 // has validation errors, the errors are output in a human readable form and an
 // exitCodeError is returned.
