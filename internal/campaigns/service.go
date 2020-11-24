@@ -193,7 +193,6 @@ type ExecutorOpts struct {
 	KeepLogs   bool
 	TempDir    string
 	CacheDir   string
-	SkipErrors bool
 }
 
 func (svc *Service) NewExecutor(opts ExecutorOpts) Executor {
@@ -267,6 +266,7 @@ func (svc *Service) ExecuteCampaignSpec(ctx context.Context, repos []*graphql.Re
 			wrapped := errors.Wrapf(err, "resolving repository name %q", ic.Repository)
 			if skipErrors {
 				errs = multierror.Append(errs, wrapped)
+				continue
 			} else {
 				return nil, wrapped
 			}
@@ -287,12 +287,7 @@ func (svc *Service) ExecuteCampaignSpec(ctx context.Context, repos []*graphql.Re
 			case float64:
 				sid = strconv.FormatFloat(tid, 'f', -1, 64)
 			default:
-				err := errors.Errorf("cannot convert value of type %T into a valid external ID: expected string or int", id)
-				if skipErrors {
-					errs = multierror.Append(errs, err)
-				} else {
-					return nil, err
-				}
+				return nil, errors.Errorf("cannot convert value of type %T into a valid external ID: expected string or int", id)
 			}
 
 			specs = append(specs, &ChangesetSpec{

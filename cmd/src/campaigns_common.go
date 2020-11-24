@@ -327,39 +327,54 @@ func campaignsParseSpec(out *output.Output, svc *campaigns.Service, input io.Rea
 func printExecutionError(out *output.Output, err error) {
 	out.Write("")
 
-	writeErr := func(block *output.Block, err error) {
-		if block == nil {
-			return
-		}
+	writeErrs := func(errs []error) {
+		var block *output.Block
 
-		if taskErr, ok := err.(campaigns.TaskExecutionErr); ok {
-			block.Write(formatTaskExecutionErr(taskErr))
+		if len(errs) > 1 {
+			block = out.Block(output.Linef(output.EmojiFailure, output.StyleWarning, "%d errors:", len(errs)))
 		} else {
-			block.Write(err.Error())
+			block = out.Block(output.Line(output.EmojiFailure, output.StyleWarning, "Error:"))
+		}
+
+		for _, e := range errs {
+			if taskErr, ok := e.(campaigns.TaskExecutionErr); ok {
+				block.Write(formatTaskExecutionErr(taskErr))
+			} else {
+				block.Writef("%s%s", output.StyleBold, e.Error())
+			}
+		}
+
+		if block != nil {
+			block.Close()
 		}
 	}
 
-	var block *output.Block
-	singleErrHeader := output.Line(output.EmojiFailure, output.StyleWarning, "Error:")
+	switch err := err.(type) {
+	case parallel.Errors, *multierror.Error:
+		writeErrs(flattenErrs(err))
 
-	if parErr, ok := err.(parallel.Errors); ok {
-		if len(parErr) > 1 {
-			block = out.Block(output.Linef(output.EmojiFailure, output.StyleWarning, "%d errors:", len(parErr)))
-		} else {
-			block = out.Block(singleErrHeader)
-		}
-
-		for _, e := range parErr {
-			writeErr(block, e)
-		}
-	} else {
-		block = out.Block(singleErrHeader)
-		writeErr(block, err)
+	default:
+		writeErrs([]error{err})
 	}
 
-	if block != nil {
-		block.Close()
+}
+
+func flattenErrs(err error) (result []error) {
+	switch errs := err.(type) {
+	case parallel.Errors:
+		for _, e := range errs {
+			result = append(result, flattenErrs(e)...)
+		}
+
+	case *multierror.Error:
+		for _, e := range errs.Errors {
+			result = append(result, flattenErrs(e)...)
+		}
+	default:
+		result = append(result, errs)
 	}
+
+	return result
 }
 
 func formatTaskExecutionErr(err campaigns.TaskExecutionErr) string {
