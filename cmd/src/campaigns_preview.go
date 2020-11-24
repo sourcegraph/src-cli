@@ -55,6 +55,9 @@ Examples:
 		if err != nil {
 			printExecutionError(out, err)
 			out.Write("")
+			if !flags.skipErrors {
+				out.WriteLine(useSkipErrorsNotice)
+			}
 			return &exitCodeError{nil, 1}
 		}
 
