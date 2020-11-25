@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -148,7 +149,7 @@ func TestExecutor_Integration(t *testing.T) {
 			}
 			defer os.Remove(testTempDir)
 
-			cache := inMemoryExecutionCache{}
+			cache := newInMemoryExecutionCache()
 			creator := &WorkspaceCreator{dir: testTempDir, client: client}
 			opts := ExecutorOpts{
 				Cache:       cache,
@@ -231,14 +232,14 @@ func TestExecutor_Integration(t *testing.T) {
 				}
 
 				// Verify that there is a cache entry for each repo.
-				if have := len(cache); have != want {
+				if have := cache.size(); have != want {
 					t.Errorf("unexpected number of cache entries: have=%d want=%d cache=%+v", have, want, cache)
 				}
 			}
 
 			// Sanity check, since we're going to be looking at the side effects
 			// on the cache.
-			if len(cache) != 0 {
+			if cache.size() != 0 {
 				t.Fatalf("unexpectedly hot cache: %+v", cache)
 			}
 
@@ -308,15 +309,34 @@ func newZipArchivesMux(t *testing.T, callback http.HandlerFunc, archives ...mock
 }
 
 // inMemoryExecutionCache provides an in-memory cache for testing purposes.
-type inMemoryExecutionCache map[string][]byte
+type inMemoryExecutionCache struct {
+	cache map[string][]byte
+	mu    sync.RWMutex
+}
 
-func (c inMemoryExecutionCache) Get(ctx context.Context, key ExecutionCacheKey) (*ChangesetSpec, error) {
+func newInMemoryExecutionCache() *inMemoryExecutionCache {
+	return &inMemoryExecutionCache{
+		cache: make(map[string][]byte),
+	}
+}
+
+func (c *inMemoryExecutionCache) size() int {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	return len(c.cache)
+}
+
+func (c *inMemoryExecutionCache) Get(ctx context.Context, key ExecutionCacheKey) (*ChangesetSpec, error) {
 	k, err := key.Key()
 	if err != nil {
 		return nil, err
 	}
 
-	if raw, ok := c[k]; ok {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	if raw, ok := c.cache[k]; ok {
 		var spec ChangesetSpec
 		if err := json.Unmarshal(raw, &spec); err != nil {
 			return nil, err
@@ -327,7 +347,7 @@ func (c inMemoryExecutionCache) Get(ctx context.Context, key ExecutionCacheKey) 
 	return nil, nil
 }
 
-func (c inMemoryExecutionCache) Set(ctx context.Context, key ExecutionCacheKey, spec *ChangesetSpec) error {
+func (c *inMemoryExecutionCache) Set(ctx context.Context, key ExecutionCacheKey, spec *ChangesetSpec) error {
 	k, err := key.Key()
 	if err != nil {
 		return err
@@ -338,16 +358,22 @@ func (c inMemoryExecutionCache) Set(ctx context.Context, key ExecutionCacheKey, 
 		return err
 	}
 
-	c[k] = v
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.cache[k] = v
 	return nil
 }
 
-func (c inMemoryExecutionCache) Clear(ctx context.Context, key ExecutionCacheKey) error {
+func (c *inMemoryExecutionCache) Clear(ctx context.Context, key ExecutionCacheKey) error {
 	k, err := key.Key()
 	if err != nil {
 		return err
 	}
 
-	delete(c, k)
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	delete(c.cache, k)
 	return nil
 }
