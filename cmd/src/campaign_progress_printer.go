@@ -55,7 +55,7 @@ func (p *campaignProgressPrinter) initProgressBar(statuses []*campaigns.TaskStat
 	}
 
 	p.progress = p.out.ProgressWithStatusBars([]output.ProgressBar{{
-		Label: fmt.Sprintf("Executing steps in %d repositories", len(statuses)),
+		Label: fmt.Sprintf("Executing ... (  0/%d,   0 errored)", len(statuses)),
 		Max:   float64(len(statuses)),
 	}}, statusBars, nil)
 
@@ -66,6 +66,17 @@ func (p *campaignProgressPrinter) Complete() {
 	if p.progress != nil {
 		p.progress.Complete()
 	}
+}
+
+func (p *campaignProgressPrinter) updateProgressBar(completed, errored, total int) {
+	if p.progress == nil {
+		return
+	}
+
+	p.progress.SetValue(0, float64(completed))
+
+	label := fmt.Sprintf("Executing... (%d/%d, %d errored)", completed, total, errored)
+	p.progress.SetLabel(0, label)
 }
 
 func (p *campaignProgressPrinter) PrintStatuses(statuses []*campaigns.TaskStatus) {
@@ -79,6 +90,7 @@ func (p *campaignProgressPrinter) PrintStatuses(statuses []*campaigns.TaskStatus
 
 	newlyCompleted := []*campaigns.TaskStatus{}
 	currentlyRunning := []*campaigns.TaskStatus{}
+	errored := 0
 
 	for _, ts := range statuses {
 		if len(ts.RepoName) > p.maxRepoName {
@@ -86,6 +98,10 @@ func (p *campaignProgressPrinter) PrintStatuses(statuses []*campaigns.TaskStatus
 		}
 
 		if ts.IsCompleted() {
+			if ts.Err != nil {
+				errored += 1
+			}
+
 			if !p.completedTasks[ts.RepoName] {
 				p.completedTasks[ts.RepoName] = true
 				newlyCompleted = append(newlyCompleted, ts)
@@ -106,7 +122,7 @@ func (p *campaignProgressPrinter) PrintStatuses(statuses []*campaigns.TaskStatus
 
 	}
 
-	p.progress.SetValue(0, float64(len(p.completedTasks)))
+	p.updateProgressBar(len(p.completedTasks), errored, len(statuses))
 
 	newlyStarted := map[string]*campaigns.TaskStatus{}
 	statusBarIndex := 0
