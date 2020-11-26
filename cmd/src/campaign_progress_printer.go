@@ -182,6 +182,7 @@ func (p *campaignProgressPrinter) PrintStatuses(statuses []*campaigns.TaskStatus
 				}
 			}
 
+			p.progress.Verbosef("  Execution took %s", ts.ExecutionTime())
 			p.progress.Verbose("")
 		}
 
