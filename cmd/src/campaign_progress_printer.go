@@ -55,7 +55,7 @@ func (p *campaignProgressPrinter) initProgressBar(statuses []*campaigns.TaskStat
 	}
 
 	p.progress = p.out.ProgressWithStatusBars([]output.ProgressBar{{
-		Label: fmt.Sprintf("Executing ... (  0/%d,   0 errored)", len(statuses)),
+		Label: fmt.Sprintf("Executing ... (0/%d, 0 errored)", len(statuses)),
 		Max:   float64(len(statuses)),
 	}}, statusBars, nil)
 
@@ -76,7 +76,7 @@ func (p *campaignProgressPrinter) updateProgressBar(completed, errored, total in
 	p.progress.SetValue(0, float64(completed))
 
 	label := fmt.Sprintf("Executing... (%d/%d, %d errored)", completed, total, errored)
-	p.progress.SetLabel(0, label)
+	p.progress.SetLabelAndRecalc(0, label)
 }
 
 func (p *campaignProgressPrinter) PrintStatuses(statuses []*campaigns.TaskStatus) {
@@ -263,10 +263,10 @@ func taskStatusBarText(ts *campaigns.TaskStatus) (string, error) {
 			if len(lines) > 1 {
 				statusText = fmt.Sprintf("%s ...", escapedLine)
 			} else {
-				statusText = fmt.Sprintf("%s", escapedLine)
+				statusText = escapedLine
 			}
 		} else {
-			statusText = fmt.Sprintf("...")
+			statusText = "..."
 		}
 	}
 
