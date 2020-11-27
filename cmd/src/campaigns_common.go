@@ -265,7 +265,10 @@ func campaignsExecute(ctx context.Context, out *output.Output, svc *campaigns.Se
 
 	if len(specs) > 0 {
 		progress := out.Progress([]output.ProgressBar{
-			{Label: "Sending changeset specs", Max: float64(len(specs))},
+			{
+				Label: fmt.Sprintf("Sending %d changeset specs", len(specs)),
+				Max:   float64(len(specs)),
+			},
 		}, nil)
 		for i, spec := range specs {
 			id, err := svc.CreateChangesetSpec(ctx, spec)

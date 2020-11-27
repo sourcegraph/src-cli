@@ -32,6 +32,7 @@ type CampaignSpec struct {
 	Description       string                `json:"description,omitempty" yaml:"description"`
 	On                []OnQueryOrRepository `json:"on,omitempty" yaml:"on"`
 	Steps             []Step                `json:"steps,omitempty" yaml:"steps"`
+	TransformChanges  *TransformChanges     `json:"transformChanges,omitempty" yaml:"transformChanges,omitempty"`
 	ImportChangesets  []ImportChangeset     `json:"importChangesets,omitempty" yaml:"importChangesets"`
 	ChangesetTemplate *ChangesetTemplate    `json:"changesetTemplate,omitempty" yaml:"changesetTemplate"`
 }
@@ -72,6 +73,15 @@ type Step struct {
 	Files     map[string]string `json:"files,omitempty" yaml:"files,omitempty"`
 
 	image string
+}
+
+type TransformChanges struct {
+	Group []Group `json:"group,omitempty" yaml:"group"`
+}
+
+type Group struct {
+	Directory    string `json:"directory,omitempty" yaml:"directory"`
+	BranchSuffix string `json:"branchSuffix,omitempty" yaml:"branchSuffix"`
 }
 
 func ParseCampaignSpec(data []byte, features featureFlags) (*CampaignSpec, error) {
