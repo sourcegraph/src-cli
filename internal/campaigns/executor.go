@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"os/exec"
-	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
@@ -438,18 +437,18 @@ func groupFileDiffs(completeDiff, defaultBranch string, groups []Group) (map[str
 		return nil, err
 	}
 
-	groupByDirectory := make(map[string]Group, len(groups))
-	dirsByLen := make([]string, len(groupByDirectory))
+	suffixesByDirectory := make(map[string]string, len(groups))
+	dirsByLen := make([]string, len(suffixesByDirectory))
 	for _, g := range groups {
-		groupByDirectory[g.Directory] = g
+		suffixesByDirectory[g.Directory] = g.BranchSuffix
 		dirsByLen = append(dirsByLen, g.Directory)
 	}
 	sort.Slice(dirsByLen, func(i, j int) bool {
 		return len(dirsByLen[i]) > len(dirsByLen[j])
 	})
 
-	diffsByBranch := make(map[string][]*diff.FileDiff, len(groups))
-	diffsByBranch[defaultBranch] = []*diff.FileDiff{}
+	byBranch := make(map[string][]*diff.FileDiff, len(groups))
+	byBranch[defaultBranch] = []*diff.FileDiff{}
 
 	for _, f := range fileDiffs {
 		name := f.NewName
@@ -457,40 +456,30 @@ func groupFileDiffs(completeDiff, defaultBranch string, groups []Group) (map[str
 			name = f.OrigName
 		}
 
-		var groupDirectory string
+		var matchingDir string
 		for _, d := range dirsByLen {
-			rel, err := filepath.Rel(d, name)
-			if err != nil {
-				continue
+			if strings.Contains(name, d) {
+				matchingDir = d
+				break
 			}
-			if strings.Contains(rel, "..") {
-				continue
-			}
-			groupDirectory = d
-			break
 		}
 
-		if groupDirectory == "" {
-			diffsByBranch[defaultBranch] = append(diffsByBranch[defaultBranch], f)
+		if matchingDir == "" {
+			byBranch[defaultBranch] = append(byBranch[defaultBranch], f)
 			continue
 		}
 
-		group, ok := groupByDirectory[groupDirectory]
+		suffix, ok := suffixesByDirectory[matchingDir]
 		if !ok {
-			panic("this should not happen: " + groupDirectory)
+			panic("this should not happen: " + matchingDir)
 		}
 
-		diffs, ok := diffsByBranch[defaultBranch+group.BranchSuffix]
-		if !ok {
-			diffs = []*diff.FileDiff{}
-		}
-
-		diffs = append(diffs, f)
-		diffsByBranch[defaultBranch+group.BranchSuffix] = diffs
+		b := defaultBranch + suffix
+		byBranch[b] = append(byBranch[b], f)
 	}
 
-	finalDiffsByBranch := make(map[string]string, len(diffsByBranch))
-	for branch, diffs := range diffsByBranch {
+	finalDiffsByBranch := make(map[string]string, len(byBranch))
+	for branch, diffs := range byBranch {
 		printed, err := diff.PrintMultiFileDiff(diffs)
 		if err != nil {
 			return nil, errors.Wrap(err, "printing multi file diff failed")

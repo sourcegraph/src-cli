@@ -18,6 +18,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/sourcegraph/go-diff/diff"
 	"github.com/sourcegraph/src-cli/internal/api"
 	"github.com/sourcegraph/src-cli/internal/campaigns/graphql"
@@ -312,6 +313,93 @@ func TestExecutor_Integration(t *testing.T) {
 				verifyCache()
 			})
 		})
+	}
+}
+
+func TestGroupFileDiffs(t *testing.T) {
+	diff1 := `diff --git 1/1.txt 1/1.txt
+new file mode 100644
+index 0000000..19d6416
+--- /dev/null
++++ 1/1.txt
+@@ -0,0 +1,1 @@
++this is 1
+`
+	diff2 := `diff --git 1/2/2.txt 1/2/2.txt
+new file mode 100644
+index 0000000..c825d65
+--- /dev/null
++++ 1/2/2.txt
+@@ -0,0 +1,1 @@
++this is 2
+`
+	diff3 := `diff --git 1/2/3/3.txt 1/2/3/3.txt
+new file mode 100644
+index 0000000..1bd79fb
+--- /dev/null
++++ 1/2/3/3.txt
+@@ -0,0 +1,1 @@
++this is 3
+`
+	tests := []struct {
+		diff          string
+		defaultBranch string
+		groups        []Group
+		want          map[string]string
+	}{
+		{
+			diff:          diff1 + diff2 + diff3,
+			defaultBranch: "my-default-branch",
+			groups: []Group{
+				{Directory: "1/2/3", BranchSuffix: "-everything-in-3"},
+			},
+			want: map[string]string{
+				"my-default-branch":                 diff1 + diff2,
+				"my-default-branch-everything-in-3": diff3,
+			},
+		},
+		{
+			diff:          diff1 + diff2 + diff3,
+			defaultBranch: "my-default-branch",
+			groups: []Group{
+				{Directory: "1/2", BranchSuffix: "-everything-in-2-and-3"},
+			},
+			want: map[string]string{
+				"my-default-branch":                       diff1,
+				"my-default-branch-everything-in-2-and-3": diff2 + diff3,
+			},
+		},
+		{
+			diff:          diff1 + diff2 + diff3,
+			defaultBranch: "my-default-branch",
+			groups: []Group{
+				{Directory: "1", BranchSuffix: "-everything-in-1-and-2-and-3"},
+			},
+			want: map[string]string{
+				"my-default-branch":                             "",
+				"my-default-branch-everything-in-1-and-2-and-3": diff1 + diff2 + diff3,
+			},
+		},
+		{
+			diff:          diff1 + diff2 + diff3,
+			defaultBranch: "my-default-branch",
+			groups: []Group{
+				{Directory: "", BranchSuffix: "-everything"},
+			},
+			want: map[string]string{
+				"my-default-branch": diff1 + diff2 + diff3,
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		have, err := groupFileDiffs(tc.diff, tc.defaultBranch, tc.groups)
+		if err != nil {
+			t.Fatalf("unexpected error: %s", err)
+		}
+		if !cmp.Equal(tc.want, have) {
+			t.Errorf("mismatch (-want +got):\n%s", cmp.Diff(tc.want, have))
+		}
 	}
 }
 
