@@ -4,7 +4,6 @@ import (
 	"archive/zip"
 	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -368,13 +367,13 @@ func newZipArchivesMux(t *testing.T, callback http.HandlerFunc, archives ...mock
 
 // inMemoryExecutionCache provides an in-memory cache for testing purposes.
 type inMemoryExecutionCache struct {
-	cache map[string][]byte
+	cache map[string]string
 	mu    sync.RWMutex
 }
 
 func newInMemoryExecutionCache() *inMemoryExecutionCache {
 	return &inMemoryExecutionCache{
-		cache: make(map[string][]byte),
+		cache: make(map[string]string),
 	}
 }
 
@@ -385,33 +384,23 @@ func (c *inMemoryExecutionCache) size() int {
 	return len(c.cache)
 }
 
-func (c *inMemoryExecutionCache) Get(ctx context.Context, key ExecutionCacheKey) (*ChangesetSpec, error) {
+func (c *inMemoryExecutionCache) Get(ctx context.Context, key ExecutionCacheKey) (string, bool, error) {
 	k, err := key.Key()
 	if err != nil {
-		return nil, err
+		return "", false, err
 	}
 
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
-	if raw, ok := c.cache[k]; ok {
-		var spec ChangesetSpec
-		if err := json.Unmarshal(raw, &spec); err != nil {
-			return nil, err
-		}
-
-		return &spec, nil
+	if diff, ok := c.cache[k]; ok {
+		return diff, true, nil
 	}
-	return nil, nil
+	return "", false, nil
 }
 
-func (c *inMemoryExecutionCache) Set(ctx context.Context, key ExecutionCacheKey, spec *ChangesetSpec) error {
+func (c *inMemoryExecutionCache) Set(ctx context.Context, key ExecutionCacheKey, diff string) error {
 	k, err := key.Key()
-	if err != nil {
-		return err
-	}
-
-	v, err := json.Marshal(spec)
 	if err != nil {
 		return err
 	}
@@ -419,7 +408,7 @@ func (c *inMemoryExecutionCache) Set(ctx context.Context, key ExecutionCacheKey,
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	c.cache[k] = v
+	c.cache[k] = diff
 	return nil
 }
 

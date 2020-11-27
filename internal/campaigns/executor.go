@@ -216,25 +216,17 @@ func (x *executor) do(ctx context.Context, task *Task) (err error) {
 			return
 		}
 	} else {
-		var result *ChangesetSpec
-		if result, err = x.cache.Get(ctx, cacheKey); err != nil {
+		var (
+			diff  string
+			found bool
+		)
+
+		diff, found, err = x.cache.Get(ctx, cacheKey)
+		if err != nil {
 			err = errors.Wrapf(err, "checking cache for %q", task.Repository.Name)
 			return
 		}
-		if result != nil {
-			// Build a new changeset spec. We don't want to use `result` as is,
-			// because the changesetTemplate may have changed. In that case
-			// the diff would still be valid, so we take it from the cache,
-			// but we still build a new ChangesetSpec from the task.
-			var diff string
-
-			if len(result.Commits) > 1 {
-				panic("campaigns currently lack support for multiple commits per changeset")
-			}
-			if len(result.Commits) == 1 {
-				diff = result.Commits[0].Diff
-			}
-
+		if found {
 			// If the cached result resulted in an empty diff, we don't need to
 			// add it to the list of specs that are displayed to the user and
 			// send to the server. Instead, we can just report that the task is
@@ -318,9 +310,7 @@ func (x *executor) do(ctx context.Context, task *Task) (err error) {
 
 	// Add to the cache. We don't use runCtx here because we want to write to
 	// the cache even if we've now reached the timeout.
-
-	// TODO: This is bad — why do we cache the spec completely anyway, when we only use the diff?
-	if err = x.cache.Set(ctx, cacheKey, specs[0]); err != nil {
+	if err = x.cache.Set(ctx, cacheKey, string(diff)); err != nil {
 		err = errors.Wrapf(err, "caching result for %q", task.Repository.Name)
 	}
 
