@@ -77,7 +77,7 @@ func (c ExecutionDiskCache) cacheFilePath(key ExecutionCacheKey) (string, error)
 		return "", errors.Wrap(err, "calculating execution cache key")
 	}
 
-	return filepath.Join(c.Dir, keyString+".patch"), nil
+	return filepath.Join(c.Dir, keyString+".diff"), nil
 }
 
 func (c ExecutionDiskCache) Get(ctx context.Context, key ExecutionCacheKey) (string, bool, error) {
@@ -111,7 +111,7 @@ func (c ExecutionDiskCache) Get(ctx context.Context, key ExecutionCacheKey) (str
 		return result.Commits[0].Diff, true, nil
 	}
 
-	if strings.HasSuffix(path, ".patch") {
+	if strings.HasSuffix(path, ".diff") {
 		return string(data), true, nil
 	}
 
