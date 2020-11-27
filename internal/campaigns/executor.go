@@ -437,6 +437,9 @@ func groupFileDiffs(completeDiff, defaultBranch string, groups []Group) (map[str
 		return nil, err
 	}
 
+	// Housekeeping: we setup these two datastructures so we can
+	// - access the branchSuffixes by the directory for which they should be used
+	// - check against the given directories, starting with the longest one.
 	suffixesByDirectory := make(map[string]string, len(groups))
 	dirsByLen := make([]string, len(suffixesByDirectory))
 	for _, g := range groups {
@@ -450,12 +453,15 @@ func groupFileDiffs(completeDiff, defaultBranch string, groups []Group) (map[str
 	byBranch := make(map[string][]*diff.FileDiff, len(groups))
 	byBranch[defaultBranch] = []*diff.FileDiff{}
 
+	// For each file diff...
 	for _, f := range fileDiffs {
 		name := f.NewName
 		if name == "/dev/null" {
 			name = f.OrigName
 		}
 
+		// .. we check whether it matches one of the given directories in the
+		// group transformations, starting with the longest one first:
 		var matchingDir string
 		for _, d := range dirsByLen {
 			if strings.Contains(name, d) {
@@ -464,11 +470,15 @@ func groupFileDiffs(completeDiff, defaultBranch string, groups []Group) (map[str
 			}
 		}
 
+		// If the diff didn't match a rule, it goes into the default branch and
+		// the default changeset.
 		if matchingDir == "" {
 			byBranch[defaultBranch] = append(byBranch[defaultBranch], f)
 			continue
 		}
 
+		// If it *did* match a directory, we look up which suffix we should add
+		// to the default branch and add it under that:
 		suffix, ok := suffixesByDirectory[matchingDir]
 		if !ok {
 			panic("this should not happen: " + matchingDir)
