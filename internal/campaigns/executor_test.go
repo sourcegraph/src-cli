@@ -163,11 +163,18 @@ func TestExecutor_Integration(t *testing.T) {
 				{Run: `echo 'var b = 2' >> a/b/b.go`, Container: "doesntmatter:13"},
 				{Run: `echo 'var c = 3' >> a/b/c/c.go`, Container: "doesntmatter:13"},
 			},
+			transform: &TransformChanges{
+				Group: []Group{
+					{Directory: "a/b/c", BranchSuffix: "-in-directory-c"},
+				},
+			},
 			wantFilesChanged: filesByRepository{
 				srcCLIRepo.ID: filesByBranch{
 					changesetTemplateBranch: []string{
 						"a/a.go",
 						"a/b/b.go",
+					},
+					changesetTemplateBranch + "-in-directory-c": []string{
 						"a/b/c/c.go",
 					},
 				},
@@ -226,7 +233,11 @@ func TestExecutor_Integration(t *testing.T) {
 					return
 				}
 
-				if have, want := len(specs), len(tc.wantFilesChanged); have != want {
+				wantSpecs := 0
+				for _, byBranch := range tc.wantFilesChanged {
+					wantSpecs += len(byBranch)
+				}
+				if have, want := len(specs), wantSpecs; have != want {
 					t.Fatalf("wrong number of changeset specs. want=%d, have=%d", want, have)
 				}
 
@@ -243,7 +254,7 @@ func TestExecutor_Integration(t *testing.T) {
 					branch := strings.ReplaceAll(spec.HeadRef, "refs/heads/", "")
 					wantFilesInBranch, ok := wantFiles[branch]
 					if !ok {
-						t.Fatalf("unexpected file changes in repo %s and branch %s", spec.BaseRepository, spec.BaseRef)
+						t.Fatalf("spec for repo %q and branch %q but no files expected in that branch", spec.BaseRepository, branch)
 					}
 
 					fileDiffs, err := diff.ParseMultiFileDiff([]byte(spec.Commits[0].Diff))
