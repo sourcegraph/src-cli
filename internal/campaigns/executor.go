@@ -416,68 +416,13 @@ func createChangesetSpecs(task *Task, completeDiff string, features featureFlags
 	var specs []*ChangesetSpec
 
 	if task.TransformChanges != nil && len(task.TransformChanges.Group) > 0 {
-		fileDiffs, err := diff.ParseMultiFileDiff([]byte(completeDiff))
+		diffsByBranch, err := groupFileDiffs(completeDiff, task.Template.Branch, task.TransformChanges.Group)
 		if err != nil {
-			return nil, err
+			return specs, errors.Wrap(err, "grouping diffs failed")
 		}
 
-		groupByDirectory := make(map[string]Group, len(task.TransformChanges.Group))
-		directoriesByLength := make([]string, len(groupByDirectory))
-		for _, g := range task.TransformChanges.Group {
-			groupByDirectory[g.Directory] = g
-			directoriesByLength = append(directoriesByLength, g.Directory)
-		}
-		sort.Slice(directoriesByLength, func(i, j int) bool {
-			return len(directoriesByLength[i]) > len(directoriesByLength[j])
-		})
-
-		diffsByBranch := make(map[string][]*diff.FileDiff, len(task.TransformChanges.Group))
-		diffsByBranch[task.Template.Branch] = []*diff.FileDiff{}
-
-		for _, f := range fileDiffs {
-			name := f.NewName
-			if name == "/dev/null" {
-				name = f.OrigName
-			}
-
-			var groupDirectory string
-			for _, d := range directoriesByLength {
-				rel, err := filepath.Rel(d, name)
-				if err != nil {
-					continue
-				}
-				if strings.Contains(rel, "..") {
-					continue
-				}
-				groupDirectory = d
-				break
-			}
-
-			if groupDirectory == "" {
-				diffsByBranch[task.Template.Branch] = append(diffsByBranch[task.Template.Branch], f)
-				continue
-			}
-
-			group, ok := groupByDirectory[groupDirectory]
-			if !ok {
-				panic("this should not happen: " + groupDirectory)
-			}
-
-			diffs, ok := diffsByBranch[task.Template.Branch+group.BranchSuffix]
-			if !ok {
-				diffs = []*diff.FileDiff{}
-			}
-
-			diffs = append(diffs, f)
-			diffsByBranch[task.Template.Branch+group.BranchSuffix] = diffs
-		}
-
-		for branch, diffs := range diffsByBranch {
-			printed, err := diff.PrintMultiFileDiff(diffs)
-			if err != nil {
-				return specs, errors.Wrap(err, "printing multi file diff failed")
-			}
-			specs = append(specs, newSpec(branch, string(printed)))
+		for branch, diff := range diffsByBranch {
+			specs = append(specs, newSpec(branch, diff))
 		}
 
 	} else {
@@ -485,4 +430,72 @@ func createChangesetSpecs(task *Task, completeDiff string, features featureFlags
 	}
 
 	return specs, nil
+}
+
+func groupFileDiffs(completeDiff, defaultBranch string, groups []Group) (map[string]string, error) {
+	fileDiffs, err := diff.ParseMultiFileDiff([]byte(completeDiff))
+	if err != nil {
+		return nil, err
+	}
+
+	groupByDirectory := make(map[string]Group, len(groups))
+	dirsByLen := make([]string, len(groupByDirectory))
+	for _, g := range groups {
+		groupByDirectory[g.Directory] = g
+		dirsByLen = append(dirsByLen, g.Directory)
+	}
+	sort.Slice(dirsByLen, func(i, j int) bool {
+		return len(dirsByLen[i]) > len(dirsByLen[j])
+	})
+
+	diffsByBranch := make(map[string][]*diff.FileDiff, len(groups))
+	diffsByBranch[defaultBranch] = []*diff.FileDiff{}
+
+	for _, f := range fileDiffs {
+		name := f.NewName
+		if name == "/dev/null" {
+			name = f.OrigName
+		}
+
+		var groupDirectory string
+		for _, d := range dirsByLen {
+			rel, err := filepath.Rel(d, name)
+			if err != nil {
+				continue
+			}
+			if strings.Contains(rel, "..") {
+				continue
+			}
+			groupDirectory = d
+			break
+		}
+
+		if groupDirectory == "" {
+			diffsByBranch[defaultBranch] = append(diffsByBranch[defaultBranch], f)
+			continue
+		}
+
+		group, ok := groupByDirectory[groupDirectory]
+		if !ok {
+			panic("this should not happen: " + groupDirectory)
+		}
+
+		diffs, ok := diffsByBranch[defaultBranch+group.BranchSuffix]
+		if !ok {
+			diffs = []*diff.FileDiff{}
+		}
+
+		diffs = append(diffs, f)
+		diffsByBranch[defaultBranch+group.BranchSuffix] = diffs
+	}
+
+	finalDiffsByBranch := make(map[string]string, len(diffsByBranch))
+	for branch, diffs := range diffsByBranch {
+		printed, err := diff.PrintMultiFileDiff(diffs)
+		if err != nil {
+			return nil, errors.Wrap(err, "printing multi file diff failed")
+		}
+		finalDiffsByBranch[branch] = string(printed)
+	}
+	return finalDiffsByBranch, nil
 }
