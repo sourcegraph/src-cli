@@ -41,6 +41,7 @@ func TestExecutor_Integration(t *testing.T) {
 		Name:          "github.com/sourcegraph/src-cli",
 		DefaultBranch: &graphql.Branch{Name: "main", Target: graphql.Target{OID: "d34db33f"}},
 	}
+
 	sourcegraphRepo := &graphql.Repository{
 		ID:   "sourcegraph",
 		Name: "github.com/sourcegraph/sourcegraph",
@@ -50,16 +51,22 @@ func TestExecutor_Integration(t *testing.T) {
 		},
 	}
 
+	changesetTemplateBranch := "my-branch"
+
+	type filesByBranch map[string][]string
+	type filesByRepository map[string]filesByBranch
+
 	tests := []struct {
 		name string
 
-		repos    []*graphql.Repository
-		archives []mockRepoArchive
-		steps    []Step
+		repos     []*graphql.Repository
+		archives  []mockRepoArchive
+		steps     []Step
+		transform *TransformChanges
 
 		executorTimeout time.Duration
 
-		wantFilesChanged map[string][]string
+		wantFilesChanged filesByRepository
 		wantErrInclude   string
 	}{
 		{
@@ -78,9 +85,13 @@ func TestExecutor_Integration(t *testing.T) {
 				{Run: `echo -e "foobar\n" >> README.md`, Container: "alpine:13"},
 				{Run: `[[ -f "main.go" ]] && go fmt main.go || exit 0`, Container: "doesntmatter:13"},
 			},
-			wantFilesChanged: map[string][]string{
-				srcCLIRepo.ID:      []string{"README.md", "main.go"},
-				sourcegraphRepo.ID: []string{"README.md"},
+			wantFilesChanged: filesByRepository{
+				srcCLIRepo.ID: filesByBranch{
+					changesetTemplateBranch: []string{"README.md", "main.go"},
+				},
+				sourcegraphRepo.ID: {
+					changesetTemplateBranch: []string{"README.md"},
+				},
 			},
 		},
 		{
@@ -114,8 +125,11 @@ func TestExecutor_Integration(t *testing.T) {
 				{Run: `touch modified-${{ join previous_step.modified_files " " }}.md`, Container: "alpine:13"},
 				{Run: `touch added-${{ join previous_step.added_files " " }}`, Container: "alpine:13"},
 			},
-			wantFilesChanged: map[string][]string{
-				srcCLIRepo.ID: []string{"main.go", "modified-main.go.md", "added-modified-main.go.md"},
+
+			wantFilesChanged: filesByRepository{
+				srcCLIRepo.ID: filesByBranch{
+					changesetTemplateBranch: []string{"main.go", "modified-main.go.md", "added-modified-main.go.md"},
+				},
 			},
 		},
 		{
@@ -131,7 +145,33 @@ func TestExecutor_Integration(t *testing.T) {
 				{Run: `true`, Container: "doesntmatter:13"},
 			},
 			// No changesets should be generated.
-			wantFilesChanged: map[string][]string{},
+			wantFilesChanged: filesByRepository{},
+		},
+		{
+			name:  "transform group",
+			repos: []*graphql.Repository{srcCLIRepo},
+			archives: []mockRepoArchive{
+				{repo: srcCLIRepo, files: map[string]string{
+					"README.md":  "# Welcome to the README\n",
+					"a/a.go":     "package a",
+					"a/b/b.go":   "package b",
+					"a/b/c/c.go": "package c",
+				}},
+			},
+			steps: []Step{
+				{Run: `echo 'var a = 1' >> a/a.go`, Container: "doesntmatter:13"},
+				{Run: `echo 'var b = 2' >> a/b/b.go`, Container: "doesntmatter:13"},
+				{Run: `echo 'var c = 3' >> a/b/c/c.go`, Container: "doesntmatter:13"},
+			},
+			wantFilesChanged: filesByRepository{
+				srcCLIRepo.ID: filesByBranch{
+					changesetTemplateBranch: []string{
+						"a/a.go",
+						"a/b/b.go",
+						"a/b/c/c.go",
+					},
+				},
+			},
 		},
 	}
 
@@ -168,9 +208,10 @@ func TestExecutor_Integration(t *testing.T) {
 			execute := func() {
 				executor := newExecutor(opts, client, featuresAllEnabled())
 
-				template := &ChangesetTemplate{}
+				template := &ChangesetTemplate{Branch: changesetTemplateBranch}
+
 				for _, r := range tc.repos {
-					executor.AddTask(r, tc.steps, template)
+					executor.AddTask(r, tc.steps, tc.transform, template)
 				}
 
 				executor.Start(context.Background())
@@ -194,17 +235,23 @@ func TestExecutor_Integration(t *testing.T) {
 						t.Fatalf("wrong number of commits. want=%d, have=%d", want, have)
 					}
 
-					fileDiffs, err := diff.ParseMultiFileDiff([]byte(spec.Commits[0].Diff))
-					if err != nil {
-						t.Fatalf("failed to parse diff: %s", err)
-					}
-
 					wantFiles, ok := tc.wantFilesChanged[spec.BaseRepository]
 					if !ok {
 						t.Fatalf("unexpected file changes in repo %s", spec.BaseRepository)
 					}
 
-					if have, want := len(fileDiffs), len(wantFiles); have != want {
+					branch := strings.ReplaceAll(spec.HeadRef, "refs/heads/", "")
+					wantFilesInBranch, ok := wantFiles[branch]
+					if !ok {
+						t.Fatalf("unexpected file changes in repo %s and branch %s", spec.BaseRepository, spec.BaseRef)
+					}
+
+					fileDiffs, err := diff.ParseMultiFileDiff([]byte(spec.Commits[0].Diff))
+					if err != nil {
+						t.Fatalf("failed to parse diff: %s", err)
+					}
+
+					if have, want := len(fileDiffs), len(wantFilesInBranch); have != want {
 						t.Fatalf("repo %s: wrong number of fileDiffs. want=%d, have=%d", spec.BaseRepository, want, have)
 					}
 
@@ -217,7 +264,7 @@ func TestExecutor_Integration(t *testing.T) {
 						}
 					}
 
-					for _, file := range wantFiles {
+					for _, file := range wantFilesInBranch {
 						if _, ok := diffsByName[file]; !ok {
 							t.Errorf("%s was not changed (diffsByName=%#v)", file, diffsByName)
 						}
