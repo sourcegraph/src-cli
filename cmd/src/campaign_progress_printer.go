@@ -128,11 +128,13 @@ func (p *campaignProgressPrinter) PrintStatuses(statuses []*campaigns.TaskStatus
 	statusBarIndex := 0
 	for _, ts := range currentlyRunning {
 		if _, ok := p.runningTasks[ts.RepoName]; ok {
+			// Update the status
+			p.runningTasks[ts.RepoName] = ts
 			continue
 		}
 
-		newlyStarted[ts.RepoName] = ts
 		p.runningTasks[ts.RepoName] = ts
+		newlyStarted[ts.RepoName] = ts
 
 		// Find free status bar slot
 		_, ok := p.statusBarRepo[statusBarIndex]
