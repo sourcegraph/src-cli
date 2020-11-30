@@ -341,6 +341,10 @@ index 0000000..1bd79fb
 @@ -0,0 +1,1 @@
 +this is 3
 `
+
+	defaultBranch := "my-default-branch"
+	allDiffs := diff1 + diff2 + diff3
+
 	tests := []struct {
 		diff          string
 		defaultBranch string
@@ -348,8 +352,7 @@ index 0000000..1bd79fb
 		want          map[string]string
 	}{
 		{
-			diff:          diff1 + diff2 + diff3,
-			defaultBranch: "my-default-branch",
+			diff: allDiffs,
 			groups: []Group{
 				{Directory: "1/2/3", BranchSuffix: "-everything-in-3"},
 			},
@@ -359,8 +362,7 @@ index 0000000..1bd79fb
 			},
 		},
 		{
-			diff:          diff1 + diff2 + diff3,
-			defaultBranch: "my-default-branch",
+			diff: allDiffs,
 			groups: []Group{
 				{Directory: "1/2", BranchSuffix: "-everything-in-2-and-3"},
 			},
@@ -370,8 +372,7 @@ index 0000000..1bd79fb
 			},
 		},
 		{
-			diff:          diff1 + diff2 + diff3,
-			defaultBranch: "my-default-branch",
+			diff: allDiffs,
 			groups: []Group{
 				{Directory: "1", BranchSuffix: "-everything-in-1-and-2-and-3"},
 			},
@@ -381,8 +382,36 @@ index 0000000..1bd79fb
 			},
 		},
 		{
-			diff:          diff1 + diff2 + diff3,
-			defaultBranch: "my-default-branch",
+			diff: allDiffs,
+			groups: []Group{
+				{Directory: "1/2/3", BranchSuffix: "-only-in-3"},
+				{Directory: "1/2", BranchSuffix: "-only-in-2"},
+				{Directory: "1", BranchSuffix: "-only-in-1"},
+			},
+			want: map[string]string{
+				"my-default-branch":           "",
+				"my-default-branch-only-in-3": diff3,
+				"my-default-branch-only-in-2": diff2,
+				"my-default-branch-only-in-1": diff1,
+			},
+		},
+		{
+			diff: allDiffs,
+			groups: []Group{
+				// Different order than above
+				{Directory: "1", BranchSuffix: "-only-in-1"},
+				{Directory: "1/2", BranchSuffix: "-only-in-2"},
+				{Directory: "1/2/3", BranchSuffix: "-only-in-3"},
+			},
+			want: map[string]string{
+				"my-default-branch":           "",
+				"my-default-branch-only-in-3": diff3,
+				"my-default-branch-only-in-2": diff2,
+				"my-default-branch-only-in-1": diff1,
+			},
+		},
+		{
+			diff: allDiffs,
 			groups: []Group{
 				{Directory: "", BranchSuffix: "-everything"},
 			},
@@ -393,7 +422,7 @@ index 0000000..1bd79fb
 	}
 
 	for _, tc := range tests {
-		have, err := groupFileDiffs(tc.diff, tc.defaultBranch, tc.groups)
+		have, err := groupFileDiffs(tc.diff, defaultBranch, tc.groups)
 		if err != nil {
 			t.Fatalf("unexpected error: %s", err)
 		}
