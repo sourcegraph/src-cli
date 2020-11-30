@@ -200,6 +200,9 @@ func (p *campaignProgressPrinter) PrintStatuses(statuses []*campaigns.TaskStatus
 				}
 			}
 
+			if len(ts.ChangesetSpecs) > 1 {
+				p.progress.Verbosef("  %d changeset specs generated", len(ts.ChangesetSpecs))
+			}
 			p.progress.Verbosef("  Execution took %s", ts.ExecutionTime())
 			p.progress.Verbose("")
 		}
