@@ -80,12 +80,16 @@ type TaskStatus struct {
 	// TODO: add current step and progress fields.
 	CurrentlyExecuting string
 
-	// Result fields.
-	ChangesetSpec *ChangesetSpec
-	Err           error
-	// TODO: This should be merged with `ChangesetSpec`, but I'm too lazy to
-	// fix all the places that access ChangestSpec right now..
-	AdditionalChangesetSpecs []*ChangesetSpec
+	// ChangesetSpecs are the specs produced by executing the Task in a
+	// repository. With the introduction of `transformChanges` to the campaign
+	// spec, one Task can produce multiple ChangesetSpecs.
+	ChangesetSpecs []*ChangesetSpec
+	// Err is set if executing the Task lead to an error.
+	Err error
+
+	fileDiffs     []*diff.FileDiff
+	fileDiffsErr  error
+	fileDiffsOnce sync.Once
 }
 
 func (ts *TaskStatus) Clone() *TaskStatus {
@@ -103,6 +107,34 @@ func (ts *TaskStatus) IsCompleted() bool {
 
 func (ts *TaskStatus) ExecutionTime() time.Duration {
 	return ts.FinishedAt.Sub(ts.StartedAt).Truncate(time.Millisecond)
+}
+
+// FileDiffs returns the file diffs produced by the Task in the given
+// repository.
+// If no file diffs were produced, the task resulted in an error, or the task
+// hasn't finished execution yet, the second return value is false.
+func (ts *TaskStatus) FileDiffs() ([]*diff.FileDiff, bool, error) {
+	if !ts.IsCompleted() || len(ts.ChangesetSpecs) == 0 || ts.Err != nil {
+		return nil, false, nil
+	}
+
+	ts.fileDiffsOnce.Do(func() {
+		var all []*diff.FileDiff
+
+		for _, spec := range ts.ChangesetSpecs {
+			fd, err := diff.ParseMultiFileDiff([]byte(spec.Commits[0].Diff))
+			if err != nil {
+				ts.fileDiffsErr = err
+				return
+			}
+
+			all = append(all, fd...)
+		}
+
+		ts.fileDiffs = all
+	})
+
+	return ts.fileDiffs, len(ts.fileDiffs) != 0, ts.fileDiffsErr
 }
 
 type executor struct {
@@ -246,11 +278,7 @@ func (x *executor) do(ctx context.Context, task *Task) (err error) {
 			}
 
 			x.updateTaskStatus(task, func(status *TaskStatus) {
-				status.ChangesetSpec = specs[0]
-				if len(specs) > 1 {
-					// TODO: This should not exist.
-					status.AdditionalChangesetSpecs = specs[1:]
-				}
+				status.ChangesetSpecs = specs
 				status.Cached = true
 				status.FinishedAt = time.Now()
 			})
@@ -320,11 +348,7 @@ func (x *executor) do(ctx context.Context, task *Task) (err error) {
 	}
 
 	x.updateTaskStatus(task, func(status *TaskStatus) {
-		status.ChangesetSpec = specs[0]
-		if len(specs) > 1 {
-			// TODO: This should not exist.
-			status.AdditionalChangesetSpecs = specs[1:]
-		}
+		status.ChangesetSpecs = specs
 	})
 
 	// Add the spec to the executor's list of completed specs.
