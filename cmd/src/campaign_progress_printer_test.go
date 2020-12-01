@@ -133,6 +133,13 @@ func TestCampaignProgressPrinterIntegration(t *testing.T) {
 		t.Fatalf("wrong output:\n%s", cmp.Diff(want, have))
 	}
 
+	// Print again to make sure we get the same result
+	printer.PrintStatuses(statuses)
+	have = buf.Lines()
+	if !cmp.Equal(want, have) {
+		t.Fatalf("wrong output:\n%s", cmp.Diff(want, have))
+	}
+
 }
 
 type ttyBuf struct {
