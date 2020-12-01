@@ -74,19 +74,23 @@ func (t *ttyBuf) Write(b []byte) (int, error) {
 			//
 			// So we jump over the \x1b[ and try to parse the digit.
 
-			digitStart := cur + 2 // cur == '\x1b', cur + 1 == '['
-			digitIndex := cur + 2
-			for isDigit(b[digitIndex]) {
-				digitIndex++
+			cur = cur + 2 // cur == '\x1b', cur + 1 == '['
+
+			digitStart := cur
+			for isDigit(b[cur]) {
+				cur++
 			}
 
-			rawDigit := string(b[digitStart:digitIndex])
+			rawDigit := string(b[digitStart:cur])
 			digit, err := strconv.ParseInt(rawDigit, 0, 64)
 			if err != nil {
 				return 0, err
 			}
 
-			command := b[digitIndex]
+			command := b[cur]
+
+			// Debug helper:
+			// fmt.Printf("command=%q, digit=%d (t.line=%d, t.column=%d)\n", command, digit, t.line, t.column)
 
 			switch command {
 			case 'K':
@@ -102,18 +106,19 @@ func (t *ttyBuf) Write(b []byte) (int, error) {
 			case 'D':
 				// *d*elete cursor by <digit> amount
 				t.column = t.column - int(digit)
+				if t.column < 0 {
+					t.column = 0
+				}
 
 			case 'm':
 				// noop
 
 			case ';':
 				// color, skip over until end of color command
-				for b[digitIndex] != 'm' {
-					digitIndex++
+				for b[cur] != 'm' {
+					cur++
 				}
 			}
-			cur = digitIndex + 1
-			continue
 
 		default:
 			t.writeToCurrentLine(b[cur])
