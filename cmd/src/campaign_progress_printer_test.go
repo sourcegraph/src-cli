@@ -14,9 +14,11 @@ func TestCampaignProgressPrinterIntegration(t *testing.T) {
 	buf := &ttyBuf{}
 
 	out := output.NewOutput(buf, output.OutputOpts{
-		ForceTTY:   true,
-		ForceColor: true,
-		Verbose:    true,
+		ForceTTY:    true,
+		ForceColor:  true,
+		ForceHeight: 25,
+		ForceWidth:  80,
+		Verbose:     true,
 	})
 
 	printer := newCampaignProgressPrinter(out, true, 4)
@@ -38,9 +40,9 @@ func TestCampaignProgressPrinterIntegration(t *testing.T) {
 	have := buf.Lines()
 	want := []string{
 		"⠋  Executing... (0/2, 0 errored)  ",
-		"│                                                                                                                     ",
-		"├── github.com/sourcegraph/sourcegraph  echo Hello World > README.md                                                0s",
-		"└── github.com/sourcegraph/src-cli      Downloading archive                                                         0s",
+		"│                                                                               ",
+		"├── github.com/sourcegraph/sourcegraph  echo Hello World > README.md          0s",
+		"└── github.com/sourcegraph/src-cli      Downloading archive                   0s",
 	}
 
 	if !cmp.Equal(want, have) {

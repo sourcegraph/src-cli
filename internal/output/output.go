@@ -53,6 +53,11 @@ type OutputOpts struct {
 	// ForceTTY ignores all terminal detection and enables TTY output.
 	ForceTTY bool
 
+	// ForceHeight ignores all terminal detection and sets the height to this value.
+	ForceHeight int
+	// ForceWidth ignores all terminal detection and sets the width to this value.
+	ForceWidth int
+
 	Verbose bool
 }
 
@@ -67,6 +72,12 @@ func NewOutput(w io.Writer, opts OutputOpts) *Output {
 	}
 	if opts.ForceTTY {
 		caps.Isatty = true
+	}
+	if opts.ForceHeight != 0 {
+		caps.Height = opts.ForceHeight
+	}
+	if opts.ForceWidth != 0 {
+		caps.Width = opts.ForceWidth
 	}
 
 	o := &Output{caps: caps, opts: opts, w: w}
