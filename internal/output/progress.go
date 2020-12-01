@@ -33,6 +33,11 @@ type ProgressOpts struct {
 	PendingStyle Style
 	SuccessEmoji string
 	SuccessStyle Style
+
+	// ForceNoSpinner turns of the automatic updating of the progress bar and
+	// spinner in a background goroutine.
+	// Used for testing only!
+	ForceNoSpinner bool
 }
 
 func newProgress(bars []ProgressBar, o *Output, opts *ProgressOpts) Progress {

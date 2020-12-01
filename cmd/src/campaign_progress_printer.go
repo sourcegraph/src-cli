@@ -29,6 +29,9 @@ func newCampaignProgressPrinter(out *output.Output, verbose bool, numParallelism
 }
 
 type campaignProgressPrinter struct {
+	// Used in tests only
+	forceNoSpinner bool
+
 	out *output.Output
 
 	sem *semaphore.Weighted
@@ -62,7 +65,13 @@ func (p *campaignProgressPrinter) initProgressBar(statuses []*campaigns.TaskStat
 	p.progress = p.out.ProgressWithStatusBars([]output.ProgressBar{{
 		Label: fmt.Sprintf("Executing ... (0/%d, 0 errored)", len(statuses)),
 		Max:   float64(len(statuses)),
-	}}, statusBars, nil)
+	}}, statusBars, &output.ProgressOpts{
+		// TODO: Hacky, only for testing
+		ForceNoSpinner: p.forceNoSpinner,
+		SuccessEmoji:   "\u2705",
+		SuccessStyle:   output.StyleSuccess,
+		PendingStyle:   output.StylePending,
+	})
 
 	return numStatusBars
 }
