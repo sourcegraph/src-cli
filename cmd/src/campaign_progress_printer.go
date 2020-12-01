@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/sourcegraph/go-diff/diff"
@@ -305,14 +306,14 @@ func verboseDiffSummary(fileDiffs []*diff.FileDiff) ([]string, error) {
 		sumInsertions  int
 		sumDeletions   int
 	)
+	sort.Slice(fileDiffs, func(i, j int) bool {
+		return diffDisplayName(fileDiffs[i]) < diffDisplayName(fileDiffs[j])
+	})
 
 	fileStats := make(map[string]string, len(fileDiffs))
 
 	for _, f := range fileDiffs {
-		name := f.NewName
-		if name == "/dev/null" {
-			name = f.OrigName
-		}
+		name := diffDisplayName(f)
 
 		if len(name) > maxFilenameLen {
 			maxFilenameLen = len(name)
@@ -349,4 +350,12 @@ func verboseDiffSummary(fileDiffs []*diff.FileDiff) ([]string, error) {
 	))
 
 	return lines, nil
+}
+
+func diffDisplayName(f *diff.FileDiff) string {
+	name := f.NewName
+	if name == "/dev/null" {
+		name = f.OrigName
+	}
+	return name
 }
