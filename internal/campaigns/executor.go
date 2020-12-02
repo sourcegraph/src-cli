@@ -43,7 +43,7 @@ func (e TaskExecutionErr) StatusText() string {
 }
 
 type Executor interface {
-	AddTask(repo *graphql.Repository, steps []Step, transform *TransformChanges, template *ChangesetTemplate) *TaskStatus
+	AddTask(repo *graphql.Repository, steps []Step, transform *TransformChanges, template *ChangesetTemplate)
 	LogFiles() []string
 	Start(ctx context.Context)
 	Wait() ([]*ChangesetSpec, error)
@@ -175,7 +175,7 @@ func newExecutor(opts ExecutorOpts, client api.Client, features featureFlags) *e
 	}
 }
 
-func (x *executor) AddTask(repo *graphql.Repository, steps []Step, transform *TransformChanges, template *ChangesetTemplate) *TaskStatus {
+func (x *executor) AddTask(repo *graphql.Repository, steps []Step, transform *TransformChanges, template *ChangesetTemplate) {
 	task := &Task{repo, steps, template, transform}
 	x.tasks = append(x.tasks, task)
 
