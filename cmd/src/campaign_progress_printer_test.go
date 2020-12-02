@@ -165,6 +165,13 @@ func (t *ttyBuf) Write(b []byte) (int, error) {
 			}
 
 		case '\x1b':
+			// Check if we're looking at a VT100 escape code.
+			if len(b) <= cur || b[cur+1] != '[' {
+				t.writeToCurrentLine(b[cur])
+				cur++
+				continue
+			}
+
 			// First of all: forgive me.
 			//
 			// Now. Looks like we ran into a VT100 escape code.
