@@ -51,20 +51,21 @@ func TestCampaignProgressPrinterIntegration(t *testing.T) {
 		Verbose:     true,
 	})
 
+	now := time.Now()
 	statuses := []*campaigns.TaskStatus{
 		{
 			RepoName:           "github.com/sourcegraph/sourcegraph",
-			StartedAt:          time.Now(),
+			StartedAt:          now,
 			CurrentlyExecuting: "echo Hello World > README.md",
 		},
 		{
 			RepoName:           "github.com/sourcegraph/src-cli",
-			StartedAt:          time.Now().Add(time.Duration(-5) * time.Second),
+			StartedAt:          now.Add(time.Duration(-5) * time.Second),
 			CurrentlyExecuting: "Downloading archive",
 		},
 		{
 			RepoName:           "github.com/sourcegraph/automation-testing",
-			StartedAt:          time.Now().Add(time.Duration(-5) * time.Second),
+			StartedAt:          now.Add(time.Duration(-5) * time.Second),
 			CurrentlyExecuting: "echo Hello World > README.md",
 		},
 	}
@@ -90,8 +91,8 @@ func TestCampaignProgressPrinterIntegration(t *testing.T) {
 	// Now mark the last task as completed
 	statuses[len(statuses)-1] = &campaigns.TaskStatus{
 		RepoName:           "github.com/sourcegraph/automation-testing",
-		StartedAt:          time.Now().Add(time.Duration(-5) * time.Second),
-		FinishedAt:         time.Now().Add(time.Duration(5) * time.Second),
+		StartedAt:          now.Add(time.Duration(-5) * time.Second),
+		FinishedAt:         now.Add(time.Duration(5) * time.Second),
 		CurrentlyExecuting: "",
 		Err:                nil,
 		ChangesetSpec: &campaigns.ChangesetSpec{
@@ -141,7 +142,6 @@ func TestCampaignProgressPrinterIntegration(t *testing.T) {
 	if !cmp.Equal(want, have) {
 		t.Fatalf("wrong output:\n%s", cmp.Diff(want, have))
 	}
-
 }
 
 type ttyBuf struct {
