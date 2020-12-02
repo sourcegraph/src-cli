@@ -174,6 +174,7 @@ func (p *progressWithStatusBarsTTY) draw() {
 	}
 
 	if len(p.statusBars) > 0 {
+		p.o.clearCurrentLine()
 		fmt.Fprint(p.o.w, StylePending, "│", runewidth.FillLeft("\n", p.o.caps.Width-1))
 
 	}

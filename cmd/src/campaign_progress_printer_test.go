@@ -124,7 +124,7 @@ func TestCampaignProgressPrinterIntegration(t *testing.T) {
 		"  Execution took 10s",
 		"",
 		"⠋  Executing... (1/3, 0 errored)  ███████████████▍",
-		"│                                                                                 0s", // Not sure why this is here, bug?
+		"│                                                                               ",
 		"├── github.com/sourcegraph/sourcegraph  echo Hello World > README.md          0s",
 		"├── github.com/sourcegraph/src-cli      Downloading archive                   0s",
 		"└── github.com/sourcegraph/automati...  3 files changed ++++               0s",
