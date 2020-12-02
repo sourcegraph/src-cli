@@ -34,7 +34,7 @@ func newProgressWithStatusBarsTTY(bars []*ProgressBar, statusBars []*StatusBar, 
 
 	p.draw()
 
-	if opts.ForceNoSpinner {
+	if opts.NoSpinner {
 		return p
 	}
 

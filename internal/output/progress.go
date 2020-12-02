@@ -34,15 +34,15 @@ type ProgressOpts struct {
 	SuccessEmoji string
 	SuccessStyle Style
 
-	// ForceNoSpinner turns of the automatic updating of the progress bar and
+	// NoSpinner turns of the automatic updating of the progress bar and
 	// spinner in a background goroutine.
 	// Used for testing only!
-	ForceNoSpinner bool
+	NoSpinner bool
 }
 
-func (opt *ProgressOpts) WithForceNoSpinner(forceNoSpinner bool) *ProgressOpts {
+func (opt *ProgressOpts) WithoutSpinner() *ProgressOpts {
 	c := *opt
-	c.ForceNoSpinner = forceNoSpinner
+	c.NoSpinner = true
 	return &c
 }
 
@@ -53,7 +53,7 @@ func newProgress(bars []ProgressBar, o *Output, opts *ProgressOpts) Progress {
 	}
 
 	if !o.caps.Isatty {
-		return newProgressSimple(barPtrs, o)
+		return newProgressSimple(barPtrs, o, opts)
 	}
 
 	return newProgressTTY(barPtrs, o, opts)

@@ -156,6 +156,10 @@ func newProgressTTY(bars []*ProgressBar, o *Output, opts *ProgressOpts) *progres
 
 	p.draw()
 
+	if opts.NoSpinner {
+		return p
+	}
+
 	go func() {
 		for s := range p.spinner.C {
 			func() {
