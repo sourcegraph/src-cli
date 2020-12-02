@@ -22,7 +22,7 @@ func newProgressWithStatusBarsTTY(bars []*ProgressBar, statusBars []*StatusBar, 
 	if opts != nil {
 		p.opts = *opts
 	} else {
-		p.opts = defaultProgressTTYOpts
+		p.opts = *DefaultProgressTTYOpts
 	}
 
 	p.determineEmojiWidth()

@@ -40,6 +40,12 @@ type ProgressOpts struct {
 	ForceNoSpinner bool
 }
 
+func (opt *ProgressOpts) WithForceNoSpinner(forceNoSpinner bool) *ProgressOpts {
+	c := *opt
+	c.ForceNoSpinner = forceNoSpinner
+	return &c
+}
+
 func newProgress(bars []ProgressBar, o *Output, opts *ProgressOpts) Progress {
 	barPtrs := make([]*ProgressBar, len(bars))
 	for i := range bars {

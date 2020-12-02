@@ -63,16 +63,15 @@ func (p *campaignProgressPrinter) initProgressBar(statuses []*campaigns.TaskStat
 		statusBars = append(statusBars, output.NewStatusBar())
 	}
 
-	p.progress = p.out.ProgressWithStatusBars([]output.ProgressBar{{
-		Label: fmt.Sprintf("Executing ... (0/%d, 0 errored)", len(statuses)),
-		Max:   float64(len(statuses)),
-	}}, statusBars, &output.ProgressOpts{
-		// TODO: Hacky, only for testing
-		ForceNoSpinner: p.forceNoSpinner,
-		SuccessEmoji:   "\u2705",
-		SuccessStyle:   output.StyleSuccess,
-		PendingStyle:   output.StylePending,
-	})
+	progressBars := []output.ProgressBar{
+		{
+			Label: fmt.Sprintf("Executing ... (0/%d, 0 errored)", len(statuses)),
+			Max:   float64(len(statuses)),
+		},
+	}
+
+	opts := output.DefaultProgressTTYOpts.WithForceNoSpinner(p.forceNoSpinner)
+	p.progress = p.out.ProgressWithStatusBars(progressBars, statusBars, opts)
 
 	return numStatusBars
 }
