@@ -81,6 +81,7 @@ func TestCampaignProgressPrinterIntegration(t *testing.T) {
 		"├── github.com/sourcegraph/sourcegraph  echo Hello World > README.md          0s",
 		"├── github.com/sourcegraph/src-cli      Downloading archive                   0s",
 		"└── github.com/sourcegraph/automati...  echo Hello World > README.md          0s",
+		"",
 	}
 	if !cmp.Equal(want, have) {
 		t.Fatalf("wrong output:\n%s", cmp.Diff(want, have))
@@ -128,6 +129,7 @@ func TestCampaignProgressPrinterIntegration(t *testing.T) {
 		"├── github.com/sourcegraph/sourcegraph  echo Hello World > README.md          0s",
 		"├── github.com/sourcegraph/src-cli      Downloading archive                   0s",
 		"└── github.com/sourcegraph/automati...  3 files changed ++++               0s",
+		"",
 	}
 	if !cmp.Equal(want, have) {
 		t.Fatalf("wrong output:\n%s", cmp.Diff(want, have))
@@ -157,6 +159,11 @@ func (t *ttyBuf) Write(b []byte) (int, error) {
 		case '\n':
 			t.line++
 			t.column = 0
+
+			if len(t.lines) == t.line {
+				t.lines = append(t.lines, []byte{})
+			}
+
 		case '\x1b':
 			// First of all: forgive me.
 			//
