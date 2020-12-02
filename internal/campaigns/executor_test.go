@@ -165,7 +165,7 @@ func TestExecutor_Integration(t *testing.T) {
 			},
 			transform: &TransformChanges{
 				Group: []Group{
-					{Directory: "a/b/c", BranchSuffix: "-in-directory-c"},
+					{Directory: "a/b/c", Branch: "in-directory-c"},
 				},
 			},
 			wantFilesChanged: filesByRepository{
@@ -174,7 +174,7 @@ func TestExecutor_Integration(t *testing.T) {
 						"a/a.go",
 						"a/b/b.go",
 					},
-					changesetTemplateBranch + "-in-directory-c": []string{
+					"in-directory-c": []string{
 						"a/b/c/c.go",
 					},
 				},
@@ -354,66 +354,66 @@ index 0000000..1bd79fb
 		{
 			diff: allDiffs,
 			groups: []Group{
-				{Directory: "1/2/3", BranchSuffix: "-everything-in-3"},
+				{Directory: "1/2/3", Branch: "everything-in-3"},
 			},
 			want: map[string]string{
-				"my-default-branch":                 diff1 + diff2,
-				"my-default-branch-everything-in-3": diff3,
+				"my-default-branch": diff1 + diff2,
+				"everything-in-3":   diff3,
 			},
 		},
 		{
 			diff: allDiffs,
 			groups: []Group{
-				{Directory: "1/2", BranchSuffix: "-everything-in-2-and-3"},
+				{Directory: "1/2", Branch: "everything-in-2-and-3"},
 			},
 			want: map[string]string{
-				"my-default-branch":                       diff1,
-				"my-default-branch-everything-in-2-and-3": diff2 + diff3,
+				"my-default-branch":     diff1,
+				"everything-in-2-and-3": diff2 + diff3,
 			},
 		},
 		{
 			diff: allDiffs,
 			groups: []Group{
-				{Directory: "1", BranchSuffix: "-everything-in-1-and-2-and-3"},
-			},
-			want: map[string]string{
-				"my-default-branch":                             "",
-				"my-default-branch-everything-in-1-and-2-and-3": diff1 + diff2 + diff3,
-			},
-		},
-		{
-			diff: allDiffs,
-			groups: []Group{
-				{Directory: "1/2/3", BranchSuffix: "-only-in-3"},
-				{Directory: "1/2", BranchSuffix: "-only-in-2"},
-				{Directory: "1", BranchSuffix: "-only-in-1"},
+				{Directory: "1", Branch: "everything-in-1-and-2-and-3"},
 			},
 			want: map[string]string{
 				"my-default-branch":           "",
-				"my-default-branch-only-in-3": diff3,
-				"my-default-branch-only-in-2": diff2,
-				"my-default-branch-only-in-1": diff1,
+				"everything-in-1-and-2-and-3": diff1 + diff2 + diff3,
+			},
+		},
+		{
+			diff: allDiffs,
+			groups: []Group{
+				{Directory: "1/2/3", Branch: "only-in-3"},
+				{Directory: "1/2", Branch: "only-in-2"},
+				{Directory: "1", Branch: "only-in-1"},
+			},
+			want: map[string]string{
+				"my-default-branch": "",
+				"only-in-3":         diff3,
+				"only-in-2":         diff2,
+				"only-in-1":         diff1,
 			},
 		},
 		{
 			diff: allDiffs,
 			groups: []Group{
 				// Different order than above
-				{Directory: "1", BranchSuffix: "-only-in-1"},
-				{Directory: "1/2", BranchSuffix: "-only-in-2"},
-				{Directory: "1/2/3", BranchSuffix: "-only-in-3"},
+				{Directory: "1", Branch: "only-in-1"},
+				{Directory: "1/2", Branch: "only-in-2"},
+				{Directory: "1/2/3", Branch: "only-in-3"},
 			},
 			want: map[string]string{
-				"my-default-branch":           "",
-				"my-default-branch-only-in-3": diff3,
-				"my-default-branch-only-in-2": diff2,
-				"my-default-branch-only-in-1": diff1,
+				"my-default-branch": "",
+				"only-in-3":         diff3,
+				"only-in-2":         diff2,
+				"only-in-1":         diff1,
 			},
 		},
 		{
 			diff: allDiffs,
 			groups: []Group{
-				{Directory: "", BranchSuffix: "-everything"},
+				{Directory: "", Branch: "everything"},
 			},
 			want: map[string]string{
 				"my-default-branch": diff1 + diff2 + diff3,

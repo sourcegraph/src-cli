@@ -462,12 +462,12 @@ func groupFileDiffs(completeDiff, defaultBranch string, groups []Group) (map[str
 	}
 
 	// Housekeeping: we setup these two datastructures so we can
-	// - access the branchSuffixes by the directory for which they should be used
+	// - access the group.Branch by the directory for which they should be used
 	// - check against the given directories, starting with the longest one.
-	suffixesByDirectory := make(map[string]string, len(groups))
-	dirsByLen := make([]string, len(suffixesByDirectory))
+	branchesByDirectory := make(map[string]string, len(groups))
+	dirsByLen := make([]string, len(branchesByDirectory))
 	for _, g := range groups {
-		suffixesByDirectory[g.Directory] = g.BranchSuffix
+		branchesByDirectory[g.Directory] = g.Branch
 		dirsByLen = append(dirsByLen, g.Directory)
 	}
 	sort.Slice(dirsByLen, func(i, j int) bool {
@@ -501,15 +501,13 @@ func groupFileDiffs(completeDiff, defaultBranch string, groups []Group) (map[str
 			continue
 		}
 
-		// If it *did* match a directory, we look up which suffix we should add
-		// to the default branch and add it under that:
-		suffix, ok := suffixesByDirectory[matchingDir]
+		// If it *did* match a directory, we look up which branch we should use:
+		branch, ok := branchesByDirectory[matchingDir]
 		if !ok {
 			panic("this should not happen: " + matchingDir)
 		}
 
-		b := defaultBranch + suffix
-		byBranch[b] = append(byBranch[b], f)
+		byBranch[branch] = append(byBranch[branch], f)
 	}
 
 	finalDiffsByBranch := make(map[string]string, len(byBranch))

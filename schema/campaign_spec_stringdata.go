@@ -133,9 +133,9 @@ const CampaignSpecJSON = `{
               "type": "string",
               "description": "The directory path (relative to the repository root) of the changes to include in this group."
             },
-            "branchSuffix": {
+            "branch": {
               "type": "string",
-              "description": "The branch suffix to add to the ` + "`" + `branch` + "`" + ` attribute of the ` + "`" + `changesetTemplate` + "`" + ` when creating the additonal changeset."
+              "description": "The branch on the repository to propose changes to. If unset, the repository's default branch is used."
             }
           }
         }
