@@ -306,14 +306,14 @@ func verboseDiffSummary(fileDiffs []*diff.FileDiff) ([]string, error) {
 		sumInsertions  int
 		sumDeletions   int
 	)
-	sort.Slice(fileDiffs, func(i, j int) bool {
-		return diffDisplayName(fileDiffs[i]) < diffDisplayName(fileDiffs[j])
-	})
 
 	fileStats := make(map[string]string, len(fileDiffs))
+	fileNames := make([]string, len(fileDiffs))
 
-	for _, f := range fileDiffs {
+	for i, f := range fileDiffs {
 		name := diffDisplayName(f)
+
+		fileNames[i] = name
 
 		if len(name) > maxFilenameLen {
 			maxFilenameLen = len(name)
@@ -329,8 +329,11 @@ func verboseDiffSummary(fileDiffs []*diff.FileDiff) ([]string, error) {
 		fileStats[name] = fmt.Sprintf("%d %s", num, diffStatDiagram(stat))
 	}
 
-	for file, stats := range fileStats {
-		lines = append(lines, fmt.Sprintf("\t%-*s | %s", maxFilenameLen, file, stats))
+	sort.Slice(fileNames, func(i, j int) bool { return fileNames[i] < fileNames[j] })
+
+	for _, name := range fileNames {
+		stats := fileStats[name]
+		lines = append(lines, fmt.Sprintf("\t%-*s | %s", maxFilenameLen, name, stats))
 	}
 
 	var insertionsPlural string
