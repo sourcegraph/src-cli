@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"os/exec"
-	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -438,8 +437,9 @@ func createChangesetSpecs(task *Task, completeDiff string, features featureFlags
 
 	var specs []*ChangesetSpec
 
-	if task.TransformChanges != nil && len(task.TransformChanges.Group) > 0 {
-		diffsByBranch, err := groupFileDiffs(completeDiff, task.Template.Branch, task.TransformChanges.Group)
+	groups := groupsForRepository(task.Repository.Name, task.TransformChanges)
+	if len(groups) != 0 {
+		diffsByBranch, err := groupFileDiffs(completeDiff, task.Template.Branch, groups)
 		if err != nil {
 			return specs, errors.Wrap(err, "grouping diffs failed")
 		}
@@ -455,6 +455,26 @@ func createChangesetSpecs(task *Task, completeDiff string, features featureFlags
 	return specs, nil
 }
 
+func groupsForRepository(repo string, transform *TransformChanges) []Group {
+	var groups []Group
+
+	if transform == nil {
+		return groups
+	}
+
+	for _, g := range transform.Group {
+		if g.Repository != "" {
+			if g.Repository == repo {
+				groups = append(groups, g)
+			}
+		} else {
+			groups = append(groups, g)
+		}
+	}
+
+	return groups
+}
+
 func groupFileDiffs(completeDiff, defaultBranch string, groups []Group) (map[string]string, error) {
 	fileDiffs, err := diff.ParseMultiFileDiff([]byte(completeDiff))
 	if err != nil {
@@ -463,16 +483,13 @@ func groupFileDiffs(completeDiff, defaultBranch string, groups []Group) (map[str
 
 	// Housekeeping: we setup these two datastructures so we can
 	// - access the group.Branch by the directory for which they should be used
-	// - check against the given directories, starting with the longest one.
+	// - check against the given directories, in order.
 	branchesByDirectory := make(map[string]string, len(groups))
-	dirsByLen := make([]string, len(branchesByDirectory))
+	dirs := make([]string, len(branchesByDirectory))
 	for _, g := range groups {
 		branchesByDirectory[g.Directory] = g.Branch
-		dirsByLen = append(dirsByLen, g.Directory)
+		dirs = append(dirs, g.Directory)
 	}
-	sort.Slice(dirsByLen, func(i, j int) bool {
-		return len(dirsByLen[i]) > len(dirsByLen[j])
-	})
 
 	byBranch := make(map[string][]*diff.FileDiff, len(groups))
 	byBranch[defaultBranch] = []*diff.FileDiff{}
@@ -487,10 +504,9 @@ func groupFileDiffs(completeDiff, defaultBranch string, groups []Group) (map[str
 		// .. we check whether it matches one of the given directories in the
 		// group transformations, starting with the longest one first:
 		var matchingDir string
-		for _, d := range dirsByLen {
+		for _, d := range dirs {
 			if strings.Contains(name, d) {
 				matchingDir = d
-				break
 			}
 		}
 

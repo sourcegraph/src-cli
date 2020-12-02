@@ -149,9 +149,15 @@ func TestExecutor_Integration(t *testing.T) {
 		},
 		{
 			name:  "transform group",
-			repos: []*graphql.Repository{srcCLIRepo},
+			repos: []*graphql.Repository{srcCLIRepo, sourcegraphRepo},
 			archives: []mockRepoArchive{
 				{repo: srcCLIRepo, files: map[string]string{
+					"README.md":  "# Welcome to the README\n",
+					"a/a.go":     "package a",
+					"a/b/b.go":   "package b",
+					"a/b/c/c.go": "package c",
+				}},
+				{repo: sourcegraphRepo, files: map[string]string{
 					"README.md":  "# Welcome to the README\n",
 					"a/a.go":     "package a",
 					"a/b/b.go":   "package b",
@@ -166,6 +172,7 @@ func TestExecutor_Integration(t *testing.T) {
 			transform: &TransformChanges{
 				Group: []Group{
 					{Directory: "a/b/c", Branch: "in-directory-c"},
+					{Directory: "a/b", Branch: "in-directory-b", Repository: sourcegraphRepo.Name},
 				},
 			},
 			wantFilesChanged: filesByRepository{
@@ -175,6 +182,15 @@ func TestExecutor_Integration(t *testing.T) {
 						"a/b/b.go",
 					},
 					"in-directory-c": []string{
+						"a/b/c/c.go",
+					},
+				},
+				sourcegraphRepo.ID: filesByBranch{
+					changesetTemplateBranch: []string{
+						"a/a.go",
+					},
+					"in-directory-b": []string{
+						"a/b/b.go",
 						"a/b/c/c.go",
 					},
 				},
@@ -384,9 +400,10 @@ index 0000000..1bd79fb
 		{
 			diff: allDiffs,
 			groups: []Group{
-				{Directory: "1/2/3", Branch: "only-in-3"},
-				{Directory: "1/2", Branch: "only-in-2"},
+				// Each diff is matched against each directory, last match wins
 				{Directory: "1", Branch: "only-in-1"},
+				{Directory: "1/2", Branch: "only-in-2"},
+				{Directory: "1/2/3", Branch: "only-in-3"},
 			},
 			want: map[string]string{
 				"my-default-branch": "",
@@ -398,16 +415,14 @@ index 0000000..1bd79fb
 		{
 			diff: allDiffs,
 			groups: []Group{
-				// Different order than above
-				{Directory: "1", Branch: "only-in-1"},
-				{Directory: "1/2", Branch: "only-in-2"},
+				// Last one wins here, because it matches every diff
 				{Directory: "1/2/3", Branch: "only-in-3"},
+				{Directory: "1/2", Branch: "only-in-2"},
+				{Directory: "1", Branch: "only-in-1"},
 			},
 			want: map[string]string{
 				"my-default-branch": "",
-				"only-in-3":         diff3,
-				"only-in-2":         diff2,
-				"only-in-1":         diff1,
+				"only-in-1":         diff1 + diff2 + diff3,
 			},
 		},
 		{

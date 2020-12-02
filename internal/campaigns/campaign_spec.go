@@ -80,8 +80,9 @@ type TransformChanges struct {
 }
 
 type Group struct {
-	Directory string `json:"directory,omitempty" yaml:"directory"`
-	Branch    string `json:"branch,omitempty" yaml:"branch"`
+	Directory  string `json:"directory,omitempty" yaml:"directory"`
+	Branch     string `json:"branch,omitempty" yaml:"branch"`
+	Repository string `json:"repository,omitempty" yaml:"repository"`
 }
 
 func ParseCampaignSpec(data []byte, features featureFlags) (*CampaignSpec, error) {

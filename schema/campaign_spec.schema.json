@@ -131,6 +131,11 @@
             "branch": {
               "type": "string",
               "description": "The branch on the repository to propose changes to. If unset, the repository's default branch is used."
+            },
+            "repository": {
+              "type": "string",
+              "description": "Only apply this transformation in the repository with this name (as it is known to Sourcegraph).",
+              "examples": ["github.com/foo/bar"]
             }
           }
         }
