@@ -43,7 +43,7 @@ func runSteps(ctx context.Context, wc *WorkspaceCreator, repo *graphql.Repositor
 			"GIT_COMMITTER_EMAIL=campaigns@sourcegraph.com",
 		}
 		cmd.Dir = volumeDir
-		out, err := cmd.CombinedOutput()
+		out, err := noticeCommand(ctx, cmd).CombinedOutput()
 		if err != nil {
 			return nil, errors.Wrapf(err, "'git %s' failed: %s", strings.Join(args, " "), out)
 		}
@@ -95,7 +95,7 @@ func runSteps(ctx context.Context, wc *WorkspaceCreator, repo *graphql.Repositor
 			if err == nil {
 				ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
 				defer cancel()
-				_ = exec.CommandContext(ctx, "docker", "rm", "-f", "--", string(cid)).Run()
+				_ = noticeCommand(ctx, exec.CommandContext(ctx, "docker", "rm", "-f", "--", string(cid))).Run()
 			}
 		}()
 
@@ -213,7 +213,7 @@ func runSteps(ctx context.Context, wc *WorkspaceCreator, repo *graphql.Repositor
 		logger.Logf("[Step %d] full command: %q", i+1, strings.Join(cmd.Args, " "))
 
 		t0 := time.Now()
-		err = cmd.Run()
+		err = noticeCommand(ctx, cmd).Run()
 		elapsed := time.Since(t0).Round(time.Millisecond)
 		if err != nil {
 			logger.Logf("[Step %d] took %s; error running Docker container: %+v", i+1, elapsed, err)
@@ -293,7 +293,7 @@ func probeImageForShell(ctx context.Context, image string) (shell, tempfile stri
 		cmd.Stdout = stdout
 		cmd.Stderr = stderr
 
-		if runErr := cmd.Run(); runErr != nil {
+		if runErr := noticeCommand(ctx, cmd).Run(); runErr != nil {
 			err = multierror.Append(err, errors.Wrapf(runErr, "probing shell %q:\n%s", shell, stderr.String()))
 		} else {
 			// Even if there were previous errors, we can now ignore them.

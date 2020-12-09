@@ -11,12 +11,14 @@ import (
 
 var (
 	duration time.Duration
+	spinner  bool
 	verbose  bool
 	withBars bool
 )
 
 func init() {
 	flag.DurationVar(&duration, "progress", 5*time.Second, "time to take in the progress bar and pending samples")
+	flag.BoolVar(&spinner, "spinner", true, "enable spinners")
 	flag.BoolVar(&verbose, "verbose", false, "enable verbose mode")
 	flag.BoolVar(&withBars, "with-bars", false, "show status bars on top of progress bar")
 }
@@ -36,52 +38,137 @@ func main() {
 }
 
 func demo(out *output.Output, duration time.Duration) {
-	var wg sync.WaitGroup
-	progress := out.Progress([]output.ProgressBar{
-		{Label: "A", Max: 1.0},
-		{Label: "BB", Max: 1.0, Value: 0.5},
-		{Label: strings.Repeat("X", 200), Max: 1.0},
-	}, nil)
+	func() {
+		var wg sync.WaitGroup
+		progress := out.Progress([]output.ProgressBar{
+			{Label: "A", Max: 1.0},
+			{Label: "BB", Max: 1.0, Value: 0.5},
+			{Label: strings.Repeat("X", 200), Max: 1.0},
+		}, nil)
 
-	wg.Add(1)
-	go func() {
-		ticker := time.NewTicker(duration / 20)
-		defer ticker.Stop()
-		defer wg.Done()
+		wg.Add(1)
+		go func() {
+			ticker := time.NewTicker(duration / 20)
+			defer ticker.Stop()
+			defer wg.Done()
 
-		i := 0
-		for _ = range ticker.C {
-			i += 1
-			if i > 20 {
-				return
+			i := 0
+			for _ = range ticker.C {
+				i += 1
+				if i > 20 {
+					return
+				}
+
+				out.Verbosef("%slog line %d", output.StyleWarning, i)
 			}
+		}()
 
-			progress.Verbosef("%slog line %d", output.StyleWarning, i)
-		}
+		wg.Add(1)
+		go func() {
+			ticker := time.NewTicker(10 * time.Millisecond)
+			defer ticker.Stop()
+			defer wg.Done()
+
+			start := time.Now()
+			until := start.Add(duration)
+			for _ = range ticker.C {
+				now := time.Now()
+				if now.After(until) {
+					return
+				}
+
+				progress.SetValue(0, float64(now.Sub(start))/float64(duration))
+				progress.SetValue(1, 0.5+float64(now.Sub(start))/float64(duration)/2)
+				progress.SetValue(2, 2*float64(now.Sub(start))/float64(duration))
+			}
+		}()
+
+		wg.Wait()
+		progress.Complete()
 	}()
 
-	wg.Add(1)
-	go func() {
-		ticker := time.NewTicker(10 * time.Millisecond)
-		defer ticker.Stop()
-		defer wg.Done()
+	func() {
+		var wg sync.WaitGroup
 
-		start := time.Now()
-		until := start.Add(duration)
-		for _ = range ticker.C {
-			now := time.Now()
-			if now.After(until) {
-				return
-			}
-
-			progress.SetValue(0, float64(now.Sub(start))/float64(duration))
-			progress.SetValue(1, 0.5+float64(now.Sub(start))/float64(duration)/2)
-			progress.SetValue(2, 2*float64(now.Sub(start))/float64(duration))
+		progressBars := []output.ProgressBar{
+			{
+				Label: "Executing",
+				Max:   1.0,
+			},
 		}
-	}()
 
-	wg.Wait()
-	progress.Complete()
+		statusBars := []*output.StatusBar{
+			output.NewStatusBarWithLabel("AA"),
+			output.NewStatusBarWithLabel("BB"),
+			output.NewStatusBarWithLabel(strings.Repeat("X", 200)),
+		}
+
+		progress := out.ProgressWithStatusBars(progressBars, statusBars, output.DefaultProgressTTYOpts.WithNoSpinner(!spinner))
+
+		wg.Add(1)
+		go func() {
+			ticker := time.NewTicker(duration / 20)
+			defer ticker.Stop()
+			defer wg.Done()
+
+			i := 0
+			for _ = range ticker.C {
+				i += 1
+				if i > 20 {
+					return
+				}
+
+				out.Verbosef("%slog line %d", output.StyleWarning, i)
+			}
+		}()
+
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			time.Sleep(duration / 3)
+			statusBars[0].Completef("done")
+		}()
+
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			time.Sleep(duration / 2)
+			statusBars[1].Completef("done")
+		}()
+
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			time.Sleep((2 * duration) / 3)
+			statusBars[2].Completef("done")
+		}()
+
+		wg.Add(1)
+		go func() {
+			ticker := time.NewTicker(10 * time.Millisecond)
+			defer ticker.Stop()
+			defer wg.Done()
+
+			start := time.Now()
+			until := start.Add(duration)
+			for _ = range ticker.C {
+				now := time.Now()
+				if now.After(until) {
+					return
+				}
+
+				progress.SetValue(0, float64(now.Sub(start))/float64(duration))
+
+				for _, bar := range statusBars {
+					bar.Updatef("%s elapsed", now.Sub(start).String())
+				}
+			}
+		}()
+
+		wg.Wait()
+		progress.SetValue(0, float64(duration))
+		progress.Complete()
+	}()
 
 	func() {
 		ticker := time.NewTicker(10 * time.Millisecond)

@@ -13,6 +13,8 @@ All notable changes to `src-cli` are documented in this file.
 
 ### Added
 
+- `src campaign [apply|preview]` now accept a `-vv` option to display even more verbose output, most notably every command being spawned during execution. [#402](https://github.com/sourcegraph/src-cli/pull/402)
+
 ### Changed
 
 - `src campaign [apply|preview]` now show the current execution progress in numbers next to the progress bar. [#396](https://github.com/sourcegraph/src-cli/pull/396)

@@ -14,7 +14,6 @@ func newProgressWithStatusBarsTTY(bars []*ProgressBar, statusBars []*StatusBar, 
 			o:            o,
 			emojiWidth:   3,
 			pendingEmoji: spinnerStrings[0],
-			spinner:      newSpinner(100 * time.Millisecond),
 		},
 		statusBars: statusBars,
 	}
@@ -38,6 +37,7 @@ func newProgressWithStatusBarsTTY(bars []*ProgressBar, statusBars []*StatusBar, 
 		return p
 	}
 
+	p.spinner = newSpinner(100 * time.Millisecond)
 	go func() {
 		for s := range p.spinner.C {
 			func() {
@@ -46,7 +46,6 @@ func newProgressWithStatusBarsTTY(bars []*ProgressBar, statusBars []*StatusBar, 
 				p.o.lock.Lock()
 				defer p.o.lock.Unlock()
 
-				p.moveToOrigin()
 				p.draw()
 			}()
 		}
@@ -66,30 +65,31 @@ type progressWithStatusBarsTTY struct {
 func (p *progressWithStatusBarsTTY) Close() { p.Destroy() }
 
 func (p *progressWithStatusBarsTTY) Destroy() {
-	p.spinner.stop()
+	if p.spinner != nil {
+		p.spinner.stop()
+	}
 
 	p.o.lock.Lock()
 	defer p.o.lock.Unlock()
-
-	p.moveToOrigin()
 
 	for i := 0; i < p.lines(); i += 1 {
 		p.o.clearCurrentLine()
 		p.o.moveDown(1)
 	}
-
 	p.moveToOrigin()
 }
 
 func (p *progressWithStatusBarsTTY) Complete() {
-	p.spinner.stop()
+	if p.spinner != nil {
+		p.spinner.stop()
+	}
 
 	p.o.lock.Lock()
 	defer p.o.lock.Unlock()
 
 	// +1 because of the line between progress and status bars
 	for i := 0; i < p.numPrintedStatusBars+1; i += 1 {
-		p.o.moveUp(1)
+		p.o.moveDown(1)
 		p.o.clearCurrentLine()
 	}
 	p.statusBars = p.statusBars[0:0]
@@ -98,8 +98,7 @@ func (p *progressWithStatusBarsTTY) Complete() {
 		bar.Value = bar.Max
 	}
 
-	p.o.moveUp(len(p.bars))
-	p.draw()
+	p.o.moveUp(p.numPrintedStatusBars)
 }
 
 func (p *progressWithStatusBarsTTY) lines() int {
@@ -112,7 +111,7 @@ func (p *progressWithStatusBarsTTY) SetLabel(i int, label string) {
 
 	p.bars[i].Label = label
 	p.bars[i].labelWidth = runewidth.StringWidth(label)
-	p.drawInSitu()
+	p.draw()
 }
 
 func (p *progressWithStatusBarsTTY) SetValue(i int, v float64) {
@@ -120,7 +119,7 @@ func (p *progressWithStatusBarsTTY) SetValue(i int, v float64) {
 	defer p.o.lock.Unlock()
 
 	p.bars[i].Value = v
-	p.drawInSitu()
+	p.draw()
 }
 
 func (p *progressWithStatusBarsTTY) StatusBarResetf(i int, label, format string, args ...interface{}) {
@@ -132,7 +131,7 @@ func (p *progressWithStatusBarsTTY) StatusBarResetf(i int, label, format string,
 	}
 
 	p.determineStatusBarLabelWidth()
-	p.drawInSitu()
+	p.draw()
 }
 
 func (p *progressWithStatusBarsTTY) StatusBarUpdatef(i int, format string, args ...interface{}) {
@@ -143,7 +142,7 @@ func (p *progressWithStatusBarsTTY) StatusBarUpdatef(i int, format string, args 
 		p.statusBars[i].Updatef(format, args...)
 	}
 
-	p.drawInSitu()
+	p.draw()
 }
 
 func (p *progressWithStatusBarsTTY) StatusBarCompletef(i int, format string, args ...interface{}) {
@@ -154,7 +153,7 @@ func (p *progressWithStatusBarsTTY) StatusBarCompletef(i int, format string, arg
 		p.statusBars[i].Completef(format, args...)
 	}
 
-	p.drawInSitu()
+	p.draw()
 }
 
 func (p *progressWithStatusBarsTTY) StatusBarFailf(i int, format string, args ...interface{}) {
@@ -165,10 +164,19 @@ func (p *progressWithStatusBarsTTY) StatusBarFailf(i int, format string, args ..
 		p.statusBars[i].Failf(format, args...)
 	}
 
-	p.drawInSitu()
+	p.draw()
 }
 
 func (p *progressWithStatusBarsTTY) draw() {
+	p.drawInSitu()
+	p.moveToOrigin()
+}
+
+func (p *progressWithStatusBarsTTY) moveToOrigin() {
+	p.o.moveUp(p.lines())
+}
+
+func (p *progressWithStatusBarsTTY) drawInSitu() {
 	for _, bar := range p.bars {
 		p.writeBar(bar)
 	}
@@ -192,15 +200,6 @@ func (p *progressWithStatusBarsTTY) draw() {
 		p.writeStatusBar(last, statusBar)
 		p.numPrintedStatusBars += 1
 	}
-}
-
-func (p *progressWithStatusBarsTTY) moveToOrigin() {
-	p.o.moveUp(p.lines())
-}
-
-func (p *progressWithStatusBarsTTY) drawInSitu() {
-	p.moveToOrigin()
-	p.draw()
 }
 
 func (p *progressWithStatusBarsTTY) determineStatusBarLabelWidth() {
@@ -276,7 +275,6 @@ func (p *progressWithStatusBarsTTY) Write(s string) {
 	p.o.lock.Lock()
 	defer p.o.lock.Unlock()
 
-	p.moveToOrigin()
 	p.o.clearCurrentLine()
 	fmt.Fprintln(p.o.w, s)
 	p.draw()
@@ -286,7 +284,6 @@ func (p *progressWithStatusBarsTTY) Writef(format string, args ...interface{}) {
 	p.o.lock.Lock()
 	defer p.o.lock.Unlock()
 
-	p.moveToOrigin()
 	p.o.clearCurrentLine()
 	fmt.Fprintf(p.o.w, format, p.o.caps.formatArgs(args)...)
 	fmt.Fprint(p.o.w, "\n")
@@ -297,7 +294,6 @@ func (p *progressWithStatusBarsTTY) WriteLine(line FancyLine) {
 	p.o.lock.Lock()
 	defer p.o.lock.Unlock()
 
-	p.moveToOrigin()
 	p.o.clearCurrentLine()
 	line.write(p.o.w, p.o.caps)
 	p.draw()

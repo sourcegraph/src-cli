@@ -111,12 +111,18 @@ func (o *Output) VerboseLine(line FancyLine) {
 func (o *Output) Write(s string) {
 	o.lock.Lock()
 	defer o.lock.Unlock()
+	if o.caps.Isatty {
+		o.clearCurrentLine()
+	}
 	fmt.Fprintln(o.w, s)
 }
 
 func (o *Output) Writef(format string, args ...interface{}) {
 	o.lock.Lock()
 	defer o.lock.Unlock()
+	if o.caps.Isatty {
+		o.clearCurrentLine()
+	}
 	fmt.Fprintf(o.w, format, o.caps.formatArgs(args)...)
 	fmt.Fprint(o.w, "\n")
 }
@@ -124,6 +130,9 @@ func (o *Output) Writef(format string, args ...interface{}) {
 func (o *Output) WriteLine(line FancyLine) {
 	o.lock.Lock()
 	defer o.lock.Unlock()
+	if o.caps.Isatty {
+		o.clearCurrentLine()
+	}
 	line.write(o.w, o.caps)
 }
 

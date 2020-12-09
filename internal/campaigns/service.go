@@ -22,11 +22,13 @@ type Service struct {
 	allowUnsupported bool
 	client           api.Client
 	features         featureFlags
+	onCommand        OnCommand
 }
 
 type ServiceOpts struct {
 	AllowUnsupported bool
 	Client           api.Client
+	OnCommand        OnCommand
 }
 
 var (
@@ -37,6 +39,7 @@ func NewService(opts *ServiceOpts) *Service {
 	return &Service{
 		allowUnsupported: opts.AllowUnsupported,
 		client:           opts.Client,
+		onCommand:        opts.OnCommand,
 	}
 }
 
@@ -68,6 +71,7 @@ func (svc *Service) getSourcegraphVersion(ctx context.Context) (string, error) {
 // instance and then sets flags on the Service itself to use features available
 // in that version, e.g. gzip compression.
 func (svc *Service) DetermineFeatureFlags(ctx context.Context) error {
+	ctx = svc.decorateContext(ctx)
 	version, err := svc.getSourcegraphVersion(ctx)
 	if err != nil {
 		return errors.Wrap(err, "failed to query Sourcegraph version to check for available features")
@@ -95,6 +99,8 @@ mutation ApplyCampaign($campaignSpec: ID!) {
 ` + graphql.CampaignFieldsFragment
 
 func (svc *Service) ApplyCampaign(ctx context.Context, spec CampaignSpecID) (*graphql.Campaign, error) {
+	ctx = svc.decorateContext(ctx)
+
 	var result struct {
 		Campaign *graphql.Campaign `json:"applyCampaign"`
 	}
@@ -124,6 +130,8 @@ mutation CreateCampaignSpec(
 `
 
 func (svc *Service) CreateCampaignSpec(ctx context.Context, namespace, spec string, ids []ChangesetSpecID) (CampaignSpecID, string, error) {
+	ctx = svc.decorateContext(ctx)
+
 	var result struct {
 		CreateCampaignSpec struct {
 			ID       string
@@ -156,6 +164,8 @@ mutation CreateChangesetSpec($spec: String!) {
 `
 
 func (svc *Service) CreateChangesetSpec(ctx context.Context, spec *ChangesetSpec) (ChangesetSpecID, error) {
+	ctx = svc.decorateContext(ctx)
+
 	raw, err := json.Marshal(spec)
 	if err != nil {
 		return "", errors.Wrap(err, "marshalling changeset spec JSON")
@@ -204,6 +214,8 @@ func (svc *Service) NewWorkspaceCreator(dir string, cleanArchives bool) *Workspa
 }
 
 func (svc *Service) SetDockerImages(ctx context.Context, spec *CampaignSpec, progress func(i int)) error {
+	ctx = svc.decorateContext(ctx)
+
 	for i, step := range spec.Steps {
 		image, err := getDockerImageContentDigest(ctx, step.Container)
 		if err != nil {
@@ -217,6 +229,8 @@ func (svc *Service) SetDockerImages(ctx context.Context, spec *CampaignSpec, pro
 }
 
 func (svc *Service) ExecuteCampaignSpec(ctx context.Context, repos []*graphql.Repository, x Executor, spec *CampaignSpec, progress func([]*TaskStatus), skipErrors bool) ([]*ChangesetSpec, error) {
+	ctx = svc.decorateContext(ctx)
+
 	for _, repo := range repos {
 		x.AddTask(repo, spec.Steps, spec.ChangesetTemplate)
 	}
@@ -332,6 +346,8 @@ query GetCurrentUserID {
 `
 
 func (svc *Service) ResolveNamespace(ctx context.Context, namespace string) (string, error) {
+	ctx = svc.decorateContext(ctx)
+
 	if namespace == "" {
 		// if no namespace is provided, default to logged in user as namespace
 		var resp struct {
@@ -374,6 +390,8 @@ func (svc *Service) ResolveNamespace(ctx context.Context, namespace string) (str
 }
 
 func (svc *Service) ResolveRepositories(ctx context.Context, spec *CampaignSpec) ([]*graphql.Repository, error) {
+	ctx = svc.decorateContext(ctx)
+
 	seen := map[string]*graphql.Repository{}
 	unsupported := UnsupportedRepoSet{}
 
@@ -421,6 +439,8 @@ func (svc *Service) ResolveRepositories(ctx context.Context, spec *CampaignSpec)
 }
 
 func (svc *Service) ResolveRepositoriesOn(ctx context.Context, on *OnQueryOrRepository) ([]*graphql.Repository, error) {
+	ctx = svc.decorateContext(ctx)
+
 	if on.RepositoriesMatchingQuery != "" {
 		return svc.resolveRepositorySearch(ctx, on.RepositoriesMatchingQuery)
 	} else if on.Repository != "" && on.Branch != "" {
@@ -598,4 +618,8 @@ func (sr *searchResult) UnmarshalJSON(data []byte) error {
 	default:
 		return errors.Errorf("unknown GraphQL type %q", tn.Typename)
 	}
+}
+
+func (svc *Service) decorateContext(ctx context.Context) context.Context {
+	return context.WithValue(ctx, onCommandContextKey, svc.onCommand)
 }

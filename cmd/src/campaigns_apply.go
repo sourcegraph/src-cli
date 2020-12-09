@@ -62,6 +62,11 @@ Examples:
 			return &usageError{errors.New("additional arguments not allowed")}
 		}
 
+		// -vv implies -v.
+		if flags.superVerbose {
+			*verbose = true
+		}
+
 		out := output.NewOutput(flagSet.Output(), output.OutputOpts{Verbose: *verbose})
 
 		ctx, cancel := contextCancelOnInterrupt(context.Background())
@@ -70,6 +75,7 @@ Examples:
 		svc := campaigns.NewService(&campaigns.ServiceOpts{
 			AllowUnsupported: flags.allowUnsupported,
 			Client:           cfg.apiClient(flags.api, flagSet.Output()),
+			OnCommand:        campaignsOnCommand(out, flags.superVerbose),
 		})
 
 		if err := svc.DetermineFeatureFlags(ctx); err != nil {

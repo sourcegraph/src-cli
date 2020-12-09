@@ -39,6 +39,7 @@ type campaignsApplyFlags struct {
 	keepLogs         bool
 	namespace        string
 	parallelism      int
+	superVerbose     bool
 	timeout          time.Duration
 	cleanArchives    bool
 	skipErrors       bool
@@ -101,6 +102,8 @@ func newCampaignsApplyFlags(flagSet *flag.FlagSet, cacheDir, tempDir string) *ca
 	)
 
 	flagSet.BoolVar(verbose, "v", false, "print verbose output")
+
+	flagSet.BoolVar(&caf.superVerbose, "vv", false, "print more verbose output")
 
 	return caf
 }
@@ -462,4 +465,14 @@ func contextCancelOnInterrupt(parent context.Context) (context.Context, func()) 
 		signal.Stop(c)
 		ctxCancel()
 	}
+}
+
+func campaignsOnCommand(out *output.Output, superVerbose bool) campaigns.OnCommand {
+	if superVerbose {
+		return func(cmd *exec.Cmd) {
+			out.VerboseLine(output.Line("🚀", output.Fg256Color(184), cmd.String()))
+		}
+	}
+
+	return nil
 }

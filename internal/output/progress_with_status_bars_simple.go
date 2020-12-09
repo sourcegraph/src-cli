@@ -53,7 +53,6 @@ func newProgressWithStatusBarsSimple(bars []*ProgressBar, statusBars []*StatusBa
 		progressSimple: &progressSimple{
 			Output: o,
 			bars:   bars,
-			done:   make(chan chan struct{}),
 		},
 		statusBars: statusBars,
 	}
@@ -66,6 +65,7 @@ func newProgressWithStatusBarsSimple(bars []*ProgressBar, statusBars []*StatusBa
 		return p
 	}
 
+	p.done = make(chan chan struct{})
 	go func() {
 		ticker := time.NewTicker(1 * time.Second)
 		defer ticker.Stop()

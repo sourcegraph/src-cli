@@ -20,7 +20,7 @@ func getDockerImageContentDigest(ctx context.Context, image string) (string, err
 	// digest. but the digest is not calculated for all images (unless they are
 	// pulled/pushed from/to a registry), see
 	// https://github.com/moby/moby/issues/32016.
-	out, err := exec.CommandContext(ctx, "docker", "image", "inspect", "--format", "{{.Id}}", "--", image).CombinedOutput()
+	out, err := noticeCommand(ctx, exec.CommandContext(ctx, "docker", "image", "inspect", "--format", "{{.Id}}", "--", image)).CombinedOutput()
 	if err != nil {
 		if !strings.Contains(string(out), "No such image") {
 			return "", fmt.Errorf("error inspecting docker image %q: %s", image, bytes.TrimSpace(out))

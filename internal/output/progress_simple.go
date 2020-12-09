@@ -33,16 +33,17 @@ func (p *progressSimple) SetValue(i int, v float64) {
 }
 
 func (p *progressSimple) stop() {
-	c := make(chan struct{})
-	p.done <- c
-	<-c
+	if p.done != nil {
+		c := make(chan struct{})
+		p.done <- c
+		<-c
+	}
 }
 
 func newProgressSimple(bars []*ProgressBar, o *Output, opts *ProgressOpts) *progressSimple {
 	p := &progressSimple{
 		Output: o,
 		bars:   bars,
-		done:   make(chan chan struct{}),
 	}
 
 	if opts != nil && opts.NoSpinner {
@@ -52,6 +53,7 @@ func newProgressSimple(bars []*ProgressBar, o *Output, opts *ProgressOpts) *prog
 		return p
 	}
 
+	p.done = make(chan chan struct{})
 	go func() {
 		ticker := time.NewTicker(1 * time.Second)
 		defer ticker.Stop()

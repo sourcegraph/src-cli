@@ -28,7 +28,9 @@ type progressTTY struct {
 }
 
 func (p *progressTTY) Complete() {
-	p.spinner.stop()
+	if p.spinner != nil {
+		p.spinner.stop()
+	}
 
 	p.o.lock.Lock()
 	defer p.o.lock.Unlock()
@@ -42,18 +44,17 @@ func (p *progressTTY) Complete() {
 func (p *progressTTY) Close() { p.Destroy() }
 
 func (p *progressTTY) Destroy() {
-	p.spinner.stop()
+	if p.spinner != nil {
+		p.spinner.stop()
+	}
 
 	p.o.lock.Lock()
 	defer p.o.lock.Unlock()
 
-	p.moveToOrigin()
 	for i := 0; i < len(p.bars); i += 1 {
 		p.o.clearCurrentLine()
 		p.o.moveDown(1)
 	}
-
-	p.moveToOrigin()
 }
 
 func (p *progressTTY) SetLabel(i int, label string) {
@@ -62,7 +63,7 @@ func (p *progressTTY) SetLabel(i int, label string) {
 
 	p.bars[i].Label = label
 	p.bars[i].labelWidth = runewidth.StringWidth(label)
-	p.drawInSitu()
+	p.draw()
 }
 
 func (p *progressTTY) SetLabelAndRecalc(i int, label string) {
@@ -73,7 +74,7 @@ func (p *progressTTY) SetLabelAndRecalc(i int, label string) {
 	p.bars[i].labelWidth = runewidth.StringWidth(label)
 
 	p.determineLabelWidth()
-	p.drawInSitu()
+	p.draw()
 }
 
 func (p *progressTTY) SetValue(i int, v float64) {
@@ -81,7 +82,7 @@ func (p *progressTTY) SetValue(i int, v float64) {
 	defer p.o.lock.Unlock()
 
 	p.bars[i].Value = v
-	p.drawInSitu()
+	p.draw()
 }
 
 func (p *progressTTY) Verbose(s string) {
@@ -106,7 +107,6 @@ func (p *progressTTY) Write(s string) {
 	p.o.lock.Lock()
 	defer p.o.lock.Unlock()
 
-	p.moveToOrigin()
 	p.o.clearCurrentLine()
 	fmt.Fprintln(p.o.w, s)
 	p.draw()
@@ -116,7 +116,6 @@ func (p *progressTTY) Writef(format string, args ...interface{}) {
 	p.o.lock.Lock()
 	defer p.o.lock.Unlock()
 
-	p.moveToOrigin()
 	p.o.clearCurrentLine()
 	fmt.Fprintf(p.o.w, format, p.o.caps.formatArgs(args)...)
 	fmt.Fprint(p.o.w, "\n")
@@ -127,7 +126,6 @@ func (p *progressTTY) WriteLine(line FancyLine) {
 	p.o.lock.Lock()
 	defer p.o.lock.Unlock()
 
-	p.moveToOrigin()
 	p.o.clearCurrentLine()
 	line.write(p.o.w, p.o.caps)
 	p.draw()
@@ -139,7 +137,6 @@ func newProgressTTY(bars []*ProgressBar, o *Output, opts *ProgressOpts) *progres
 		o:            o,
 		emojiWidth:   3,
 		pendingEmoji: spinnerStrings[0],
-		spinner:      newSpinner(100 * time.Millisecond),
 	}
 
 	if opts != nil {
@@ -160,6 +157,7 @@ func newProgressTTY(bars []*ProgressBar, o *Output, opts *ProgressOpts) *progres
 		return p
 	}
 
+	p.spinner = newSpinner(100 * time.Millisecond)
 	go func() {
 		for s := range p.spinner.C {
 			func() {
@@ -168,7 +166,6 @@ func newProgressTTY(bars []*ProgressBar, o *Output, opts *ProgressOpts) *progres
 				p.o.lock.Lock()
 				defer p.o.lock.Unlock()
 
-				p.moveToOrigin()
 				p.draw()
 			}()
 		}
@@ -198,14 +195,14 @@ func (p *progressTTY) determineLabelWidth() {
 }
 
 func (p *progressTTY) draw() {
-	for _, bar := range p.bars {
-		p.writeBar(bar)
-	}
+	p.drawInSitu()
+	p.moveToOrigin()
 }
 
 func (p *progressTTY) drawInSitu() {
-	p.moveToOrigin()
-	p.draw()
+	for _, bar := range p.bars {
+		p.writeBar(bar)
+	}
 }
 
 func (p *progressTTY) moveToOrigin() {
