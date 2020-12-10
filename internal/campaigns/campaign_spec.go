@@ -91,20 +91,21 @@ func ParseCampaignSpec(data []byte, features featureFlags) (*CampaignSpec, error
 		return nil, err
 	}
 
+	var errs *multierror.Error
+
 	if !features.allowArrayEnvironments {
-		var errs *multierror.Error
 		for i, step := range spec.Steps {
 			if !step.Env.IsStatic() {
 				errs = multierror.Append(errs, errors.Errorf("step %d includes one or more dynamic environment variables, which are unsupported in this Sourcegraph version", i+1))
 			}
 		}
-
-		if err := errs.ErrorOrNil(); err != nil {
-			return nil, err
-		}
 	}
 
-	return &spec, nil
+	if spec.TransformChanges != nil && !features.allowtransformChanges {
+		errs = multierror.Append(errs, errors.New("campaign spec includes transformChanges, which is not supported in this Sourcegraph version"))
+	}
+
+	return &spec, errs.ErrorOrNil()
 }
 
 func (on *OnQueryOrRepository) String() string {
