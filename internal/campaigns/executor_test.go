@@ -332,6 +332,51 @@ func TestExecutor_Integration(t *testing.T) {
 	}
 }
 
+func TestValidateGroups(t *testing.T) {
+	repoName := "github.com/sourcegraph/src-cli"
+	defaultBranch := "my-campaign"
+
+	tests := []struct {
+		defaultBranch string
+		groups        []Group
+		wantErr       string
+	}{
+		{
+			groups: []Group{
+				{Directory: "a", Branch: "my-campaign-a"},
+				{Directory: "b", Branch: "my-campaign-b"},
+			},
+			wantErr: "",
+		},
+		{
+			groups: []Group{
+				{Directory: "a", Branch: "my-campaign-SAME"},
+				{Directory: "b", Branch: "my-campaign-SAME"},
+			},
+			wantErr: "transformChanges would lead to multiple changesets in repository github.com/sourcegraph/src-cli to have the same branch \"my-campaign-SAME\"",
+		},
+		{
+			groups: []Group{
+				{Directory: "a", Branch: "my-campaign-SAME"},
+				{Directory: "b", Branch: defaultBranch},
+			},
+			wantErr: "transformChanges group branch for repository github.com/sourcegraph/src-cli is the same as branch \"my-campaign\" in changesetTemplate",
+		},
+	}
+
+	for _, tc := range tests {
+		err := validateGroups(repoName, defaultBranch, tc.groups)
+		var haveErr string
+		if err != nil {
+			haveErr = err.Error()
+		}
+
+		if haveErr != tc.wantErr {
+			t.Fatalf("wrong error:\nwant=%q\nhave=%q", tc.wantErr, haveErr)
+		}
+	}
+}
+
 func TestGroupFileDiffs(t *testing.T) {
 	diff1 := `diff --git 1/1.txt 1/1.txt
 new file mode 100644

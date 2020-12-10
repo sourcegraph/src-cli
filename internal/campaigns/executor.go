@@ -439,6 +439,11 @@ func createChangesetSpecs(task *Task, completeDiff string, features featureFlags
 
 	groups := groupsForRepository(task.Repository.Name, task.TransformChanges)
 	if len(groups) != 0 {
+		err := validateGroups(task.Repository.Name, task.Template.Branch, groups)
+		if err != nil {
+			return specs, err
+		}
+
 		diffsByBranch, err := groupFileDiffs(completeDiff, task.Template.Branch, groups)
 		if err != nil {
 			return specs, errors.Wrap(err, "grouping diffs failed")
@@ -447,7 +452,6 @@ func createChangesetSpecs(task *Task, completeDiff string, features featureFlags
 		for branch, diff := range diffsByBranch {
 			specs = append(specs, newSpec(branch, diff))
 		}
-
 	} else {
 		specs = append(specs, newSpec(task.Template.Branch, string(completeDiff)))
 	}
@@ -473,6 +477,24 @@ func groupsForRepository(repo string, transform *TransformChanges) []Group {
 	}
 
 	return groups
+}
+
+func validateGroups(repo, defaultBranch string, groups []Group) error {
+	uniqueBranches := make(map[string]struct{}, len(groups))
+
+	for _, g := range groups {
+		if _, ok := uniqueBranches[g.Branch]; ok {
+			return fmt.Errorf("transformChanges would lead to multiple changesets in repository %s to have the same branch %q", repo, g.Branch)
+		} else {
+			uniqueBranches[g.Branch] = struct{}{}
+		}
+
+		if g.Branch == defaultBranch {
+			return fmt.Errorf("transformChanges group branch for repository %s is the same as branch %q in changesetTemplate", repo, defaultBranch)
+		}
+	}
+
+	return nil
 }
 
 func groupFileDiffs(completeDiff, defaultBranch string, groups []Group) (map[string]string, error) {
