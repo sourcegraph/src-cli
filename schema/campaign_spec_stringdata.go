@@ -131,11 +131,13 @@ const CampaignSpecJSON = `{
           "properties": {
             "directory": {
               "type": "string",
-              "description": "The directory path (relative to the repository root) of the changes to include in this group."
+              "description": "The directory path (relative to the repository root) of the changes to include in this group.",
+              "minLength": 1
             },
             "branch": {
               "type": "string",
-              "description": "The branch on the repository to propose changes to. If unset, the repository's default branch is used."
+              "description": "The branch on the repository to propose changes to. If unset, the repository's default branch is used.",
+              "minLength": 1
             },
             "repository": {
               "type": "string",
