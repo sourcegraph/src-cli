@@ -23,7 +23,7 @@ func (ff *featureFlags) setFromVersion(version string) error {
 		{&ff.allowArrayEnvironments, ">= 3.23.0", "2020-11-24"},
 		{&ff.includeAutoAuthorDetails, ">= 3.20.0", "2020-09-10"},
 		{&ff.useGzipCompression, ">= 3.21.0", "2020-10-12"},
-		{&ff.allowtransformChanges, ">= 3.23.0", "2020-12-10"},
+		{&ff.allowtransformChanges, ">= 3.23.0", "2020-12-11"},
 	} {
 		value, err := api.CheckSourcegraphVersion(version, feature.constraint, feature.minDate)
 		if err != nil {
