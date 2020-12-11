@@ -524,7 +524,7 @@ func groupFileDiffs(completeDiff, defaultBranch string, groups []Group) (map[str
 		}
 
 		// .. we check whether it matches one of the given directories in the
-		// group transformations, starting with the longest one first:
+		// group transformations, with the last match winning:
 		var matchingDir string
 		for _, d := range dirs {
 			if strings.Contains(name, d) {
