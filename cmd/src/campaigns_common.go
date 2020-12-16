@@ -436,10 +436,16 @@ func prettyPrintCampaignsUnlicensedError(out *output.Output, err error) error {
 			} else if code == "ErrCampaignsUnlicensed" {
 				// OK, let's print a better message, then return an
 				// exitCodeError to suppress the normal automatic error block.
-				block := out.Block(output.Line("🪙", output.StyleWarning, "Campaigns is a paid feature of Sourcegraph. All users can create sample campaigns with up to 5 changesets without a license."))
-				block.WriteLine(output.Linef("", output.StyleWarning, "Contact Sourcegraph sales at %shttps://about.sourcegraph.com/contact/sales/%s to obtain a trial license.", output.StyleSearchLink, output.StyleWarning))
+				// Note that we have hand wrapped the output at 80 (printable)
+				// characters: having automatic wrapping some day would be nice,
+				// but this should be sufficient for now.
+				block := out.Block(output.Line("🪙", output.StyleWarning, "Campaigns is a paid feature of Sourcegraph. All users can create sample"))
+				block.WriteLine(output.Linef("", output.StyleWarning, "campaigns with up to 5 changesets without a license. Contact Sourcegraph sales"))
+				block.WriteLine(output.Linef("", output.StyleWarning, "at %shttps://about.sourcegraph.com/contact/sales/%s to obtain a trial license.", output.StyleSearchLink, output.StyleWarning))
 				block.Write("")
-				block.WriteLine(output.Linef("", output.StyleWarning, "To proceed with this campaign, you will need to create five or fewer changesets. To do so, you could try adding %scount:5%s to your %srepositoriesMatchingQuery%s search, or reduce the number of changesets in %simportChangesets%s.", output.StyleSearchAlertProposedQuery, output.StyleWarning, output.StyleReset, output.StyleWarning, output.StyleReset, output.StyleWarning))
+				block.WriteLine(output.Linef("", output.StyleWarning, "To proceed with this campaign, you will need to create 5 or fewer changesets."))
+				block.WriteLine(output.Linef("", output.StyleWarning, "To do so, you could try adding %scount:5%s to your %srepositoriesMatchingQuery%s search,", output.StyleSearchAlertProposedQuery, output.StyleWarning, output.StyleReset, output.StyleWarning))
+				block.WriteLine(output.Linef("", output.StyleWarning, "or reduce the number of changesets in %simportChangesets%s.", output.StyleReset, output.StyleWarning))
 				block.Close()
 				return &exitCodeError{exitCode: graphqlErrorsExitCode}
 			}
