@@ -291,10 +291,10 @@ func campaignsExecute(ctx context.Context, out *output.Output, svc *campaigns.Se
 
 	pending = campaignsCreatePending(out, "Creating campaign spec on Sourcegraph")
 	id, url, err := svc.CreateCampaignSpec(ctx, namespace, rawSpec, ids)
+	campaignsCompletePending(pending, "Creating campaign spec on Sourcegraph")
 	if err != nil {
 		return "", "", prettyPrintCampaignsUnlicensedError(out, err)
 	}
-	campaignsCompletePending(pending, "Creating campaign spec on Sourcegraph")
 
 	return id, url, nil
 }
@@ -436,7 +436,11 @@ func prettyPrintCampaignsUnlicensedError(out *output.Output, err error) error {
 			} else if code == "ErrCampaignsUnlicensed" {
 				// OK, let's print a better message, then return an
 				// exitCodeError to suppress the normal automatic error block.
-				out.WriteLine(output.Line("🪙", output.StyleWarning, "Campaigns are a paid feature. Please contact Sourcegraph to purchase a license."))
+				block := out.Block(output.Line("🪙", output.StyleWarning, "Campaigns is a paid feature of Sourcegraph. All users can create sample campaigns with up to 5 changesets without a license."))
+				block.WriteLine(output.Linef("", output.StyleWarning, "Contact Sourcegraph sales at %shttps://about.sourcegraph.com/contact/sales/%s to obtain a trial license.", output.StyleSearchLink, output.StyleWarning))
+				block.Write("")
+				block.WriteLine(output.Linef("", output.StyleWarning, "To proceed with this campaign, you will need to create five or fewer changesets. To do so, you could try adding %scount:5%s to your %srepositoriesMatchingQuery%s search, or reduce the number of changesets in %simportChangesets%s.", output.StyleSearchAlertProposedQuery, output.StyleWarning, output.StyleReset, output.StyleWarning, output.StyleReset, output.StyleWarning))
+				block.Close()
 				return &exitCodeError{exitCode: graphqlErrorsExitCode}
 			}
 		}
