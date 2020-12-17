@@ -143,7 +143,7 @@ type executor struct {
 	client   api.Client
 	features featureFlags
 	logger   *LogManager
-	creator  *WorkspaceCreator
+	creator  WorkspaceCreator
 
 	tasks      []*Task
 	statuses   map[*Task]*TaskStatus

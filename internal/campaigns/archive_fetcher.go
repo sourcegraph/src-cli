@@ -18,19 +18,21 @@ import (
 	"github.com/sourcegraph/src-cli/internal/campaigns/graphql"
 )
 
-type WorkspaceCreator struct {
+type workspaceCreator struct {
 	dir    string
 	client api.Client
 
 	deleteZips bool
 }
 
-func (wc *WorkspaceCreator) Create(ctx context.Context, repo *graphql.Repository) (string, error) {
+var _ WorkspaceCreator = &workspaceCreator{}
+
+func (wc *workspaceCreator) Create(ctx context.Context, repo *graphql.Repository) (Workspace, error) {
 	path := localRepositoryZipArchivePath(wc.dir, repo)
 
 	exists, err := fileExists(path)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	if !exists {
@@ -41,7 +43,7 @@ func (wc *WorkspaceCreator) Create(ctx context.Context, repo *graphql.Repository
 			// downloaded file.
 			os.Remove(path)
 
-			return "", errors.Wrap(err, "fetching ZIP archive")
+			return nil, errors.Wrap(err, "fetching ZIP archive")
 		}
 	}
 
@@ -52,10 +54,71 @@ func (wc *WorkspaceCreator) Create(ctx context.Context, repo *graphql.Repository
 	prefix := "workspace-" + repo.Slug()
 	workspace, err := unzipToTempDir(ctx, path, wc.dir, prefix)
 	if err != nil {
-		return "", errors.Wrap(err, "unzipping the ZIP archive")
+		return nil, errors.Wrap(err, "unzipping the ZIP archive")
 	}
 
-	return workspace, nil
+	return &bindWorkspace{dir: workspace}, nil
+}
+
+type bindWorkspace struct {
+	dir string
+}
+
+var _ Workspace = &bindWorkspace{}
+
+func (w *bindWorkspace) Close(ctx context.Context) error {
+	return os.RemoveAll(w.dir)
+}
+
+func (w *bindWorkspace) DockerRunOpts(ctx context.Context, target string) ([]string, error) {
+	return []string{
+		"--mount",
+		fmt.Sprintf("type=bind,source=%s,target=%s", w.dir, target),
+	}, nil
+}
+
+func (w *bindWorkspace) Prepare(ctx context.Context) error {
+	if _, err := runGitCmd(ctx, w.dir, "init"); err != nil {
+		return errors.Wrap(err, "git init failed")
+	}
+
+	// --force because we want previously "gitignored" files in the repository
+	if _, err := runGitCmd(ctx, w.dir, "add", "--force", "--all"); err != nil {
+		return errors.Wrap(err, "git add failed")
+	}
+	if _, err := runGitCmd(ctx, w.dir, "commit", "--quiet", "--all", "-m", "src-action-exec"); err != nil {
+		return errors.Wrap(err, "git commit failed")
+	}
+
+	return nil
+}
+
+func (w *bindWorkspace) Changes(ctx context.Context) (*StepChanges, error) {
+	if _, err := runGitCmd(ctx, w.dir, "add", "--all"); err != nil {
+		return nil, errors.Wrap(err, "git add failed")
+	}
+
+	statusOut, err := runGitCmd(ctx, w.dir, "status", "--porcelain")
+	if err != nil {
+		return nil, errors.Wrap(err, "git status failed")
+	}
+
+	changes, err := parseGitStatus(statusOut)
+	if err != nil {
+		return nil, errors.Wrap(err, "parsing git status output")
+	}
+
+	return &changes, nil
+}
+
+func (w *bindWorkspace) Diff(ctx context.Context) ([]byte, error) {
+	// As of Sourcegraph 3.14 we only support unified diff format.
+	// That means we need to strip away the `a/` and `/b` prefixes with `--no-prefix`.
+	// See: https://github.com/sourcegraph/sourcegraph/blob/82d5e7e1562fef6be5c0b17f18631040fd330835/enterprise/internal/campaigns/service.go#L324-L329
+	//
+	// Also, we need to add --binary so binary file changes are inlined in the patch.
+	//
+	return runGitCmd(ctx, w.dir, "diff", "--cached", "--no-prefix", "--binary")
 }
 
 func fileExists(path string) (bool, error) {
