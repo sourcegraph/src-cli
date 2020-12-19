@@ -22,11 +22,13 @@ type Service struct {
 	allowUnsupported bool
 	client           api.Client
 	features         featureFlags
+	workspace        string
 }
 
 type ServiceOpts struct {
 	AllowUnsupported bool
 	Client           api.Client
+	Workspace        string
 }
 
 var (
@@ -37,6 +39,7 @@ func NewService(opts *ServiceOpts) *Service {
 	return &Service{
 		allowUnsupported: opts.AllowUnsupported,
 		client:           opts.Client,
+		workspace:        opts.Workspace,
 	}
 }
 
@@ -200,6 +203,9 @@ func (svc *Service) NewExecutor(opts ExecutorOpts) Executor {
 }
 
 func (svc *Service) NewWorkspaceCreator(dir string, cleanArchives bool) WorkspaceCreator {
+	if svc.workspace == "volume" {
+		return &dockerWorkspaceCreator{client: svc.client}
+	}
 	return &workspaceCreator{dir: dir, client: svc.client, deleteZips: cleanArchives}
 }
 
@@ -212,6 +218,11 @@ func (svc *Service) SetDockerImages(ctx context.Context, spec *CampaignSpec, pro
 		spec.Steps[i].image = image
 		progress(i + 1)
 	}
+
+	if _, err := getDockerImageContentDigest(ctx, baseImage); err != nil {
+		return errors.Wrap(err, "downloading base image")
+	}
+	progress(len(spec.Steps) + 1)
 
 	return nil
 }

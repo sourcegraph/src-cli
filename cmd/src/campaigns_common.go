@@ -40,6 +40,7 @@ type campaignsApplyFlags struct {
 	namespace        string
 	parallelism      int
 	timeout          time.Duration
+	workspace        string
 	cleanArchives    bool
 	skipErrors       bool
 }
@@ -99,6 +100,7 @@ func newCampaignsApplyFlags(flagSet *flag.FlagSet, cacheDir, tempDir string) *ca
 		&caf.skipErrors, "skip-errors", false,
 		"If true, errors encountered while executing steps in a repository won't stop the execution of the campaign spec but only cause that repository to be skipped.",
 	)
+	flagSet.StringVar(&caf.workspace, "workspace", "bind", "Workspace mode to use (bind or volume)")
 
 	flagSet.BoolVar(verbose, "v", false, "print verbose output")
 
@@ -188,6 +190,7 @@ func campaignsExecute(ctx context.Context, out *output.Output, svc *campaigns.Se
 	} else {
 		opts.Parallelism = flags.parallelism
 	}
+	out.VerboseLine(output.Linef("🚧", output.StyleSuccess, "Workspace creator: %T", opts.Creator))
 	executor := svc.NewExecutor(opts)
 
 	if errs != nil {
@@ -210,7 +213,7 @@ func campaignsExecute(ctx context.Context, out *output.Output, svc *campaigns.Se
 
 	imageProgress := out.Progress([]output.ProgressBar{{
 		Label: "Preparing container images",
-		Max:   float64(len(campaignSpec.Steps)),
+		Max:   float64(len(campaignSpec.Steps) + 1),
 	}}, nil)
 	err = svc.SetDockerImages(ctx, campaignSpec, func(step int) {
 		imageProgress.SetValue(0, float64(step))
