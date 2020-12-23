@@ -204,9 +204,9 @@ func (svc *Service) NewExecutor(opts ExecutorOpts) Executor {
 
 func (svc *Service) NewWorkspaceCreator(dir string, cleanArchives bool) WorkspaceCreator {
 	if svc.workspace == "volume" {
-		return &dockerWorkspaceCreator{client: svc.client}
+		return &dockerVolumeWorkspaceCreator{client: svc.client}
 	}
-	return &workspaceCreator{dir: dir, client: svc.client, deleteZips: cleanArchives}
+	return &dockerBindWorkspaceCreator{dir: dir, client: svc.client, deleteZips: cleanArchives}
 }
 
 func (svc *Service) SetDockerImages(ctx context.Context, spec *CampaignSpec, progress func(i int)) error {
@@ -219,7 +219,7 @@ func (svc *Service) SetDockerImages(ctx context.Context, spec *CampaignSpec, pro
 		progress(i + 1)
 	}
 
-	if _, err := getDockerImageContentDigest(ctx, baseImage); err != nil {
+	if _, err := getDockerImageContentDigest(ctx, dockerWorkspaceImage); err != nil {
 		return errors.Wrap(err, "downloading base image")
 	}
 	progress(len(spec.Steps) + 1)

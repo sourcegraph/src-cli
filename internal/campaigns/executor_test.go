@@ -213,7 +213,7 @@ func TestExecutor_Integration(t *testing.T) {
 			defer os.Remove(testTempDir)
 
 			cache := newInMemoryExecutionCache()
-			creator := &WorkspaceCreator{dir: testTempDir, client: client}
+			creator := &dockerBindWorkspaceCreator{dir: testTempDir, client: client}
 			opts := ExecutorOpts{
 				Cache:       cache,
 				Creator:     creator,

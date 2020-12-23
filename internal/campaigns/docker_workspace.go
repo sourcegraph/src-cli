@@ -3,10 +3,7 @@ package campaigns
 import (
 	"bytes"
 	"context"
-	"fmt"
-	"io"
 	"io/ioutil"
-	"net/http"
 	"os"
 	"os/exec"
 
@@ -15,51 +12,30 @@ import (
 	"github.com/sourcegraph/src-cli/internal/campaigns/graphql"
 )
 
-type dockerWorkspaceCreator struct {
+// dockerVolumeWorkspaceCreator creates dockerWorkspace instances.
+type dockerVolumeWorkspaceCreator struct {
 	client api.Client
 }
 
-var _ WorkspaceCreator = &dockerWorkspaceCreator{}
+var _ WorkspaceCreator = &dockerVolumeWorkspaceCreator{}
 
-func (wc *dockerWorkspaceCreator) Create(ctx context.Context, repo *graphql.Repository) (Workspace, error) {
-	w := &dockerWorkspace{}
+func (wc *dockerVolumeWorkspaceCreator) Create(ctx context.Context, repo *graphql.Repository) (Workspace, error) {
+	w := &dockerVolumeWorkspace{}
 	return w, w.init(ctx, wc.client, repo)
 }
 
-// TODO: migrate to a real image on Docker Hub.
-const baseImage = "sourcegraph/src-campaign-workspace"
-
-type dockerWorkspace struct {
+// dockerVolumeWorkspace workspaces are placed on Docker volumes (surprise!),
+// and are therefore transparent to the host filesystem. This has performance
+// advantages if bind mounts are slow, such as on Docker for Mac, but could make
+// debugging harder and is slower when it's time to actually retrieve the diff.
+type dockerVolumeWorkspace struct {
 	volume string
 }
 
-var _ Workspace = &dockerWorkspace{}
+var _ Workspace = &dockerVolumeWorkspace{}
 
-func (w *dockerWorkspace) init(ctx context.Context, client api.Client, repo *graphql.Repository) error {
-	// Create a Docker volume.
-	out, err := exec.CommandContext(ctx, "docker", "volume", "create").CombinedOutput()
-	if err != nil {
-		return errors.Wrap(err, "creating Docker volume")
-	}
-	w.volume = string(bytes.TrimSpace(out))
-
-	// Download the ZIP archive.
-	req, err := client.NewHTTPRequest(ctx, "GET", repositoryZipArchivePath(repo), nil)
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Accept", "application/zip")
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("unable to fetch archive (HTTP %d from %s)", resp.StatusCode, req.URL.String())
-	}
-
-	// Write the ZIP somewhere we can mount into a container.
+func (w *dockerVolumeWorkspace) init(ctx context.Context, client api.Client, repo *graphql.Repository) error {
+	// Download the ZIP archive to a temporary file.
 	f, err := ioutil.TempFile(os.TempDir(), "src-archive-*.zip")
 	if err != nil {
 		return errors.Wrap(err, "creating temporary archive")
@@ -67,13 +43,19 @@ func (w *dockerWorkspace) init(ctx context.Context, client api.Client, repo *gra
 	hostZip := f.Name()
 	defer os.Remove(hostZip)
 
-	_, err = io.Copy(f, resp.Body)
-	f.Close()
-	if err != nil {
-		return errors.Wrap(err, "writing temporary archive")
+	if err := fetchRepositoryArchive(ctx, client, repo, hostZip); err != nil {
+		return errors.Wrap(err, "fetching repository archive")
 	}
 
-	// Now actually unzip it into the volume.
+	// Create a Docker volume.
+	out, err := exec.CommandContext(ctx, "docker", "volume", "create").CombinedOutput()
+	if err != nil {
+		return errors.Wrap(err, "creating Docker volume")
+	}
+	w.volume = string(bytes.TrimSpace(out))
+
+	// Now mount that temporary file into a Docker container, and unzip it into
+	// the volume.
 	common, err := w.DockerRunOpts(ctx, "/work")
 	if err != nil {
 		return errors.Wrap(err, "generating run options")
@@ -86,7 +68,7 @@ func (w *dockerWorkspace) init(ctx context.Context, client api.Client, repo *gra
 		"--workdir", "/work",
 		"--mount", "type=bind,source=" + hostZip + ",target=/tmp/zip,ro",
 	}, common...)
-	opts = append(opts, baseImage, "unzip", "/tmp/zip")
+	opts = append(opts, dockerWorkspaceImage, "unzip", "/tmp/zip")
 
 	out, err = exec.CommandContext(ctx, "docker", opts...).CombinedOutput()
 	if err != nil {
@@ -96,17 +78,18 @@ func (w *dockerWorkspace) init(ctx context.Context, client api.Client, repo *gra
 	return nil
 }
 
-func (w *dockerWorkspace) Close(ctx context.Context) error {
+func (w *dockerVolumeWorkspace) Close(ctx context.Context) error {
+	// Cleanup here is easy: we just get rid of the Docker volume.
 	return exec.CommandContext(ctx, "docker", "volume", "rm", w.volume).Run()
 }
 
-func (w *dockerWorkspace) DockerRunOpts(ctx context.Context, target string) ([]string, error) {
+func (w *dockerVolumeWorkspace) DockerRunOpts(ctx context.Context, target string) ([]string, error) {
 	return []string{
 		"--mount", "type=volume,source=" + w.volume + ",target=" + target,
 	}, nil
 }
 
-func (w *dockerWorkspace) Prepare(ctx context.Context) error {
+func (w *dockerVolumeWorkspace) Prepare(ctx context.Context) error {
 	script := `#!/bin/sh
 	
 set -e
@@ -124,7 +107,7 @@ git commit --quiet --all -m src-action-exec
 	return nil
 }
 
-func (w *dockerWorkspace) Changes(ctx context.Context) (*StepChanges, error) {
+func (w *dockerVolumeWorkspace) Changes(ctx context.Context) (*StepChanges, error) {
 	script := `#!/bin/sh
 
 set -e
@@ -147,7 +130,7 @@ exec git status --porcelain
 	return &changes, nil
 }
 
-func (w *dockerWorkspace) Diff(ctx context.Context) ([]byte, error) {
+func (w *dockerVolumeWorkspace) Diff(ctx context.Context) ([]byte, error) {
 	// As of Sourcegraph 3.14 we only support unified diff format.
 	// That means we need to strip away the `a/` and `/b` prefixes with `--no-prefix`.
 	// See: https://github.com/sourcegraph/sourcegraph/blob/82d5e7e1562fef6be5c0b17f18631040fd330835/enterprise/internal/campaigns/service.go#L324-L329
@@ -166,7 +149,14 @@ exec git diff --cached --no-prefix --binary
 	return out, nil
 }
 
-func (w *dockerWorkspace) runScript(ctx context.Context, target, script string) ([]byte, error) {
+// dockerWorkspaceImage is the Docker image we'll run our unzip and git commands
+// in.
+const dockerWorkspaceImage = "sourcegraph/src-campaign-workspace"
+
+// runScript is a utility function to mount the given shell script into a Docker
+// container started from the dockerWorkspaceImage, then run it and return the
+// output.
+func (w *dockerVolumeWorkspace) runScript(ctx context.Context, target, script string) ([]byte, error) {
 	f, err := ioutil.TempFile(os.TempDir(), "src-run-*")
 	if err != nil {
 		return nil, errors.Wrap(err, "creating run script")
@@ -191,7 +181,7 @@ func (w *dockerWorkspace) runScript(ctx context.Context, target, script string) 
 		"--workdir", target,
 		"--mount", "type=bind,source=" + name + ",target=/run.sh,ro",
 	}, common...)
-	opts = append(opts, baseImage, "sh", "/run.sh")
+	opts = append(opts, dockerWorkspaceImage, "sh", "/run.sh")
 
 	out, err := exec.CommandContext(ctx, "docker", opts...).CombinedOutput()
 	if err != nil {

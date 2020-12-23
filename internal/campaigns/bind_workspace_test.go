@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/pkg/errors"
 	"github.com/sourcegraph/src-cli/internal/api"
 	"github.com/sourcegraph/src-cli/internal/campaigns/graphql"
 )
@@ -54,7 +55,7 @@ func TestWorkspaceCreator_Create(t *testing.T) {
 
 		testTempDir := workspaceTmpDir(t)
 
-		creator := &WorkspaceCreator{dir: testTempDir, client: client}
+		creator := &dockerBindWorkspaceCreator{dir: testTempDir, client: client}
 		workspace, err := creator.Create(context.Background(), repo)
 		if err != nil {
 			t.Fatalf("unexpected error: %s", err)
@@ -140,7 +141,7 @@ func TestWorkspaceCreator_Create(t *testing.T) {
 
 		testTempDir := workspaceTmpDir(t)
 
-		creator := &WorkspaceCreator{dir: testTempDir, client: client}
+		creator := &dockerBindWorkspaceCreator{dir: testTempDir, client: client}
 
 		_, err := creator.Create(ctx, repo)
 		if err == nil {
@@ -178,7 +179,7 @@ func TestWorkspaceCreator_Create(t *testing.T) {
 
 		testTempDir := workspaceTmpDir(t)
 
-		creator := &WorkspaceCreator{dir: testTempDir, client: client}
+		creator := &dockerBindWorkspaceCreator{dir: testTempDir, client: client}
 
 		_, err := creator.Create(context.Background(), repo)
 		if err != nil {
@@ -329,10 +330,15 @@ func isDir(t *testing.T, path string) bool {
 	return st.IsDir()
 }
 
-func readWorkspaceFiles(workspace string) (map[string]string, error) {
+func readWorkspaceFiles(workspace Workspace) (map[string]string, error) {
+	w, ok := workspace.(*dockerBindWorkspace)
+	if !ok {
+		return nil, errors.Errorf("unknown workspace of type %T: %+v", workspace, workspace)
+	}
+
 	files := map[string]string{}
 
-	err := filepath.Walk(workspace, func(path string, info os.FileInfo, err error) error {
+	err := filepath.Walk(w.dir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
@@ -345,7 +351,7 @@ func readWorkspaceFiles(workspace string) (map[string]string, error) {
 			return err
 		}
 
-		rel, err := filepath.Rel(workspace, path)
+		rel, err := filepath.Rel(w.dir, path)
 		if err != nil {
 			return err
 		}

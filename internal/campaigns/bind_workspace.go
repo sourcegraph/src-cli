@@ -6,9 +6,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"net/http"
 	"os"
-	"path"
 	"path/filepath"
 	"strings"
 
@@ -18,20 +16,28 @@ import (
 	"github.com/sourcegraph/src-cli/internal/campaigns/graphql"
 )
 
-type workspaceCreator struct {
+type dockerBindWorkspaceCreator struct {
 	dir    string
 	client api.Client
 
 	deleteZips bool
 }
 
-var _ WorkspaceCreator = &workspaceCreator{}
+var _ WorkspaceCreator = &dockerBindWorkspaceCreator{}
 
-func (wc *workspaceCreator) Create(ctx context.Context, repo *graphql.Repository) (Workspace, error) {
+func (wc *dockerBindWorkspaceCreator) Create(ctx context.Context, repo *graphql.Repository) (Workspace, error) {
 	path := localRepositoryZipArchivePath(wc.dir, repo)
 
 	exists, err := fileExists(path)
 	if err != nil {
+		return nil, err
+	}
+
+	// Unlike the mkdirAll() calls elsewhere in this file, this is only giving
+	// us a temporary place on the filesystem to keep the archive. Since it's
+	// never mounted into the containers being run, we can keep these
+	// directories 0700 without issue.
+	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
 		return nil, err
 	}
 
@@ -57,27 +63,27 @@ func (wc *workspaceCreator) Create(ctx context.Context, repo *graphql.Repository
 		return nil, errors.Wrap(err, "unzipping the ZIP archive")
 	}
 
-	return &bindWorkspace{dir: workspace}, nil
+	return &dockerBindWorkspace{dir: workspace}, nil
 }
 
-type bindWorkspace struct {
+type dockerBindWorkspace struct {
 	dir string
 }
 
-var _ Workspace = &bindWorkspace{}
+var _ Workspace = &dockerBindWorkspace{}
 
-func (w *bindWorkspace) Close(ctx context.Context) error {
+func (w *dockerBindWorkspace) Close(ctx context.Context) error {
 	return os.RemoveAll(w.dir)
 }
 
-func (w *bindWorkspace) DockerRunOpts(ctx context.Context, target string) ([]string, error) {
+func (w *dockerBindWorkspace) DockerRunOpts(ctx context.Context, target string) ([]string, error) {
 	return []string{
 		"--mount",
 		fmt.Sprintf("type=bind,source=%s,target=%s", w.dir, target),
 	}, nil
 }
 
-func (w *bindWorkspace) Prepare(ctx context.Context) error {
+func (w *dockerBindWorkspace) Prepare(ctx context.Context) error {
 	if _, err := runGitCmd(ctx, w.dir, "init"); err != nil {
 		return errors.Wrap(err, "git init failed")
 	}
@@ -93,7 +99,7 @@ func (w *bindWorkspace) Prepare(ctx context.Context) error {
 	return nil
 }
 
-func (w *bindWorkspace) Changes(ctx context.Context) (*StepChanges, error) {
+func (w *dockerBindWorkspace) Changes(ctx context.Context) (*StepChanges, error) {
 	if _, err := runGitCmd(ctx, w.dir, "add", "--all"); err != nil {
 		return nil, errors.Wrap(err, "git add failed")
 	}
@@ -111,7 +117,7 @@ func (w *bindWorkspace) Changes(ctx context.Context) (*StepChanges, error) {
 	return &changes, nil
 }
 
-func (w *bindWorkspace) Diff(ctx context.Context) ([]byte, error) {
+func (w *dockerBindWorkspace) Diff(ctx context.Context) ([]byte, error) {
 	// As of Sourcegraph 3.14 we only support unified diff format.
 	// That means we need to strip away the `a/` and `/b` prefixes with `--no-prefix`.
 	// See: https://github.com/sourcegraph/sourcegraph/blob/82d5e7e1562fef6be5c0b17f18631040fd330835/enterprise/internal/campaigns/service.go#L324-L329
@@ -143,47 +149,6 @@ func unzipToTempDir(ctx context.Context, zipFile, tempDir, tempFilePrefix string
 	}
 
 	return volumeDir, unzip(zipFile, volumeDir)
-}
-
-func fetchRepositoryArchive(ctx context.Context, client api.Client, repo *graphql.Repository, dest string) error {
-	req, err := client.NewHTTPRequest(ctx, "GET", repositoryZipArchivePath(repo), nil)
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Accept", "application/zip")
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("unable to fetch archive (HTTP %d from %s)", resp.StatusCode, req.URL.String())
-	}
-
-	// Unlike the mkdirAll() calls elsewhere in this file, this is only giving
-	// us a temporary place on the filesystem to keep the archive. Since it's
-	// never mounted into the containers being run, we can keep these
-	// directories 0700 without issue.
-	if err := os.MkdirAll(filepath.Dir(dest), 0700); err != nil {
-		return err
-	}
-
-	f, err := os.Create(dest)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-
-	if _, err := io.Copy(f, resp.Body); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func repositoryZipArchivePath(repo *graphql.Repository) string {
-	return path.Join("", repo.Name+"@"+repo.BaseRef(), "-", "raw")
 }
 
 func localRepositoryZipArchivePath(dir string, repo *graphql.Repository) string {
