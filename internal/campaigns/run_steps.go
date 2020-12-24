@@ -453,16 +453,36 @@ type StepChanges struct {
 }
 
 // ModifiedFiles returns the files modified by a step.
-func (r StepResult) ModifiedFiles() []string { return r.Files.Modified }
+func (r StepResult) ModifiedFiles() []string {
+	if r.Files != nil {
+		return r.Files.Modified
+	}
+	return []string{}
+}
 
 // AddedFiles returns the files added by a step.
-func (r StepResult) AddedFiles() []string { return r.Files.Added }
+func (r StepResult) AddedFiles() []string {
+	if r.Files != nil {
+		return r.Files.Added
+	}
+	return []string{}
+}
 
 // DeletedFiles returns the files deleted by a step.
-func (r StepResult) DeletedFiles() []string { return r.Files.Deleted }
+func (r StepResult) DeletedFiles() []string {
+	if r.Files != nil {
+		return r.Files.Deleted
+	}
+	return []string{}
+}
 
 // RenamedFiles returns the new name of files that have been renamed by a step.
-func (r StepResult) RenamedFiles() []string { return r.Files.Renamed }
+func (r StepResult) RenamedFiles() []string {
+	if r.Files != nil {
+		return r.Files.Renamed
+	}
+	return []string{}
+}
 
 func parseGitStatus(out []byte) (StepChanges, error) {
 	result := StepChanges{}
