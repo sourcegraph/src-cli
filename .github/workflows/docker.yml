@@ -1,0 +1,51 @@
+# For more information, refer to the "Dependent Docker images" section of
+# DEVELOPMENT.md.
+name: Publish Docker image dependencies
+
+# We only want to build on releases; this condition is 100% stolen from the
+# goreleaser action.
+on:
+  push:
+    tags:
+      - "*"
+      - "!latest"
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Publish to Docker Hub
+        uses: elgohr/Publish-Docker-Github-Action@master
+        with:
+          # This needs to match the dockerWorkspaceImage constant in
+          # docker_workspace.go.
+          name: sourcegraph/src-campaign-volume-workspace
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+          default_branch: main
+          dockerfile: ./docker/campaign-volume-workspace/Dockerfile
+          # This gets us idiomatic Docker versioning (ie tags 3, 3.23, and
+          # 3.23.2 for a 3.23.2 release), but at the cost of losing the latest
+          # tag. We'll deal with that momentarily.
+          tag_semver: true
+
+      # We now have to run the publish action again to publish the latest tag,
+      # due to
+      # https://github.com/elgohr/Publish-Docker-Github-Action/issues/70: in
+      # short, tag_semver and tags are mutually exclusive. In practice, this
+      # image is small enough and quick enough to build that I'm not terribly
+      # concerned, and none of the more complicated Docker actions feel worth
+      # pulling in here.
+      - name: Publish to Docker Hub
+        uses: elgohr/Publish-Docker-Github-Action@master
+        with:
+          # This needs to match the dockerWorkspaceImage constant in
+          # docker_workspace.go.
+          name: sourcegraph/src-campaign-volume-workspace
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+          default_branch: main
+          dockerfile: ./docker/campaign-volume-workspace/Dockerfile

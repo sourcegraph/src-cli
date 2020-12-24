@@ -150,8 +150,8 @@ exec git diff --cached --no-prefix --binary
 }
 
 // dockerWorkspaceImage is the Docker image we'll run our unzip and git commands
-// in.
-const dockerWorkspaceImage = "sourcegraph/src-campaign-workspace"
+// in. This needs to match the name defined in .github/workflows/docker.yml.
+const dockerWorkspaceImage = "sourcegraph/src-campaign-volume-workspace"
 
 // runScript is a utility function to mount the given shell script into a Docker
 // container started from the dockerWorkspaceImage, then run it and return the
