@@ -34,6 +34,11 @@ type Workspace interface {
 	// options.
 	DockerRunOpts(ctx context.Context, target string) ([]string, error)
 
+	// WorkDir allows workspaces to specify the working directory that should be
+	// used when running Docker. If no specific working directory is needed,
+	// then the function should return nil.
+	WorkDir() *string
+
 	// Close is called once, after all steps have been executed and the diff has
 	// been calculated and stored outside the workspace. Implementations should
 	// delete the workspace when Close is called.

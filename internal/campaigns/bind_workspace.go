@@ -83,6 +83,8 @@ func (w *dockerBindWorkspace) DockerRunOpts(ctx context.Context, target string) 
 	}, nil
 }
 
+func (w *dockerBindWorkspace) WorkDir() *string { return &w.dir }
+
 func (w *dockerBindWorkspace) Prepare(ctx context.Context) error {
 	if _, err := runGitCmd(ctx, w.dir, "init"); err != nil {
 		return errors.Wrap(err, "git init failed")

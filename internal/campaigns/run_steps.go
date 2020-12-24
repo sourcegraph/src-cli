@@ -176,8 +176,9 @@ func runSteps(ctx context.Context, wc WorkspaceCreator, repo *graphql.Repository
 
 		cmd := exec.CommandContext(ctx, "docker", args...)
 		cmd.Args = append(cmd.Args, "--", step.image, containerTemp)
-		// XXX: should be moot now?
-		//cmd.Dir = volumeDir
+		if dir := workspace.WorkDir(); dir != nil {
+			cmd.Dir = *dir
+		}
 
 		var stdoutBuffer, stderrBuffer bytes.Buffer
 		cmd.Stdout = io.MultiWriter(&stdoutBuffer, logger.PrefixWriter("stdout"))

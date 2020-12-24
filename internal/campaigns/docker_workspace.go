@@ -89,6 +89,8 @@ func (w *dockerVolumeWorkspace) DockerRunOpts(ctx context.Context, target string
 	}, nil
 }
 
+func (w *dockerVolumeWorkspace) WorkDir() *string { return nil }
+
 func (w *dockerVolumeWorkspace) Prepare(ctx context.Context) error {
 	script := `#!/bin/sh
 	
