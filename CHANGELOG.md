@@ -13,6 +13,8 @@ All notable changes to `src-cli` are documented in this file.
 
 ### Added
 
+- Campaigns can now be executed using workspaces contained entirely on Docker volumes, rather than bind mounting the host filesystem. This is now the default on macOS, as volume mounts have generally better performance there. `src campaign apply` and `src campaign preview` accept optional `-workspace` flags to override the default. []()
+
 ### Changed
 
 - `src login` now defaults to validating against `SRC_ENDPOINT` if configured.
