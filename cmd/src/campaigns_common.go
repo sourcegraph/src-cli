@@ -100,7 +100,17 @@ func newCampaignsApplyFlags(flagSet *flag.FlagSet, cacheDir, tempDir string) *ca
 		&caf.skipErrors, "skip-errors", false,
 		"If true, errors encountered while executing steps in a repository won't stop the execution of the campaign spec but only cause that repository to be skipped.",
 	)
-	flagSet.StringVar(&caf.workspace, "workspace", "bind", "Workspace mode to use (bind or volume)")
+
+	var defaultWorkspace string
+	if runtime.GOOS == "darwin" {
+		defaultWorkspace = "volume"
+	} else {
+		defaultWorkspace = "bind"
+	}
+	flagSet.StringVar(
+		&caf.workspace, "workspace", defaultWorkspace,
+		`Workspace mode to use ("bind" or "volume")`,
+	)
 
 	flagSet.BoolVar(verbose, "v", false, "print verbose output")
 
