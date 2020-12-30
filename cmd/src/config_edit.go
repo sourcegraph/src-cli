@@ -35,7 +35,6 @@ Examples:
     	$ src config edit -subject=$(src orgs get -f '{{.ID}}' -name=abc-org) -overwrite -value '{"motd":["Hello!"]}'
 
   Change global settings:
-		
     	$ src config edit -subject=$(echo 'query { site { id } }' | src api | jq .data.site.id --raw-output)
 `
 
