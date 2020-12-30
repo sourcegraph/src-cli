@@ -36,7 +36,7 @@ Examples:
 
   Change global settings:
 		
-        $ src config edit -subject=$(echo 'query { site { id } }' | src api | jq .data.site.id --raw-output)
+      $ src config edit -subject=$(echo 'query { site { id } }' | src api | jq .data.site.id --raw-output)
 `
 
 	flagSet := flag.NewFlagSet("edit", flag.ExitOnError)
