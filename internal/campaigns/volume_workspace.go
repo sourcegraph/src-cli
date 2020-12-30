@@ -5,11 +5,12 @@ import (
 	"context"
 	"io/ioutil"
 	"os"
-	"os/exec"
 
 	"github.com/pkg/errors"
+
 	"github.com/sourcegraph/src-cli/internal/api"
 	"github.com/sourcegraph/src-cli/internal/campaigns/graphql"
+	"github.com/sourcegraph/src-cli/internal/exec"
 )
 
 // dockerVolumeWorkspaceCreator creates dockerWorkspace instances.
