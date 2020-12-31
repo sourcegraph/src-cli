@@ -35,7 +35,7 @@ def docker_build(
     args = ["docker", "buildx", "build", "--push"]
 
     for tag in tags:
-        args.extend(["-t", tag])
+        args.extend(["-t", f"{image}:{tag}"])
 
     if platform is not None:
         args.extend(["--platform", platform])
