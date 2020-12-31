@@ -21,7 +21,7 @@ jobs:
         uses: elgohr/Publish-Docker-Github-Action@master
         with:
           # This needs to match the dockerWorkspaceImage constant in
-          # docker_workspace.go.
+          # volume_workspace.go.
           name: sourcegraph/src-campaign-volume-workspace
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
@@ -43,7 +43,7 @@ jobs:
         uses: elgohr/Publish-Docker-Github-Action@master
         with:
           # This needs to match the dockerWorkspaceImage constant in
-          # docker_workspace.go.
+          # volume_workspace.go.
           name: sourcegraph/src-campaign-volume-workspace
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
