@@ -101,8 +101,11 @@ func newCampaignsApplyFlags(flagSet *flag.FlagSet, cacheDir, tempDir string) *ca
 		"If true, errors encountered while executing steps in a repository won't stop the execution of the campaign spec but only cause that repository to be skipped.",
 	)
 
+	// We default to bind workspaces on everything except AMD64 macOS at
+	// present. In the future, we'll likely want to switch the default for ARM64
+	// macOS as well, but this requires access to the hardware for testing.
 	var defaultWorkspace string
-	if runtime.GOOS == "darwin" {
+	if runtime.GOOS == "darwin" && runtime.GOARCH == "amd64" {
 		defaultWorkspace = "volume"
 	} else {
 		defaultWorkspace = "bind"
