@@ -30,3 +30,11 @@ jobs:
         env:
           DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
           DOCKER_USERNAME: sourcegraphci
+
+      - name: Update Docker Hub description
+        uses: peter-evans/dockerhub-description@v2
+        with:
+          username: sourcegraphci
+          password: ${{ secrets.DOCKER_PASSWORD }}
+          repository: sourcegraph/src-campaign-volume-workspace
+          readme-filepath: ./docker/campaign-volume-workspace/README.md
