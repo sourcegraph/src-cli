@@ -5,10 +5,11 @@ name: Publish Docker image dependencies
 # We only want to build on releases; this condition is 100% stolen from the
 # goreleaser action.
 on:
-  push:
-    tags:
-      - "*"
-      - "!latest"
+  - push
+  # push:
+  #   tags:
+  #     - "*"
+  #     - "!latest"
 
 jobs:
   publish:
