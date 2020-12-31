@@ -5,10 +5,11 @@ name: Publish Docker image dependencies
 # We only want to build on releases; this condition is 100% stolen from the
 # goreleaser action.
 on:
-  push:
-    tags:
-      - "*"
-      - "!latest"
+  - push
+  # push:
+  #   tags:
+  #     - "*"
+  #     - "!latest"
 
 jobs:
   publish:
@@ -16,6 +17,12 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v2
+
+      - name: Set up Docker buildx
+        uses: docker/setup-buildx-action@v1
+
+      - name: Available platforms
+        run: echo ${{ steps.buildx.outputs.platforms }}
 
       - run: ./docker/campaign-volume-workspace/push.py -d ./docker/campaign-volume-workspace/Dockerfile -i sourcegraph/src-campaign-volume-workspace
         env:
