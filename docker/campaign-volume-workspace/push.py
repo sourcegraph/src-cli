@@ -5,7 +5,7 @@ import itertools
 import os
 import subprocess
 
-from typing import BinaryIO, Sequence
+from typing import BinaryIO, Optional, Sequence
 
 
 def calculate_tags(ref: str) -> Sequence[str]:
@@ -29,16 +29,20 @@ def calculate_tags(ref: str) -> Sequence[str]:
     return tags
 
 
-def docker_build(dockerfile: BinaryIO, image: str, tags: Sequence[str]):
-    run(
-        [
-            "docker",
-            "build",
-            *itertools.chain(*[("-t", f"{image}:{tag}") for tag in tags]),
-            "-",
-        ],
-        stdin=dockerfile,
-    )
+def docker_build(
+    dockerfile: BinaryIO, platform: Optional[str], image: str, tags: Sequence[str]
+):
+    args = ["docker", "buildx", "build", "--push"]
+
+    for tag in tags:
+        args.extend(["-t", tag])
+
+    if platform is not None:
+        args.extend(["--platform", platform])
+
+    args.append("-")
+
+    run(args, stdin=dockerfile)
 
 
 def docker_login(username: str, password: str):
@@ -47,11 +51,6 @@ def docker_login(username: str, password: str):
         input=password,
         text=True,
     )
-
-
-def docker_push(image: str, tags: Sequence[str]):
-    for tag in tags:
-        subprocess.run(["docker", "push", f"{image}:{tag}"])
 
 
 def run(args: Sequence[str], /, **kwargs) -> subprocess.CompletedProcess:
@@ -66,6 +65,11 @@ def main():
     )
     parser.add_argument("-i", "--image", required=True, help="Docker image to push")
     parser.add_argument(
+        "-p",
+        "--platform",
+        help="platforms to build using docker buildx (if omitted, the default will be used)",
+    )
+    parser.add_argument(
         "-r",
         "--ref",
         default=os.environ.get("GITHUB_REF"),
@@ -76,9 +80,6 @@ def main():
     tags = calculate_tags(args.ref)
     print(f"will push tags: {', '.join(tags)}")
 
-    print("building image")
-    docker_build(open(args.dockerfile, "rb"), args.image, tags)
-
     print("logging into Docker Hub")
     try:
         docker_login(os.environ["DOCKER_USERNAME"], os.environ["DOCKER_PASSWORD"])
@@ -86,8 +87,8 @@ def main():
         print(f"error retrieving environment variables: {e}")
         raise
 
-    print("pushing images to Docker Hub")
-    docker_push(args.image, tags)
+    print("building and pushing image")
+    docker_build(open(args.dockerfile, "rb"), args.platform, args.image, tags)
 
     print("success!")
 

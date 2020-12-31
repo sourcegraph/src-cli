@@ -26,10 +26,7 @@ jobs:
         with:
           platforms: arm64
 
-      - name: Available platforms
-        run: docker buildx ls
-
-      - run: ./docker/campaign-volume-workspace/push.py -d ./docker/campaign-volume-workspace/Dockerfile -i sourcegraph/src-campaign-volume-workspace
+      - run: ./docker/campaign-volume-workspace/push.py -d ./docker/campaign-volume-workspace/Dockerfile -i sourcegraph/src-campaign-volume-workspace -p linux/amd64,linux/arm64,linux/386
         env:
           DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
           DOCKER_USERNAME: sourcegraphci
