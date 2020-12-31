@@ -24,7 +24,7 @@ jobs:
           # This needs to match the dockerWorkspaceImage constant in
           # volume_workspace.go.
           name: sourcegraph/src-campaign-volume-workspace
-          username: ${{ secrets.DOCKER_USERNAME }}
+          username: sourcegraphci
           password: ${{ secrets.DOCKER_PASSWORD }}
           default_branch: main
           dockerfile: ./docker/campaign-volume-workspace/Dockerfile
@@ -46,7 +46,7 @@ jobs:
           # This needs to match the dockerWorkspaceImage constant in
           # volume_workspace.go.
           name: sourcegraph/src-campaign-volume-workspace
-          username: ${{ secrets.DOCKER_USERNAME }}
+          username: sourcegraphci
           password: ${{ secrets.DOCKER_PASSWORD }}
           default_branch: main
           dockerfile: ./docker/campaign-volume-workspace/Dockerfile
