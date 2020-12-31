@@ -45,6 +45,7 @@ def docker_login(username: str, password: str):
     run(
         ["docker", "login", f"-u={username}", "--password-stdin"],
         input=password,
+        text=True,
     )
 
 
