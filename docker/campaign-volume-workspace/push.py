@@ -32,7 +32,7 @@ def calculate_tags(ref: str) -> Sequence[str]:
 def docker_build(
     dockerfile: BinaryIO, platform: Optional[str], image: str, tags: Sequence[str]
 ):
-    args = ["docker", "buildx", "build"]
+    args = ["docker", "buildx", "build", "--push"]
 
     for tag in tags:
         args.extend(["-t", tag])
@@ -51,11 +51,6 @@ def docker_login(username: str, password: str):
         input=password,
         text=True,
     )
-
-
-def docker_push(image: str, tags: Sequence[str]):
-    for tag in tags:
-        run(["docker", "push", f"{image}:{tag}"])
 
 
 def run(args: Sequence[str], /, **kwargs) -> subprocess.CompletedProcess:
@@ -85,9 +80,6 @@ def main():
     tags = calculate_tags(args.ref)
     print(f"will push tags: {', '.join(tags)}")
 
-    print("building image")
-    docker_build(open(args.dockerfile, "rb"), args.platform, args.image, tags)
-
     print("logging into Docker Hub")
     try:
         docker_login(os.environ["DOCKER_USERNAME"], os.environ["DOCKER_PASSWORD"])
@@ -95,8 +87,8 @@ def main():
         print(f"error retrieving environment variables: {e}")
         raise
 
-    print("pushing images to Docker Hub")
-    docker_push(args.image, tags)
+    print("building and pushing image")
+    docker_build(open(args.dockerfile, "rb"), args.platform, args.image, tags)
 
     print("success!")
 
