@@ -55,7 +55,7 @@ def docker_login(username: str, password: str):
 
 def docker_push(image: str, tags: Sequence[str]):
     for tag in tags:
-        subprocess.run(["docker", "push", f"{image}:{tag}"])
+        run(["docker", "push", f"{image}:{tag}"])
 
 
 def run(args: Sequence[str], /, **kwargs) -> subprocess.CompletedProcess:
