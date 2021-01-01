@@ -25,6 +25,10 @@ func (wc *dockerVolumeWorkspaceCreator) Create(ctx context.Context, repo *graphq
 	return w, w.init(ctx, wc.client, repo)
 }
 
+func (*dockerVolumeWorkspaceCreator) DockerImages() []string {
+	return []string{dockerWorkspaceImage}
+}
+
 // dockerVolumeWorkspace workspaces are placed on Docker volumes (surprise!),
 // and are therefore transparent to the host filesystem. This has performance
 // advantages if bind mounts are slow, such as on Docker for Mac, but could make

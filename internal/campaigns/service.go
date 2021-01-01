@@ -209,20 +209,61 @@ func (svc *Service) NewWorkspaceCreator(dir string, cleanArchives bool) Workspac
 	return &dockerBindWorkspaceCreator{dir: dir, client: svc.client, deleteZips: cleanArchives}
 }
 
-func (svc *Service) SetDockerImages(ctx context.Context, spec *CampaignSpec, progress func(i int)) error {
-	for i, step := range spec.Steps {
-		image, err := getDockerImageContentDigest(ctx, step.Container)
-		if err != nil {
-			return err
+// dockerImageSet represents a set of Docker images that need to be pulled. The
+// keys are the Docker image names; the values are a slice of pointers to
+// strings that should be set to the content digest of the image.
+type dockerImageSet map[string][]*string
+
+func (dis dockerImageSet) add(image string, digestPtr *string) {
+	if digestPtr == nil {
+		// Since we don't have a digest pointer here, we just need to ensure
+		// that the image exists at all in the map.
+		if _, ok := dis[image]; !ok {
+			dis[image] = []*string{}
 		}
-		spec.Steps[i].image = image
-		progress(i + 1)
+	} else {
+		// Either append the digest pointer to an existing map entry, or add a
+		// new entry if required.
+		if digests, ok := dis[image]; ok {
+			dis[image] = append(digests, digestPtr)
+		} else {
+			dis[image] = []*string{digestPtr}
+		}
+	}
+}
+
+// SetDockerImages updates the steps within the campaign spec to include the
+// exact content digest to be used when running each step, and ensures that all
+// Docker images are available, including any required by the workspace creator.
+//
+// Progress information is reported back to the given progress function: perc
+// will be a value between 0.0 and 1.0, inclusive.
+func (svc *Service) SetDockerImages(ctx context.Context, creator WorkspaceCreator, spec *CampaignSpec, progress func(perc float64)) error {
+	images := dockerImageSet{}
+	for i, step := range spec.Steps {
+		images.add(step.Container, &spec.Steps[i].image)
 	}
 
-	if _, err := getDockerImageContentDigest(ctx, dockerWorkspaceImage); err != nil {
-		return errors.Wrap(err, "downloading base image")
+	// The workspace creator may have its own dependencies.
+	for _, image := range creator.DockerImages() {
+		images.add(image, nil)
 	}
-	progress(len(spec.Steps) + 1)
+
+	progress(0)
+	i := 0
+	for image, digests := range images {
+		digest, err := getDockerImageContentDigest(ctx, image)
+		if err != nil {
+			return errors.Wrapf(err, "getting content digest for image %q", image)
+		}
+		for _, digestPtr := range digests {
+			*digestPtr = digest
+		}
+
+		progress(float64(i) / float64(len(images)))
+		i++
+	}
+	progress(1)
 
 	return nil
 }

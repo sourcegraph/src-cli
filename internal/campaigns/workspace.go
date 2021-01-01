@@ -19,6 +19,10 @@ type WorkspaceCreator interface {
 	// Create should clone the given repository, and perform whatever other
 	// initial setup is required.
 	Create(context.Context, *graphql.Repository) (Workspace, error)
+
+	// DockerImages returns any Docker images required to use workspaces created
+	// by this creator.
+	DockerImages() []string
 }
 
 // Workspace implementations manage per-changeset storage when executing

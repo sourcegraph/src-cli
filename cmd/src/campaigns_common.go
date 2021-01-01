@@ -226,10 +226,10 @@ func campaignsExecute(ctx context.Context, out *output.Output, svc *campaigns.Se
 
 	imageProgress := out.Progress([]output.ProgressBar{{
 		Label: "Preparing container images",
-		Max:   float64(len(campaignSpec.Steps) + 1),
+		Max:   1.0,
 	}}, nil)
-	err = svc.SetDockerImages(ctx, campaignSpec, func(step int) {
-		imageProgress.SetValue(0, float64(step))
+	err = svc.SetDockerImages(ctx, opts.Creator, campaignSpec, func(perc float64) {
+		imageProgress.SetValue(0, perc)
 	})
 	if err != nil {
 		return "", "", err

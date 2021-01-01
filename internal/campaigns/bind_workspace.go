@@ -66,6 +66,8 @@ func (wc *dockerBindWorkspaceCreator) Create(ctx context.Context, repo *graphql.
 	return &dockerBindWorkspace{dir: workspace}, nil
 }
 
+func (*dockerBindWorkspaceCreator) DockerImages() []string { return []string{} }
+
 type dockerBindWorkspace struct {
 	dir string
 }
