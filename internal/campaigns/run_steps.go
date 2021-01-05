@@ -211,7 +211,7 @@ func runSteps(ctx context.Context, wc WorkspaceCreator, repo *graphql.Repository
 			return nil, errors.Wrap(err, "getting changed files in step")
 		}
 
-		results[i] = StepResult{Files: changes, Stdout: &stdoutBuffer, Stderr: &stderrBuffer}
+		results[i] = StepResult{files: changes, Stdout: &stdoutBuffer, Stderr: &stderrBuffer}
 	}
 
 	reportProgress("Calculating diff")
@@ -435,8 +435,8 @@ func (stepCtx *StepContext) ToFuncMap() template.FuncMap {
 
 // StepResult represents the result of a previously executed step.
 type StepResult struct {
-	// Files are the changes made to files by the step.
-	Files *StepChanges
+	// files are the changes made to files by the step.
+	files *StepChanges
 
 	// Stdout is the output produced by the step on standard out.
 	Stdout *bytes.Buffer
@@ -454,32 +454,32 @@ type StepChanges struct {
 
 // ModifiedFiles returns the files modified by a step.
 func (r StepResult) ModifiedFiles() []string {
-	if r.Files != nil {
-		return r.Files.Modified
+	if r.files != nil {
+		return r.files.Modified
 	}
 	return []string{}
 }
 
 // AddedFiles returns the files added by a step.
 func (r StepResult) AddedFiles() []string {
-	if r.Files != nil {
-		return r.Files.Added
+	if r.files != nil {
+		return r.files.Added
 	}
 	return []string{}
 }
 
 // DeletedFiles returns the files deleted by a step.
 func (r StepResult) DeletedFiles() []string {
-	if r.Files != nil {
-		return r.Files.Deleted
+	if r.files != nil {
+		return r.files.Deleted
 	}
 	return []string{}
 }
 
 // RenamedFiles returns the new name of files that have been renamed by a step.
 func (r StepResult) RenamedFiles() []string {
-	if r.Files != nil {
-		return r.Files.Renamed
+	if r.files != nil {
+		return r.files.Renamed
 	}
 	return []string{}
 }
