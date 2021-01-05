@@ -17,7 +17,7 @@ import (
 	"github.com/sourcegraph/src-cli/internal/campaigns/graphql"
 )
 
-func TestWorkspaceCreator_Create(t *testing.T) {
+func TestDockerBindWorkspaceCreator_Create(t *testing.T) {
 	workspaceTmpDir := func(t *testing.T) string {
 		testTempDir, err := ioutil.TempDir("", "executor-integration-test-*")
 		if err != nil {
