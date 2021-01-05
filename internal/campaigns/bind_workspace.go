@@ -33,15 +33,15 @@ func (wc *dockerBindWorkspaceCreator) Create(ctx context.Context, repo *graphql.
 		return nil, err
 	}
 
-	// Unlike the mkdirAll() calls elsewhere in this file, this is only giving
-	// us a temporary place on the filesystem to keep the archive. Since it's
-	// never mounted into the containers being run, we can keep these
-	// directories 0700 without issue.
-	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
-		return nil, err
-	}
-
 	if !exists {
+		// Unlike the mkdirAll() calls elsewhere in this file, this is only
+		// giving us a temporary place on the filesystem to keep the archive.
+		// Since it's never mounted into the containers being run, we can keep
+		// these directories 0700 without issue.
+		if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+			return nil, err
+		}
+
 		err = fetchRepositoryArchive(ctx, wc.client, repo, path)
 		if err != nil {
 			// If the context got cancelled, or we ran out of disk space, or
