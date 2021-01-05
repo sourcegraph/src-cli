@@ -21,12 +21,7 @@ func ParrotClient(t *testing.T, resp []byte) (api.Client, error) {
 		return nil, errors.Wrap(err, "listening on random port")
 	}
 
-	srv := &http.Server{
-		Handler: &mockHandler{
-			data: resp,
-			t:    t,
-		},
-	}
+	srv := &http.Server{Handler: mockHandler(t, resp)}
 	go srv.Serve(l)
 
 	var buf bytes.Buffer
@@ -41,21 +36,11 @@ func ParrotClient(t *testing.T, resp []byte) (api.Client, error) {
 	}), nil
 }
 
-// mockHandler implements a HTTP handler that always returns the given data as its response, and always succeeds.
-type mockHandler struct {
-	data []byte
-	t    interface {
-		Logf(format string, args ...interface{})
-	}
-}
-
-var _ http.Handler = &mockHandler{}
-
-func (ms *mockHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if ms.t != nil {
-		ms.t.Logf("handling request: %+v", r)
-	}
-
-	w.WriteHeader(200)
-	w.Write(ms.data)
+// mockHandler returns a HTTP handler that always returns the given data as its response, and always succeeds.
+func mockHandler(t *testing.T, data []byte) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Logf("handling request: %+v", r)
+		w.WriteHeader(200)
+		w.Write(data)
+	})
 }
