@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/pkg/errors"
 	"github.com/sourcegraph/src-cli/internal/api"
 	"github.com/sourcegraph/src-cli/internal/campaigns/graphql"
 )
@@ -331,14 +330,9 @@ func isDir(t *testing.T, path string) bool {
 }
 
 func readWorkspaceFiles(workspace Workspace) (map[string]string, error) {
-	w, ok := workspace.(*dockerBindWorkspace)
-	if !ok {
-		return nil, errors.Errorf("unknown workspace of type %T: %+v", workspace, workspace)
-	}
-
 	files := map[string]string{}
-
-	err := filepath.Walk(w.dir, func(path string, info os.FileInfo, err error) error {
+	wdir := workspace.WorkDir()
+	err := filepath.Walk(*wdir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
@@ -351,7 +345,7 @@ func readWorkspaceFiles(workspace Workspace) (map[string]string, error) {
 			return err
 		}
 
-		rel, err := filepath.Rel(w.dir, path)
+		rel, err := filepath.Rel(*wdir, path)
 		if err != nil {
 			return err
 		}
