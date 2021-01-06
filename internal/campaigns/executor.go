@@ -388,12 +388,14 @@ func (e *errTimeoutReached) Error() string {
 }
 
 func reachedTimeout(cmdCtx context.Context, err error) bool {
+	fmt.Printf("err: %+v\nerrors.Cause: %T\nerrors.Cause: %+v\ncmdCtx.Err: %+v", err, errors.Cause(err), errors.Cause(err), cmdCtx.Err())
 	if ee, ok := errors.Cause(err).(*exec.ExitError); ok {
 		if ee.String() == "signal: killed" && cmdCtx.Err() == context.DeadlineExceeded {
 			return true
 		}
 	}
 
+	fmt.Printf("errors.Is: %v", errors.Is(err, context.DeadlineExceeded))
 	return errors.Is(err, context.DeadlineExceeded)
 }
 
