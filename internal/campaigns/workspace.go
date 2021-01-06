@@ -28,11 +28,6 @@ type WorkspaceCreator interface {
 // Workspace implementations manage per-changeset storage when executing
 // campaign step.
 type Workspace interface {
-	// Prepare is called once, immediately before the first step is executed.
-	// Generally, this would perform whatever Git or other VCS setup is required
-	// to establish a base upon which to calculate changes later.
-	Prepare(ctx context.Context) error
-
 	// DockerRunOpts provides the options that should be given to `docker run`
 	// in order to use this workspace. Generally, this will be a set of mount
 	// options.

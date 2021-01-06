@@ -18,18 +18,12 @@ import (
 )
 
 func runSteps(ctx context.Context, wc WorkspaceCreator, repo *graphql.Repository, steps []Step, logger *TaskLogger, tempDir string, reportProgress func(string)) ([]byte, error) {
-	reportProgress("Downloading archive")
-
+	reportProgress("Downloading archive and initializing workspace")
 	workspace, err := wc.Create(ctx, repo)
 	if err != nil {
 		return nil, errors.Wrap(err, "creating workspace")
 	}
 	defer workspace.Close(ctx)
-
-	reportProgress("Initializing workspace")
-	if err := workspace.Prepare(ctx); err != nil {
-		return nil, errors.Wrap(err, "initializing workspace")
-	}
 
 	results := make([]StepResult, len(steps))
 

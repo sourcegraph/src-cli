@@ -22,11 +22,94 @@ var _ WorkspaceCreator = &dockerVolumeWorkspaceCreator{}
 
 func (wc *dockerVolumeWorkspaceCreator) Create(ctx context.Context, repo *graphql.Repository) (Workspace, error) {
 	w := &dockerVolumeWorkspace{}
-	return w, w.init(ctx, wc.client, repo)
+
+	zip, err := wc.downloadRepoZip(ctx, repo)
+	if err != nil {
+		return nil, errors.Wrap(err, "downloading repo zip file")
+	}
+	defer os.Remove(zip)
+
+	w.volume, err = wc.createVolume(ctx)
+	if err != nil {
+		return nil, errors.Wrap(err, "creating Docker volume")
+	}
+
+	if err := wc.unzipRepoIntoVolume(ctx, w, zip); err != nil {
+		return nil, errors.Wrap(err, "unzipping repo into workspace")
+	}
+
+	return w, errors.Wrap(wc.prepareGitRepo(ctx, w), "preparing local git repo")
 }
 
 func (*dockerVolumeWorkspaceCreator) DockerImages() []string {
 	return []string{dockerWorkspaceImage}
+}
+
+func (*dockerVolumeWorkspaceCreator) createVolume(ctx context.Context) (string, error) {
+	out, err := exec.CommandContext(ctx, "docker", "volume", "create").CombinedOutput()
+	if err != nil {
+		return "", err
+	}
+
+	return string(bytes.TrimSpace(out)), nil
+}
+
+func (wc *dockerVolumeWorkspaceCreator) downloadRepoZip(ctx context.Context, repo *graphql.Repository) (string, error) {
+	f, err := ioutil.TempFile(os.TempDir(), "src-archive-*.zip")
+	if err != nil {
+		return "", errors.Wrap(err, "creating temporary archive")
+	}
+	hostZip := f.Name()
+	f.Close()
+
+	if err := fetchRepositoryArchive(ctx, wc.client, repo, hostZip); err != nil {
+		os.Remove(hostZip)
+		return "", errors.Wrap(err, "fetching repository archive")
+	}
+
+	return hostZip, nil
+}
+
+func (*dockerVolumeWorkspaceCreator) prepareGitRepo(ctx context.Context, w *dockerVolumeWorkspace) error {
+	script := `#!/bin/sh
+	
+set -e
+set -x
+
+git init
+# --force because we want previously "gitignored" files in the repository
+git add --force --all
+git commit --quiet --all --allow-empty -m src-action-exec
+`
+
+	if _, err := w.runScript(ctx, "/work", script); err != nil {
+		return errors.Wrap(err, "preparing workspace")
+	}
+	return nil
+}
+
+func (*dockerVolumeWorkspaceCreator) unzipRepoIntoVolume(ctx context.Context, w *dockerVolumeWorkspace, zip string) error {
+	// We want to mount that temporary file into a Docker container that has the
+	// workspace volume attached, and unzip it into the volume.
+	common, err := w.DockerRunOpts(ctx, "/work")
+	if err != nil {
+		return errors.Wrap(err, "generating run options")
+	}
+
+	opts := append([]string{
+		"run",
+		"--rm",
+		"--init",
+		"--workdir", "/work",
+		"--mount", "type=bind,source=" + zip + ",target=/tmp/zip,ro",
+	}, common...)
+	opts = append(opts, dockerWorkspaceImage, "unzip", "/tmp/zip")
+
+	if out, err := exec.CommandContext(ctx, "docker", opts...).CombinedOutput(); err != nil {
+		return errors.Wrapf(err, "unzip output:\n\n%s\n\n", string(out))
+	}
+
+	return nil
 }
 
 // dockerVolumeWorkspace workspaces are placed on Docker volumes (surprise!),
@@ -38,50 +121,6 @@ type dockerVolumeWorkspace struct {
 }
 
 var _ Workspace = &dockerVolumeWorkspace{}
-
-func (w *dockerVolumeWorkspace) init(ctx context.Context, client api.Client, repo *graphql.Repository) error {
-	// Download the ZIP archive to a temporary file.
-	f, err := ioutil.TempFile(os.TempDir(), "src-archive-*.zip")
-	if err != nil {
-		return errors.Wrap(err, "creating temporary archive")
-	}
-	hostZip := f.Name()
-	defer os.Remove(hostZip)
-
-	if err := fetchRepositoryArchive(ctx, client, repo, hostZip); err != nil {
-		return errors.Wrap(err, "fetching repository archive")
-	}
-
-	// Create a Docker volume.
-	out, err := exec.CommandContext(ctx, "docker", "volume", "create").CombinedOutput()
-	if err != nil {
-		return errors.Wrap(err, "creating Docker volume")
-	}
-	w.volume = string(bytes.TrimSpace(out))
-
-	// Now mount that temporary file into a Docker container, and unzip it into
-	// the volume.
-	common, err := w.DockerRunOpts(ctx, "/work")
-	if err != nil {
-		return errors.Wrap(err, "generating run options")
-	}
-
-	opts := append([]string{
-		"run",
-		"--rm",
-		"--init",
-		"--workdir", "/work",
-		"--mount", "type=bind,source=" + hostZip + ",target=/tmp/zip,ro",
-	}, common...)
-	opts = append(opts, dockerWorkspaceImage, "unzip", "/tmp/zip")
-
-	out, err = exec.CommandContext(ctx, "docker", opts...).CombinedOutput()
-	if err != nil {
-		return errors.Wrapf(err, "unzip output:\n\n%s\n\n", string(out))
-	}
-
-	return nil
-}
 
 func (w *dockerVolumeWorkspace) Close(ctx context.Context) error {
 	// Cleanup here is easy: we just get rid of the Docker volume.
@@ -95,24 +134,6 @@ func (w *dockerVolumeWorkspace) DockerRunOpts(ctx context.Context, target string
 }
 
 func (w *dockerVolumeWorkspace) WorkDir() *string { return nil }
-
-func (w *dockerVolumeWorkspace) Prepare(ctx context.Context) error {
-	script := `#!/bin/sh
-	
-set -e
-set -x
-
-git init
-# --force because we want previously "gitignored" files in the repository
-git add --force --all
-git commit --quiet --all -m src-action-exec
-`
-
-	if _, err := w.runScript(ctx, "/work", script); err != nil {
-		return errors.Wrap(err, "preparing workspace")
-	}
-	return nil
-}
 
 func (w *dockerVolumeWorkspace) Changes(ctx context.Context) (*StepChanges, error) {
 	script := `#!/bin/sh

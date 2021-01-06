@@ -26,11 +26,30 @@ type dockerBindWorkspaceCreator struct {
 var _ WorkspaceCreator = &dockerBindWorkspaceCreator{}
 
 func (wc *dockerBindWorkspaceCreator) Create(ctx context.Context, repo *graphql.Repository) (Workspace, error) {
+	path, err := wc.downloadRepoZip(ctx, repo)
+	if err != nil {
+		return nil, errors.Wrap(err, "downloading repo zip file")
+	}
+	if wc.deleteZips {
+		defer os.Remove(path)
+	}
+
+	w, err := wc.unzipToWorkspace(ctx, repo, path)
+	if err != nil {
+		return nil, errors.Wrap(err, "unzipping the repository")
+	}
+
+	return w, errors.Wrap(wc.prepareGitRepo(ctx, w), "preparing local git repo")
+}
+
+func (*dockerBindWorkspaceCreator) DockerImages() []string { return []string{} }
+
+func (wc *dockerBindWorkspaceCreator) downloadRepoZip(ctx context.Context, repo *graphql.Repository) (string, error) {
 	path := localRepositoryZipArchivePath(wc.dir, repo)
 
 	exists, err := fileExists(path)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 
 	if !exists {
@@ -39,34 +58,48 @@ func (wc *dockerBindWorkspaceCreator) Create(ctx context.Context, repo *graphql.
 		// Since it's never mounted into the containers being run, we can keep
 		// these directories 0700 without issue.
 		if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
-			return nil, err
+			return "", err
 		}
 
 		err = fetchRepositoryArchive(ctx, wc.client, repo, path)
 		if err != nil {
-			// If the context got cancelled, or we ran out of disk space, or
-			// ... while we were downloading the file, we remove the partially
+			// If the context got cancelled, or we ran out of disk space, or ...
+			// while we were downloading the file, we remove the partially
 			// downloaded file.
 			os.Remove(path)
 
-			return nil, errors.Wrap(err, "fetching ZIP archive")
+			return "", errors.Wrap(err, "fetching ZIP archive")
 		}
 	}
 
-	if wc.deleteZips {
-		defer os.Remove(path)
+	return path, nil
+}
+
+func (*dockerBindWorkspaceCreator) prepareGitRepo(ctx context.Context, w *dockerBindWorkspace) error {
+	if _, err := runGitCmd(ctx, w.dir, "init"); err != nil {
+		return errors.Wrap(err, "git init failed")
 	}
 
+	// --force because we want previously "gitignored" files in the repository
+	if _, err := runGitCmd(ctx, w.dir, "add", "--force", "--all"); err != nil {
+		return errors.Wrap(err, "git add failed")
+	}
+	if _, err := runGitCmd(ctx, w.dir, "commit", "--quiet", "--all", "--allow-empty", "-m", "src-action-exec"); err != nil {
+		return errors.Wrap(err, "git commit failed")
+	}
+
+	return nil
+}
+
+func (wc *dockerBindWorkspaceCreator) unzipToWorkspace(ctx context.Context, repo *graphql.Repository, zip string) (*dockerBindWorkspace, error) {
 	prefix := "workspace-" + repo.Slug()
-	workspace, err := unzipToTempDir(ctx, path, wc.dir, prefix)
+	workspace, err := unzipToTempDir(ctx, zip, wc.dir, prefix)
 	if err != nil {
 		return nil, errors.Wrap(err, "unzipping the ZIP archive")
 	}
 
 	return &dockerBindWorkspace{dir: workspace}, nil
 }
-
-func (*dockerBindWorkspaceCreator) DockerImages() []string { return []string{} }
 
 type dockerBindWorkspace struct {
 	dir string
@@ -86,22 +119,6 @@ func (w *dockerBindWorkspace) DockerRunOpts(ctx context.Context, target string) 
 }
 
 func (w *dockerBindWorkspace) WorkDir() *string { return &w.dir }
-
-func (w *dockerBindWorkspace) Prepare(ctx context.Context) error {
-	if _, err := runGitCmd(ctx, w.dir, "init"); err != nil {
-		return errors.Wrap(err, "git init failed")
-	}
-
-	// --force because we want previously "gitignored" files in the repository
-	if _, err := runGitCmd(ctx, w.dir, "add", "--force", "--all"); err != nil {
-		return errors.Wrap(err, "git add failed")
-	}
-	if _, err := runGitCmd(ctx, w.dir, "commit", "--quiet", "--all", "-m", "src-action-exec"); err != nil {
-		return errors.Wrap(err, "git commit failed")
-	}
-
-	return nil
-}
 
 func (w *dockerBindWorkspace) Changes(ctx context.Context) (*StepChanges, error) {
 	if _, err := runGitCmd(ctx, w.dir, "add", "--all"); err != nil {

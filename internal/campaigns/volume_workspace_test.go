@@ -50,6 +50,14 @@ func TestVolumeWorkspaceCreator(t *testing.T) {
 				dockerWorkspaceImage,
 				"unzip", "/tmp/zip",
 			),
+			expect.NewGlob(
+				expect.Behaviour{},
+				"docker", "run", "--rm", "--init", "--workdir", "/work",
+				"--mount", "type=bind,source=*,target=/run.sh,ro",
+				"--mount", "type=volume,source="+volumeID+",target=/work",
+				dockerWorkspaceImage,
+				"sh", "/run.sh",
+			),
 		)
 
 		if w, err := wc.Create(ctx, repo); err != nil {
@@ -87,6 +95,36 @@ func TestVolumeWorkspaceCreator(t *testing.T) {
 				"--mount", "type=volume,source="+volumeID+",target=/work",
 				dockerWorkspaceImage,
 				"unzip", "/tmp/zip",
+			),
+		)
+
+		if _, err := wc.Create(ctx, repo); err == nil {
+			t.Error("unexpected nil error")
+		}
+	})
+
+	t.Run("git init failure", func(t *testing.T) {
+		expect.Commands(
+			t,
+			expect.NewGlob(
+				expect.Behaviour{Stdout: []byte(volumeID)},
+				"docker", "volume", "create",
+			),
+			expect.NewGlob(
+				expect.Behaviour{},
+				"docker", "run", "--rm", "--init", "--workdir", "/work",
+				"--mount", "type=bind,source=*,target=/tmp/zip,ro",
+				"--mount", "type=volume,source="+volumeID+",target=/work",
+				dockerWorkspaceImage,
+				"unzip", "/tmp/zip",
+			),
+			expect.NewGlob(
+				expect.Behaviour{ExitCode: 1},
+				"docker", "run", "--rm", "--init", "--workdir", "/work",
+				"--mount", "type=bind,source=*,target=/run.sh,ro",
+				"--mount", "type=volume,source="+volumeID+",target=/work",
+				dockerWorkspaceImage,
+				"sh", "/run.sh",
 			),
 		)
 
@@ -155,47 +193,6 @@ func TestVolumeWorkspace_WorkDir(t *testing.T) {
 // to test the content of the script file: we'll do that as a one off test at
 // the bottom of runScript itself, rather than depending on script content that
 // may drift over time.
-
-func TestVolumeWorkspace_Prepare(t *testing.T) {
-	ctx := context.Background()
-	w := &dockerVolumeWorkspace{volume: volumeID}
-
-	t.Run("success", func(t *testing.T) {
-		expect.Commands(
-			t,
-			expect.NewGlob(
-				expect.Behaviour{},
-				"docker", "run", "--rm", "--init", "--workdir", "/work",
-				"--mount", "type=bind,source=*,target=/run.sh,ro",
-				"--mount", "type=volume,source="+volumeID+",target=/work",
-				dockerWorkspaceImage,
-				"sh", "/run.sh",
-			),
-		)
-
-		if err := w.Prepare(ctx); err != nil {
-			t.Errorf("unexpected error: %v", err)
-		}
-	})
-
-	t.Run("failure", func(t *testing.T) {
-		expect.Commands(
-			t,
-			expect.NewGlob(
-				expect.Behaviour{ExitCode: 1},
-				"docker", "run", "--rm", "--init", "--workdir", "/work",
-				"--mount", "type=bind,source=*,target=/run.sh,ro",
-				"--mount", "type=volume,source="+volumeID+",target=/work",
-				dockerWorkspaceImage,
-				"sh", "/run.sh",
-			),
-		)
-
-		if err := w.Prepare(ctx); err == nil {
-			t.Error("unexpected nil error")
-		}
-	})
-}
 
 func TestVolumeWorkspace_Changes(t *testing.T) {
 	ctx := context.Background()

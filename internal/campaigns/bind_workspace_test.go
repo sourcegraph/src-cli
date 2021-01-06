@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -348,6 +349,10 @@ func readWorkspaceFiles(workspace Workspace) (map[string]string, error) {
 		rel, err := filepath.Rel(*wdir, path)
 		if err != nil {
 			return err
+		}
+
+		if strings.HasPrefix(rel, ".git") {
+			return nil
 		}
 
 		files[rel] = string(content)
