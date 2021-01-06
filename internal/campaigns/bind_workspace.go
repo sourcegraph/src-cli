@@ -12,29 +12,17 @@ import (
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
-	"github.com/sourcegraph/src-cli/internal/api"
 	"github.com/sourcegraph/src-cli/internal/campaigns/graphql"
 )
 
 type dockerBindWorkspaceCreator struct {
-	dir    string
-	client api.Client
-
-	deleteZips bool
+	dir string
 }
 
 var _ WorkspaceCreator = &dockerBindWorkspaceCreator{}
 
-func (wc *dockerBindWorkspaceCreator) Create(ctx context.Context, repo *graphql.Repository) (Workspace, error) {
-	path, err := wc.downloadRepoZip(ctx, repo)
-	if err != nil {
-		return nil, errors.Wrap(err, "downloading repo zip file")
-	}
-	if wc.deleteZips {
-		defer os.Remove(path)
-	}
-
-	w, err := wc.unzipToWorkspace(ctx, repo, path)
+func (wc *dockerBindWorkspaceCreator) Create(ctx context.Context, repo *graphql.Repository, zip string) (Workspace, error) {
+	w, err := wc.unzipToWorkspace(ctx, repo, zip)
 	if err != nil {
 		return nil, errors.Wrap(err, "unzipping the repository")
 	}
@@ -43,37 +31,6 @@ func (wc *dockerBindWorkspaceCreator) Create(ctx context.Context, repo *graphql.
 }
 
 func (*dockerBindWorkspaceCreator) DockerImages() []string { return []string{} }
-
-func (wc *dockerBindWorkspaceCreator) downloadRepoZip(ctx context.Context, repo *graphql.Repository) (string, error) {
-	path := localRepositoryZipArchivePath(wc.dir, repo)
-
-	exists, err := fileExists(path)
-	if err != nil {
-		return "", err
-	}
-
-	if !exists {
-		// Unlike the mkdirAll() calls elsewhere in this file, this is only
-		// giving us a temporary place on the filesystem to keep the archive.
-		// Since it's never mounted into the containers being run, we can keep
-		// these directories 0700 without issue.
-		if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
-			return "", err
-		}
-
-		err = fetchRepositoryArchive(ctx, wc.client, repo, path)
-		if err != nil {
-			// If the context got cancelled, or we ran out of disk space, or ...
-			// while we were downloading the file, we remove the partially
-			// downloaded file.
-			os.Remove(path)
-
-			return "", errors.Wrap(err, "fetching ZIP archive")
-		}
-	}
-
-	return path, nil
-}
 
 func (*dockerBindWorkspaceCreator) prepareGitRepo(ctx context.Context, w *dockerBindWorkspace) error {
 	if _, err := runGitCmd(ctx, w.dir, "init"); err != nil {

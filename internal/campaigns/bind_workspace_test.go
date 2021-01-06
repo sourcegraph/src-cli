@@ -1,19 +1,15 @@
 package campaigns
 
 import (
-	"bytes"
+	"archive/zip"
 	"context"
 	"io/ioutil"
-	"net/http"
-	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/sourcegraph/src-cli/internal/api"
 	"github.com/sourcegraph/src-cli/internal/campaigns/graphql"
 )
 
@@ -41,33 +37,34 @@ func TestDockerBindWorkspaceCreator_Create(t *testing.T) {
 		},
 	}
 
-	t.Run("success", func(t *testing.T) {
-		requestsReceived := 0
-		callback := func(_ http.ResponseWriter, _ *http.Request) {
-			requestsReceived += 1
-		}
+	// Create a zip file for all the other tests to use.
+	f, err := ioutil.TempFile(workspaceTmpDir(t), "repo-zip-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	archivePath := f.Name()
+	t.Cleanup(func() { os.Remove(archivePath) })
 
-		ts := httptest.NewServer(newZipArchivesMux(t, callback, archive))
-		defer ts.Close()
-
-		var clientBuffer bytes.Buffer
-		client := api.NewClient(api.ClientOpts{Endpoint: ts.URL, Out: &clientBuffer})
-
-		testTempDir := workspaceTmpDir(t)
-
-		creator := &dockerBindWorkspaceCreator{dir: testTempDir, client: client}
-		workspace, err := creator.Create(context.Background(), repo)
-		if err != nil {
-			t.Fatalf("unexpected error: %s", err)
-		}
-
-		wantZipFile := "github.com-sourcegraph-src-cli-d34db33f.zip"
-		ok, err := dirContains(creator.dir, wantZipFile)
+	zw := zip.NewWriter(f)
+	for name, body := range archive.files {
+		f, err := zw.Create(name)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if !ok {
-			t.Fatalf("temp dir doesnt contain zip file")
+		if _, err := f.Write([]byte(body)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	zw.Close()
+	f.Close()
+
+	t.Run("success", func(t *testing.T) {
+		testTempDir := workspaceTmpDir(t)
+
+		creator := &dockerBindWorkspaceCreator{dir: testTempDir}
+		workspace, err := creator.Create(context.Background(), repo, archivePath)
+		if err != nil {
+			t.Fatalf("unexpected error: %s", err)
 		}
 
 		haveUnzippedFiles, err := readWorkspaceFiles(workspace)
@@ -78,121 +75,23 @@ func TestDockerBindWorkspaceCreator_Create(t *testing.T) {
 		if !cmp.Equal(archive.files, haveUnzippedFiles) {
 			t.Fatalf("wrong files in workspace:\n%s", cmp.Diff(archive.files, haveUnzippedFiles))
 		}
-
-		// Create it a second time and make sure that the server wasn't called
-		_, err = creator.Create(context.Background(), repo)
-		if err != nil {
-			t.Fatalf("unexpected error: %s", err)
-		}
-
-		if requestsReceived != 1 {
-			t.Fatalf("wrong number of requests received: %d", requestsReceived)
-		}
-
-		// Third time, but this time with cleanup, _after_ unzipping
-		creator.deleteZips = true
-		_, err = creator.Create(context.Background(), repo)
-		if err != nil {
-			t.Fatalf("unexpected error: %s", err)
-		}
-
-		if requestsReceived != 1 {
-			t.Fatalf("wrong number of requests received: %d", requestsReceived)
-		}
-
-		ok, err = dirContains(creator.dir, wantZipFile)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if ok {
-			t.Fatalf("temp dir contains zip file but should not")
-		}
 	})
 
-	t.Run("canceled", func(t *testing.T) {
-		// We create a context that is canceled after the server sent down the
-		// first file to simulate a slow download that's aborted by the user hitting Ctrl-C.
-
-		firstFileWritten := make(chan struct{})
-		callback := func(w http.ResponseWriter, r *http.Request) {
-			// We flush the headers and the first file
-			w.(http.Flusher).Flush()
-
-			// Wait a bit for the client to start writing the file
-			time.Sleep(50 * time.Millisecond)
-
-			// Cancel the context to simulate the Ctrl-C
-			firstFileWritten <- struct{}{}
-
-			<-r.Context().Done()
-		}
-
-		ctx, cancel := context.WithCancel(context.Background())
-		go func() {
-			<-firstFileWritten
-			cancel()
-		}()
-
-		ts := httptest.NewServer(newZipArchivesMux(t, callback, archive))
-		defer ts.Close()
-
-		var clientBuffer bytes.Buffer
-		client := api.NewClient(api.ClientOpts{Endpoint: ts.URL, Out: &clientBuffer})
-
+	t.Run("failure", func(t *testing.T) {
 		testTempDir := workspaceTmpDir(t)
 
-		creator := &dockerBindWorkspaceCreator{dir: testTempDir, client: client}
-
-		_, err := creator.Create(ctx, repo)
-		if err == nil {
-			t.Fatalf("error is nil")
-		}
-
-		zipFile := "github.com-sourcegraph-src-cli-d34db33f.zip"
-		ok, err := dirContains(creator.dir, zipFile)
+		// Create an empty file (which is therefore a bad zip file).
+		badZip, err := ioutil.TempFile(testTempDir, "bad-zip-*")
 		if err != nil {
 			t.Fatal(err)
 		}
-		if ok {
-			t.Fatalf("zip file in temp dir was not cleaned up")
-		}
-	})
+		badZipFile := badZip.Name()
+		t.Cleanup(func() { os.Remove(badZipFile) })
+		badZip.Close()
 
-	t.Run("non-default branch", func(t *testing.T) {
-		otherBranchOID := "f00b4r"
-		repo := &graphql.Repository{
-			ID:            "src-cli-with-non-main-branch",
-			Name:          "github.com/sourcegraph/src-cli",
-			DefaultBranch: &graphql.Branch{Name: "main", Target: graphql.Target{OID: "d34db33f"}},
-
-			Commit: graphql.Target{OID: otherBranchOID},
-			Branch: graphql.Branch{Name: "other-branch", Target: graphql.Target{OID: otherBranchOID}},
-		}
-
-		archive := mockRepoArchive{repo: repo, files: map[string]string{}}
-
-		ts := httptest.NewServer(newZipArchivesMux(t, nil, archive))
-		defer ts.Close()
-
-		var clientBuffer bytes.Buffer
-		client := api.NewClient(api.ClientOpts{Endpoint: ts.URL, Out: &clientBuffer})
-
-		testTempDir := workspaceTmpDir(t)
-
-		creator := &dockerBindWorkspaceCreator{dir: testTempDir, client: client}
-
-		_, err := creator.Create(context.Background(), repo)
-		if err != nil {
-			t.Fatalf("unexpected error: %s", err)
-		}
-
-		wantZipFile := "github.com-sourcegraph-src-cli-" + otherBranchOID + ".zip"
-		ok, err := dirContains(creator.dir, wantZipFile)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if !ok {
-			t.Fatalf("temp dir doesnt contain zip file")
+		creator := &dockerBindWorkspaceCreator{dir: testTempDir}
+		if _, err := creator.Create(context.Background(), repo, badZipFile); err == nil {
+			t.Error("unexpected nil error")
 		}
 	})
 }

@@ -8,32 +8,22 @@ import (
 
 	"github.com/pkg/errors"
 
-	"github.com/sourcegraph/src-cli/internal/api"
 	"github.com/sourcegraph/src-cli/internal/campaigns/graphql"
 	"github.com/sourcegraph/src-cli/internal/exec"
 )
 
-// dockerVolumeWorkspaceCreator creates dockerWorkspace instances.
-type dockerVolumeWorkspaceCreator struct {
-	client api.Client
-}
+// dockerVolumeWorkspaceCreator creates dockerVolumeWorkspace instances.
+type dockerVolumeWorkspaceCreator struct{}
 
 var _ WorkspaceCreator = &dockerVolumeWorkspaceCreator{}
 
-func (wc *dockerVolumeWorkspaceCreator) Create(ctx context.Context, repo *graphql.Repository) (Workspace, error) {
-	w := &dockerVolumeWorkspace{}
-
-	zip, err := wc.downloadRepoZip(ctx, repo)
-	if err != nil {
-		return nil, errors.Wrap(err, "downloading repo zip file")
-	}
-	defer os.Remove(zip)
-
-	w.volume, err = wc.createVolume(ctx)
+func (wc *dockerVolumeWorkspaceCreator) Create(ctx context.Context, repo *graphql.Repository, zip string) (Workspace, error) {
+	volume, err := wc.createVolume(ctx)
 	if err != nil {
 		return nil, errors.Wrap(err, "creating Docker volume")
 	}
 
+	w := &dockerVolumeWorkspace{volume: volume}
 	if err := wc.unzipRepoIntoVolume(ctx, w, zip); err != nil {
 		return nil, errors.Wrap(err, "unzipping repo into workspace")
 	}
@@ -52,22 +42,6 @@ func (*dockerVolumeWorkspaceCreator) createVolume(ctx context.Context) (string, 
 	}
 
 	return string(bytes.TrimSpace(out)), nil
-}
-
-func (wc *dockerVolumeWorkspaceCreator) downloadRepoZip(ctx context.Context, repo *graphql.Repository) (string, error) {
-	f, err := ioutil.TempFile(os.TempDir(), "src-archive-*.zip")
-	if err != nil {
-		return "", errors.Wrap(err, "creating temporary archive")
-	}
-	hostZip := f.Name()
-	f.Close()
-
-	if err := fetchRepositoryArchive(ctx, wc.client, repo, hostZip); err != nil {
-		os.Remove(hostZip)
-		return "", errors.Wrap(err, "fetching repository archive")
-	}
-
-	return hostZip, nil
 }
 
 func (*dockerVolumeWorkspaceCreator) prepareGitRepo(ctx context.Context, w *dockerVolumeWorkspace) error {

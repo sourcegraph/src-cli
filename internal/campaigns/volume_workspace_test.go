@@ -4,13 +4,13 @@ import (
 	"bytes"
 	"context"
 	"io/ioutil"
+	"os"
 	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/pkg/errors"
 
-	"github.com/sourcegraph/src-cli/internal/api/mock"
 	"github.com/sourcegraph/src-cli/internal/campaigns/graphql"
 	"github.com/sourcegraph/src-cli/internal/exec/expect"
 )
@@ -21,13 +21,17 @@ const volumeID = "VOLUME-ID"
 func TestVolumeWorkspaceCreator(t *testing.T) {
 	ctx := context.Background()
 
-	// It doesn't matter what content we return here, since the actual unzip
-	// command will never be executed anyway.
-	client, err := mock.ParrotClient(t, []byte("MOO"))
+	// Create an empty file. It doesn't matter that it's an invalid zip, since
+	// we're mocking the unzip command anyway.
+	f, err := ioutil.TempFile(os.TempDir(), "volume-workspace-*")
 	if err != nil {
 		t.Fatal(err)
 	}
-	wc := &dockerVolumeWorkspaceCreator{client: client}
+	zip := f.Name()
+	f.Close()
+	defer os.Remove(zip)
+
+	wc := &dockerVolumeWorkspaceCreator{}
 
 	// We'll set up a fake repository with just enough fields defined for init()
 	// and friends.
@@ -60,7 +64,7 @@ func TestVolumeWorkspaceCreator(t *testing.T) {
 			),
 		)
 
-		if w, err := wc.Create(ctx, repo); err != nil {
+		if w, err := wc.Create(ctx, repo, zip); err != nil {
 			t.Errorf("unexpected error: %v", err)
 		} else if have := w.(*dockerVolumeWorkspace).volume; have != volumeID {
 			t.Errorf("unexpected volume: have=%q want=%q", have, volumeID)
@@ -76,7 +80,7 @@ func TestVolumeWorkspaceCreator(t *testing.T) {
 			),
 		)
 
-		if _, err := wc.Create(ctx, repo); err == nil {
+		if _, err := wc.Create(ctx, repo, zip); err == nil {
 			t.Error("unexpected nil error")
 		}
 	})
@@ -98,7 +102,7 @@ func TestVolumeWorkspaceCreator(t *testing.T) {
 			),
 		)
 
-		if _, err := wc.Create(ctx, repo); err == nil {
+		if _, err := wc.Create(ctx, repo, zip); err == nil {
 			t.Error("unexpected nil error")
 		}
 	})
@@ -128,7 +132,7 @@ func TestVolumeWorkspaceCreator(t *testing.T) {
 			),
 		)
 
-		if _, err := wc.Create(ctx, repo); err == nil {
+		if _, err := wc.Create(ctx, repo, zip); err == nil {
 			t.Error("unexpected nil error")
 		}
 	})

@@ -16,9 +16,8 @@ import (
 // per-changeset persistent storage when executing campaign steps and are
 // responsible for ultimately generating a diff.
 type WorkspaceCreator interface {
-	// Create should clone the given repository, and perform whatever other
-	// initial setup is required.
-	Create(context.Context, *graphql.Repository) (Workspace, error)
+	// Create creates a new workspace for the given repository and ZIP file.
+	Create(ctx context.Context, repo *graphql.Repository, zip string) (Workspace, error)
 
 	// DockerImages returns any Docker images required to use workspaces created
 	// by this creator.

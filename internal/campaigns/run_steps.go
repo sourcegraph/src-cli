@@ -17,9 +17,16 @@ import (
 	"github.com/sourcegraph/src-cli/internal/campaigns/graphql"
 )
 
-func runSteps(ctx context.Context, wc WorkspaceCreator, repo *graphql.Repository, steps []Step, logger *TaskLogger, tempDir string, reportProgress func(string)) ([]byte, error) {
-	reportProgress("Downloading archive and initializing workspace")
-	workspace, err := wc.Create(ctx, repo)
+func runSteps(ctx context.Context, rf RepoFetcher, wc WorkspaceCreator, repo *graphql.Repository, steps []Step, logger *TaskLogger, tempDir string, reportProgress func(string)) ([]byte, error) {
+	reportProgress("Downloading archive")
+	zip, err := rf.Fetch(ctx, repo)
+	if err != nil {
+		return nil, errors.Wrap(err, "fetching repo")
+	}
+	defer zip.Close()
+
+	reportProgress("Initializing workspace")
+	workspace, err := wc.Create(ctx, repo, zip.Path())
 	if err != nil {
 		return nil, errors.Wrap(err, "creating workspace")
 	}

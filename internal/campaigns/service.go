@@ -190,6 +190,7 @@ type ExecutorOpts struct {
 	Cache       ExecutionCache
 	Creator     WorkspaceCreator
 	Parallelism int
+	RepoFetcher RepoFetcher
 	Timeout     time.Duration
 
 	ClearCache bool
@@ -202,11 +203,19 @@ func (svc *Service) NewExecutor(opts ExecutorOpts) Executor {
 	return newExecutor(opts, svc.client, svc.features)
 }
 
-func (svc *Service) NewWorkspaceCreator(dir string, cleanArchives bool) WorkspaceCreator {
-	if svc.workspace == "volume" {
-		return &dockerVolumeWorkspaceCreator{client: svc.client}
+func (svc *Service) NewRepoFetcher(dir string, cleanArchives bool) RepoFetcher {
+	return &repoFetcher{
+		client:     svc.client,
+		dir:        dir,
+		deleteZips: cleanArchives,
 	}
-	return &dockerBindWorkspaceCreator{dir: dir, client: svc.client, deleteZips: cleanArchives}
+}
+
+func (svc *Service) NewWorkspaceCreator(dir string) WorkspaceCreator {
+	if svc.workspace == "volume" {
+		return &dockerVolumeWorkspaceCreator{}
+	}
+	return &dockerBindWorkspaceCreator{dir: dir}
 }
 
 // dockerImageSet represents a set of Docker images that need to be pulled. The

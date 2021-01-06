@@ -191,12 +191,13 @@ func campaignsExecute(ctx context.Context, out *output.Output, svc *campaigns.Se
 	}
 
 	opts := campaigns.ExecutorOpts{
-		Cache:      svc.NewExecutionCache(flags.cacheDir),
-		Creator:    svc.NewWorkspaceCreator(flags.cacheDir, flags.cleanArchives),
-		ClearCache: flags.clearCache,
-		KeepLogs:   flags.keepLogs,
-		Timeout:    flags.timeout,
-		TempDir:    flags.tempDir,
+		Cache:       svc.NewExecutionCache(flags.cacheDir),
+		Creator:     svc.NewWorkspaceCreator(flags.cacheDir),
+		RepoFetcher: svc.NewRepoFetcher(flags.cacheDir, flags.cleanArchives),
+		ClearCache:  flags.clearCache,
+		KeepLogs:    flags.keepLogs,
+		Timeout:     flags.timeout,
+		TempDir:     flags.tempDir,
 	}
 	if flags.parallelism <= 0 {
 		opts.Parallelism = runtime.GOMAXPROCS(0)
