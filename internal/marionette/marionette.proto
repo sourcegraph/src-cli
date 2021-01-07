@@ -1,0 +1,27 @@
+syntax = "proto3";
+
+option go_package = "github.com/sourcegraph/src-cli/internal/marionette";
+
+import "google/protobuf/empty.proto";
+
+// TODO: figure out how to import and use google.rpc.Status.
+
+package marionette;
+
+service Marionette {
+  rpc Changes(google.protobuf.Empty) returns (ChangesResponse) {}
+  rpc Diff(google.protobuf.Empty) returns (DiffResponse) {}
+  rpc Prepare(google.protobuf.Empty) returns (google.protobuf.Empty) {}
+  rpc Unzip(UnzipRequest) returns (google.protobuf.Empty) {}
+}
+
+message ChangesResponse {
+  repeated string modified = 1;
+  repeated string added = 2;
+  repeated string deleted = 3;
+  repeated string renamed = 4;
+}
+
+message DiffResponse { bytes diff = 1; }
+
+message UnzipRequest { string path = 1; }
