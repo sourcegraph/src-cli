@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -71,10 +72,7 @@ func TestRepoFetcher_Fetch(t *testing.T) {
 			t.Fatalf("temp dir doesnt contain zip file")
 		}
 
-		// We can't use path.Join() here because it hardcodes / as the path
-		// separator because... well, honestly, I have no idea, but it's bad
-		// news bears on Windows.
-		if have, want := rz.Path(), path.Clean(rf.dir)+string(os.PathSeparator)+wantZipFile; want != have {
+		if have, want := rz.Path(), filepath.Join(path.Clean(rf.dir), wantZipFile); want != have {
 			t.Errorf("unexpected path: have=%q want=%q", have, want)
 		}
 		rz.Close()
