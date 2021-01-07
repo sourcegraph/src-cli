@@ -2,7 +2,11 @@ package campaigns
 
 import (
 	"context"
+	"fmt"
+	"io"
+	"net/http"
 	"os"
+	"path"
 	"path/filepath"
 
 	"github.com/pkg/errors"
@@ -91,4 +95,37 @@ func (rz *repoZip) Close() error {
 
 func (rz *repoZip) Path() string {
 	return rz.path
+}
+
+func fetchRepositoryArchive(ctx context.Context, client api.Client, repo *graphql.Repository, dest string) error {
+	req, err := client.NewHTTPRequest(ctx, "GET", repositoryZipArchivePath(repo), nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Accept", "application/zip")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("unable to fetch archive (HTTP %d from %s)", resp.StatusCode, req.URL.String())
+	}
+
+	f, err := os.Create(dest)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	if _, err := io.Copy(f, resp.Body); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func repositoryZipArchivePath(repo *graphql.Repository) string {
+	return path.Join("", repo.Name+"@"+repo.BaseRef(), "-", "raw")
 }
