@@ -214,6 +214,8 @@ func (svc *Service) NewRepoFetcher(dir string, cleanArchives bool) RepoFetcher {
 func (svc *Service) NewWorkspaceCreator(dir string) WorkspaceCreator {
 	if svc.workspace == "volume" {
 		return &dockerVolumeWorkspaceCreator{}
+	} else if svc.workspace == "marionette" {
+		return &dockerMarionetteWorkspaceCreator{}
 	}
 	return &dockerBindWorkspaceCreator{dir: dir}
 }
