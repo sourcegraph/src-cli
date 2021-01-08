@@ -8,7 +8,7 @@ on:
 
 jobs:
   goreleaser:
-    name: check
+    name: release
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
