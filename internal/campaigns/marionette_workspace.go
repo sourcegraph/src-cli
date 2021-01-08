@@ -64,7 +64,12 @@ func (wc *dockerMarionetteWorkspaceCreator) Create(ctx context.Context, repo *gr
 	}
 
 	// Connect.
-	conn, err := grpc.Dial(string(bytes.TrimSpace(out)), grpc.WithInsecure(), grpc.WithBlock(), grpc.WithMaxMsgSize(2*1024*1024*1024))
+	conn, err := grpc.Dial(
+		string(bytes.TrimSpace(out)),
+		grpc.WithInsecure(),
+		grpc.WithBlock(),
+		grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(2*1024*1024*1024)),
+	)
 	if err != nil {
 		return nil, errors.Wrap(err, "connecting to Marionette")
 	}
