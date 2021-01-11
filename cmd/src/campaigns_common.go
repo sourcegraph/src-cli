@@ -112,7 +112,7 @@ func newCampaignsApplyFlags(flagSet *flag.FlagSet, cacheDir, tempDir string) *ca
 	}
 	flagSet.StringVar(
 		&caf.workspace, "workspace", defaultWorkspace,
-		`Workspace mode to use ("bind" or "volume")`,
+		`Workspace mode to use ("bind", "marionette", or "volume")`,
 	)
 
 	flagSet.BoolVar(verbose, "v", false, "print verbose output")
