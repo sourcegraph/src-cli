@@ -83,17 +83,14 @@ func runSteps(ctx context.Context, rf RepoFetcher, wc WorkspaceCreator, repo *gr
 		}
 		defer os.Remove(runScriptFile.Name())
 
-		// Parse step.Run as a template...
-		tmpl, err := parseAsTemplate("step-run", step.Run, &stepContext)
-		if err != nil {
+		// Parse step.Run as a template and render it into a buffer and the
+		// temp file we just created.
+		var runScript bytes.Buffer
+		out := io.MultiWriter(&runScript, runScriptFile)
+		if err := renderTemplate("step-run", step.Run, out, &stepContext); err != nil {
 			return nil, errors.Wrap(err, "parsing step run")
 		}
 
-		// ... and render it into a buffer and the temp file we just created.
-		var runScript bytes.Buffer
-		if err := tmpl.Execute(io.MultiWriter(&runScript, runScriptFile), stepContext); err != nil {
-			return nil, errors.Wrap(err, "executing template")
-		}
 		if err := runScriptFile.Close(); err != nil {
 			return nil, errors.Wrap(err, "closing temporary file")
 		}
