@@ -11,10 +11,6 @@ import (
 	"github.com/sourcegraph/src-cli/internal/campaigns/graphql"
 )
 
-func parseAsTemplate(name, input string, stepCtx *StepContext) (*template.Template, error) {
-	return template.New(name).Delims("${{", "}}").Funcs(stepCtx.ToFuncMap()).Parse(input)
-}
-
 func renderTemplate(name, tmpl string, out io.Writer, stepCtx *StepContext) error {
 	t, err := parseAsTemplate(name, tmpl, stepCtx)
 	if err != nil {
@@ -24,18 +20,17 @@ func renderTemplate(name, tmpl string, out io.Writer, stepCtx *StepContext) erro
 	return t.Execute(out, stepCtx)
 }
 
+func parseAsTemplate(name, input string, stepCtx *StepContext) (*template.Template, error) {
+	return template.New(name).Delims("${{", "}}").Funcs(stepCtx.ToFuncMap()).Parse(input)
+}
+
 func renderMap(m map[string]string, stepCtx *StepContext) (map[string]string, error) {
 	rendered := make(map[string]string, len(m))
 
 	for k, v := range rendered {
 		var out bytes.Buffer
 
-		tmpl, err := parseAsTemplate(k, v, stepCtx)
-		if err != nil {
-			return rendered, err
-		}
-
-		if err := tmpl.Execute(&out, stepCtx); err != nil {
+		if err := renderTemplate(k, v, &out, stepCtx); err != nil {
 			return rendered, err
 		}
 
