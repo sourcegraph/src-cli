@@ -2,6 +2,7 @@ package campaigns
 
 import (
 	"bytes"
+	"fmt"
 	"strings"
 	"text/template"
 
@@ -130,4 +131,36 @@ func (r StepResult) RenamedFiles() []string {
 		return r.files.Renamed
 	}
 	return []string{}
+}
+
+func parseGitStatus(out []byte) (StepChanges, error) {
+	result := StepChanges{}
+
+	stripped := strings.TrimSpace(string(out))
+	if len(stripped) == 0 {
+		return result, nil
+	}
+
+	for _, line := range strings.Split(stripped, "\n") {
+		if len(line) < 4 {
+			return result, fmt.Errorf("git status line has unrecognized format: %q", line)
+		}
+
+		file := line[3:]
+
+		switch line[0] {
+		case 'M':
+			result.Modified = append(result.Modified, file)
+		case 'A':
+			result.Added = append(result.Added, file)
+		case 'D':
+			result.Deleted = append(result.Deleted, file)
+		case 'R':
+			files := strings.Split(file, " -> ")
+			newFile := files[len(files)-1]
+			result.Renamed = append(result.Renamed, newFile)
+		}
+	}
+
+	return result, nil
 }
