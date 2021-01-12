@@ -208,7 +208,7 @@ Examples:
 
 				if isatty.IsTerminal(os.Stdout.Fd()) {
 					fmt.Println("You may need to specify or update your GitHub access token to use this endpoint.")
-					fmt.Println("See https://github.com/sourcegraph/src-cli#authentication.")
+					fmt.Println("See https://docs.sourcegraph.com/cli/references/lsif/upload.")
 				}
 			}
 
