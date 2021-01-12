@@ -61,13 +61,18 @@ func TestExecutor_Integration(t *testing.T) {
 
 		repos     []*graphql.Repository
 		archives  []mockRepoArchive
+		template  *ChangesetTemplate
 		steps     []Step
 		transform *TransformChanges
 
 		executorTimeout time.Duration
 
-		wantFilesChanged filesByRepository
-		wantErrInclude   string
+		wantFilesChanged  filesByRepository
+		wantTitle         string
+		wantBody          string
+		wantCommitMessage string
+
+		wantErrInclude string
 	}{
 		{
 			name:  "success",
@@ -196,6 +201,57 @@ func TestExecutor_Integration(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:  "templated changesetTemplate",
+			repos: []*graphql.Repository{srcCLIRepo},
+			archives: []mockRepoArchive{
+				{repo: srcCLIRepo, files: map[string]string{
+					"README.md": "# Welcome to the README\n",
+					"main.go":   "package main\n\nfunc main() {\n\tfmt.Println(     \"Hello World\")\n}\n",
+				}},
+			},
+			steps: []Step{
+				{
+					Run:       `go fmt main.go`,
+					Container: "doesntmatter:13",
+					Outputs: Outputs{
+						"myOutputName1": Output{
+							Value: "${{ index step.modified_files 0 }}",
+						},
+					},
+				},
+				{
+					Run:       `echo -n "Hello World!"`,
+					Container: "alpine:13",
+					Outputs: Outputs{
+						"myOutputName2": Output{
+							Value:  `thisStepStdout: "${{ step.stdout }}"`,
+							Format: "yaml",
+						},
+						"myOutputName3": Output{
+							Value: "cool-suffix",
+						},
+					},
+				},
+			},
+			template: &ChangesetTemplate{
+				Title:  "myOutputName1=${{ outputs.myOutputName1}}",
+				Body:   "myOutputName1=${{ outputs.myOutputName1}},myOutputName2=${{ outputs.myOutputName2.thisStepStdout }}",
+				Branch: "templated-branch-${{ outputs.myOutputName3 }}",
+				Commit: ExpandedGitCommitDescription{
+					Message: "myOutputName1=${{ outputs.myOutputName1}},myOutputName2=${{ outputs.myOutputName2.thisStepStdout }}",
+				},
+			},
+
+			wantFilesChanged: filesByRepository{
+				srcCLIRepo.ID: filesByBranch{
+					"templated-branch-cool-suffix": []string{"main.go"},
+				},
+			},
+			wantTitle:         "myOutputName1=main.go",
+			wantBody:          "myOutputName1=main.go,myOutputName2=Hello World!",
+			wantCommitMessage: "myOutputName1=main.go,myOutputName2=Hello World!",
+		},
 	}
 
 	for _, tc := range tests {
@@ -236,6 +292,9 @@ func TestExecutor_Integration(t *testing.T) {
 				executor := newExecutor(opts, client, featuresAllEnabled())
 
 				template := &ChangesetTemplate{Branch: changesetTemplateBranch}
+				if tc.template != nil {
+					template = tc.template
+				}
 
 				for _, r := range tc.repos {
 					executor.AddTask(r, tc.steps, tc.transform, template)
@@ -261,9 +320,23 @@ func TestExecutor_Integration(t *testing.T) {
 					t.Fatalf("wrong number of changeset specs. want=%d, have=%d", want, have)
 				}
 
+				for i, spec := range specs {
+					t.Logf("specs[%d]=%+v\n", i, spec.CreatedChangeset)
+				}
 				for _, spec := range specs {
+					if tc.wantTitle != "" && spec.Title != tc.wantTitle {
+						t.Errorf("wrong title. want=%q, have=%q", tc.wantTitle, spec.Title)
+					}
+					if tc.wantBody != "" && spec.Body != tc.wantBody {
+						t.Errorf("wrong body. want=%q, have=%q", tc.wantBody, spec.Body)
+					}
+
 					if have, want := len(spec.Commits), 1; have != want {
 						t.Fatalf("wrong number of commits. want=%d, have=%d", want, have)
+					}
+
+					if tc.wantCommitMessage != "" && spec.Commits[0].Message != tc.wantCommitMessage {
+						t.Errorf("wrong commitmessage. want=%q, have=%q", tc.wantCommitMessage, spec.Commits[0].Message)
 					}
 
 					wantFiles, ok := tc.wantFilesChanged[spec.BaseRepository]
@@ -329,6 +402,10 @@ func TestExecutor_Integration(t *testing.T) {
 
 			// Run with a warm cache.
 			t.Run("warm cache", func(t *testing.T) {
+				if tc.name == "templated changesetTemplate" {
+					// TODO: Make caching work with steps outputs
+					t.Skip()
+				}
 				execute()
 				verifyCache()
 			})

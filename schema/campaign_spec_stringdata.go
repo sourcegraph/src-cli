@@ -61,6 +61,29 @@ const CampaignSpecJSON = `{
         ]
       }
     },
+    "vars": {
+      "type": "array",
+      "description": "Optional list of variables that can be used with templating-syntax to interpolate values into ` + "`" + `steps` + "`" + ` and ` + "`" + `changesetTemplate` + "`" + `",
+      "items": {
+        "title": "Var",
+        "type": "object",
+        "description": "A variable that is available in the ` + "`" + `steps` + "`" + ` or ` + "`" + `changesetTemplate` + "`" + ` as a template variable.",
+        "additionalProperties": false,
+        "required": ["name", "default"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "The name of the variable.",
+            "pattern": "^[\\w.-_]+$"
+          },
+          "default": {
+            "type": "string",
+            "description": "The default value of the variable.",
+            "examples": ["alpine:3"]
+          }
+        }
+      }
+    },
     "steps": {
       "type": "array",
       "description": "The sequence of commands to run (for each repository branch matched in the ` + "`" + `on` + "`" + ` property) to produce the campaign's changes.",
@@ -79,6 +102,42 @@ const CampaignSpecJSON = `{
             "type": "string",
             "description": "The Docker image used to launch the Docker container in which the shell command is run.",
             "examples": ["alpine:3"]
+          },
+          "output": {
+            "type": "object",
+            "description": "Specification of whether and how to capture the output produced by the command",
+            "required": ["var"],
+            "properties": {
+              "var": {
+                "type": "string",
+                "description": "The name of the variable in which to store the output, after optionally converting it if 'format' is given."
+              },
+              "format": {
+                "type": "string",
+                "description": "The expected format of the output. If given the output is being parsed in that format before being stored in the var.",
+                "enum": ["json", "yaml", "text"]
+              }
+            }
+          },
+          "outputs": {
+            "type": "object",
+            "description": "Output variables of this step that can be referenced in the changesetTemplate or other steps via outputs.<name-of-output>",
+            "additionalProperties": {
+              "type": "object",
+              "required": ["value"],
+              "properties": {
+                "value": {
+                  "type": "string",
+                  "description": "The value of the output, which can be a template string.",
+                  "examples": ["${{ step.stdout }}", "${{ repository.name }}" ]
+                },
+                "format": {
+                  "type": "string",
+                  "description": "The expected format of the output. If set, the output is being parsed in that format before being stored in the var.",
+                  "enum": ["json", "yaml", "text"]
+                }
+              }
+            }
           },
           "env": {
             "description": "Environment variables to set in the step environment.",
@@ -114,6 +173,10 @@ const CampaignSpecJSON = `{
             "type": "object",
             "description": "Files that should be mounted into or be created inside the Docker container.",
             "additionalProperties": {"type": "string"}
+          },
+          "outputVariable": {
+            "type": "string",
+            "description": "The name of the variable in which to save the output of the step. The variable has to have been declared in ` + "`" + `vars` + "`" + `."
           }
         }
       }
