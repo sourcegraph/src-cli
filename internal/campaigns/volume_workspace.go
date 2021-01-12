@@ -10,6 +10,7 @@ import (
 
 	"github.com/sourcegraph/src-cli/internal/campaigns/graphql"
 	"github.com/sourcegraph/src-cli/internal/exec"
+	"github.com/sourcegraph/src-cli/internal/version"
 )
 
 type dockerVolumeWorkspaceCreator struct{}
@@ -149,7 +150,16 @@ exec git diff --cached --no-prefix --binary
 // dockerVolumeWorkspaceImage is the Docker image we'll run our unzip and git
 // commands in. This needs to match the name defined in
 // .github/workflows/docker.yml.
-const dockerVolumeWorkspaceImage = "sourcegraph/src-campaign-volume-workspace"
+var dockerVolumeWorkspaceImage = "sourcegraph/src-campaign-volume-workspace"
+
+func init() {
+	dockerTag := version.BuildTag
+	if version.BuildTag == version.DefaultBuildTag {
+		dockerTag = "latest"
+	}
+
+	dockerVolumeWorkspaceImage = dockerVolumeWorkspaceImage + ":" + dockerTag
+}
 
 // runScript is a utility function to mount the given shell script into a Docker
 // container started from the dockerWorkspaceImage, then run it and return the
