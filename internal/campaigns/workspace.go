@@ -12,10 +12,6 @@ import (
 type WorkspaceCreator interface {
 	// Create creates a new workspace for the given repository and ZIP file.
 	Create(ctx context.Context, repo *graphql.Repository, zip string) (Workspace, error)
-
-	// DockerImages returns any Docker images required to use workspaces created
-	// by this creator.
-	DockerImages() []string
 }
 
 // Workspace implementations manage per-changeset storage when executing

@@ -243,20 +243,18 @@ func (dis dockerImageSet) add(image string, digestPtr *string) {
 
 // SetDockerImages updates the steps within the campaign spec to include the
 // exact content digest to be used when running each step, and ensures that all
-// Docker images are available, including any required by the workspace creator.
+// Docker images are available, including any required by the service itself.
 //
 // Progress information is reported back to the given progress function: perc
 // will be a value between 0.0 and 1.0, inclusive.
-func (svc *Service) SetDockerImages(ctx context.Context, creator WorkspaceCreator, spec *CampaignSpec, progress func(perc float64)) error {
+func (svc *Service) SetDockerImages(ctx context.Context, spec *CampaignSpec, progress func(perc float64)) error {
 	images := dockerImageSet{}
 	for i, step := range spec.Steps {
 		images.add(step.Container, &spec.Steps[i].image)
 	}
 
-	// The workspace creator may have its own dependencies.
-	for _, image := range creator.DockerImages() {
-		images.add(image, nil)
-	}
+	// We also need to ensure we have our own utility images available.
+	images.add(dockerVolumeWorkspaceImage, nil)
 
 	progress(0)
 	i := 0
