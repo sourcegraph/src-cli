@@ -12,7 +12,6 @@ import (
 	"github.com/sourcegraph/src-cli/internal/exec"
 )
 
-// dockerVolumeWorkspaceCreator creates dockerVolumeWorkspace instances.
 type dockerVolumeWorkspaceCreator struct{}
 
 var _ WorkspaceCreator = &dockerVolumeWorkspaceCreator{}
