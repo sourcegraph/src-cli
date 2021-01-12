@@ -202,10 +202,6 @@ Examples:
 		wg.Wait()                        // Wait for progress bar goroutine to clear screen
 		if err != nil {
 			if err == codeintelutils.ErrUnauthorized {
-				if *flags.gitHubToken == "" {
-					return fmt.Errorf("you must provide -github-token=TOKEN, where TOKEN is a GitHub personal access token with 'repo' or 'public_repo' scope")
-				}
-
 				if isatty.IsTerminal(os.Stdout.Fd()) {
 					fmt.Println("You may need to specify or update your GitHub access token to use this endpoint.")
 					fmt.Println("See https://docs.sourcegraph.com/cli/references/lsif/upload.")
