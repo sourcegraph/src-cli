@@ -70,7 +70,7 @@ Examples:
 	flags.maxPayloadSizeMb = flagSet.Int("max-payload-size", 100, `The maximum upload size (in megabytes). Indexes exceeding this limit will be uploaded over multiple HTTP requests.`)
 	flags.ignoreUploadFailures = flagSet.Bool("ignore-upload-failure", false, `Exit with status code zero on upload failure.`)
 	flags.uploadRoute = flagSet.String("upload-route", "/.api/lsif/upload", "The path of the upload route.")
-	flags.rawVerbosity = flagSet.Int("v", 0, "-v=0 shows no logs; -v=1 shows requests and response metadata; -v=2 shows headers, -v=3 shows response body")
+	flags.rawVerbosity = flagSet.Int("trace", 0, "-trace=0 shows no logs; -trace=1 shows requests and response metadata; -trace=2 shows headers, -trace=3 shows response body")
 
 	parseAndValidateFlags := func(args []string) error {
 		flagSet.Parse(args)
