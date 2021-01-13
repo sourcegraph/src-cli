@@ -320,9 +320,6 @@ func TestExecutor_Integration(t *testing.T) {
 					t.Fatalf("wrong number of changeset specs. want=%d, have=%d", want, have)
 				}
 
-				for i, spec := range specs {
-					t.Logf("specs[%d]=%+v\n", i, spec.CreatedChangeset)
-				}
 				for _, spec := range specs {
 					if tc.wantTitle != "" && spec.Title != tc.wantTitle {
 						t.Errorf("wrong title. want=%q, have=%q", tc.wantTitle, spec.Title)
