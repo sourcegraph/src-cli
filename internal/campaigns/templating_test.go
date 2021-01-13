@@ -45,7 +45,7 @@ before:
     - go generate ./schema
 `
 
-func TestParsingAndRenderingTemplates(t *testing.T) {
+func TestRenderStepTemplate(t *testing.T) {
 	// To avoid bugs due to differences between test setup and actual code, we
 	// do the actual parsing of YAML here to get an interface{} which we'll put
 	// in the StepContext.
