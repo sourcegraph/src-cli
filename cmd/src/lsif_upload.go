@@ -151,8 +151,9 @@ Examples:
 		}
 
 		// Don't need to check upper bounds as we only compare verbosity ranges
-		// It's fine if someone supplies -v=42, but it will just behave the same
-		// as if they supplied the highest verbosity level we define internally.
+		// It's fine if someone supplies -trace=42, but it will just behave the
+		// same as if they supplied the highest verbosity level we define
+		// internally.
 		flags.verbosity = lsifUploadVerbosity(*flags.rawVerbosity)
 
 		if !*flags.json {
@@ -335,10 +336,10 @@ func (e errorWithHint) Error() string {
 type lsifUploadVerbosity int
 
 const (
-	lsifUploadVerbosityNone                  lsifUploadVerbosity = iota // -v=0 (default)
-	lsifUploadVerbosityTrace                                            // -v=1
-	lsifUploadVerbosityTraceShowHeaders                                 // -v=2
-	lsifUploadVerbosityTraceShowResponseBody                            // -v=3
+	lsifUploadVerbosityNone                  lsifUploadVerbosity = iota // -trace=0 (default)
+	lsifUploadVerbosityTrace                                            // -trace=1
+	lsifUploadVerbosityTraceShowHeaders                                 // -trace=2
+	lsifUploadVerbosityTraceShowResponseBody                            // -trace=3
 )
 
 type lsifUploadRequestLogger struct {
