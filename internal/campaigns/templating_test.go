@@ -187,3 +187,76 @@ ${{ step.stderr}}
 		})
 	}
 }
+
+func TestRenderChangesetTemplateField(t *testing.T) {
+	// To avoid bugs due to differences between test setup and actual code, we
+	// do the actual parsing of YAML here to get an interface{} which we'll put
+	// in the StepContext.
+	var parsedYaml interface{}
+	if err := yaml.Unmarshal([]byte(rawYaml), &parsedYaml); err != nil {
+		t.Fatalf("failed to parse YAML: %s", err)
+	}
+
+	tmplCtx := &ChangesetTemplateContext{
+		Outputs: map[string]interface{}{
+			"lastLine": "lastLine is this",
+			"project":  parsedYaml,
+		},
+		Repository: graphql.Repository{
+			Name: "github.com/sourcegraph/src-cli",
+			FileMatches: map[string]bool{
+				"README.md": true,
+				"main.go":   true,
+			},
+		},
+	}
+
+	tests := []struct {
+		name    string
+		tmplCtx *ChangesetTemplateContext
+		run     string
+		want    string
+	}{
+		{
+			name:    "lower-case aliases",
+			tmplCtx: tmplCtx,
+			run: `${{ repository.search_result_paths }}
+${{ repository.name }}
+${{ outputs.lastLine }}
+${{ index outputs.project.env 1 }}
+`,
+			want: `README.md main.go
+github.com/sourcegraph/src-cli
+lastLine is this
+CGO_ENABLED=0
+`,
+		},
+		{
+			name:    "empty context",
+			tmplCtx: &ChangesetTemplateContext{},
+			run: `${{ repository.search_result_paths }}
+${{ repository.name }}
+${{ outputs.lastLine }}
+${{ outputs.project }}
+`,
+			want: `
+
+<no value>
+<no value>
+`,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			out, err := renderChangesetTemplateField("testing", tc.run, tc.tmplCtx)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if out != tc.want {
+				t.Fatalf("wrong output:\n%s", cmp.Diff(tc.want, out))
+			}
+		})
+	}
+}
