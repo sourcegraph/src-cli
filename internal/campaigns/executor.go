@@ -183,6 +183,7 @@ func (x *executor) AddTask(repo *graphql.Repository, steps []Step, transform *Tr
 		Template:         template,
 		TransformChanges: transform,
 	}
+
 	x.tasks = append(x.tasks, task)
 
 	x.statusesMu.Lock()
@@ -277,10 +278,10 @@ func (x *executor) do(ctx context.Context, task *Task) (err error) {
 				return
 			}
 
-			// TODO: We need to cache the vars here too if we want use to render changesetTemplate
-			vars := map[string]interface{}{}
+			// TODO: We need to cache the outputs here too if we want use to render changesetTemplate
+			outputs := map[string]interface{}{}
 			var specs []*ChangesetSpec
-			specs, err = createChangesetSpecs(task, diff, vars, x.features)
+			specs, err = createChangesetSpecs(task, diff, outputs, x.features)
 			if err != nil {
 				return err
 			}

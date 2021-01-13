@@ -71,7 +71,7 @@ type Step struct {
 	Container string            `json:"container,omitempty" yaml:"container"`
 	Env       env.Environment   `json:"env,omitempty" yaml:"env"`
 	Files     map[string]string `json:"files,omitempty" yaml:"files,omitempty"`
-	Outputs   Outputs           `json:"output,omitempty" yaml:"output,omitempty"`
+	Outputs   Outputs           `json:"outputs,omitempty" yaml:"outputs,omitempty"`
 
 	image string
 }
