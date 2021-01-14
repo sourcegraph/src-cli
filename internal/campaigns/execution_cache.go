@@ -80,11 +80,6 @@ func (c ExecutionDiskCache) cacheFilePath(key ExecutionCacheKey) (string, error)
 	return filepath.Join(c.Dir, keyString+".v3.json"), nil
 }
 
-type ExecutionResult struct {
-	Diff    string                 `json:"diff"`
-	Outputs map[string]interface{} `json:"outputs"`
-}
-
 func (c ExecutionDiskCache) Get(ctx context.Context, key ExecutionCacheKey) (ExecutionResult, bool, error) {
 	var result ExecutionResult
 

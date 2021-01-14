@@ -324,7 +324,7 @@ func (x *executor) do(ctx context.Context, task *Task) (err error) {
 	defer cancel()
 
 	// Actually execute the steps.
-	diff, outputs, err := runSteps(runCtx, x.fetcher, x.creator, task.Repository, task.Steps, log, x.tempDir, func(currentlyExecuting string) {
+	result, err := runSteps(runCtx, x.fetcher, x.creator, task.Repository, task.Steps, log, x.tempDir, func(currentlyExecuting string) {
 		x.updateTaskStatus(task, func(status *TaskStatus) {
 			status.CurrentlyExecuting = currentlyExecuting
 		})
@@ -338,21 +338,20 @@ func (x *executor) do(ctx context.Context, task *Task) (err error) {
 	}
 
 	// Build the changeset specs.
-	specs, err := createChangesetSpecs(task, string(diff), outputs, x.features)
+	specs, err := createChangesetSpecs(task, result.Diff, result.Outputs, x.features)
 	if err != nil {
 		return err
 	}
 
 	// Add to the cache. We don't use runCtx here because we want to write to
 	// the cache even if we've now reached the timeout.
-	result := ExecutionResult{Diff: string(diff), Outputs: outputs}
 	if err = x.cache.Set(ctx, cacheKey, result); err != nil {
 		err = errors.Wrapf(err, "caching result for %q", task.Repository.Name)
 	}
 
 	// If the steps didn't result in any diff, we don't need to add it to the
 	// list of specs that are displayed to the user and send to the server.
-	if len(diff) == 0 {
+	if len(result.Diff) == 0 {
 		return
 	}
 
