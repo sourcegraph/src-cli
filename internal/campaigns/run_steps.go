@@ -15,7 +15,8 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
 	"github.com/sourcegraph/src-cli/internal/campaigns/graphql"
-	"gopkg.in/yaml.v2"
+
+	yamlv3 "gopkg.in/yaml.v3"
 )
 
 func runSteps(ctx context.Context, rf RepoFetcher, wc WorkspaceCreator, repo *graphql.Repository, steps []Step, logger *TaskLogger, tempDir string, reportProgress func(string)) (diff []byte, outputs map[string]interface{}, err error) {
@@ -215,30 +216,7 @@ func runSteps(ctx context.Context, rf RepoFetcher, wc WorkspaceCreator, repo *gr
 		stepContext.Step = result
 		results[i] = result
 
-		for name, output := range step.Outputs {
-			var value bytes.Buffer
-
-			if err := renderStepTemplate("outputs-"+name, output.Value, &value, &stepContext); err != nil {
-				return nil, nil, errors.Wrap(err, "parsing step run")
-			}
-
-			switch output.Format {
-			case "yaml":
-				var out interface{}
-				if err := yaml.NewDecoder(&value).Decode(&out); err != nil {
-					return nil, nil, err
-				}
-				outputs[name] = out
-			case "json":
-				var out interface{}
-				if err := json.NewDecoder(&value).Decode(&out); err != nil {
-					return nil, nil, err
-				}
-				outputs[name] = out
-			default:
-				outputs[name] = value.String()
-			}
-		}
+		setOutputs(step.Outputs, outputs, &stepContext)
 	}
 
 	reportProgress("Calculating diff")
@@ -248,6 +226,39 @@ func runSteps(ctx context.Context, rf RepoFetcher, wc WorkspaceCreator, repo *gr
 	}
 
 	return diffOut, outputs, err
+}
+
+func setOutputs(stepOutputs Outputs, global map[string]interface{}, stepCtx *StepContext) error {
+	for name, output := range stepOutputs {
+		var value bytes.Buffer
+
+		if err := renderStepTemplate("outputs-"+name, output.Value, &value, stepCtx); err != nil {
+			return errors.Wrap(err, "parsing step run")
+		}
+
+		switch output.Format {
+		case "yaml":
+			var out interface{}
+			// We use yamlv3 here, because it unmarshals YAML into
+			// map[string]interface{} which we need to serialize it back to
+			// JSON when we cache the results.
+			// See https://github.com/go-yaml/yaml/issues/139 for context
+			if err := yamlv3.NewDecoder(&value).Decode(&out); err != nil {
+				return err
+			}
+			global[name] = out
+		case "json":
+			var out interface{}
+			if err := json.NewDecoder(&value).Decode(&out); err != nil {
+				return err
+			}
+			global[name] = out
+		default:
+			global[name] = value.String()
+		}
+	}
+
+	return nil
 }
 
 func probeImageForShell(ctx context.Context, image string) (shell, tempfile string, err error) {

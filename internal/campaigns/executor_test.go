@@ -399,10 +399,6 @@ func TestExecutor_Integration(t *testing.T) {
 
 			// Run with a warm cache.
 			t.Run("warm cache", func(t *testing.T) {
-				if tc.name == "templated changesetTemplate" {
-					// TODO: Make caching work with steps outputs
-					t.Skip()
-				}
 				execute()
 				verifyCache()
 			})
@@ -622,13 +618,13 @@ func newZipArchivesMux(t *testing.T, callback http.HandlerFunc, archives ...mock
 
 // inMemoryExecutionCache provides an in-memory cache for testing purposes.
 type inMemoryExecutionCache struct {
-	cache map[string]string
+	cache map[string]executionResult
 	mu    sync.RWMutex
 }
 
 func newInMemoryExecutionCache() *inMemoryExecutionCache {
 	return &inMemoryExecutionCache{
-		cache: make(map[string]string),
+		cache: make(map[string]executionResult),
 	}
 }
 
@@ -639,22 +635,22 @@ func (c *inMemoryExecutionCache) size() int {
 	return len(c.cache)
 }
 
-func (c *inMemoryExecutionCache) Get(ctx context.Context, key ExecutionCacheKey) (string, bool, error) {
+func (c *inMemoryExecutionCache) Get(ctx context.Context, key ExecutionCacheKey) (string, map[string]interface{}, bool, error) {
 	k, err := key.Key()
 	if err != nil {
-		return "", false, err
+		return "", nil, false, err
 	}
 
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
-	if diff, ok := c.cache[k]; ok {
-		return diff, true, nil
+	if res, ok := c.cache[k]; ok {
+		return res.Diff, res.Outputs, true, nil
 	}
-	return "", false, nil
+	return "", nil, false, nil
 }
 
-func (c *inMemoryExecutionCache) Set(ctx context.Context, key ExecutionCacheKey, diff string) error {
+func (c *inMemoryExecutionCache) Set(ctx context.Context, key ExecutionCacheKey, diff string, outputs map[string]interface{}) error {
 	k, err := key.Key()
 	if err != nil {
 		return err
@@ -663,7 +659,7 @@ func (c *inMemoryExecutionCache) Set(ctx context.Context, key ExecutionCacheKey,
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	c.cache[k] = diff
+	c.cache[k] = executionResult{Diff: diff, Outputs: outputs}
 	return nil
 }
 

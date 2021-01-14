@@ -62,8 +62,8 @@ func (key ExecutionCacheKey) Key() (string, error) {
 }
 
 type ExecutionCache interface {
-	Get(ctx context.Context, key ExecutionCacheKey) (diff string, found bool, err error)
-	Set(ctx context.Context, key ExecutionCacheKey, diff string) error
+	Get(ctx context.Context, key ExecutionCacheKey) (diff string, outputs map[string]interface{}, found bool, err error)
+	Set(ctx context.Context, key ExecutionCacheKey, diff string, outputs map[string]interface{}) error
 	Clear(ctx context.Context, key ExecutionCacheKey) error
 }
 
@@ -77,13 +77,20 @@ func (c ExecutionDiskCache) cacheFilePath(key ExecutionCacheKey) (string, error)
 		return "", errors.Wrap(err, "calculating execution cache key")
 	}
 
-	return filepath.Join(c.Dir, keyString+".diff"), nil
+	return filepath.Join(c.Dir, keyString+".v3.json"), nil
 }
 
-func (c ExecutionDiskCache) Get(ctx context.Context, key ExecutionCacheKey) (string, bool, error) {
+type executionResult struct {
+	Diff    string                 `json:"diff"`
+	Outputs map[string]interface{} `json:"outputs"`
+}
+
+func (c ExecutionDiskCache) Get(ctx context.Context, key ExecutionCacheKey) (string, map[string]interface{}, bool, error) {
+	outputs := map[string]interface{}{}
+
 	path, err := c.cacheFilePath(key)
 	if err != nil {
-		return "", false, err
+		return "", outputs, false, err
 	}
 
 	data, err := ioutil.ReadFile(path)
@@ -91,44 +98,70 @@ func (c ExecutionDiskCache) Get(ctx context.Context, key ExecutionCacheKey) (str
 		if os.IsNotExist(err) {
 			err = nil // treat as not-found
 		}
-		return "", false, err
+		return "", outputs, false, err
 	}
 
-	// We previously cached complete ChangesetSpecs instead of just the diffs.
-	// To be backwards compatible, we keep reading these:
-	if strings.HasSuffix(path, ".json") {
+	// There are now three different cache versions out in the wild and to be
+	// backwards compatible we read all of them.
+	// 2-step plan for taming this:
+	//  1) February 2021: deprecate old caches by deleting the files when
+	//                    detected and reporting as cache-miss.
+	//  2) May 2021 (two releases later): remove handling of these files from
+	//                                    this function
+	switch {
+	case strings.HasSuffix(path, ".v3.json"):
+		// v3 of the cache: we cache the diff and the outputs produced by the step.
+		var result executionResult
+		if err := json.Unmarshal(data, &result); err != nil {
+			// Delete the invalid data to avoid causing an error for next time.
+			if err := os.Remove(path); err != nil {
+				return "", outputs, false, errors.Wrap(err, "while deleting cache file with invalid JSON")
+			}
+			return "", outputs, false, errors.Wrapf(err, "reading cache file %s", path)
+		}
+		return result.Diff, result.Outputs, true, nil
+
+	case strings.HasSuffix(path, ".diff"):
+		// v2 of the cache: we only cached the diff, since that's the
+		// only bit of data we were interested in.
+		return string(data), outputs, true, nil
+
+	case strings.HasSuffix(path, ".json"):
+		// v1 of the cache: we cached the complete ChangesetSpec instead of just the diffs.
 		var result ChangesetSpec
 		if err := json.Unmarshal(data, &result); err != nil {
 			// Delete the invalid data to avoid causing an error for next time.
 			if err := os.Remove(path); err != nil {
-				return "", false, errors.Wrap(err, "while deleting cache file with invalid JSON")
+				return "", outputs, false, errors.Wrap(err, "while deleting cache file with invalid JSON")
 			}
-			return "", false, errors.Wrapf(err, "reading cache file %s", path)
+			return "", outputs, false, errors.Wrapf(err, "reading cache file %s", path)
 		}
 		if len(result.Commits) != 1 {
-			return "", false, errors.New("cached result has no commits")
+			return "", outputs, false, errors.New("cached result has no commits")
 		}
-		return result.Commits[0].Diff, true, nil
+		return result.Commits[0].Diff, outputs, true, nil
 	}
 
-	if strings.HasSuffix(path, ".diff") {
-		return string(data), true, nil
-	}
-
-	return "", false, fmt.Errorf("unknown file format for cache file %q", path)
+	return "", outputs, false, fmt.Errorf("unknown file format for cache file %q", path)
 }
 
-func (c ExecutionDiskCache) Set(ctx context.Context, key ExecutionCacheKey, diff string) error {
+func (c ExecutionDiskCache) Set(ctx context.Context, key ExecutionCacheKey, diff string, outputs map[string]interface{}) error {
 	path, err := c.cacheFilePath(key)
 	if err != nil {
 		return err
+	}
+
+	res := &executionResult{Diff: diff, Outputs: outputs}
+	raw, err := json.Marshal(&res)
+	if err != nil {
+		return errors.Wrap(err, "serializing execution result to JSON")
 	}
 
 	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
 		return err
 	}
 
-	return ioutil.WriteFile(path, []byte(diff), 0600)
+	return ioutil.WriteFile(path, raw, 0600)
 }
 
 func (c ExecutionDiskCache) Clear(ctx context.Context, key ExecutionCacheKey) error {
@@ -148,11 +181,11 @@ func (c ExecutionDiskCache) Clear(ctx context.Context, key ExecutionCacheKey) er
 // retrieve cache entries.
 type ExecutionNoOpCache struct{}
 
-func (ExecutionNoOpCache) Get(ctx context.Context, key ExecutionCacheKey) (diff string, found bool, err error) {
-	return "", false, nil
+func (ExecutionNoOpCache) Get(ctx context.Context, key ExecutionCacheKey) (diff string, outputs map[string]interface{}, found bool, err error) {
+	return "", map[string]interface{}{}, false, nil
 }
 
-func (ExecutionNoOpCache) Set(ctx context.Context, key ExecutionCacheKey, diff string) error {
+func (ExecutionNoOpCache) Set(ctx context.Context, key ExecutionCacheKey, diff string, outputs map[string]interface{}) error {
 	return nil
 }
 

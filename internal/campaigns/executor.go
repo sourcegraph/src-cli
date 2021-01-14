@@ -57,6 +57,7 @@ type Executor interface {
 type Task struct {
 	Repository *graphql.Repository
 	Steps      []Step
+	Outputs    map[string]interface{}
 
 	Template         *ChangesetTemplate `json:"-"`
 	TransformChanges *TransformChanges  `json:"-"`
@@ -255,11 +256,12 @@ func (x *executor) do(ctx context.Context, task *Task) (err error) {
 		}
 	} else {
 		var (
-			diff  string
-			found bool
+			diff    string
+			outputs map[string]interface{}
+			found   bool
 		)
 
-		diff, found, err = x.cache.Get(ctx, cacheKey)
+		diff, outputs, found, err = x.cache.Get(ctx, cacheKey)
 		if err != nil {
 			err = errors.Wrapf(err, "checking cache for %q", task.Repository.Name)
 			return
@@ -278,8 +280,6 @@ func (x *executor) do(ctx context.Context, task *Task) (err error) {
 				return
 			}
 
-			// TODO: We need to cache the outputs here too if we want use to render changesetTemplate
-			outputs := map[string]interface{}{}
 			var specs []*ChangesetSpec
 			specs, err = createChangesetSpecs(task, diff, outputs, x.features)
 			if err != nil {
@@ -346,7 +346,7 @@ func (x *executor) do(ctx context.Context, task *Task) (err error) {
 
 	// Add to the cache. We don't use runCtx here because we want to write to
 	// the cache even if we've now reached the timeout.
-	if err = x.cache.Set(ctx, cacheKey, string(diff)); err != nil {
+	if err = x.cache.Set(ctx, cacheKey, string(diff), outputs); err != nil {
 		err = errors.Wrapf(err, "caching result for %q", task.Repository.Name)
 	}
 
