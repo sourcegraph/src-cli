@@ -235,8 +235,13 @@ func TestExecutor_Integration(t *testing.T) {
 				},
 			},
 			template: &ChangesetTemplate{
-				Title:  "myOutputName1=${{ outputs.myOutputName1}}",
-				Body:   "myOutputName1=${{ outputs.myOutputName1}},myOutputName2=${{ outputs.myOutputName2.thisStepStdout }}",
+				Title: "myOutputName1=${{ outputs.myOutputName1}}",
+				Body: `myOutputName1=${{ outputs.myOutputName1}},myOutputName2=${{ outputs.myOutputName2.thisStepStdout }}
+modified_files=${{ steps.modified_files }}
+added_files=${{ steps.added_files }}
+deleted_files=${{ steps.deleted_files }}
+renamed_files=${{ steps.renamed_files }}
+repository_name=${{ repository.name }}`,
 				Branch: "templated-branch-${{ outputs.myOutputName3 }}",
 				Commit: ExpandedGitCommitDescription{
 					Message: "myOutputName1=${{ outputs.myOutputName1}},myOutputName2=${{ outputs.myOutputName2.thisStepStdout }}",
@@ -248,8 +253,13 @@ func TestExecutor_Integration(t *testing.T) {
 					"templated-branch-cool-suffix": []string{"main.go"},
 				},
 			},
-			wantTitle:         "myOutputName1=main.go",
-			wantBody:          "myOutputName1=main.go,myOutputName2=Hello World!",
+			wantTitle: "myOutputName1=main.go",
+			wantBody: `myOutputName1=main.go,myOutputName2=Hello World!
+modified_files=[main.go]
+added_files=[]
+deleted_files=[]
+renamed_files=[]
+repository_name=github.com/sourcegraph/src-cli`,
 			wantCommitMessage: "myOutputName1=main.go,myOutputName2=Hello World!",
 		},
 	}
@@ -325,7 +335,7 @@ func TestExecutor_Integration(t *testing.T) {
 						t.Errorf("wrong title. want=%q, have=%q", tc.wantTitle, spec.Title)
 					}
 					if tc.wantBody != "" && spec.Body != tc.wantBody {
-						t.Errorf("wrong body. want=%q, have=%q", tc.wantBody, spec.Body)
+						t.Errorf("wrong body.\nwant=%q\nhave=%q\n", tc.wantBody, spec.Body)
 					}
 
 					if have, want := len(spec.Commits), 1; have != want {

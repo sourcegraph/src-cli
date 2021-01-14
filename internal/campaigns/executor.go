@@ -280,7 +280,7 @@ func (x *executor) do(ctx context.Context, task *Task) (err error) {
 			}
 
 			var specs []*ChangesetSpec
-			specs, err = createChangesetSpecs(task, result.Diff, result.Outputs, x.features)
+			specs, err = createChangesetSpecs(task, result, x.features)
 			if err != nil {
 				return err
 			}
@@ -338,7 +338,7 @@ func (x *executor) do(ctx context.Context, task *Task) (err error) {
 	}
 
 	// Build the changeset specs.
-	specs, err := createChangesetSpecs(task, result.Diff, result.Outputs, x.features)
+	specs, err := createChangesetSpecs(task, result, x.features)
 	if err != nil {
 		return err
 	}
@@ -404,7 +404,7 @@ func reachedTimeout(cmdCtx context.Context, err error) bool {
 	return errors.Is(err, context.DeadlineExceeded)
 }
 
-func createChangesetSpecs(task *Task, completeDiff string, outputs map[string]interface{}, features featureFlags) ([]*ChangesetSpec, error) {
+func createChangesetSpecs(task *Task, result ExecutionResult, features featureFlags) ([]*ChangesetSpec, error) {
 	repo := task.Repository.Name
 
 	var authorName string
@@ -422,7 +422,8 @@ func createChangesetSpecs(task *Task, completeDiff string, outputs map[string]in
 	}
 
 	tmplCtx := &ChangesetTemplateContext{
-		Outputs:    outputs,
+		Steps:      result.ChangedFiles,
+		Outputs:    result.Outputs,
 		Repository: *task.Repository,
 	}
 
@@ -482,7 +483,7 @@ func createChangesetSpecs(task *Task, completeDiff string, outputs map[string]in
 		}
 
 		// TODO: Regarding 'defaultBranch', see comment above
-		diffsByBranch, err := groupFileDiffs(completeDiff, defaultBranch, groups)
+		diffsByBranch, err := groupFileDiffs(result.Diff, defaultBranch, groups)
 		if err != nil {
 			return specs, errors.Wrap(err, "grouping diffs failed")
 		}
@@ -491,7 +492,7 @@ func createChangesetSpecs(task *Task, completeDiff string, outputs map[string]in
 			specs = append(specs, newSpec(branch, diff))
 		}
 	} else {
-		specs = append(specs, newSpec(defaultBranch, string(completeDiff)))
+		specs = append(specs, newSpec(defaultBranch, result.Diff))
 	}
 
 	return specs, nil

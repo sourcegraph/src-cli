@@ -20,7 +20,13 @@ import (
 )
 
 type ExecutionResult struct {
-	Diff    string                 `json:"diff"`
+	// Diff is the produced by executing all steps.
+	Diff string `json:"diff"`
+
+	// ChangedFiles are files that have been changed by all steps.
+	ChangedFiles *StepChanges `json:"changedFiles"`
+
+	// Outputs are the outputs produced by all steps.
 	Outputs map[string]interface{} `json:"outputs"`
 }
 
@@ -231,7 +237,12 @@ func runSteps(ctx context.Context, rf RepoFetcher, wc WorkspaceCreator, repo *gr
 	if err != nil {
 		return execResult, errors.Wrap(err, "git diff failed")
 	}
+
 	execResult.Diff = string(diffOut)
+	if len(results) > 0 && results[len(results)-1].files != nil {
+		execResult.ChangedFiles = results[len(results)-1].files
+	}
+
 	return execResult, err
 }
 

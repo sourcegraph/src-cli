@@ -209,6 +209,12 @@ func TestRenderChangesetTemplateField(t *testing.T) {
 				"main.go":   true,
 			},
 		},
+		Steps: &StepChanges{
+			Modified: []string{"modified-file.txt"},
+			Added:    []string{"added-file.txt"},
+			Deleted:  []string{"deleted-file.txt"},
+			Renamed:  []string{"renamed-file.txt"},
+		},
 	}
 
 	tests := []struct {
@@ -224,11 +230,19 @@ func TestRenderChangesetTemplateField(t *testing.T) {
 ${{ repository.name }}
 ${{ outputs.lastLine }}
 ${{ index outputs.project.env 1 }}
+${{ steps.modified_files }}
+${{ steps.added_files }}
+${{ steps.deleted_files }}
+${{ steps.renamed_files }}
 `,
 			want: `README.md main.go
 github.com/sourcegraph/src-cli
 lastLine is this
 CGO_ENABLED=0
+[modified-file.txt]
+[added-file.txt]
+[deleted-file.txt]
+[renamed-file.txt]
 `,
 		},
 		{
@@ -238,11 +252,19 @@ CGO_ENABLED=0
 ${{ repository.name }}
 ${{ outputs.lastLine }}
 ${{ outputs.project }}
+${{ steps.modified_files }}
+${{ steps.added_files }}
+${{ steps.deleted_files }}
+${{ steps.renamed_files }}
 `,
 			want: `
 
 <no value>
 <no value>
+[]
+[]
+[]
+[]
 `,
 		},
 	}
