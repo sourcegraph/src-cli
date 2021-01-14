@@ -618,13 +618,13 @@ func newZipArchivesMux(t *testing.T, callback http.HandlerFunc, archives ...mock
 
 // inMemoryExecutionCache provides an in-memory cache for testing purposes.
 type inMemoryExecutionCache struct {
-	cache map[string]executionResult
+	cache map[string]ExecutionResult
 	mu    sync.RWMutex
 }
 
 func newInMemoryExecutionCache() *inMemoryExecutionCache {
 	return &inMemoryExecutionCache{
-		cache: make(map[string]executionResult),
+		cache: make(map[string]ExecutionResult),
 	}
 }
 
@@ -635,22 +635,22 @@ func (c *inMemoryExecutionCache) size() int {
 	return len(c.cache)
 }
 
-func (c *inMemoryExecutionCache) Get(ctx context.Context, key ExecutionCacheKey) (string, map[string]interface{}, bool, error) {
+func (c *inMemoryExecutionCache) Get(ctx context.Context, key ExecutionCacheKey) (ExecutionResult, bool, error) {
 	k, err := key.Key()
 	if err != nil {
-		return "", nil, false, err
+		return ExecutionResult{}, false, err
 	}
 
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
 	if res, ok := c.cache[k]; ok {
-		return res.Diff, res.Outputs, true, nil
+		return res, true, nil
 	}
-	return "", nil, false, nil
+	return ExecutionResult{}, false, nil
 }
 
-func (c *inMemoryExecutionCache) Set(ctx context.Context, key ExecutionCacheKey, diff string, outputs map[string]interface{}) error {
+func (c *inMemoryExecutionCache) Set(ctx context.Context, key ExecutionCacheKey, result ExecutionResult) error {
 	k, err := key.Key()
 	if err != nil {
 		return err
@@ -659,7 +659,7 @@ func (c *inMemoryExecutionCache) Set(ctx context.Context, key ExecutionCacheKey,
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	c.cache[k] = executionResult{Diff: diff, Outputs: outputs}
+	c.cache[k] = result
 	return nil
 }
 

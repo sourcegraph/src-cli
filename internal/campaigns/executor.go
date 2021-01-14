@@ -256,12 +256,11 @@ func (x *executor) do(ctx context.Context, task *Task) (err error) {
 		}
 	} else {
 		var (
-			diff    string
-			outputs map[string]interface{}
-			found   bool
+			result ExecutionResult
+			found  bool
 		)
 
-		diff, outputs, found, err = x.cache.Get(ctx, cacheKey)
+		result, found, err = x.cache.Get(ctx, cacheKey)
 		if err != nil {
 			err = errors.Wrapf(err, "checking cache for %q", task.Repository.Name)
 			return
@@ -271,7 +270,7 @@ func (x *executor) do(ctx context.Context, task *Task) (err error) {
 			// add it to the list of specs that are displayed to the user and
 			// send to the server. Instead, we can just report that the task is
 			// complete and move on.
-			if len(diff) == 0 {
+			if len(result.Diff) == 0 {
 				x.updateTaskStatus(task, func(status *TaskStatus) {
 					status.Cached = true
 					status.FinishedAt = time.Now()
@@ -281,7 +280,7 @@ func (x *executor) do(ctx context.Context, task *Task) (err error) {
 			}
 
 			var specs []*ChangesetSpec
-			specs, err = createChangesetSpecs(task, diff, outputs, x.features)
+			specs, err = createChangesetSpecs(task, result.Diff, result.Outputs, x.features)
 			if err != nil {
 				return err
 			}
@@ -346,7 +345,8 @@ func (x *executor) do(ctx context.Context, task *Task) (err error) {
 
 	// Add to the cache. We don't use runCtx here because we want to write to
 	// the cache even if we've now reached the timeout.
-	if err = x.cache.Set(ctx, cacheKey, string(diff), outputs); err != nil {
+	result := ExecutionResult{Diff: string(diff), Outputs: outputs}
+	if err = x.cache.Set(ctx, cacheKey, result); err != nil {
 		err = errors.Wrapf(err, "caching result for %q", task.Repository.Name)
 	}
 
