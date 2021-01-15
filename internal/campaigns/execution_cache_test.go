@@ -139,6 +139,12 @@ func TestExecutionDiskCache(t *testing.T) {
 		Outputs: map[string]interface{}{},
 	}
 
+	onlyDiff := ExecutionResult{
+		Diff:         testDiff,
+		ChangedFiles: &StepChanges{},
+		Outputs:      map[string]interface{}{},
+	}
+
 	t.Run("cache contains v3 cache file", func(t *testing.T) {
 		cache := ExecutionDiskCache{Dir: cacheTmpDir(t)}
 
@@ -174,7 +180,6 @@ func TestExecutionDiskCache(t *testing.T) {
 		oldFilePath := writeV1CacheFile(t, cache, cacheKey1, testDiff)
 
 		// Cache hit, but only for the diff
-		onlyDiff := ExecutionResult{Diff: testDiff, Outputs: map[string]interface{}{}}
 		assertCacheHit(t, cache, cacheKey1, onlyDiff)
 
 		// And the old file should be deleted
@@ -192,8 +197,7 @@ func TestExecutionDiskCache(t *testing.T) {
 		// Simulate old cache file lying around in cache
 		oldFilePath := writeV2CacheFile(t, cache, cacheKey1, testDiff)
 
-		// Now we get a cache hit, but only for the diff (
-		onlyDiff := ExecutionResult{Diff: testDiff, Outputs: map[string]interface{}{}}
+		// Now we get a cache hit, but only for the diff
 		assertCacheHit(t, cache, cacheKey1, onlyDiff)
 
 		// And the old file should be deleted
@@ -226,8 +230,7 @@ func TestExecutionDiskCache(t *testing.T) {
 		oldFilePath1 := writeV1CacheFile(t, cache, cacheKey1, testDiff)
 		oldFilePath2 := writeV1CacheFile(t, cache, cacheKey1, testDiff)
 
-		// Now we get a cache hit, but only for the diff (
-		onlyDiff := ExecutionResult{Diff: testDiff, Outputs: map[string]interface{}{}}
+		// Now we get a cache hit, but only for the diff
 		assertCacheHit(t, cache, cacheKey1, onlyDiff)
 
 		// And the old files should be deleted

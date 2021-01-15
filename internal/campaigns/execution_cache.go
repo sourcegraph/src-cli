@@ -127,6 +127,7 @@ func (c ExecutionDiskCache) Get(ctx context.Context, key ExecutionCacheKey) (Exe
 		}
 
 		return result, true, err
+
 	default:
 		// More than one cache file found.
 		// Sort them so that we'll can possibly read from the one with the most
@@ -194,6 +195,8 @@ func (c ExecutionDiskCache) readCacheFile(path string, result *ExecutionResult) 
 		// only bit of data we were interested in.
 		result.Diff = string(data)
 		result.Outputs = map[string]interface{}{}
+		// Conversion is lossy, though: we don't populate result.StepChanges.
+		result.ChangedFiles = &StepChanges{}
 
 		return nil
 
@@ -213,6 +216,7 @@ func (c ExecutionDiskCache) readCacheFile(path string, result *ExecutionResult) 
 
 		result.Diff = spec.Commits[0].Diff
 		result.Outputs = map[string]interface{}{}
+		result.ChangedFiles = &StepChanges{}
 
 		return nil
 	}
