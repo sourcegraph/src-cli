@@ -174,9 +174,6 @@ func isOldCacheFile(path string) bool { return !strings.HasSuffix(path, cacheFil
 func (c ExecutionDiskCache) readCacheFile(path string, result *ExecutionResult) error {
 	data, err := ioutil.ReadFile(path)
 	if err != nil {
-		if os.IsNotExist(err) {
-			err = nil // treat as not-found
-		}
 		return err
 	}
 
