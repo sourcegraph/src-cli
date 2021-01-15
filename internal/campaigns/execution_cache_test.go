@@ -1,9 +1,13 @@
 package campaigns
 
 import (
+	"context"
+	"io/ioutil"
 	"os"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/sourcegraph/src-cli/internal/campaigns/graphql"
 	"gopkg.in/yaml.v3"
 )
 
@@ -84,5 +88,105 @@ func TestExecutionCacheKey(t *testing.T) {
 	}
 	if string(initial) != string(have) {
 		t.Errorf("unexpected change in key: initial=%q have=%q", initial, have)
+	}
+}
+
+const testDiff = `diff --git a/README.md b/README.md
+new file mode 100644
+index 0000000..3363c39
+--- /dev/null
++++ b/README.md
+@@ -0,0 +1,3 @@
++# README
++
++This is the readme
+`
+
+func TestExecutionDiskCache_Get(t *testing.T) {
+	ctx := context.Background()
+
+	cacheTmpDir := func(t *testing.T) string {
+		testTempDir, err := ioutil.TempDir("", "execution-disk-cache-test-*")
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { os.Remove(testTempDir) })
+
+		return testTempDir
+	}
+
+	cacheKey1 := ExecutionCacheKey{Task: &Task{
+		Repository: &graphql.Repository{Name: "src-cli"},
+		Steps: []Step{
+			{Run: "echo 'Hello World'", Container: "alpine:3"},
+		},
+	}}
+
+	cacheKey2 := ExecutionCacheKey{Task: &Task{
+		Repository: &graphql.Repository{Name: "documentation"},
+		Steps: []Step{
+			{Run: "echo 'Hello World'", Container: "alpine:3"},
+		},
+	}}
+
+	value := ExecutionResult{
+		Diff: testDiff,
+		ChangedFiles: &StepChanges{
+			Added: []string{"README.md"},
+		},
+		Outputs: map[string]interface{}{},
+	}
+
+	t.Run("cache contains v1 cache file", func(t *testing.T) {
+		cache := ExecutionDiskCache{Dir: cacheTmpDir(t)}
+
+		// Empty cache, no hits
+		assertCacheMiss(t, cache, cacheKey1)
+		assertCacheMiss(t, cache, cacheKey2)
+
+		// Set the cache
+		if err := cache.Set(ctx, cacheKey1, value); err != nil {
+			t.Fatalf("cache.Set returned unexpected error: %s", err)
+		}
+
+		// Cache hit
+		assertCacheHit(t, cache, cacheKey1, value)
+
+		// Cache miss due to different key
+		assertCacheMiss(t, cache, cacheKey2)
+
+		// Cache miss due to cleared cache
+		if err := cache.Clear(ctx, cacheKey1); err != nil {
+			t.Fatalf("cache.Get returned unexpected error: %s", err)
+		}
+		assertCacheMiss(t, cache, cacheKey1)
+	})
+}
+
+func assertCacheHit(t *testing.T, c ExecutionDiskCache, k ExecutionCacheKey, want ExecutionResult) {
+	t.Helper()
+
+	have, found, err := c.Get(context.Background(), k)
+	if err != nil {
+		t.Fatalf("cache.Get returned unexpected error: %s", err)
+	}
+	if !found {
+		t.Fatalf("cache miss when hit was expected")
+	}
+
+	if diff := cmp.Diff(have, want); diff != "" {
+		t.Errorf("wrong cached result (-have +want):\n\n%s", diff)
+	}
+}
+
+func assertCacheMiss(t *testing.T, c ExecutionDiskCache, k ExecutionCacheKey) {
+	t.Helper()
+
+	_, found, err := c.Get(context.Background(), k)
+	if err != nil {
+		t.Fatalf("cache.Get returned unexpected error: %s", err)
+	}
+	if found {
+		t.Fatalf("cache hit when miss was expected")
 	}
 }
