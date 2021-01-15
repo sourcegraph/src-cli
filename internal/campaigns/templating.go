@@ -40,7 +40,7 @@ func renderStepMap(m map[string]string, stepCtx *StepContext) (map[string]string
 	return rendered, nil
 }
 
-// StepContext represents the contextual information available when render a
+// StepContext represents the contextual information available when rendering a
 // step's fields, such as "run" or "outputs", as templates.
 type StepContext struct {
 	// Outputs are the outputs set by the current and all previous steps.
