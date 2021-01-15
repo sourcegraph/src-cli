@@ -407,6 +407,12 @@ func reachedTimeout(cmdCtx context.Context, err error) bool {
 func createChangesetSpecs(task *Task, result ExecutionResult, features featureFlags) ([]*ChangesetSpec, error) {
 	repo := task.Repository.Name
 
+	tmplCtx := &ChangesetTemplateContext{
+		Steps:      result.ChangedFiles,
+		Outputs:    result.Outputs,
+		Repository: *task.Repository,
+	}
+
 	var authorName string
 	var authorEmail string
 
@@ -417,14 +423,15 @@ func createChangesetSpecs(task *Task, result ExecutionResult, features featureFl
 			authorEmail = "campaigns@sourcegraph.com"
 		}
 	} else {
-		authorName = task.Template.Commit.Author.Name
-		authorEmail = task.Template.Commit.Author.Email
-	}
-
-	tmplCtx := &ChangesetTemplateContext{
-		Steps:      result.ChangedFiles,
-		Outputs:    result.Outputs,
-		Repository: *task.Repository,
+		var err error
+		authorName, err = renderChangesetTemplateField("authorName", task.Template.Commit.Author.Name, tmplCtx)
+		if err != nil {
+			return nil, err
+		}
+		authorEmail, err = renderChangesetTemplateField("authorEmail", task.Template.Commit.Author.Email, tmplCtx)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	title, err := renderChangesetTemplateField("title", task.Template.Title, tmplCtx)

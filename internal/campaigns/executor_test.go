@@ -71,6 +71,8 @@ func TestExecutor_Integration(t *testing.T) {
 		wantTitle         string
 		wantBody          string
 		wantCommitMessage string
+		wantAuthorName    string
+		wantAuthorEmail   string
 
 		wantErrInclude string
 	}{
@@ -245,6 +247,10 @@ repository_name=${{ repository.name }}`,
 				Branch: "templated-branch-${{ outputs.myOutputName3 }}",
 				Commit: ExpandedGitCommitDescription{
 					Message: "myOutputName1=${{ outputs.myOutputName1}},myOutputName2=${{ outputs.myOutputName2.thisStepStdout }}",
+					Author: &GitCommitAuthor{
+						Name:  "myOutputName1=${{ outputs.myOutputName1}}",
+						Email: "myOutputName1=${{ outputs.myOutputName1}}",
+					},
 				},
 			},
 
@@ -261,6 +267,8 @@ deleted_files=[]
 renamed_files=[]
 repository_name=github.com/sourcegraph/src-cli`,
 			wantCommitMessage: "myOutputName1=main.go,myOutputName2=Hello World!",
+			wantAuthorName:    "myOutputName1=main.go",
+			wantAuthorEmail:   "myOutputName1=main.go",
 		},
 	}
 
@@ -331,19 +339,21 @@ repository_name=github.com/sourcegraph/src-cli`,
 				}
 
 				for _, spec := range specs {
-					if tc.wantTitle != "" && spec.Title != tc.wantTitle {
-						t.Errorf("wrong title. want=%q, have=%q", tc.wantTitle, spec.Title)
-					}
-					if tc.wantBody != "" && spec.Body != tc.wantBody {
-						t.Errorf("wrong body.\nwant=%q\nhave=%q\n", tc.wantBody, spec.Body)
-					}
-
 					if have, want := len(spec.Commits), 1; have != want {
 						t.Fatalf("wrong number of commits. want=%d, have=%d", want, have)
 					}
 
-					if tc.wantCommitMessage != "" && spec.Commits[0].Message != tc.wantCommitMessage {
-						t.Errorf("wrong commitmessage. want=%q, have=%q", tc.wantCommitMessage, spec.Commits[0].Message)
+					attrs := []struct{ name, want, have string }{
+						{name: "title", want: tc.wantTitle, have: spec.Title},
+						{name: "body", want: tc.wantBody, have: spec.Body},
+						{name: "commit.Message", want: tc.wantCommitMessage, have: spec.Commits[0].Message},
+						{name: "commit.AuthorEmail", want: tc.wantAuthorEmail, have: spec.Commits[0].AuthorEmail},
+						{name: "commit.AuthorName", want: tc.wantAuthorName, have: spec.Commits[0].AuthorName},
+					}
+					for _, attr := range attrs {
+						if attr.want != "" && attr.have != attr.want {
+							t.Errorf("wrong %q attribute. want=%q, have=%q", attr.name, attr.want, attr.have)
+						}
 					}
 
 					wantFiles, ok := tc.wantFilesChanged[spec.BaseRepository]
