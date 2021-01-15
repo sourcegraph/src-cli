@@ -2,8 +2,10 @@ package campaigns
 
 import (
 	"context"
+	"encoding/json"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -102,7 +104,7 @@ index 0000000..3363c39
 +This is the readme
 `
 
-func TestExecutionDiskCache_Get(t *testing.T) {
+func TestExecutionDiskCache(t *testing.T) {
 	ctx := context.Background()
 
 	cacheTmpDir := func(t *testing.T) string {
@@ -137,7 +139,7 @@ func TestExecutionDiskCache_Get(t *testing.T) {
 		Outputs: map[string]interface{}{},
 	}
 
-	t.Run("cache contains v1 cache file", func(t *testing.T) {
+	t.Run("cache contains v3 cache file", func(t *testing.T) {
 		cache := ExecutionDiskCache{Dir: cacheTmpDir(t)}
 
 		// Empty cache, no hits
@@ -161,6 +163,169 @@ func TestExecutionDiskCache_Get(t *testing.T) {
 		}
 		assertCacheMiss(t, cache, cacheKey1)
 	})
+
+	t.Run("cache contains v1 cache file", func(t *testing.T) {
+		cache := ExecutionDiskCache{Dir: cacheTmpDir(t)}
+
+		// Empty cache, no hit
+		assertCacheMiss(t, cache, cacheKey1)
+
+		// Simulate old cache file lying around in cache
+		oldFilePath := writeV1CacheFile(t, cache, cacheKey1, testDiff)
+
+		// Cache hit, but only for the diff
+		onlyDiff := ExecutionResult{Diff: testDiff, Outputs: map[string]interface{}{}}
+		assertCacheHit(t, cache, cacheKey1, onlyDiff)
+
+		// And the old file should be deleted
+		assertFileDeleted(t, oldFilePath)
+		// .. but we should still get a cache hit, because we rewrote the cache
+		assertCacheHit(t, cache, cacheKey1, onlyDiff)
+	})
+
+	t.Run("cache contains v2 cache file", func(t *testing.T) {
+		cache := ExecutionDiskCache{Dir: cacheTmpDir(t)}
+
+		// Empty cache, no hit
+		assertCacheMiss(t, cache, cacheKey1)
+
+		// Simulate old cache file lying around in cache
+		oldFilePath := writeV2CacheFile(t, cache, cacheKey1, testDiff)
+
+		// Now we get a cache hit, but only for the diff (
+		onlyDiff := ExecutionResult{Diff: testDiff, Outputs: map[string]interface{}{}}
+		assertCacheHit(t, cache, cacheKey1, onlyDiff)
+
+		// And the old file should be deleted
+		assertFileDeleted(t, oldFilePath)
+		// .. but we should still get a cache hit, because we rewrote the cache
+		assertCacheHit(t, cache, cacheKey1, onlyDiff)
+	})
+
+	t.Run("cache contains one old and one v3 cache file", func(t *testing.T) {
+		cache := ExecutionDiskCache{Dir: cacheTmpDir(t)}
+
+		// Simulate v2 and v3 files in cache
+		oldFilePath := writeV1CacheFile(t, cache, cacheKey1, testDiff)
+
+		if err := cache.Set(ctx, cacheKey1, value); err != nil {
+			t.Fatalf("cache.Set returned unexpected error: %s", err)
+		}
+
+		// Cache hit
+		assertCacheHit(t, cache, cacheKey1, value)
+
+		// And the old file should be deleted
+		assertFileDeleted(t, oldFilePath)
+	})
+
+	t.Run("cache contains multiple old cache files", func(t *testing.T) {
+		cache := ExecutionDiskCache{Dir: cacheTmpDir(t)}
+
+		// Simulate v1 and v2 files in cache
+		oldFilePath1 := writeV1CacheFile(t, cache, cacheKey1, testDiff)
+		oldFilePath2 := writeV1CacheFile(t, cache, cacheKey1, testDiff)
+
+		// Now we get a cache hit, but only for the diff (
+		onlyDiff := ExecutionResult{Diff: testDiff, Outputs: map[string]interface{}{}}
+		assertCacheHit(t, cache, cacheKey1, onlyDiff)
+
+		// And the old files should be deleted
+		assertFileDeleted(t, oldFilePath1)
+		assertFileDeleted(t, oldFilePath2)
+		// .. but we should still get a cache hit, because we rewrote the cache
+		assertCacheHit(t, cache, cacheKey1, onlyDiff)
+	})
+}
+
+func TestSortCacheFiles(t *testing.T) {
+	tests := []struct {
+		paths []string
+		want  []string
+	}{
+		{
+			paths: []string{"file.v3.json", "file.diff", "file.json"},
+			want:  []string{"file.v3.json", "file.diff", "file.json"},
+		},
+		{
+			paths: []string{"file.json", "file.diff", "file.v3.json"},
+			want:  []string{"file.v3.json", "file.json", "file.diff"},
+		},
+		{
+			paths: []string{"file.diff", "file.v3.json"},
+			want:  []string{"file.v3.json", "file.diff"},
+		},
+		{
+			paths: []string{"file1.v3.json", "file2.v3.json"},
+			want:  []string{"file1.v3.json", "file2.v3.json"},
+		},
+	}
+
+	for _, tt := range tests {
+		sortCacheFiles(tt.paths)
+		if diff := cmp.Diff(tt.paths, tt.want); diff != "" {
+			t.Errorf("wrong cached result (-have +want):\n\n%s", diff)
+		}
+	}
+}
+
+func assertFileDeleted(t *testing.T, path string) {
+	t.Helper()
+	if _, err := os.Stat(path); err == nil {
+		t.Fatalf("file exists: %s", path)
+	} else if os.IsNotExist(err) {
+		// Seems to be deleted, all good
+	} else {
+		t.Fatalf("could not determine whether file exists: %s", err)
+	}
+}
+
+func writeV1CacheFile(t *testing.T, c ExecutionDiskCache, k ExecutionCacheKey, diff string) (path string) {
+	t.Helper()
+
+	hashedKey, err := k.Key()
+	if err != nil {
+		t.Fatalf("failed to hash cacheKey: %s", err)
+	}
+	// The v1 file format ended in .json
+	path = filepath.Join(c.Dir, hashedKey+".json")
+
+	// v1 contained a fully serialized ChangesetSpec
+	spec := ChangesetSpec{CreatedChangeset: &CreatedChangeset{
+		Commits: []GitCommitDescription{
+			{Diff: testDiff},
+		},
+	}}
+
+	raw, err := json.Marshal(&spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := ioutil.WriteFile(path, raw, 0600); err != nil {
+		t.Fatalf("writing the cache file failed: %s", err)
+	}
+
+	return path
+}
+
+func writeV2CacheFile(t *testing.T, c ExecutionDiskCache, k ExecutionCacheKey, diff string) (path string) {
+	t.Helper()
+
+	hashedKey, err := k.Key()
+	if err != nil {
+		t.Fatalf("failed to hash cacheKey: %s", err)
+	}
+
+	// The v2 file format ended in .json
+	path = filepath.Join(c.Dir, hashedKey+".diff")
+
+	// v2 contained only a diff
+	if err := ioutil.WriteFile(path, []byte(diff), 0600); err != nil {
+		t.Fatalf("writing the cache file failed: %s", err)
+	}
+
+	return path
 }
 
 func assertCacheHit(t *testing.T, c ExecutionDiskCache, k ExecutionCacheKey, want ExecutionResult) {

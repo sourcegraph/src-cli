@@ -9,6 +9,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/pkg/errors"
@@ -71,13 +72,15 @@ type ExecutionDiskCache struct {
 	Dir string
 }
 
+const cacheFileExt = ".v3.json"
+
 func (c ExecutionDiskCache) cacheFilePath(key ExecutionCacheKey) (string, error) {
 	keyString, err := key.Key()
 	if err != nil {
 		return "", errors.Wrap(err, "calculating execution cache key")
 	}
 
-	return filepath.Join(c.Dir, keyString+".v3.json"), nil
+	return filepath.Join(c.Dir, keyString+cacheFileExt), nil
 }
 
 func (c ExecutionDiskCache) Get(ctx context.Context, key ExecutionCacheKey) (ExecutionResult, bool, error) {
@@ -88,32 +91,106 @@ func (c ExecutionDiskCache) Get(ctx context.Context, key ExecutionCacheKey) (Exe
 		return result, false, err
 	}
 
+	// We try to be backwards compatible and see if we also find older cache
+	// files.
+	//
+	// There are three different cache versions out in the wild and to be
+	// backwards compatible we read all of them.
+	//
+	// In Sourcegraph/src-cli 3.26 we can remove the code here and simply read
+	// the cache from `path`, since all the old cache files should be deleted
+	// until then.
+	globPattern := strings.TrimSuffix(path, cacheFileExt) + ".*"
+	matches, err := filepath.Glob(globPattern)
+	if err != nil {
+		return result, false, err
+	}
+
+	switch len(matches) {
+	case 0:
+		// Nothing found
+		return result, false, nil
+	case 1:
+		// One cache file found
+		if err := c.readCacheFile(matches[0], &result); err != nil {
+			return result, false, err
+		}
+
+		// If it's an old cache file, we rewrite the cache and delete the old file
+		if isOldCacheFile(matches[0]) {
+			if err := c.Set(ctx, key, result); err != nil {
+				return result, false, errors.Wrap(err, "failed to rewrite cache in new format")
+			}
+			if err := os.Remove(matches[0]); err != nil {
+				return result, false, errors.Wrap(err, "failed to remove old cache file")
+			}
+		}
+
+		return result, true, err
+	default:
+		// More than one cache file found.
+		// Sort them so that we'll can possibly read from the one with the most
+		// current version.
+		sortCacheFiles(matches)
+
+		newest := matches[0]
+		toDelete := matches[1:]
+
+		// Read from newest
+		if err := c.readCacheFile(newest, &result); err != nil {
+			return result, false, err
+		}
+
+		// If the newest was also an older version, we write a new version...
+		if isOldCacheFile(newest) {
+			if err := c.Set(ctx, key, result); err != nil {
+				return result, false, errors.Wrap(err, "failed to rewrite cache in new format")
+			}
+			// ... and mark the file also as to-be-deleted
+			toDelete = append(toDelete, newest)
+		}
+
+		// Now we clean up the old ones
+		for _, path := range toDelete {
+			if err := os.Remove(path); err != nil {
+				return result, false, errors.Wrap(err, "failed to remove old cache file")
+			}
+		}
+
+		return result, true, nil
+	}
+}
+
+// sortCacheFiles sorts cache file paths by their "version", so that files
+// ending in `cacheFileExt` are first.
+func sortCacheFiles(paths []string) {
+	sort.Slice(paths, func(i, j int) bool {
+		return !isOldCacheFile(paths[i]) && isOldCacheFile(paths[j])
+	})
+}
+
+func isOldCacheFile(path string) bool { return !strings.HasSuffix(path, cacheFileExt) }
+
+func (c ExecutionDiskCache) readCacheFile(path string, result *ExecutionResult) error {
 	data, err := ioutil.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
 			err = nil // treat as not-found
 		}
-		return result, false, err
+		return err
 	}
 
-	// There are now three different cache versions out in the wild and to be
-	// backwards compatible we read all of them.
-	// 2-step plan for taming this:
-	//  1) February 2021: deprecate old caches by deleting the files when
-	//                    detected and reporting as cache-miss.
-	//  2) May 2021 (two releases later): remove handling of these files from
-	//                                    this function
 	switch {
 	case strings.HasSuffix(path, ".v3.json"):
 		// v3 of the cache: we cache the diff and the outputs produced by the step.
-		if err := json.Unmarshal(data, &result); err != nil {
+		if err := json.Unmarshal(data, result); err != nil {
 			// Delete the invalid data to avoid causing an error for next time.
 			if err := os.Remove(path); err != nil {
-				return result, false, errors.Wrap(err, "while deleting cache file with invalid JSON")
+				return errors.Wrap(err, "while deleting cache file with invalid JSON")
 			}
-			return result, false, errors.Wrapf(err, "reading cache file %s", path)
+			return errors.Wrapf(err, "reading cache file %s", path)
 		}
-		return result, true, nil
+		return nil
 
 	case strings.HasSuffix(path, ".diff"):
 		// v2 of the cache: we only cached the diff, since that's the
@@ -121,7 +198,7 @@ func (c ExecutionDiskCache) Get(ctx context.Context, key ExecutionCacheKey) (Exe
 		result.Diff = string(data)
 		result.Outputs = map[string]interface{}{}
 
-		return result, true, nil
+		return nil
 
 	case strings.HasSuffix(path, ".json"):
 		// v1 of the cache: we cached the complete ChangesetSpec instead of just the diffs.
@@ -129,21 +206,21 @@ func (c ExecutionDiskCache) Get(ctx context.Context, key ExecutionCacheKey) (Exe
 		if err := json.Unmarshal(data, &spec); err != nil {
 			// Delete the invalid data to avoid causing an error for next time.
 			if err := os.Remove(path); err != nil {
-				return result, false, errors.Wrap(err, "while deleting cache file with invalid JSON")
+				return errors.Wrap(err, "while deleting cache file with invalid JSON")
 			}
-			return result, false, errors.Wrapf(err, "reading cache file %s", path)
+			return errors.Wrapf(err, "reading cache file %s", path)
 		}
 		if len(spec.Commits) != 1 {
-			return result, false, errors.New("cached result has no commits")
+			return errors.New("cached result has no commits")
 		}
 
 		result.Diff = spec.Commits[0].Diff
 		result.Outputs = map[string]interface{}{}
 
-		return result, true, nil
+		return nil
 	}
 
-	return result, false, fmt.Errorf("unknown file format for cache file %q", path)
+	return fmt.Errorf("unknown file format for cache file %q", path)
 }
 
 func (c ExecutionDiskCache) Set(ctx context.Context, key ExecutionCacheKey, result ExecutionResult) error {
