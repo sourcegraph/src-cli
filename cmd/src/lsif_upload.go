@@ -70,7 +70,7 @@ Examples:
 	flags.noProgress = flagSet.Bool("no-progress", false, `Do not display a progress bar.`)
 	flags.maxPayloadSizeMb = flagSet.Int("max-payload-size", 100, `The maximum upload size (in megabytes). Indexes exceeding this limit will be uploaded over multiple HTTP requests.`)
 	flags.ignoreUploadFailures = flagSet.Bool("ignore-upload-failure", false, `Exit with status code zero on upload failure.`)
-	flags.uploadRoute = flagSet.String("upload-route", "/.api/lsif/upload", "The path of the upload route.")
+	flags.uploadRoute = flagSet.String("upload-route", "/.api/lsif/upload", "The path of the upload route. For internal use only.")
 	flags.rawVerbosity = flagSet.Int("trace", 0, "-trace=0 shows no logs; -trace=1 shows requests and response metadata; -trace=2 shows headers, -trace=3 shows response body")
 	flags.associatedIndexID = flagSet.Int("associated-index-id", -1, "ID of the associated index record for this upload. For internal use only.")
 
