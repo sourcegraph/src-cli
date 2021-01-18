@@ -56,6 +56,8 @@ github.com/sourcegraph/codeintelutils v0.0.0-20210113171425-9ec641b48a8e h1:PdNc
 github.com/sourcegraph/codeintelutils v0.0.0-20210113171425-9ec641b48a8e/go.mod h1:HplI8gRslTrTUUsSYwu28hSOderix7m5dHNca7xBzeo=
 github.com/sourcegraph/codeintelutils v0.0.0-20210118225004-6e6891d301ca h1:YotYereMYoAX/Q/2OS3zn2MJKgVbVdzQU65PRiaGHYE=
 github.com/sourcegraph/codeintelutils v0.0.0-20210118225004-6e6891d301ca/go.mod h1:HplI8gRslTrTUUsSYwu28hSOderix7m5dHNca7xBzeo=
+github.com/sourcegraph/codeintelutils v0.0.0-20210118231003-6698e102a8a1 h1:IPWruUo+BwPJqCHBVgjKxK6zTxMkOhwCSYpQ/jZHG/w=
+github.com/sourcegraph/codeintelutils v0.0.0-20210118231003-6698e102a8a1/go.mod h1:HplI8gRslTrTUUsSYwu28hSOderix7m5dHNca7xBzeo=
 github.com/sourcegraph/go-diff v0.6.1 h1:hmA1LzxW0n1c3Q4YbrFgg4P99GSnebYa3x8gr0HZqLQ=
 github.com/sourcegraph/go-diff v0.6.1/go.mod h1:iBszgVvyxdc8SFZ7gm69go2KDdt3ag071iBaWPF6cjs=
 github.com/sourcegraph/jsonx v0.0.0-20200629203448-1a936bd500cf h1:oAdWFqhStsWiiMP/vkkHiMXqFXzl1XfUNOdxKJbd6bI=
