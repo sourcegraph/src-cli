@@ -55,7 +55,7 @@ const (
 
 // bestWorkspaceCreator determines the correct workspace creator to use based on
 // the environment and campaign to be executed.
-func bestWorkspaceCreator(ctx context.Context, steps []Step) workspaceCreatorType {
+func bestWorkspaceCreator(ctx context.Context, steps []Step) (workspaceCreatorType, int) {
 	// The basic theory here is that we have two options: bind and volume. Bind
 	// is battle tested and always safe, but can be slow on non-Linux platforms
 	// because bind mounts are slow. Volume is faster on those platforms, but
@@ -67,13 +67,13 @@ func bestWorkspaceCreator(ctx context.Context, steps []Step) workspaceCreatorTyp
 	// For the time being, we're only going to consider volume mode on Intel
 	// macOS.
 	if runtime.GOOS != "darwin" || runtime.GOARCH != "amd64" {
-		return workspaceCreatorBind
+		return workspaceCreatorBind, 0
 	}
 
 	return detectBestWorkspaceCreator(ctx, steps)
 }
 
-func detectBestWorkspaceCreator(ctx context.Context, steps []Step) workspaceCreatorType {
+func detectBestWorkspaceCreator(ctx context.Context, steps []Step) (workspaceCreatorType, int) {
 	// OK, so we're interested in volume mode, but we need to take its
 	// shortcomings around mixed user environments into account.
 	//
@@ -109,7 +109,7 @@ func detectBestWorkspaceCreator(ctx context.Context, steps []Step) workspaceCrea
 			// An error here likely indicates that `id` isn't available on the
 			// path. That's OK: let's not make any assumptions at this point
 			// about the image, and we'll default to the always safe option.
-			return workspaceCreatorBind
+			return workspaceCreatorBind, 0
 		}
 
 		// POSIX specifies the output of `id -u` as the effective UID,
@@ -124,14 +124,20 @@ func detectBestWorkspaceCreator(ctx context.Context, steps []Step) workspaceCrea
 			//
 			// TODO: when logging is available at this level, we should log an
 			// error at verbose level to make this easier to debug.
-			return workspaceCreatorBind
+			return workspaceCreatorBind, 0
 		}
 
 		uids[uid] = struct{}{}
 		if len(uids) > 1 {
-			return workspaceCreatorBind
+			return workspaceCreatorBind, 0
 		}
 	}
 
-	return workspaceCreatorVolume
+	var uid int
+	for k := range uids {
+		uid = k
+		break // fml
+	}
+
+	return workspaceCreatorVolume, uid
 }
