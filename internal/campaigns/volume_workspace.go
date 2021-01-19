@@ -3,6 +3,7 @@ package campaigns
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io/ioutil"
 	"os"
 
@@ -13,7 +14,9 @@ import (
 	"github.com/sourcegraph/src-cli/internal/version"
 )
 
-type dockerVolumeWorkspaceCreator struct{}
+type dockerVolumeWorkspaceCreator struct {
+	uid int
+}
 
 var _ WorkspaceCreator = &dockerVolumeWorkspaceCreator{}
 
@@ -58,12 +61,32 @@ git commit --quiet --all --allow-empty -m src-action-exec
 	return nil
 }
 
-func (*dockerVolumeWorkspaceCreator) unzipRepoIntoVolume(ctx context.Context, w *dockerVolumeWorkspace, zip string) error {
+func (c *dockerVolumeWorkspaceCreator) unzipRepoIntoVolume(ctx context.Context, w *dockerVolumeWorkspace, zip string) error {
 	// We want to mount that temporary file into a Docker container that has the
 	// workspace volume attached, and unzip it into the volume.
 	common, err := w.DockerRunOpts(ctx, "/work")
 	if err != nil {
 		return errors.Wrap(err, "generating run options")
+	}
+
+	if c.uid != 0 {
+		owner := fmt.Sprintf("%d:%d", c.uid, c.uid)
+
+		opts := append([]string{"run", "--rm", "--init"}, common...)
+		opts = append(opts, dockerVolumeWorkspaceImage, "chown", "-R", owner, "/work")
+
+		if out, err := exec.CommandContext(ctx, "docker", opts...).CombinedOutput(); err != nil {
+			return errors.Wrapf(err, "chown output:\n\n%s\n\n", string(out))
+		}
+
+		// LOL/FML: This seems to "fix" the problem of `chown` getting lost between
+		// the `chown` call above and the unzip below?
+		opts = append([]string{"run", "--rm", "--init"}, common...)
+		opts = append(opts, dockerVolumeWorkspaceImage, "touch", "/work/DELETE_ME")
+
+		if out, err := exec.CommandContext(ctx, "docker", opts...).CombinedOutput(); err != nil {
+			return errors.Wrapf(err, "chown output:\n\n%s\n\n", string(out))
+		}
 	}
 
 	opts := append([]string{
@@ -77,6 +100,16 @@ func (*dockerVolumeWorkspaceCreator) unzipRepoIntoVolume(ctx context.Context, w 
 
 	if out, err := exec.CommandContext(ctx, "docker", opts...).CombinedOutput(); err != nil {
 		return errors.Wrapf(err, "unzip output:\n\n%s\n\n", string(out))
+	}
+
+	// LOL/FML: delete stupid file
+	if c.uid != 0 {
+		opts = append([]string{"run", "--rm", "--init"}, common...)
+		opts = append(opts, dockerVolumeWorkspaceImage, "rm", "-rf", "/work/DELETE_ME")
+
+		if out, err := exec.CommandContext(ctx, "docker", opts...).CombinedOutput(); err != nil {
+			return errors.Wrapf(err, "chown output:\n\n%s\n\n", string(out))
+		}
 	}
 
 	return nil

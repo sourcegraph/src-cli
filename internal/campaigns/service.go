@@ -213,16 +213,18 @@ func (svc *Service) NewRepoFetcher(dir string, cleanArchives bool) RepoFetcher {
 
 func (svc *Service) NewWorkspaceCreator(ctx context.Context, dir string, steps []Step) WorkspaceCreator {
 	var workspace workspaceCreatorType
+	var workspaceCreatorVolumeUid int
+
 	if svc.workspace == "volume" {
 		workspace = workspaceCreatorVolume
 	} else if svc.workspace == "bind" {
 		workspace = workspaceCreatorBind
 	} else {
-		workspace = bestWorkspaceCreator(ctx, steps)
+		workspace, workspaceCreatorVolumeUid = bestWorkspaceCreator(ctx, steps)
 	}
 
 	if workspace == workspaceCreatorVolume {
-		return &dockerVolumeWorkspaceCreator{}
+		return &dockerVolumeWorkspaceCreator{uid: workspaceCreatorVolumeUid}
 	}
 	return &dockerBindWorkspaceCreator{dir: dir}
 }
