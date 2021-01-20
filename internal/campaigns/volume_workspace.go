@@ -3,6 +3,8 @@ package campaigns
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -75,13 +77,30 @@ func (wc *dockerVolumeWorkspaceCreator) unzipRepoIntoVolume(ctx context.Context,
 		return errors.Wrap(err, "getting container UID and GID")
 	}
 
+	// We need to keep a temporary file in the volume before unzipping for the
+	// permissions to persist because... reasons. Rather than reading the
+	// potentially large ZIP file, we'll cheat a bit and just assume that if we
+	// create a file with an appropriately namespaced and random name, it's
+	// _probably_ OK. If you manage to reliably trigger an archive that has this
+	// file in it, we'll send you a hoodie or something.
+	randToken := make([]byte, 16)
+	if _, err := rand.Read(randToken); err != nil {
+		return errors.Wrap(err, "generating randomness")
+	}
+	dummy := fmt.Sprintf(".campaign-workspace-placeholder-%s", hex.EncodeToString(randToken))
+
 	opts := append([]string{
 		"run",
 		"--rm",
 		"--init",
 		"--workdir", "/work",
 	}, common...)
-	opts = append(opts, dockerVolumeWorkspaceImage, "sh", "-c", fmt.Sprintf("touch /work/foo; chown -R %d:%d /work", ug.UID, ug.GID))
+	opts = append(
+		opts,
+		dockerVolumeWorkspaceImage,
+		"sh", "-c",
+		fmt.Sprintf("touch /work/%s; chown -R %d:%d /work", dummy, ug.UID, ug.GID),
+	)
 
 	if out, err := exec.CommandContext(ctx, "docker", opts...).CombinedOutput(); err != nil {
 		return errors.Wrapf(err, "chown output:\n\n%s\n\n", string(out))
@@ -95,7 +114,12 @@ func (wc *dockerVolumeWorkspaceCreator) unzipRepoIntoVolume(ctx context.Context,
 		"--workdir", "/work",
 		"--mount", "type=bind,source=" + zip + ",target=/tmp/zip,ro",
 	}, common...)
-	opts = append(opts, dockerVolumeWorkspaceImage, "unzip", "/tmp/zip")
+	opts = append(
+		opts,
+		dockerVolumeWorkspaceImage,
+		"sh", "-c",
+		fmt.Sprintf("unzip /tmp/zip; rm /work/%s", dummy),
+	)
 
 	if out, err := exec.CommandContext(ctx, "docker", opts...).CombinedOutput(); err != nil {
 		return errors.Wrapf(err, "unzip output:\n\n%s\n\n", string(out))
