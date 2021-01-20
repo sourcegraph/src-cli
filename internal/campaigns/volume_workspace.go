@@ -21,14 +21,14 @@ type dockerVolumeWorkspaceCreator struct {
 
 var _ WorkspaceCreator = &dockerVolumeWorkspaceCreator{}
 
-func (wc *dockerVolumeWorkspaceCreator) Create(ctx context.Context, repo *graphql.Repository, zip string) (Workspace, error) {
+func (wc *dockerVolumeWorkspaceCreator) Create(ctx context.Context, repo *graphql.Repository, steps []Step, zip string) (Workspace, error) {
 	volume, err := wc.createVolume(ctx)
 	if err != nil {
 		return nil, errors.Wrap(err, "creating Docker volume")
 	}
 
 	w := &dockerVolumeWorkspace{tempDir: wc.tempDir, volume: volume}
-	if err := wc.unzipRepoIntoVolume(ctx, w, zip); err != nil {
+	if err := wc.unzipRepoIntoVolume(ctx, w, steps, zip); err != nil {
 		return nil, errors.Wrap(err, "unzipping repo into workspace")
 	}
 
@@ -62,7 +62,7 @@ git commit --quiet --all --allow-empty -m src-action-exec
 	return nil
 }
 
-func (c *dockerVolumeWorkspaceCreator) unzipRepoIntoVolume(ctx context.Context, w *dockerVolumeWorkspace, zip string) error {
+func (wc *dockerVolumeWorkspaceCreator) unzipRepoIntoVolume(ctx context.Context, w *dockerVolumeWorkspace, steps []Step, zip string) error {
 	// We want to mount that temporary file into a Docker container that has the
 	// workspace volume attached, and unzip it into the volume.
 	common, err := w.DockerRunOpts(ctx, "/work")
@@ -70,24 +70,9 @@ func (c *dockerVolumeWorkspaceCreator) unzipRepoIntoVolume(ctx context.Context, 
 		return errors.Wrap(err, "generating run options")
 	}
 
-	if c.uid != 0 {
-		owner := fmt.Sprintf("%d:%d", c.uid, c.uid)
-
-		opts := append([]string{"run", "--rm", "--init"}, common...)
-		opts = append(opts, dockerVolumeWorkspaceImage, "chown", "-R", owner, "/work")
-
-		if out, err := exec.CommandContext(ctx, "docker", opts...).CombinedOutput(); err != nil {
-			return errors.Wrapf(err, "chown output:\n\n%s\n\n", string(out))
-		}
-
-		// LOL/FML: This seems to "fix" the problem of `chown` getting lost between
-		// the `chown` call above and the unzip below?
-		opts = append([]string{"run", "--rm", "--init"}, common...)
-		opts = append(opts, dockerVolumeWorkspaceImage, "touch", "/work/DELETE_ME")
-
-		if out, err := exec.CommandContext(ctx, "docker", opts...).CombinedOutput(); err != nil {
-			return errors.Wrapf(err, "chown output:\n\n%s\n\n", string(out))
-		}
+	ug, err := steps[0].image.UIDGID(ctx)
+	if err != nil {
+		return errors.Wrap(err, "getting container UID and GID")
 	}
 
 	opts := append([]string{
@@ -95,22 +80,25 @@ func (c *dockerVolumeWorkspaceCreator) unzipRepoIntoVolume(ctx context.Context, 
 		"--rm",
 		"--init",
 		"--workdir", "/work",
+	}, common...)
+	opts = append(opts, dockerVolumeWorkspaceImage, "sh", "-c", fmt.Sprintf("touch /work/foo; chown -R %d:%d /work", ug.UID, ug.GID))
+
+	if out, err := exec.CommandContext(ctx, "docker", opts...).CombinedOutput(); err != nil {
+		return errors.Wrapf(err, "chown output:\n\n%s\n\n", string(out))
+	}
+
+	opts = append([]string{
+		"run",
+		"--rm",
+		"--init",
+		"--user", fmt.Sprintf("%d:%d", ug.UID, ug.GID),
+		"--workdir", "/work",
 		"--mount", "type=bind,source=" + zip + ",target=/tmp/zip,ro",
 	}, common...)
 	opts = append(opts, dockerVolumeWorkspaceImage, "unzip", "/tmp/zip")
 
 	if out, err := exec.CommandContext(ctx, "docker", opts...).CombinedOutput(); err != nil {
 		return errors.Wrapf(err, "unzip output:\n\n%s\n\n", string(out))
-	}
-
-	// LOL/FML: delete stupid file
-	if c.uid != 0 {
-		opts = append([]string{"run", "--rm", "--init"}, common...)
-		opts = append(opts, dockerVolumeWorkspaceImage, "rm", "-rf", "/work/DELETE_ME")
-
-		if out, err := exec.CommandContext(ctx, "docker", opts...).CombinedOutput(); err != nil {
-			return errors.Wrapf(err, "chown output:\n\n%s\n\n", string(out))
-		}
 	}
 
 	return nil
