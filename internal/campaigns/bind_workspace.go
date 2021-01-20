@@ -169,13 +169,9 @@ func unzip(zipFile, dest string) error {
 		// set on the zipped up file, let's ensure we propagate that to the
 		// group and other permission bits too.
 		if f.Mode()&0111 != 0 {
-			if err := outFile.Chmod(0777); err != nil {
-				return err
-			}
+			_ = outFile.Chmod(0777)
 		} else {
-			if err := outFile.Chmod(0666); err != nil {
-				return err
-			}
+			_ = outFile.Chmod(0666)
 		}
 
 		rc, err := f.Open()
