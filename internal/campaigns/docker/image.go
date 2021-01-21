@@ -3,6 +3,7 @@ package docker
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -11,8 +12,27 @@ import (
 	"github.com/pkg/errors"
 )
 
+// UIDGID represents a UID:GID pair.
+type UIDGID struct {
+	UID int
+	GID int
+}
+
+func (ug UIDGID) String() string {
+	return fmt.Sprintf("%d:%d", ug.UID, ug.GID)
+}
+
+// Root is a root:root user.
+var Root = UIDGID{UID: 0, GID: 0}
+
 // Image represents a Docker image, hopefully stored in the local cache.
-type Image struct {
+type Image interface {
+	Digest(context.Context) (string, error)
+	Ensure(context.Context) error
+	UIDGID(context.Context) (UIDGID, error)
+}
+
+type image struct {
 	name string
 
 	// There are lots of once fields below: basically, we're going to try fairly
@@ -31,12 +51,6 @@ type Image struct {
 	uidGidOnce sync.Once
 }
 
-// UIDGID represents a UID:GID pair.
-type UIDGID struct {
-	UID int
-	GID int
-}
-
 // Digest gets and returns the content digest for the image. Note that this is
 // different from the "distribution digest" (which is what you can use to
 // specify an image to `docker run`, as in `my/image@sha256:xxx`). We need to
@@ -44,7 +58,7 @@ type UIDGID struct {
 // images that have been pulled from or pushed to a registry. See
 // https://windsock.io/explaining-docker-image-ids/ under "A Final Twist" for a
 // good explanation.
-func (image *Image) Digest(ctx context.Context) (string, error) {
+func (image *image) Digest(ctx context.Context) (string, error) {
 	image.digestOnce.Do(func() {
 		image.digest, image.digestErr = func() (string, error) {
 			if err := image.Ensure(ctx); err != nil {
@@ -72,7 +86,7 @@ func (image *Image) Digest(ctx context.Context) (string, error) {
 
 // Ensure ensures that the image has been pulled by Docker. Note that it does
 // not attempt to pull a newer version of the image if it exists locally.
-func (image *Image) Ensure(ctx context.Context) error {
+func (image *image) Ensure(ctx context.Context) error {
 	image.ensureOnce.Do(func() {
 		image.ensureErr = func() error {
 			// docker image inspect will return a non-zero exit code if the image and
@@ -92,7 +106,7 @@ func (image *Image) Ensure(ctx context.Context) error {
 }
 
 // UIDGID returns the user and group the container is configured to run as.
-func (image *Image) UIDGID(ctx context.Context) (UIDGID, error) {
+func (image *image) UIDGID(ctx context.Context) (UIDGID, error) {
 	image.uidGidOnce.Do(func() {
 		image.uidGid, image.uidGidErr = func() (UIDGID, error) {
 			stdout := new(bytes.Buffer)

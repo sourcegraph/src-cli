@@ -74,7 +74,7 @@ type Step struct {
 	Files     map[string]string `json:"files,omitempty" yaml:"files,omitempty"`
 	Outputs   Outputs           `json:"outputs,omitempty" yaml:"outputs,omitempty"`
 
-	image *docker.Image
+	image docker.Image
 }
 
 type Outputs map[string]Output
