@@ -60,7 +60,7 @@ func (image *Image) Digest(ctx context.Context) (string, error) {
 			}
 			id := string(bytes.TrimSpace(out))
 			if id == "" {
-				return "", errors.Errorf("unexpected empty docker image content ID for %q", image)
+				return "", errors.Errorf("unexpected empty docker image content ID for %q", image.name)
 			}
 			return id, nil
 		}()
