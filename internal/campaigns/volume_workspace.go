@@ -16,10 +16,7 @@ import (
 	"github.com/sourcegraph/src-cli/internal/version"
 )
 
-type dockerVolumeWorkspaceCreator struct {
-	tempDir string
-	uid     int
-}
+type dockerVolumeWorkspaceCreator struct{ tempDir string }
 
 var _ WorkspaceCreator = &dockerVolumeWorkspaceCreator{}
 

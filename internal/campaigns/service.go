@@ -226,10 +226,7 @@ func (svc *Service) NewWorkspaceCreator(ctx context.Context, cacheDir, tempDir s
 	}
 
 	if workspace == workspaceCreatorVolume {
-		return &dockerVolumeWorkspaceCreator{
-			tempDir: tempDir,
-			uid:     workspaceCreatorVolumeUid,
-		}
+		return &dockerVolumeWorkspaceCreator{tempDir: tempDir}
 	}
 	return &dockerBindWorkspaceCreator{dir: cacheDir}
 }
