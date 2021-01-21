@@ -20,12 +20,14 @@ type Image struct {
 	// over, since some of them are expensive.
 
 	digest     string
+	digestErr  error
 	digestOnce sync.Once
 
 	ensureErr  error
 	ensureOnce sync.Once
 
 	uidGid     UIDGID
+	uidGidErr  error
 	uidGidOnce sync.Once
 }
 
@@ -43,9 +45,8 @@ type UIDGID struct {
 // https://windsock.io/explaining-docker-image-ids/ under "A Final Twist" for a
 // good explanation.
 func (image *Image) Digest(ctx context.Context) (string, error) {
-	var err error
 	image.digestOnce.Do(func() {
-		image.digest, err = func() (string, error) {
+		image.digest, image.digestErr = func() (string, error) {
 			if err := image.Ensure(ctx); err != nil {
 				return "", err
 			}
@@ -66,10 +67,7 @@ func (image *Image) Digest(ctx context.Context) (string, error) {
 		}()
 	})
 
-	if err != nil {
-		return "", err
-	}
-	return image.digest, nil
+	return image.digest, image.digestErr
 }
 
 // Ensure ensures that the image has been pulled by Docker. Note that it does
@@ -95,9 +93,8 @@ func (image *Image) Ensure(ctx context.Context) error {
 
 // UIDGID returns the user and group the container is configured to run as.
 func (image *Image) UIDGID(ctx context.Context) (UIDGID, error) {
-	var err error
 	image.uidGidOnce.Do(func() {
-		image.uidGid, err = func() (UIDGID, error) {
+		image.uidGid, image.uidGidErr = func() (UIDGID, error) {
 			stdout := new(bytes.Buffer)
 
 			// Digest also implicitly means Ensure has been called.
@@ -144,5 +141,5 @@ func (image *Image) UIDGID(ctx context.Context) (UIDGID, error) {
 		}()
 	})
 
-	return image.uidGid, err
+	return image.uidGid, image.uidGidErr
 }
