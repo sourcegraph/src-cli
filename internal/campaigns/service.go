@@ -222,7 +222,7 @@ func (svc *Service) NewWorkspaceCreator(ctx context.Context, dir string, steps [
 	}
 
 	if workspace == workspaceCreatorVolume {
-		return &dockerVolumeWorkspaceCreator{}
+		return &dockerVolumeWorkspaceCreator{tempDir: dir}
 	}
 	return &dockerBindWorkspaceCreator{dir: dir}
 }
