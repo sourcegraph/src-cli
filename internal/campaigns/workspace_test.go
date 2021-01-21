@@ -38,8 +38,9 @@ func TestBestWorkspaceCreator(t *testing.T) {
 		"same user": {
 			behaviours: []imageBehaviour{
 				{image: "foo", behaviour: expect.Behaviour{Stdout: []byte("1000\n")}},
+				{image: "bar", behaviour: expect.Behaviour{Stdout: []byte("1000\n")}},
 			},
-			want: workspaceCreatorBind,
+			want: workspaceCreatorVolume,
 		},
 		"different user": {
 			behaviours: []imageBehaviour{
