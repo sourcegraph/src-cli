@@ -131,14 +131,14 @@ func TestVolumeWorkspaceCreator(t *testing.T) {
 					"--user", "0:0",
 					"--mount", "type=volume,source="+volumeID+",target=/work",
 					dockerVolumeWorkspaceImage,
-					"sh", "-c", "touch /work/*; chown -R 1000:1000 /work",
+					"sh", "-c", "touch /work/*; chown -R 1:2 /work",
 				),
 				expect.NewGlob(
 					expect.Behaviour{},
 					"docker", "run", "--rm", "--init",
 					"--workdir", "/work",
 					"--mount", "type=bind,source=*,target=/tmp/zip,ro",
-					"--user", "1000:1000",
+					"--user", "1:2",
 					"--mount", "type=volume,source="+volumeID+",target=/work",
 					dockerVolumeWorkspaceImage,
 					"sh", "-c", "unzip /tmp/zip; rm /work/*",
@@ -147,17 +147,16 @@ func TestVolumeWorkspaceCreator(t *testing.T) {
 					expect.Behaviour{},
 					"docker", "run", "--rm", "--init", "--workdir", "/work",
 					"--mount", "type=bind,source=*,target=/run.sh,ro",
-					"--user", "1000:1000",
+					"--user", "1:2",
 					"--mount", "type=volume,source="+volumeID+",target=/work",
 					dockerVolumeWorkspaceImage,
 					"sh", "/run.sh",
 				),
 			},
 			steps: []Step{
-				{image: &mockImage{uidGid: docker.UIDGID{UID: 1000, GID: 1000}}},
+				{image: &mockImage{uidGid: docker.UIDGID{UID: 1, GID: 2}}},
 			},
 		},
-		// TODO: add more success tests and a chown failure test
 		"docker volume create failure": {
 			expectations: []*expect.Expectation{
 				expect.NewGlob(
