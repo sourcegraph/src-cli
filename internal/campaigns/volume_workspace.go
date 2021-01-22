@@ -10,10 +10,12 @@ import (
 
 	"github.com/sourcegraph/src-cli/internal/campaigns/graphql"
 	"github.com/sourcegraph/src-cli/internal/exec"
+	"github.com/sourcegraph/src-cli/internal/version"
 )
 
-// dockerVolumeWorkspaceCreator creates dockerVolumeWorkspace instances.
-type dockerVolumeWorkspaceCreator struct{}
+type dockerVolumeWorkspaceCreator struct {
+	tempDir string
+}
 
 var _ WorkspaceCreator = &dockerVolumeWorkspaceCreator{}
 
@@ -23,16 +25,12 @@ func (wc *dockerVolumeWorkspaceCreator) Create(ctx context.Context, repo *graphq
 		return nil, errors.Wrap(err, "creating Docker volume")
 	}
 
-	w := &dockerVolumeWorkspace{volume: volume}
+	w := &dockerVolumeWorkspace{tempDir: wc.tempDir, volume: volume}
 	if err := wc.unzipRepoIntoVolume(ctx, w, zip); err != nil {
 		return nil, errors.Wrap(err, "unzipping repo into workspace")
 	}
 
 	return w, errors.Wrap(wc.prepareGitRepo(ctx, w), "preparing local git repo")
-}
-
-func (*dockerVolumeWorkspaceCreator) DockerImages() []string {
-	return []string{dockerWorkspaceImage}
 }
 
 func (*dockerVolumeWorkspaceCreator) createVolume(ctx context.Context) (string, error) {
@@ -77,7 +75,7 @@ func (*dockerVolumeWorkspaceCreator) unzipRepoIntoVolume(ctx context.Context, w 
 		"--workdir", "/work",
 		"--mount", "type=bind,source=" + zip + ",target=/tmp/zip,ro",
 	}, common...)
-	opts = append(opts, dockerWorkspaceImage, "unzip", "/tmp/zip")
+	opts = append(opts, dockerVolumeWorkspaceImage, "unzip", "/tmp/zip")
 
 	if out, err := exec.CommandContext(ctx, "docker", opts...).CombinedOutput(); err != nil {
 		return errors.Wrapf(err, "unzip output:\n\n%s\n\n", string(out))
@@ -91,7 +89,8 @@ func (*dockerVolumeWorkspaceCreator) unzipRepoIntoVolume(ctx context.Context, w 
 // advantages if bind mounts are slow, such as on Docker for Mac, but could make
 // debugging harder and is slower when it's time to actually retrieve the diff.
 type dockerVolumeWorkspace struct {
-	volume string
+	tempDir string
+	volume  string
 }
 
 var _ Workspace = &dockerVolumeWorkspace{}
@@ -151,15 +150,25 @@ exec git diff --cached --no-prefix --binary
 	return out, nil
 }
 
-// dockerWorkspaceImage is the Docker image we'll run our unzip and git commands
-// in. This needs to match the name defined in .github/workflows/docker.yml.
-const dockerWorkspaceImage = "sourcegraph/src-campaign-volume-workspace"
+// dockerVolumeWorkspaceImage is the Docker image we'll run our unzip and git
+// commands in. This needs to match the name defined in
+// .github/workflows/docker.yml.
+var dockerVolumeWorkspaceImage = "sourcegraph/src-campaign-volume-workspace"
+
+func init() {
+	dockerTag := version.BuildTag
+	if version.BuildTag == version.DefaultBuildTag {
+		dockerTag = "latest"
+	}
+
+	dockerVolumeWorkspaceImage = dockerVolumeWorkspaceImage + ":" + dockerTag
+}
 
 // runScript is a utility function to mount the given shell script into a Docker
 // container started from the dockerWorkspaceImage, then run it and return the
 // output.
 func (w *dockerVolumeWorkspace) runScript(ctx context.Context, target, script string) ([]byte, error) {
-	f, err := ioutil.TempFile(os.TempDir(), "src-run-*")
+	f, err := ioutil.TempFile(w.tempDir, "src-run-*")
 	if err != nil {
 		return nil, errors.Wrap(err, "creating run script")
 	}
@@ -183,7 +192,7 @@ func (w *dockerVolumeWorkspace) runScript(ctx context.Context, target, script st
 		"--workdir", target,
 		"--mount", "type=bind,source=" + name + ",target=/run.sh,ro",
 	}, common...)
-	opts = append(opts, dockerWorkspaceImage, "sh", "/run.sh")
+	opts = append(opts, dockerVolumeWorkspaceImage, "sh", "/run.sh")
 
 	out, err := exec.CommandContext(ctx, "docker", opts...).CombinedOutput()
 	if err != nil {

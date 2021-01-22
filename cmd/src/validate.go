@@ -17,28 +17,28 @@ import (
 	jsoniter "github.com/json-iterator/go"
 	"github.com/mattn/go-isatty"
 	"github.com/sourcegraph/src-cli/internal/api"
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 )
 
 type validationSpec struct {
 	FirstAdmin struct {
-		Email             string
-		Username          string
-		Password          string
-		CreateAccessToken bool
-	}
+		Email             string `yaml:"email"`
+		Username          string `yaml:"username"`
+		Password          string `yaml:"password"`
+		CreateAccessToken bool   `yaml:"createAccessToken"`
+	} `yaml:"firstAdmin"`
 	WaitRepoCloned struct {
-		Repo                     string
-		MaxTries                 int
-		SleepBetweenTriesSeconds int
-	}
-	SearchQuery     string
+		Repo                     string `yaml:"repo"`
+		MaxTries                 int    `yaml:"maxTries"`
+		SleepBetweenTriesSeconds int    `yaml:"sleepBetweenTriesSecond"`
+	} `yaml:"waitRepoCloned"`
+	SearchQuery     string `yaml:"searchQuery"`
 	ExternalService struct {
-		Kind           string
-		DisplayName    string
-		Config         *json.RawMessage
-		DeleteWhenDone bool
-	}
+		Kind           string                 `yaml:"kind"`
+		DisplayName    string                 `yaml:"displayName"`
+		Config         map[string]interface{} `yaml:"config"`
+		DeleteWhenDone bool                   `yaml:"deleteWhenDone"`
+	} `yaml:"externalService"`
 }
 
 type validator struct {
@@ -73,7 +73,9 @@ Please visit https://docs.sourcegraph.com/admin/validation for documentation of 
 	)
 
 	handler := func(args []string) error {
-		flagSet.Parse(args)
+		if err := flagSet.Parse(args); err != nil {
+			return err
+		}
 
 		client := cfg.apiClient(apiFlags, flagSet.Output())
 
@@ -98,6 +100,9 @@ Please visit https://docs.sourcegraph.com/admin/validation for documentation of 
 		if !isatty.IsTerminal(os.Stdin.Fd()) {
 			// stdin is a pipe not a terminal
 			script, err = ioutil.ReadAll(os.Stdin)
+			if err != nil {
+				return err
+			}
 			isYaml = true
 		}
 
@@ -235,7 +240,7 @@ mutation AddExternalService($kind: ExternalServiceKind!, $displayName: String!, 
 }`
 
 func (vd *validator) addExternalService(vspec *validationSpec) (string, error) {
-	configJson, err := vspec.ExternalService.Config.MarshalJSON()
+	configJson, err := json.Marshal(vspec.ExternalService.Config)
 	if err != nil {
 		return "", err
 	}

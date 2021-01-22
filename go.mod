@@ -4,7 +4,7 @@ go 1.13
 
 require (
 	github.com/Masterminds/semver v1.5.0
-	github.com/apex/log v1.9.0
+	github.com/apex/log v1.9.0 // indirect
 	github.com/bradfitz/iter v0.0.0-20191230175014-e8f45d346db8 // indirect
 	github.com/c4milo/unpackit v0.0.0-20170704181138-4ed373e9ef1c // indirect
 	github.com/dsnet/compress v0.0.1 // indirect
@@ -31,7 +31,7 @@ require (
 	github.com/pkg/browser v0.0.0-20180916011732-0a3d74bf9ce4
 	github.com/pkg/errors v0.9.1
 	github.com/sourcegraph/campaignutils v0.0.0-20201124055807-2f9cfa9317e2
-	github.com/sourcegraph/codeintelutils v0.0.0-20201118031531-b82ba3167b30
+	github.com/sourcegraph/codeintelutils v0.0.0-20210118231003-6698e102a8a1
 	github.com/sourcegraph/go-diff v0.6.1
 	github.com/sourcegraph/jsonx v0.0.0-20200629203448-1a936bd500cf
 	github.com/ssor/bom v0.0.0-20170718123548-6386211fdfcf // indirect
@@ -41,7 +41,7 @@ require (
 	golang.org/x/net v0.0.0-20200625001655-4c5254603344
 	golang.org/x/sync v0.0.0-20190911185100-cd5d95a43a6e
 	golang.org/x/sys v0.0.0-20210113181707-4bcb84eeeb78
-	gopkg.in/yaml.v2 v2.3.0
+	gopkg.in/yaml.v3 v3.0.0-20200615113413-eeeca48fe776
 	jaytaylor.com/html2text v0.0.0-20200412013138-3577fbdbcff7
 )
 

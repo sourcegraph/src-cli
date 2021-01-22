@@ -30,8 +30,6 @@ func (wc *dockerBindWorkspaceCreator) Create(ctx context.Context, repo *graphql.
 	return w, errors.Wrap(wc.prepareGitRepo(ctx, w), "preparing local git repo")
 }
 
-func (*dockerBindWorkspaceCreator) DockerImages() []string { return []string{} }
-
 func (*dockerBindWorkspaceCreator) prepareGitRepo(ctx context.Context, w *dockerBindWorkspace) error {
 	if _, err := runGitCmd(ctx, w.dir, "init"); err != nil {
 		return errors.Wrap(err, "git init failed")
@@ -171,9 +169,13 @@ func unzip(zipFile, dest string) error {
 		// set on the zipped up file, let's ensure we propagate that to the
 		// group and other permission bits too.
 		if f.Mode()&0111 != 0 {
-			outFile.Chmod(0777)
+			if err := os.Chmod(outFile.Name(), 0777); err != nil {
+				return err
+			}
 		} else {
-			outFile.Chmod(0666)
+			if err := os.Chmod(outFile.Name(), 0666); err != nil {
+				return err
+			}
 		}
 
 		rc, err := f.Open()

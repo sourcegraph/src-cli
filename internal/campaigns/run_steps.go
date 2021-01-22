@@ -3,41 +3,57 @@ package campaigns
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
 	"os/exec"
 	"strings"
-	"text/template"
 	"time"
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
 	"github.com/sourcegraph/src-cli/internal/campaigns/graphql"
+
+	yamlv3 "gopkg.in/yaml.v3"
 )
 
-func runSteps(ctx context.Context, rf RepoFetcher, wc WorkspaceCreator, repo *graphql.Repository, steps []Step, logger *TaskLogger, tempDir string, reportProgress func(string)) ([]byte, error) {
+type ExecutionResult struct {
+	// Diff is the produced by executing all steps.
+	Diff string `json:"diff"`
+
+	// ChangedFiles are files that have been changed by all steps.
+	ChangedFiles *StepChanges `json:"changedFiles"`
+
+	// Outputs are the outputs produced by all steps.
+	Outputs map[string]interface{} `json:"outputs"`
+}
+
+func runSteps(ctx context.Context, rf RepoFetcher, wc WorkspaceCreator, repo *graphql.Repository, steps []Step, logger *TaskLogger, tempDir string, reportProgress func(string)) (result ExecutionResult, err error) {
 	reportProgress("Downloading archive")
 	zip, err := rf.Fetch(ctx, repo)
 	if err != nil {
-		return nil, errors.Wrap(err, "fetching repo")
+		return ExecutionResult{}, errors.Wrap(err, "fetching repo")
 	}
 	defer zip.Close()
 
 	reportProgress("Initializing workspace")
 	workspace, err := wc.Create(ctx, repo, zip.Path())
 	if err != nil {
-		return nil, errors.Wrap(err, "creating workspace")
+		return ExecutionResult{}, errors.Wrap(err, "creating workspace")
 	}
 	defer workspace.Close(ctx)
 
+	execResult := ExecutionResult{
+		Outputs: make(map[string]interface{}),
+	}
 	results := make([]StepResult, len(steps))
 
 	for i, step := range steps {
 		reportProgress(fmt.Sprintf("Preparing step %d", i+1))
 
-		stepContext := StepContext{Repository: *repo}
+		stepContext := StepContext{Repository: *repo, Outputs: execResult.Outputs}
 		if i > 0 {
 			stepContext.PreviousStep = results[i-1]
 		}
@@ -47,7 +63,7 @@ func runSteps(ctx context.Context, rf RepoFetcher, wc WorkspaceCreator, repo *gr
 		// container on a successful run, rather than leaving it dangling.
 		cidFile, err := ioutil.TempFile(tempDir, repo.Slug()+"-container-id")
 		if err != nil {
-			return nil, errors.Wrap(err, "Creating a CID file failed")
+			return execResult, errors.Wrap(err, "Creating a CID file failed")
 		}
 
 		// However, Docker will fail if the cidfile actually exists, so we need
@@ -55,7 +71,7 @@ func runSteps(ctx context.Context, rf RepoFetcher, wc WorkspaceCreator, repo *gr
 		// close it, even though that's unnecessary elsewhere.
 		cidFile.Close()
 		if err = os.Remove(cidFile.Name()); err != nil {
-			return nil, errors.Wrap(err, "removing cidfile")
+			return execResult, errors.Wrap(err, "removing cidfile")
 		}
 
 		// Since we went to all that effort, we can now defer a function that
@@ -73,30 +89,27 @@ func runSteps(ctx context.Context, rf RepoFetcher, wc WorkspaceCreator, repo *gr
 		// For now, we only support shell scripts provided via the Run field.
 		shell, containerTemp, err := probeImageForShell(ctx, step.image)
 		if err != nil {
-			return nil, errors.Wrapf(err, "probing image %q for shell", step.image)
+			return execResult, errors.Wrapf(err, "probing image %q for shell", step.image)
 		}
 
 		// Set up a temporary file on the host filesystem to contain the
 		// script.
 		runScriptFile, err := ioutil.TempFile(tempDir, "")
 		if err != nil {
-			return nil, errors.Wrap(err, "creating temporary file")
+			return execResult, errors.Wrap(err, "creating temporary file")
 		}
 		defer os.Remove(runScriptFile.Name())
 
-		// Parse step.Run as a template...
-		tmpl, err := parseAsTemplate("step-run", step.Run, &stepContext)
-		if err != nil {
-			return nil, errors.Wrap(err, "parsing step run")
+		// Parse step.Run as a template and render it into a buffer and the
+		// temp file we just created.
+		var runScript bytes.Buffer
+		out := io.MultiWriter(&runScript, runScriptFile)
+		if err := renderStepTemplate("step-run", step.Run, out, &stepContext); err != nil {
+			return execResult, errors.Wrap(err, "parsing step run")
 		}
 
-		// ... and render it into a buffer and the temp file we just created.
-		var runScript bytes.Buffer
-		if err := tmpl.Execute(io.MultiWriter(&runScript, runScriptFile), stepContext); err != nil {
-			return nil, errors.Wrap(err, "executing template")
-		}
 		if err := runScriptFile.Close(); err != nil {
-			return nil, errors.Wrap(err, "closing temporary file")
+			return execResult, errors.Wrap(err, "closing temporary file")
 		}
 
 		// This file needs to be readable within the container regardless of the
@@ -109,13 +122,13 @@ func runSteps(ctx context.Context, rf RepoFetcher, wc WorkspaceCreator, repo *gr
 		// conditionally compiled files here, instead we'll just wait until the
 		// file is closed to twiddle the permission bits. Which is now!
 		if err := os.Chmod(runScriptFile.Name(), 0644); err != nil {
-			return nil, errors.Wrap(err, "setting permissions on the temporary file")
+			return execResult, errors.Wrap(err, "setting permissions on the temporary file")
 		}
 
 		// Parse and render the step.Files.
-		files, err := renderMap(step.Files, &stepContext)
+		files, err := renderStepMap(step.Files, &stepContext)
 		if err != nil {
-			return nil, errors.Wrap(err, "parsing step files")
+			return execResult, errors.Wrap(err, "parsing step files")
 		}
 
 		// Create temp files with the rendered content of step.Files so that we
@@ -124,16 +137,16 @@ func runSteps(ctx context.Context, rf RepoFetcher, wc WorkspaceCreator, repo *gr
 		for name, content := range files {
 			fp, err := ioutil.TempFile(tempDir, "")
 			if err != nil {
-				return nil, errors.Wrap(err, "creating temporary file")
+				return execResult, errors.Wrap(err, "creating temporary file")
 			}
 			defer os.Remove(fp.Name())
 
 			if _, err := fp.WriteString(content); err != nil {
-				return nil, errors.Wrap(err, "writing to temporary file")
+				return execResult, errors.Wrap(err, "writing to temporary file")
 			}
 
 			if err := fp.Close(); err != nil {
-				return nil, errors.Wrap(err, "closing temporary file")
+				return execResult, errors.Wrap(err, "closing temporary file")
 			}
 
 			filesToMount[name] = fp
@@ -142,20 +155,20 @@ func runSteps(ctx context.Context, rf RepoFetcher, wc WorkspaceCreator, repo *gr
 		// Resolve step.Env given the current environment.
 		stepEnv, err := step.Env.Resolve(os.Environ())
 		if err != nil {
-			return nil, errors.Wrap(err, "resolving step environment")
+			return execResult, errors.Wrap(err, "resolving step environment")
 		}
 
 		// Render the step.Env variables as templates.
-		env, err := renderMap(stepEnv, &stepContext)
+		env, err := renderStepMap(stepEnv, &stepContext)
 		if err != nil {
-			return nil, errors.Wrap(err, "parsing step environment")
+			return execResult, errors.Wrap(err, "parsing step environment")
 		}
 
 		reportProgress(runScript.String())
 		const workDir = "/work"
 		workspaceOpts, err := workspace.DockerRunOpts(ctx, workDir)
 		if err != nil {
-			return nil, errors.Wrap(err, "getting Docker options for workspace")
+			return execResult, errors.Wrap(err, "getting Docker options for workspace")
 		}
 		args := append([]string{
 			"run",
@@ -194,7 +207,7 @@ func runSteps(ctx context.Context, rf RepoFetcher, wc WorkspaceCreator, repo *gr
 		if err != nil {
 			logger.Logf("[Step %d] took %s; error running Docker container: %+v", i+1, elapsed, err)
 
-			return nil, stepFailedErr{
+			return execResult, stepFailedErr{
 				Err:         err,
 				Args:        cmd.Args,
 				Run:         runScript.String(),
@@ -209,19 +222,64 @@ func runSteps(ctx context.Context, rf RepoFetcher, wc WorkspaceCreator, repo *gr
 
 		changes, err := workspace.Changes(ctx)
 		if err != nil {
-			return nil, errors.Wrap(err, "getting changed files in step")
+			return execResult, errors.Wrap(err, "getting changed files in step")
 		}
 
-		results[i] = StepResult{files: changes, Stdout: &stdoutBuffer, Stderr: &stderrBuffer}
+		result := StepResult{files: changes, Stdout: &stdoutBuffer, Stderr: &stderrBuffer}
+		stepContext.Step = result
+		results[i] = result
+
+		if err := setOutputs(step.Outputs, execResult.Outputs, &stepContext); err != nil {
+			return execResult, errors.Wrap(err, "setting step outputs")
+		}
+
 	}
 
 	reportProgress("Calculating diff")
 	diffOut, err := workspace.Diff(ctx)
 	if err != nil {
-		return nil, errors.Wrap(err, "git diff failed")
+		return execResult, errors.Wrap(err, "git diff failed")
 	}
 
-	return diffOut, err
+	execResult.Diff = string(diffOut)
+	if len(results) > 0 && results[len(results)-1].files != nil {
+		execResult.ChangedFiles = results[len(results)-1].files
+	}
+
+	return execResult, err
+}
+
+func setOutputs(stepOutputs Outputs, global map[string]interface{}, stepCtx *StepContext) error {
+	for name, output := range stepOutputs {
+		var value bytes.Buffer
+
+		if err := renderStepTemplate("outputs-"+name, output.Value, &value, stepCtx); err != nil {
+			return errors.Wrap(err, "parsing step run")
+		}
+
+		switch output.Format {
+		case "yaml":
+			var out interface{}
+			// We use yamlv3 here, because it unmarshals YAML into
+			// map[string]interface{} which we need to serialize it back to
+			// JSON when we cache the results.
+			// See https://github.com/go-yaml/yaml/issues/139 for context
+			if err := yamlv3.NewDecoder(&value).Decode(&out); err != nil {
+				return err
+			}
+			global[name] = out
+		case "json":
+			var out interface{}
+			if err := json.NewDecoder(&value).Decode(&out); err != nil {
+				return err
+			}
+			global[name] = out
+		default:
+			global[name] = value.String()
+		}
+	}
+
+	return nil
 }
 
 func probeImageForShell(ctx context.Context, image string) (shell, tempfile string, err error) {
@@ -332,160 +390,4 @@ func (e stepFailedErr) SingleLineError() string {
 	}
 
 	return strings.Split(out, "\n")[0]
-}
-
-func parseAsTemplate(name, input string, stepCtx *StepContext) (*template.Template, error) {
-	return template.New(name).Delims("${{", "}}").Funcs(stepCtx.ToFuncMap()).Parse(input)
-}
-
-func renderMap(m map[string]string, stepCtx *StepContext) (map[string]string, error) {
-	rendered := make(map[string]string, len(m))
-
-	for k, v := range rendered {
-		var out bytes.Buffer
-
-		tmpl, err := parseAsTemplate(k, v, stepCtx)
-		if err != nil {
-			return rendered, err
-		}
-
-		if err := tmpl.Execute(&out, stepCtx); err != nil {
-			return rendered, err
-		}
-
-		rendered[k] = out.String()
-	}
-
-	return rendered, nil
-}
-
-// StepContext represents the contextual information available when executing a
-// step that's defined in a campaign spec.
-type StepContext struct {
-	PreviousStep StepResult
-	Repository   graphql.Repository
-}
-
-// ToFuncMap returns a template.FuncMap to access fields on the StepContext in a
-// text/template.
-func (stepCtx *StepContext) ToFuncMap() template.FuncMap {
-	return template.FuncMap{
-		"join": func(list []string, sep string) string {
-			return strings.Join(list, sep)
-		},
-		"split": func(s string, sep string) []string {
-			return strings.Split(s, sep)
-		},
-		"previous_step": func() map[string]interface{} {
-			result := map[string]interface{}{
-				"modified_files": stepCtx.PreviousStep.ModifiedFiles(),
-				"added_files":    stepCtx.PreviousStep.AddedFiles(),
-				"deleted_files":  stepCtx.PreviousStep.DeletedFiles(),
-				"renamed_files":  stepCtx.PreviousStep.RenamedFiles(),
-			}
-
-			if stepCtx.PreviousStep.Stdout != nil {
-				result["stdout"] = stepCtx.PreviousStep.Stdout.String()
-			} else {
-				result["stdout"] = ""
-			}
-
-			if stepCtx.PreviousStep.Stderr != nil {
-				result["stderr"] = stepCtx.PreviousStep.Stderr.String()
-			} else {
-				result["stderr"] = ""
-			}
-
-			return result
-		},
-		"repository": func() map[string]interface{} {
-			return map[string]interface{}{
-				"search_result_paths": stepCtx.Repository.SearchResultPaths(),
-				"name":                stepCtx.Repository.Name,
-			}
-		},
-	}
-}
-
-// StepResult represents the result of a previously executed step.
-type StepResult struct {
-	// files are the changes made to files by the step.
-	files *StepChanges
-
-	// Stdout is the output produced by the step on standard out.
-	Stdout *bytes.Buffer
-	// Stderr is the output produced by the step on standard error.
-	Stderr *bytes.Buffer
-}
-
-// StepChanges are the changes made to files by a previous step in a repository.
-type StepChanges struct {
-	Modified []string
-	Added    []string
-	Deleted  []string
-	Renamed  []string
-}
-
-// ModifiedFiles returns the files modified by a step.
-func (r StepResult) ModifiedFiles() []string {
-	if r.files != nil {
-		return r.files.Modified
-	}
-	return []string{}
-}
-
-// AddedFiles returns the files added by a step.
-func (r StepResult) AddedFiles() []string {
-	if r.files != nil {
-		return r.files.Added
-	}
-	return []string{}
-}
-
-// DeletedFiles returns the files deleted by a step.
-func (r StepResult) DeletedFiles() []string {
-	if r.files != nil {
-		return r.files.Deleted
-	}
-	return []string{}
-}
-
-// RenamedFiles returns the new name of files that have been renamed by a step.
-func (r StepResult) RenamedFiles() []string {
-	if r.files != nil {
-		return r.files.Renamed
-	}
-	return []string{}
-}
-
-func parseGitStatus(out []byte) (StepChanges, error) {
-	result := StepChanges{}
-
-	stripped := strings.TrimSpace(string(out))
-	if len(stripped) == 0 {
-		return result, nil
-	}
-
-	for _, line := range strings.Split(stripped, "\n") {
-		if len(line) < 4 {
-			return result, fmt.Errorf("git status line has unrecognized format: %q", line)
-		}
-
-		file := line[3:]
-
-		switch line[0] {
-		case 'M':
-			result.Modified = append(result.Modified, file)
-		case 'A':
-			result.Added = append(result.Added, file)
-		case 'D':
-			result.Deleted = append(result.Deleted, file)
-		case 'R':
-			files := strings.Split(file, " -> ")
-			newFile := files[len(files)-1]
-			result.Renamed = append(result.Renamed, newFile)
-		}
-	}
-
-	return result, nil
 }
