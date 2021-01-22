@@ -138,7 +138,7 @@ func (image *image) UIDGID(ctx context.Context) (UIDGID, error) {
 			if len(lines) < 2 {
 				// There's an id command on the path, but it's not returning
 				// POSIX compliant output.
-				return UIDGID{}, errors.Wrap(err, "invalid id output")
+				return UIDGID{}, errors.New("invalid id output")
 			}
 
 			uid, err := strconv.Atoi(lines[0])
