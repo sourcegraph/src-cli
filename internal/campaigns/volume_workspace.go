@@ -92,6 +92,14 @@ func (wc *dockerVolumeWorkspaceCreator) unzipRepoIntoVolume(ctx context.Context,
 	dummy := fmt.Sprintf(".campaign-workspace-placeholder-%s", hex.EncodeToString(randToken))
 
 	// So, let's use that to set up the volume.
+	//
+	// Theoretically, we could combine this `docker run` and the following one
+	// into one invocation. Doing so, however, is tricky: we'd have to su within
+	// the script being run, and Alpine requires a real user account and group;
+	// just having numeric IDs is insufficient. The logic to make this work is
+	// complicated enough that it feels brittle, and beyond what should be
+	// encoded in this function. Running `docker run` twice isn't ideal, but
+	// should be quick enough in general that it's not a huge concern.
 	opts := append([]string{
 		"run",
 		"--rm",
