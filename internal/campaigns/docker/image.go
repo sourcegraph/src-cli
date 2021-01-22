@@ -4,12 +4,13 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"os/exec"
 	"strconv"
 	"strings"
 	"sync"
 
 	"github.com/pkg/errors"
+
+	"github.com/sourcegraph/src-cli/internal/exec"
 )
 
 // UIDGID represents a UID:GID pair.
