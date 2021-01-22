@@ -43,6 +43,9 @@ Examples:
 			return nil
 		}
 		fmt.Printf("Recommended Version: %s\n", recommendedVersion)
+		if buildTag != recommendedVersion {
+			fmt.Printf("Run `src update` to upgrade your src-cli to the recommended version.\n")
+		}
 		return nil
 	}
 
