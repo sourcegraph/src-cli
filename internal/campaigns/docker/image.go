@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"strconv"
 	"strings"
 	"sync"
 
@@ -135,24 +134,12 @@ func (image *image) UIDGID(ctx context.Context) (UIDGID, error) {
 			// POSIX specifies the output of `id -u` as the effective UID,
 			// terminated by a newline. `id -g` is the same, just for the GID.
 			raw := strings.TrimSpace(stdout.String())
-			lines := strings.Split(raw, "\n")
-			if len(lines) < 2 {
-				// There's an id command on the path, but it's not returning
-				// POSIX compliant output.
-				return UIDGID{}, errors.New("invalid id output")
-			}
-
-			uid, err := strconv.Atoi(lines[0])
+			var res UIDGID
+			_, err = fmt.Sscanf(raw, "%d\n%d", &res.UID, &res.GID)
 			if err != nil {
-				return UIDGID{}, errors.Wrap(err, "malformed uid")
+				return res, errors.Wrapf(err, "malformed uid/gid: %q", raw)
 			}
-
-			gid, err := strconv.Atoi(lines[1])
-			if err != nil {
-				return UIDGID{}, errors.Wrap(err, "malformed gid")
-			}
-
-			return UIDGID{UID: uid, GID: gid}, nil
+			return res, nil
 		}()
 	})
 
