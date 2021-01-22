@@ -52,7 +52,7 @@ func TestVolumeWorkspaceCreator(t *testing.T) {
 					"docker", "volume", "create",
 				),
 				expect.NewGlob(
-					expect.Behaviour{},
+					expect.Success,
 					"docker", "run", "--rm", "--init", "--workdir", "/work",
 					"--user", "0:0",
 					"--mount", "type=volume,source="+volumeID+",target=/work",
@@ -60,7 +60,7 @@ func TestVolumeWorkspaceCreator(t *testing.T) {
 					"sh", "-c", "touch /work/*; chown -R 0:0 /work",
 				),
 				expect.NewGlob(
-					expect.Behaviour{},
+					expect.Success,
 					"docker", "run", "--rm", "--init",
 					"--workdir", "/work",
 					"--mount", "type=bind,source=*,target=/tmp/zip,ro",
@@ -70,7 +70,7 @@ func TestVolumeWorkspaceCreator(t *testing.T) {
 					"sh", "-c", "unzip /tmp/zip; rm /work/*",
 				),
 				expect.NewGlob(
-					expect.Behaviour{},
+					expect.Success,
 					"docker", "run", "--rm", "--init", "--workdir", "/work",
 					"--mount", "type=bind,source=*,target=/run.sh,ro",
 					"--user", "0:0",
@@ -88,7 +88,7 @@ func TestVolumeWorkspaceCreator(t *testing.T) {
 					"docker", "volume", "create",
 				),
 				expect.NewGlob(
-					expect.Behaviour{},
+					expect.Success,
 					"docker", "run", "--rm", "--init", "--workdir", "/work",
 					"--user", "0:0",
 					"--mount", "type=volume,source="+volumeID+",target=/work",
@@ -96,7 +96,7 @@ func TestVolumeWorkspaceCreator(t *testing.T) {
 					"sh", "-c", "touch /work/*; chown -R 0:0 /work",
 				),
 				expect.NewGlob(
-					expect.Behaviour{},
+					expect.Success,
 					"docker", "run", "--rm", "--init",
 					"--workdir", "/work",
 					"--mount", "type=bind,source=*,target=/tmp/zip,ro",
@@ -106,7 +106,7 @@ func TestVolumeWorkspaceCreator(t *testing.T) {
 					"sh", "-c", "unzip /tmp/zip; rm /work/*",
 				),
 				expect.NewGlob(
-					expect.Behaviour{},
+					expect.Success,
 					"docker", "run", "--rm", "--init", "--workdir", "/work",
 					"--mount", "type=bind,source=*,target=/run.sh,ro",
 					"--user", "0:0",
@@ -126,7 +126,7 @@ func TestVolumeWorkspaceCreator(t *testing.T) {
 					"docker", "volume", "create",
 				),
 				expect.NewGlob(
-					expect.Behaviour{},
+					expect.Success,
 					"docker", "run", "--rm", "--init", "--workdir", "/work",
 					"--user", "0:0",
 					"--mount", "type=volume,source="+volumeID+",target=/work",
@@ -134,7 +134,7 @@ func TestVolumeWorkspaceCreator(t *testing.T) {
 					"sh", "-c", "touch /work/*; chown -R 1:2 /work",
 				),
 				expect.NewGlob(
-					expect.Behaviour{},
+					expect.Success,
 					"docker", "run", "--rm", "--init",
 					"--workdir", "/work",
 					"--mount", "type=bind,source=*,target=/tmp/zip,ro",
@@ -144,7 +144,7 @@ func TestVolumeWorkspaceCreator(t *testing.T) {
 					"sh", "-c", "unzip /tmp/zip; rm /work/*",
 				),
 				expect.NewGlob(
-					expect.Behaviour{},
+					expect.Success,
 					"docker", "run", "--rm", "--init", "--workdir", "/work",
 					"--mount", "type=bind,source=*,target=/run.sh,ro",
 					"--user", "1:2",
@@ -196,7 +196,7 @@ func TestVolumeWorkspaceCreator(t *testing.T) {
 					"docker", "volume", "create",
 				),
 				expect.NewGlob(
-					expect.Behaviour{},
+					expect.Success,
 					"docker", "run", "--rm", "--init", "--workdir", "/work",
 					"--user", "0:0",
 					"--mount", "type=volume,source="+volumeID+",target=/work",
@@ -204,7 +204,7 @@ func TestVolumeWorkspaceCreator(t *testing.T) {
 					"sh", "-c", "touch /work/*; chown -R 0:0 /work",
 				),
 				expect.NewGlob(
-					expect.Behaviour{},
+					expect.Success,
 					"docker", "run", "--rm", "--init",
 					"--workdir", "/work",
 					"--mount", "type=bind,source=*,target=/tmp/zip,ro",
@@ -235,7 +235,7 @@ func TestVolumeWorkspaceCreator(t *testing.T) {
 					"docker", "volume", "create",
 				),
 				expect.NewGlob(
-					expect.Behaviour{},
+					expect.Success,
 					"docker", "run", "--rm", "--init", "--workdir", "/work",
 					"--user", "0:0",
 					"--mount", "type=volume,source="+volumeID+",target=/work",
@@ -285,7 +285,7 @@ func TestVolumeWorkspace_Close(t *testing.T) {
 		expect.Commands(
 			t,
 			expect.NewGlob(
-				expect.Behaviour{},
+				expect.Success,
 				"docker", "volume", "rm", volumeID,
 			),
 		)

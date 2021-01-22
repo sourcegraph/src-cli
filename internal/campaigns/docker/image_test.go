@@ -26,7 +26,7 @@ func TestImage_Digest(t *testing.T) {
 			expectations: append(
 				ensureSuccess("foo"),
 				expect.NewGlob(
-					expect.Behaviour{},
+					expect.Success,
 					// Note the awkward escaping because these arguments are matched by
 					// glob.
 					"docker", "image", "inspect", "--format", `\{\{.Id}}`, "--", "foo",
@@ -98,7 +98,7 @@ func TestImage_Ensure(t *testing.T) {
 					"docker", "image", "inspect", "--format", "1", "foo",
 				),
 				expect.NewGlob(
-					expect.Behaviour{},
+					expect.Success,
 					"docker", "image", "pull", "foo",
 				),
 			},
@@ -332,7 +332,7 @@ func ensureFailure(name string) []*expect.Expectation {
 func ensureSuccess(name string) []*expect.Expectation {
 	return []*expect.Expectation{
 		expect.NewGlob(
-			expect.Behaviour{},
+			expect.Success,
 			"docker", "image", "inspect", "--format", "1", name,
 		),
 	}
