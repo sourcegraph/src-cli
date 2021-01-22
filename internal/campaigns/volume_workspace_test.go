@@ -169,6 +169,26 @@ func TestVolumeWorkspaceCreator(t *testing.T) {
 			},
 			wantErr: true,
 		},
+		"chown failure": {
+			expectations: []*expect.Expectation{
+				expect.NewGlob(
+					expect.Behaviour{Stdout: []byte(volumeID)},
+					"docker", "volume", "create",
+				),
+				expect.NewGlob(
+					expect.Behaviour{ExitCode: 1},
+					"docker", "run", "--rm", "--init", "--workdir", "/work",
+					"--user", "0:0",
+					"--mount", "type=volume,source="+volumeID+",target=/work",
+					dockerVolumeWorkspaceImage,
+					"sh", "-c", "touch /work/*; chown -R 0:0 /work",
+				),
+			},
+			steps: []Step{
+				{image: &mockImage{uidGid: docker.Root}},
+			},
+			wantErr: true,
+		},
 		"git init failure": {
 			expectations: []*expect.Expectation{
 				expect.NewGlob(
