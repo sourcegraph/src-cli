@@ -14,6 +14,10 @@ func TestBestWorkspaceCreator(t *testing.T) {
 	ctx := context.Background()
 	isOverridden := !(runtime.GOOS == "darwin" && runtime.GOARCH == "amd64")
 
+	uidGid := func(uid, gid int) docker.UIDGID {
+		return docker.UIDGID{UID: uid, GID: gid}
+	}
+
 	type imageBehaviour struct {
 		image     string
 		behaviour expect.Behaviour
@@ -32,21 +36,21 @@ func TestBestWorkspaceCreator(t *testing.T) {
 		},
 		"root": {
 			images: []docker.Image{
-				&mockImage{uidGid: docker.UIDGID{0, 0}},
+				&mockImage{uidGid: uidGid(0, 0)},
 			},
 			want: workspaceCreatorVolume,
 		},
 		"same user": {
 			images: []docker.Image{
-				&mockImage{uidGid: docker.UIDGID{1000, 1000}},
-				&mockImage{uidGid: docker.UIDGID{1000, 1000}},
+				&mockImage{uidGid: uidGid(1000, 1000)},
+				&mockImage{uidGid: uidGid(1000, 1000)},
 			},
 			want: workspaceCreatorVolume,
 		},
 		"different user": {
 			images: []docker.Image{
-				&mockImage{uidGid: docker.UIDGID{1000, 1000}},
-				&mockImage{uidGid: docker.UIDGID{0, 0}},
+				&mockImage{uidGid: uidGid(1000, 1000)},
+				&mockImage{uidGid: uidGid(0, 0)},
 			},
 			want: workspaceCreatorBind,
 		},
