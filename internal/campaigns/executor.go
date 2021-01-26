@@ -222,7 +222,7 @@ func (x *executor) Start(ctx context.Context) {
 func (x *executor) Wait(ctx context.Context) ([]*ChangesetSpec, error) {
 	<-x.doneEnqueuing
 
-	result := make(chan error)
+	result := make(chan error, 1)
 
 	go func(ch chan error) {
 		ch <- x.par.Wait()
