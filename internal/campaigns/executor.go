@@ -223,14 +223,16 @@ func (x *executor) Wait(ctx context.Context) ([]*ChangesetSpec, error) {
 	<-x.doneEnqueuing
 
 	result := make(chan error)
-	defer func() { close(result) }()
 
-	go func(ch chan error) { ch <- x.par.Wait() }(result)
+	go func(ch chan error) {
+		ch <- x.par.Wait()
+	}(result)
 
 	select {
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	case err := <-result:
+		close(result)
 		if err != nil {
 			return nil, err
 		}
