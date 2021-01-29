@@ -223,7 +223,7 @@ func campaignsExecute(ctx context.Context, out *output.Output, svc *campaigns.Se
 		campaignsCompletePending(pending, fmt.Sprintf("Resolved %d repositories", len(repos)))
 	}
 
-	pending = campaignsCreatePending(out, "Finding workspaces")
+	pending = campaignsCreatePending(out, "Determining workspaces")
 	tasks, err := svc.BuildTasks(ctx, repos, campaignSpec)
 	if err != nil {
 		return "", "", errors.Wrap(err, "Calculating execution plan")
