@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"path/filepath"
 	"strings"
 	"text/template"
 
@@ -91,6 +90,18 @@ func (stepCtx *StepContext) ToFuncMap() template.FuncMap {
 	return template.FuncMap{
 		"join":  strings.Join,
 		"split": strings.Split,
+		"replace": func(s, old, replacement string) string {
+			return strings.ReplaceAll(s, old, replacement)
+		},
+		"join_if": func(sep string, elems ...string) string {
+			var nonBlank []string
+			for _, e := range elems {
+				if e != "" {
+					nonBlank = append(nonBlank, e)
+				}
+			}
+			return strings.Join(nonBlank, sep)
+		},
 		"previous_step": func() map[string]interface{} {
 			return newStepResult(&stepCtx.PreviousStep)
 		},
@@ -187,10 +198,6 @@ func (tmplCtx *ChangesetTemplateContext) ToFuncMap() template.FuncMap {
 	return template.FuncMap{
 		"join":  strings.Join,
 		"split": strings.Split,
-		"last_directory": func(path string) string {
-			elems := strings.Split(filepath.FromSlash(path), "/")
-			return elems[len(elems)-1]
-		},
 		"replace": func(s, old, replacement string) string {
 			return strings.ReplaceAll(s, old, replacement)
 		},
