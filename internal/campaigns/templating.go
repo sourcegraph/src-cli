@@ -88,11 +88,9 @@ func (stepCtx *StepContext) ToFuncMap() template.FuncMap {
 	}
 
 	return template.FuncMap{
-		"join":  strings.Join,
-		"split": strings.Split,
-		"replace": func(s, old, replacement string) string {
-			return strings.ReplaceAll(s, old, replacement)
-		},
+		"join":    strings.Join,
+		"split":   strings.Split,
+		"replace": strings.ReplaceAll,
 		"join_if": func(sep string, elems ...string) string {
 			var nonBlank []string
 			for _, e := range elems {
@@ -196,11 +194,9 @@ type ChangesetTemplateContext struct {
 // text/template.
 func (tmplCtx *ChangesetTemplateContext) ToFuncMap() template.FuncMap {
 	return template.FuncMap{
-		"join":  strings.Join,
-		"split": strings.Split,
-		"replace": func(s, old, replacement string) string {
-			return strings.ReplaceAll(s, old, replacement)
-		},
+		"join":    strings.Join,
+		"split":   strings.Split,
+		"replace": strings.ReplaceAll,
 		"join_if": func(sep string, elems ...string) string {
 			var nonBlank []string
 			for _, e := range elems {
