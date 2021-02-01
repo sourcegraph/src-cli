@@ -59,7 +59,7 @@ func (rf *repoFetcher) Checkout(repo *graphql.Repository) RepoZip {
 	zip.mu.Lock()
 	defer zip.mu.Unlock()
 
-	zip.marks += 1
+	zip.checkouts += 1
 	return zip
 }
 
@@ -89,18 +89,18 @@ type repoZip struct {
 
 	client api.Client
 
-	// references is the number of *active* tasks that currently use the archive.
-	references int
-	// marks is the number of tasks that *will* make use of the archive.
-	marks int
+	// uses is the number of *active* tasks that currently use the archive.
+	uses int
+	// checkouts is the number of tasks that *will* make use of the archive.
+	checkouts int
 }
 
 func (rz *repoZip) Close() error {
 	rz.mu.Lock()
 	defer rz.mu.Unlock()
 
-	rz.references -= 1
-	if rz.references == 0 && rz.marks == 0 && rz.deleteOnClose {
+	rz.uses -= 1
+	if rz.uses == 0 && rz.checkouts == 0 && rz.deleteOnClose {
 		return os.Remove(rz.path)
 	}
 
@@ -116,9 +116,9 @@ func (rz *repoZip) Fetch(ctx context.Context) error {
 	defer rz.mu.Unlock()
 
 	// Someone already fetched it
-	if rz.references > 0 {
-		rz.references += 1
-		rz.marks -= 1
+	if rz.uses > 0 {
+		rz.uses += 1
+		rz.checkouts -= 1
 		return nil
 	}
 
@@ -147,8 +147,8 @@ func (rz *repoZip) Fetch(ctx context.Context) error {
 		}
 	}
 
-	rz.references += 1
-	rz.marks -= 1
+	rz.uses += 1
+	rz.checkouts -= 1
 	return nil
 }
 
