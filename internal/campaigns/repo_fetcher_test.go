@@ -58,6 +58,11 @@ func TestRepoFetcher_Fetch(t *testing.T) {
 			deleteZips: false,
 		}
 
+		// We're going to call Fetch three times
+		for i := 0; i < 3; i++ {
+			rf.MarkForLaterUse(repo)
+		}
+
 		rz, err := rf.Fetch(context.Background(), repo)
 		if err != nil {
 			t.Errorf("unexpected error: %s", err)
