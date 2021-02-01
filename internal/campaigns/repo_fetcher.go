@@ -18,6 +18,11 @@ import (
 // RepoFetcher abstracts the process of retrieving an archive for the given
 // repository.
 type RepoFetcher interface {
+	// MarkForLaterUse needs to be called before Fetch so that RepoFetcher can
+	// register how many tasks will want to use the same archive and not delete
+	// it prematurely.
+	MarkForLaterUse(*graphql.Repository)
+
 	// Fetch must retrieve the given repository and return it as a RepoZip.
 	// This will generally imply that the file should be written to a temporary
 	// location on the filesystem.
@@ -37,29 +42,7 @@ type repoFetcher struct {
 
 var _ RepoFetcher = &repoFetcher{}
 
-// RepoZip implementations represent a downloaded repository archive.
-type RepoZip interface {
-	// Close must finalise the downloaded archive. If one or more temporary
-	// files were created, they should be deleted here.
-	Close() error
-
-	// Path must return the path to the archive on the filesystem.
-	Path() string
-}
-
-// repoZip is the concrete implementation of the RepoZip interface used outside
-// of tests.
-type repoZip struct {
-	path    string
-	fetcher *repoFetcher
-
-	mu         sync.Mutex
-	references int
-}
-
-var _ RepoZip = &repoZip{}
-
-func (rf *repoFetcher) zipFor(path string) *repoZip {
+func (rf *repoFetcher) zipFor(repo *graphql.Repository) *repoZip {
 	rf.zipsMu.Lock()
 	defer rf.zipsMu.Unlock()
 
@@ -67,6 +50,7 @@ func (rf *repoFetcher) zipFor(path string) *repoZip {
 		rf.zips = make(map[string]*repoZip)
 	}
 
+	path := filepath.Join(rf.dir, repo.Slug()+".zip")
 	zip, ok := rf.zips[path]
 	if !ok {
 		zip = &repoZip{path: path, fetcher: rf}
@@ -75,16 +59,23 @@ func (rf *repoFetcher) zipFor(path string) *repoZip {
 	return zip
 }
 
-func (rf *repoFetcher) Fetch(ctx context.Context, repo *graphql.Repository) (RepoZip, error) {
-	path := filepath.Join(rf.dir, repo.Slug()+".zip")
+func (rf *repoFetcher) MarkForLaterUse(repo *graphql.Repository) {
+	zip := rf.zipFor(repo)
+	zip.mu.Lock()
+	defer zip.mu.Unlock()
 
-	zip := rf.zipFor(path)
+	zip.marks += 1
+}
+
+func (rf *repoFetcher) Fetch(ctx context.Context, repo *graphql.Repository) (RepoZip, error) {
+	zip := rf.zipFor(repo)
 	zip.mu.Lock()
 	defer zip.mu.Unlock()
 
 	// Someone already fetched it
 	if zip.references > 0 {
 		zip.references += 1
+		zip.marks -= 1
 		return zip, nil
 	}
 
@@ -98,23 +89,49 @@ func (rf *repoFetcher) Fetch(ctx context.Context, repo *graphql.Repository) (Rep
 		// giving us a temporary place on the filesystem to keep the archive.
 		// Since it's never mounted into the containers being run, we can keep
 		// these directories 0700 without issue.
-		if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+		if err := os.MkdirAll(filepath.Dir(zip.path), 0700); err != nil {
 			return nil, err
 		}
 
-		err = fetchRepositoryArchive(ctx, rf.client, repo, path)
+		err = fetchRepositoryArchive(ctx, rf.client, repo, zip.path)
 		if err != nil {
 			// If the context got cancelled, or we ran out of disk space, or ...
 			// while we were downloading the file, we remove the partially
 			// downloaded file.
-			os.Remove(path)
+			os.Remove(zip.path)
 
 			return nil, errors.Wrap(err, "fetching ZIP archive")
 		}
 	}
 
 	zip.references += 1
+	zip.marks -= 1
 	return zip, nil
+}
+
+// RepoZip implementations represent a downloaded repository archive.
+type RepoZip interface {
+	// Close must finalise the downloaded archive. If one or more temporary
+	// files were created, they should be deleted here.
+	Close() error
+
+	// Path must return the path to the archive on the filesystem.
+	Path() string
+}
+
+var _ RepoZip = &repoZip{}
+
+// repoZip is the concrete implementation of the RepoZip interface used outside
+// of tests.
+type repoZip struct {
+	path    string
+	fetcher *repoFetcher
+
+	mu sync.Mutex
+	// references is the number of *active* tasks that currently use the archive.
+	references int
+	// marks is the number of tasks that *will* make use of the archive.
+	marks int
 }
 
 func (rz *repoZip) Close() error {
@@ -122,7 +139,7 @@ func (rz *repoZip) Close() error {
 	defer rz.mu.Unlock()
 
 	rz.references -= 1
-	if rz.references == 0 && rz.fetcher.deleteZips {
+	if rz.references == 0 && rz.marks == 0 && rz.fetcher.deleteZips {
 		return os.Remove(rz.path)
 	}
 
