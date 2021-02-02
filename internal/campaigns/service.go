@@ -448,26 +448,22 @@ func (svc *Service) ValidateChangesetSpecs(repos []*graphql.Repository, specs []
 	}
 
 	if len(duplicates) > 0 {
-		return &duplicateBranchErr{fooduplicates: duplicates}
+		return &duplicateBranchesErr{duplicates: duplicates}
 	}
 
 	return nil
 }
 
-type duplicateBranchErr struct {
-	repository *graphql.Repository
-	headRef    string
-	duplicates int
-
-	fooduplicates map[*graphql.Repository]map[string]int
+type duplicateBranchesErr struct {
+	duplicates map[*graphql.Repository]map[string]int
 }
 
-func (e *duplicateBranchErr) Error() string {
+func (e *duplicateBranchesErr) Error() string {
 	var out strings.Builder
 
 	fmt.Fprintf(&out, "Multiple changeset specs have the same branch:\n\n")
 
-	for repo, branches := range e.fooduplicates {
+	for repo, branches := range e.duplicates {
 		for branch, duplicates := range branches {
 			branch = strings.TrimPrefix(branch, "refs/heads/")
 			fmt.Fprintf(&out, "\t* %s: %d changeset specs have the branch %q\n", repo.Name, duplicates, branch)
