@@ -37,3 +37,6 @@ replace github.com/gosuri/uilive v0.0.4 => github.com/mrnugget/uilive v0.0.4-fix
 
 // See: https://github.com/ghodss/yaml/pull/65
 replace github.com/ghodss/yaml => github.com/sourcegraph/yaml v1.0.1-0.20200714132230-56936252f152
+
+// TODO: Remove this!
+replace github.com/sourcegraph/campaignutils => /Users/thorstenball/work/campaignutils
