@@ -20,7 +20,7 @@ require (
 	github.com/olekukonko/tablewriter v0.0.4 // indirect
 	github.com/pkg/browser v0.0.0-20180916011732-0a3d74bf9ce4
 	github.com/pkg/errors v0.9.1
-	github.com/sourcegraph/campaignutils v0.0.0-20201124055807-2f9cfa9317e2
+	github.com/sourcegraph/campaignutils v0.0.0-20210209103213-27e58c3ce8d3
 	github.com/sourcegraph/codeintelutils v0.0.0-20210118231003-6698e102a8a1
 	github.com/sourcegraph/go-diff v0.6.1
 	github.com/sourcegraph/jsonx v0.0.0-20200629203448-1a936bd500cf
@@ -37,6 +37,3 @@ replace github.com/gosuri/uilive v0.0.4 => github.com/mrnugget/uilive v0.0.4-fix
 
 // See: https://github.com/ghodss/yaml/pull/65
 replace github.com/ghodss/yaml => github.com/sourcegraph/yaml v1.0.1-0.20200714132230-56936252f152
-
-// TODO: Remove this!
-replace github.com/sourcegraph/campaignutils => github.com/sourcegraph/campaignutils v0.0.0-20210205165249-c8b8df3b8703
