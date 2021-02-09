@@ -9,6 +9,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -58,7 +59,7 @@ func TestRepoFetcher_Fetch(t *testing.T) {
 			deleteZips: false,
 		}
 
-		zip := rf.Checkout(repo)
+		zip := rf.Checkout(repo, "")
 		err := zip.Fetch(context.Background())
 		if err != nil {
 			t.Errorf("unexpected error: %s", err)
@@ -91,9 +92,7 @@ func TestRepoFetcher_Fetch(t *testing.T) {
 	})
 
 	t.Run("delete on close", func(t *testing.T) {
-		callback := func(_ http.ResponseWriter, _ *http.Request) {}
-
-		ts := httptest.NewServer(newZipArchivesMux(t, callback, archive))
+		ts := httptest.NewServer(newZipArchivesMux(t, nil, archive))
 		defer ts.Close()
 
 		var clientBuffer bytes.Buffer
@@ -105,7 +104,7 @@ func TestRepoFetcher_Fetch(t *testing.T) {
 			deleteZips: true,
 		}
 
-		zip := rf.Checkout(repo)
+		zip := rf.Checkout(repo, "")
 
 		err := zip.Fetch(context.Background())
 		if err != nil {
@@ -169,7 +168,7 @@ func TestRepoFetcher_Fetch(t *testing.T) {
 			deleteZips: false,
 		}
 
-		zip := rf.Checkout(repo)
+		zip := rf.Checkout(repo, "")
 		if err := zip.Fetch(ctx); err == nil {
 			t.Error("error is nil")
 		}
@@ -208,7 +207,7 @@ func TestRepoFetcher_Fetch(t *testing.T) {
 			dir:        workspaceTmpDir(t),
 			deleteZips: false,
 		}
-		zip := rf.Checkout(repo)
+		zip := rf.Checkout(repo, "")
 
 		err := zip.Fetch(context.Background())
 		if err != nil {
@@ -216,6 +215,54 @@ func TestRepoFetcher_Fetch(t *testing.T) {
 		}
 
 		wantZipFile := repo.Slug() + ".zip"
+		ok, err := dirContains(rf.dir, wantZipFile)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !ok {
+			t.Fatalf("temp dir doesnt contain zip file")
+		}
+	})
+
+	t.Run("path in repository", func(t *testing.T) {
+		var requestedPath string
+		callback := func(_ http.ResponseWriter, r *http.Request) {
+			requestedPath = r.URL.Path
+		}
+
+		path := "a/b"
+		archive := mockRepoArchive{
+			repo: repo,
+			path: path,
+			files: map[string]string{
+				"a/b/1.txt": "this is 1",
+				"a/b/2.txt": "this is 1",
+			},
+		}
+
+		ts := httptest.NewServer(newZipArchivesMux(t, callback, archive))
+		defer ts.Close()
+
+		var clientBuffer bytes.Buffer
+		client := api.NewClient(api.ClientOpts{Endpoint: ts.URL, Out: &clientBuffer})
+
+		rf := &repoFetcher{
+			client:     client,
+			dir:        workspaceTmpDir(t),
+			deleteZips: false,
+		}
+		zip := rf.Checkout(repo, path)
+
+		err := zip.Fetch(context.Background())
+		if err != nil {
+			t.Fatalf("unexpected error: %s", err)
+		}
+
+		if !strings.HasSuffix(requestedPath, "raw/a/b") {
+			t.Fatalf("expected only directory to be fetched, but path is different: %q", requestedPath)
+		}
+
+		wantZipFile := repo.SlugForPath(path) + ".zip"
 		ok, err := dirContains(rf.dir, wantZipFile)
 		if err != nil {
 			t.Fatal(err)

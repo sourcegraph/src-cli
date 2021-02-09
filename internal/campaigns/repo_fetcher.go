@@ -18,10 +18,11 @@ import (
 // RepoFetcher abstracts the process of retrieving an archive for the given
 // repository.
 type RepoFetcher interface {
-	// Checkout returns a RepoZip for the given repository that's possibly
-	// unfetched. Users need to call `Fetch()` on the RepoZip before using it
-	// and `Close()` once they're done using it.
-	Checkout(*graphql.Repository) RepoZip
+	// Checkout returns a RepoZip for the given repository and the given
+	// relative path in the repository. The RepoZip s possibly unfetched. Users
+	// need to call `Fetch()` on the RepoZip before using it and `Close()` once
+	// they're done using it.
+	Checkout(repo *graphql.Repository, path string) RepoZip
 }
 
 // repoFetcher is the concrete implementation of the RepoFetcher interface used
@@ -37,7 +38,7 @@ type repoFetcher struct {
 
 var _ RepoFetcher = &repoFetcher{}
 
-func (rf *repoFetcher) zipFor(repo *graphql.Repository) *repoZip {
+func (rf *repoFetcher) zipFor(repo *graphql.Repository, path string) *repoZip {
 	rf.zipsMu.Lock()
 	defer rf.zipsMu.Unlock()
 
@@ -45,17 +46,25 @@ func (rf *repoFetcher) zipFor(repo *graphql.Repository) *repoZip {
 		rf.zips = make(map[string]*repoZip)
 	}
 
-	path := filepath.Join(rf.dir, repo.Slug()+".zip")
-	zip, ok := rf.zips[path]
+	slug := repo.SlugForPath(path)
+
+	zipPath := filepath.Join(rf.dir, slug+".zip")
+	zip, ok := rf.zips[zipPath]
 	if !ok {
-		zip = &repoZip{path: path, repo: repo, client: rf.client, deleteOnClose: rf.deleteZips}
-		rf.zips[path] = zip
+		zip = &repoZip{
+			zipPath:       zipPath,
+			repo:          repo,
+			client:        rf.client,
+			deleteOnClose: rf.deleteZips,
+			pathInRepo:    path,
+		}
+		rf.zips[zipPath] = zip
 	}
 	return zip
 }
 
-func (rf *repoFetcher) Checkout(repo *graphql.Repository) RepoZip {
-	zip := rf.zipFor(repo)
+func (rf *repoFetcher) Checkout(repo *graphql.Repository, path string) RepoZip {
+	zip := rf.zipFor(repo, path)
 	zip.mu.Lock()
 	defer zip.mu.Unlock()
 
@@ -84,8 +93,10 @@ type repoZip struct {
 	mu sync.Mutex
 
 	deleteOnClose bool
-	path          string
-	repo          *graphql.Repository
+	zipPath       string
+
+	repo       *graphql.Repository
+	pathInRepo string
 
 	client api.Client
 
@@ -101,14 +112,14 @@ func (rz *repoZip) Close() error {
 
 	rz.uses -= 1
 	if rz.uses == 0 && rz.checkouts == 0 && rz.deleteOnClose {
-		return os.Remove(rz.path)
+		return os.Remove(rz.zipPath)
 	}
 
 	return nil
 }
 
 func (rz *repoZip) Path() string {
-	return rz.path
+	return rz.zipPath
 }
 
 func (rz *repoZip) Fetch(ctx context.Context) error {
@@ -122,7 +133,7 @@ func (rz *repoZip) Fetch(ctx context.Context) error {
 		return nil
 	}
 
-	exists, err := fileExists(rz.path)
+	exists, err := fileExists(rz.zipPath)
 	if err != nil {
 		return err
 	}
@@ -132,16 +143,16 @@ func (rz *repoZip) Fetch(ctx context.Context) error {
 		// giving us a temporary place on the filesystem to keep the archive.
 		// Since it's never mounted into the containers being run, we can keep
 		// these directories 0700 without issue.
-		if err := os.MkdirAll(filepath.Dir(rz.path), 0700); err != nil {
+		if err := os.MkdirAll(filepath.Dir(rz.zipPath), 0700); err != nil {
 			return err
 		}
 
-		err = fetchRepositoryArchive(ctx, rz.client, rz.repo, rz.path)
+		err = fetchRepositoryArchive(ctx, rz.client, rz.repo, rz.pathInRepo, rz.zipPath)
 		if err != nil {
 			// If the context got cancelled, or we ran out of disk space, or ...
 			// while we were downloading the file, we remove the partially
 			// downloaded file.
-			os.Remove(rz.path)
+			os.Remove(rz.zipPath)
 
 			return errors.Wrap(err, "fetching ZIP archive")
 		}
@@ -152,8 +163,9 @@ func (rz *repoZip) Fetch(ctx context.Context) error {
 	return nil
 }
 
-func fetchRepositoryArchive(ctx context.Context, client api.Client, repo *graphql.Repository, dest string) error {
-	req, err := client.NewHTTPRequest(ctx, "GET", repositoryZipArchivePath(repo), nil)
+func fetchRepositoryArchive(ctx context.Context, client api.Client, repo *graphql.Repository, pathInRepo string, dest string) error {
+	endpoint := repositoryZipArchiveEndpoint(repo, pathInRepo)
+	req, err := client.NewHTTPRequest(ctx, "GET", endpoint, nil)
 	if err != nil {
 		return err
 	}
@@ -181,6 +193,10 @@ func fetchRepositoryArchive(ctx context.Context, client api.Client, repo *graphq
 	return nil
 }
 
-func repositoryZipArchivePath(repo *graphql.Repository) string {
-	return path.Join("", repo.Name+"@"+repo.BaseRef(), "-", "raw")
+func repositoryZipArchiveEndpoint(repo *graphql.Repository, pathInRepo string) string {
+	p := path.Join(repo.Name+"@"+repo.BaseRef(), "-", "raw")
+	if pathInRepo != "" {
+		p = path.Join(p, pathInRepo)
+	}
+	return p
 }

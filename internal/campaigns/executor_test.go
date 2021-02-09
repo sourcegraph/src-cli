@@ -28,6 +28,7 @@ import (
 
 type mockRepoArchive struct {
 	repo  *graphql.Repository
+	path  string
 	files map[string]string
 }
 
@@ -299,9 +300,16 @@ repository_name=github.com/sourcegraph/src-cli`,
 		{
 			name: "workspaces",
 			archives: []mockRepoArchive{
-				{repo: srcCLIRepo, files: map[string]string{
+				{repo: srcCLIRepo, path: "", files: map[string]string{
 					"message.txt":     "root-dir",
 					"a/message.txt":   "a-dir",
+					"a/b/message.txt": "b-dir",
+				}},
+				{repo: srcCLIRepo, path: "a", files: map[string]string{
+					"a/message.txt":   "a-dir",
+					"a/b/message.txt": "b-dir",
+				}},
+				{repo: srcCLIRepo, path: "a/b", files: map[string]string{
 					"a/b/message.txt": "b-dir",
 				}},
 			},
@@ -369,6 +377,7 @@ repository_name=github.com/sourcegraph/src-cli`,
 				Parallelism: runtime.GOMAXPROCS(0),
 				Timeout:     tc.executorTimeout,
 			}
+
 			if opts.Timeout == 0 {
 				opts.Timeout = 30 * time.Second
 			}
@@ -397,7 +406,7 @@ repository_name=github.com/sourcegraph/src-cli`,
 					}
 
 					task.Steps = tc.steps
-					task.Archive = repoFetcher.Checkout(task.Repository)
+					task.Archive = repoFetcher.Checkout(task.Repository, task.Path)
 					executor.AddTask(task)
 				}
 
@@ -850,6 +859,9 @@ func newZipArchivesMux(t *testing.T, callback http.HandlerFunc, archives ...mock
 	for _, archive := range archives {
 		files := archive.files
 		path := fmt.Sprintf("/%s@%s/-/raw", archive.repo.Name, archive.repo.BaseRef())
+		if archive.path != "" {
+			path = path + "/" + archive.path
+		}
 
 		downloadName := filepath.Base(archive.repo.Name)
 		mediaType := mime.FormatMediaType("Attachment", map[string]string{

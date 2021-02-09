@@ -81,6 +81,14 @@ func (r *Repository) Slug() string {
 	return strings.ReplaceAll(r.Name, "/", "-") + "-" + r.Rev()
 }
 
+func (r *Repository) SlugForPath(path string) string {
+	name := r.Name
+	if path != "" {
+		name = name + "-" + path
+	}
+	return strings.ReplaceAll(name, "/", "-") + "-" + r.Rev()
+}
+
 func (r *Repository) SearchResultPaths() (list fileMatchPathList) {
 	var files []string
 	for f := range r.FileMatches {
