@@ -305,7 +305,7 @@ func readWorkspaceFiles(workspace Workspace) (map[string]string, error) {
 			return err
 		}
 
-		if rel == ".git" || strings.HasPrefix(rel, ".git/") {
+		if rel == ".git" || strings.HasPrefix(rel, ".git"+string(os.PathSeparator)) {
 			return nil
 		}
 
