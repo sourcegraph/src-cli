@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"strings"
 
 	"github.com/pkg/errors"
 
@@ -21,7 +22,7 @@ type dockerVolumeWorkspaceCreator struct{ tempDir string }
 
 var _ WorkspaceCreator = &dockerVolumeWorkspaceCreator{}
 
-func (wc *dockerVolumeWorkspaceCreator) Create(ctx context.Context, repo *graphql.Repository, steps []Step, zip string) (Workspace, error) {
+func (wc *dockerVolumeWorkspaceCreator) Create(ctx context.Context, repo *graphql.Repository, steps []Step, archive RepoZip) (Workspace, error) {
 	volume, err := wc.createVolume(ctx)
 	if err != nil {
 		return nil, errors.Wrap(err, "creating Docker volume")
@@ -41,8 +42,12 @@ func (wc *dockerVolumeWorkspaceCreator) Create(ctx context.Context, repo *graphq
 		volume:  volume,
 		uidGid:  ug,
 	}
-	if err := wc.unzipRepoIntoVolume(ctx, w, zip); err != nil {
+	if err := wc.unzipRepoIntoVolume(ctx, w, archive.Path()); err != nil {
 		return nil, errors.Wrap(err, "unzipping repo into workspace")
+	}
+
+	if err := wc.copyFilesIntoVolumes(ctx, w, archive.AdditionalFilePaths()); err != nil {
+		return nil, errors.Wrap(err, "copying additional files into workspace")
 	}
 
 	return w, errors.Wrap(wc.prepareGitRepo(ctx, w), "preparing local git repo")
@@ -136,6 +141,41 @@ func (wc *dockerVolumeWorkspaceCreator) unzipRepoIntoVolume(ctx context.Context,
 		return errors.Wrapf(err, "unzip output:\n\n%s\n\n", string(out))
 	}
 
+	return nil
+}
+
+func (wc *dockerVolumeWorkspaceCreator) copyFilesIntoVolumes(ctx context.Context, w *dockerVolumeWorkspace, files map[string]string) error {
+	if len(files) == 0 {
+		return nil
+	}
+
+	opts := append([]string{
+		"run",
+		"--rm",
+		"--init",
+		"--workdir", "/work",
+	}, w.dockerRunOptsWithUser(w.uidGid, "/work")...)
+
+	var copyCmds []string
+
+	for name, localPath := range files {
+		opts = append(opts, []string{
+			"--mount", "type=bind,source=" + localPath + ",target=/tmp/" + name + ",ro",
+		}...)
+
+		copyCmds = append(copyCmds, "cp /tmp/"+name+" /work/"+name)
+	}
+
+	opts = append(
+		opts,
+		dockerVolumeWorkspaceImage,
+		"sh", "-c",
+		strings.Join(copyCmds, " && ")+";",
+	)
+
+	if out, err := exec.CommandContext(ctx, "docker", opts...).CombinedOutput(); err != nil {
+		return errors.Wrapf(err, "unzip output:\n\n%s\n\n", string(out))
+	}
 	return nil
 }
 

@@ -108,11 +108,11 @@ type RepoZip interface {
 	// Path must return the path to the archive on the filesystem.
 	Path() string
 
-	// AdditionalFilePaths returns the files that should be put into the
-	// workspace's root. The returned paths are the locations on the local
-	// filesystem. WorkspaceCreators need to copy the files
-	// into the workspaces.
-	AdditionalFilePaths() []string
+	// AdditionalFilePaths returns a map of filenames that should be put into
+	// the workspace's root. The value of each entry in the map is the location
+	// on the local filesystem. WorkspaceCreators need to copy the files into
+	// the workspaces.
+	AdditionalFilePaths() map[string]string
 }
 
 var _ RepoZip = &repoZip{}
@@ -171,10 +171,12 @@ func (rz *repoZip) Path() string {
 	return rz.zipPath
 }
 
-func (rz *repoZip) AdditionalFilePaths() []string {
-	var paths []string
+func (rz *repoZip) AdditionalFilePaths() map[string]string {
+	paths := map[string]string{}
 	for _, f := range rz.additionalFiles {
-		paths = append(paths, f.localPath)
+		if f.fetched {
+			paths[f.filename] = f.localPath
+		}
 	}
 	return paths
 }
@@ -264,7 +266,6 @@ func (rz *repoZip) fetchArchiveAndFiles(ctx context.Context) (err error) {
 // If `pathInRepo` is empty and `dest` ends in `.zip` a ZIP archive of the
 // whole repository is downloaded.
 func fetchRepositoryFile(ctx context.Context, client api.Client, repo *graphql.Repository, pathInRepo string, dest string) (bool, error) {
-	fmt.Printf("fetchRepositoryFile. pathInRepo=%s, dest=%s\n", pathInRepo, dest)
 	endpoint := repositoryRawFileEndpoint(repo, pathInRepo)
 	req, err := client.NewHTTPRequest(ctx, "GET", endpoint, nil)
 	if err != nil {

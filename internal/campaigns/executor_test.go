@@ -57,7 +57,8 @@ func TestExecutor_Integration(t *testing.T) {
 	tests := []struct {
 		name string
 
-		archives []mockRepoArchive
+		archives        []mockRepoArchive
+		additionalFiles []mockRepoAdditionalFiles
 
 		// We define the steps only once per test case so there's less duplication
 		steps []Step
@@ -295,6 +296,7 @@ repository_name=github.com/sourcegraph/src-cli`,
 			name: "workspaces",
 			archives: []mockRepoArchive{
 				{repo: srcCLIRepo, path: "", files: map[string]string{
+					".gitignore":      "node_modules",
 					"message.txt":     "root-dir",
 					"a/message.txt":   "a-dir",
 					"a/b/message.txt": "b-dir",
@@ -307,6 +309,11 @@ repository_name=github.com/sourcegraph/src-cli`,
 					"a/b/message.txt": "b-dir",
 				}},
 			},
+			additionalFiles: []mockRepoAdditionalFiles{
+				{repo: srcCLIRepo, additionalFiles: map[string]string{
+					".gitignore": "node_modules",
+				}},
+			},
 			steps: []Step{
 				{
 					Run:       "cat message.txt && echo 'Hello' > hello.txt",
@@ -316,6 +323,18 @@ repository_name=github.com/sourcegraph/src-cli`,
 							Value: "${{ step.stdout }}",
 						},
 					},
+				},
+				{
+					Run:       `if [[ -f ".gitignore" ]]; then echo "yes" >> gitignore-exists; fi`,
+					Container: "doesntmatter:13",
+				},
+				{
+					Run:       `if [[ $(basename $(pwd)) == "a" && -f "../.gitignore" ]]; then echo "yes" >> gitignore-exists; fi`,
+					Container: "doesntmatter:13",
+				},
+				{
+					Run:       `if [[ $(basename $(pwd)) == "b" && -f "../../.gitignore" ]]; then echo "yes" >> gitignore-exists; fi`,
+					Container: "doesntmatter:13",
 				},
 			},
 			tasks: []*Task{
@@ -340,9 +359,9 @@ repository_name=github.com/sourcegraph/src-cli`,
 
 			wantFilesChanged: filesByRepository{
 				srcCLIRepo.ID: filesByBranch{
-					"workspace-root-dir": []string{"hello.txt"},
-					"workspace-a-dir":    []string{"a/hello.txt"},
-					"workspace-b-dir":    []string{"a/b/hello.txt"},
+					"workspace-root-dir": []string{"hello.txt", "gitignore-exists"},
+					"workspace-a-dir":    []string{"a/hello.txt", "a/gitignore-exists"},
+					"workspace-b-dir":    []string{"a/b/hello.txt", "a/b/gitignore-exists"},
 				},
 			},
 		},
@@ -350,7 +369,18 @@ repository_name=github.com/sourcegraph/src-cli`,
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			ts := httptest.NewServer(newZipArchivesMux(t, nil, tc.archives...))
+			mux := newZipArchivesMux(t, nil, tc.archives...)
+
+			middle := func(next http.Handler) http.Handler {
+				return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					fmt.Printf("PATH=%q\n", r.URL.Path)
+					next.ServeHTTP(w, r)
+				})
+			}
+			for _, additionalFiles := range tc.additionalFiles {
+				handleAdditionalFiles(mux, additionalFiles, middle)
+			}
+			ts := httptest.NewServer(mux)
 			defer ts.Close()
 
 			var clientBuffer bytes.Buffer

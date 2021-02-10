@@ -201,7 +201,7 @@ func NewGlobValidator(wantName string, wantArg ...string) CommandValidator {
 		}
 
 		if len(haveArg) != len(wantArgGlobs) {
-			errs = multierror.Append(errs, errors.Errorf("unexpected number of arguments: have=%v want=%v", haveArg, wantArg))
+			errs = multierror.Append(errs, errors.Errorf("unexpected number of arguments:\nhave=%v\nwant=%v", haveArg, wantArg))
 		} else {
 			for i, g := range wantArgGlobs {
 				if !g.Match(haveArg[i]) {
