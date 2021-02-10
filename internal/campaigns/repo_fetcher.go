@@ -237,10 +237,6 @@ func (rz *repoZip) fetchArchiveAndFiles(ctx context.Context) (err error) {
 	}
 
 	for _, addFile := range rz.additionalFiles {
-		if addFile.fetched {
-			continue
-		}
-
 		exists, err := fileExists(addFile.localPath)
 		if err != nil {
 			return err
@@ -253,10 +249,10 @@ func (rz *repoZip) fetchArchiveAndFiles(ctx context.Context) (err error) {
 
 		ok, err := fetchRepositoryFile(ctx, rz.client, rz.repo, addFile.filename, addFile.localPath)
 		if err != nil {
-			os.Remove(addFile.localPath)
-
 			return errors.Wrapf(err, "fetching %s for repository archive", addFile.filename)
 		}
+		// We don't return an error here, because downloading the additional
+		// files is best effort. If they don't exist we skip them.
 		addFile.fetched = ok
 	}
 
