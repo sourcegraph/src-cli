@@ -227,10 +227,14 @@ func TestRepoFetcher_Fetch(t *testing.T) {
 	})
 
 	t.Run("path in repository", func(t *testing.T) {
-		additionalFiles := map[string]string{
-			".gitignore":     "node_modules",
-			".gitattributes": "* -text",
+		additionalFiles := mockRepoAdditionalFiles{
+			repo: repo,
+			additionalFiles: map[string]string{
+				".gitignore":     "node_modules",
+				".gitattributes": "* -text",
+			},
 		}
+
 		path := "a/b"
 		archive := mockRepoArchive{
 			repo: repo,
@@ -258,7 +262,7 @@ func TestRepoFetcher_Fetch(t *testing.T) {
 		}
 
 		mux := newZipArchivesMux(t, callback, archive)
-		handleAdditionalFiles(mux, repo, additionalFiles, middle)
+		handleAdditionalFiles(mux, additionalFiles, middle)
 
 		ts := httptest.NewServer(mux)
 		defer ts.Close()

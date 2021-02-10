@@ -26,14 +26,6 @@ import (
 	"github.com/sourcegraph/src-cli/internal/campaigns/graphql"
 )
 
-type mockRepoArchive struct {
-	repo  *graphql.Repository
-	path  string
-	files map[string]string
-
-	additionalFiles map[string]string
-}
-
 func TestExecutor_Integration(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("Test doesn't work on Windows because dummydocker is written in bash")
@@ -855,6 +847,12 @@ func addToPath(t *testing.T, relPath string) {
 	os.Setenv("PATH", fmt.Sprintf("%s%c%s", dummyDockerPath, os.PathListSeparator, os.Getenv("PATH")))
 }
 
+type mockRepoArchive struct {
+	repo  *graphql.Repository
+	path  string
+	files map[string]string
+}
+
 func newZipArchivesMux(t *testing.T, callback http.HandlerFunc, archives ...mockRepoArchive) *http.ServeMux {
 	mux := http.NewServeMux()
 
@@ -900,13 +898,18 @@ func newZipArchivesMux(t *testing.T, callback http.HandlerFunc, archives ...mock
 
 type middleware func(http.Handler) http.Handler
 
-func handleAdditionalFiles(mux *http.ServeMux, repo *graphql.Repository, files map[string]string, middle middleware) {
+type mockRepoAdditionalFiles struct {
+	repo            *graphql.Repository
+	additionalFiles map[string]string
+}
+
+func handleAdditionalFiles(mux *http.ServeMux, files mockRepoAdditionalFiles, middle middleware) {
 	var requestedFiles []string
-	for name, content := range files {
+	for name, content := range files.additionalFiles {
 		// Copy we can use inside closure
 		nameCopy := name
 
-		path := fmt.Sprintf("/%s@%s/-/raw/%s", repo.Name, repo.BaseRef(), name)
+		path := fmt.Sprintf("/%s@%s/-/raw/%s", files.repo.Name, files.repo.BaseRef(), name)
 		handler := func(w http.ResponseWriter, r *http.Request) {
 			requestedFiles = append(requestedFiles, nameCopy)
 
