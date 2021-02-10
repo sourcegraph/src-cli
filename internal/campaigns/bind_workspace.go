@@ -68,6 +68,7 @@ func (wc *dockerBindWorkspaceCreator) copyToWorkspace(ctx context.Context, w *do
 			return err
 		}
 
+		// TODO: This should use prepareCopyDestinationFile
 		if !srcStat.Mode().IsRegular() {
 			return fmt.Errorf("%s is not a regular file", src)
 		}
@@ -189,6 +190,7 @@ func unzip(zipFile, dest string) error {
 			continue
 		}
 
+		// TODO: This should use prepareCopyDestinationFile
 		if err := mkdirAll(dest, filepath.Dir(f.Name), 0777); err != nil {
 			return err
 		}
