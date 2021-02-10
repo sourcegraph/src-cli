@@ -30,6 +30,8 @@ type mockRepoArchive struct {
 	repo  *graphql.Repository
 	path  string
 	files map[string]string
+
+	additionalFiles map[string]string
 }
 
 func TestExecutor_Integration(t *testing.T) {
@@ -894,6 +896,30 @@ func newZipArchivesMux(t *testing.T, callback http.HandlerFunc, archives ...mock
 	}
 
 	return mux
+}
+
+type middleware func(http.Handler) http.Handler
+
+func handleAdditionalFiles(mux *http.ServeMux, repo *graphql.Repository, files map[string]string, middle middleware) {
+	var requestedFiles []string
+	for name, content := range files {
+		// Copy we can use inside closure
+		nameCopy := name
+
+		path := fmt.Sprintf("/%s@%s/-/raw/%s", repo.Name, repo.BaseRef(), name)
+		handler := func(w http.ResponseWriter, r *http.Request) {
+			requestedFiles = append(requestedFiles, nameCopy)
+
+			w.Header().Set("Content-Type", "text/plain")
+
+			w.Write([]byte(content))
+		}
+		if middle != nil {
+			mux.Handle(path, middle(http.HandlerFunc(handler)))
+		} else {
+			mux.HandleFunc(path, handler)
+		}
+	}
 }
 
 // inMemoryExecutionCache provides an in-memory cache for testing purposes.

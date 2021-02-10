@@ -13,6 +13,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/sourcegraph/src-cli/internal/api"
 	"github.com/sourcegraph/src-cli/internal/campaigns/graphql"
 )
@@ -225,11 +227,10 @@ func TestRepoFetcher_Fetch(t *testing.T) {
 	})
 
 	t.Run("path in repository", func(t *testing.T) {
-		var requestedPath string
-		callback := func(_ http.ResponseWriter, r *http.Request) {
-			requestedPath = r.URL.Path
+		additionalFiles := map[string]string{
+			".gitignore":     "node_modules",
+			".gitattributes": "* -text",
 		}
-
 		path := "a/b"
 		archive := mockRepoArchive{
 			repo: repo,
@@ -240,7 +241,26 @@ func TestRepoFetcher_Fetch(t *testing.T) {
 			},
 		}
 
-		ts := httptest.NewServer(newZipArchivesMux(t, callback, archive))
+		var requestedArchivePath string
+		callback := func(w http.ResponseWriter, r *http.Request) {
+			s := strings.SplitN(r.URL.Path, "/raw/", 2)
+			requestedArchivePath = s[1]
+		}
+
+		var requestedFiles []string
+		middle := func(next http.Handler) http.Handler {
+			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				s := strings.SplitN(r.URL.Path, "/raw/", 2)
+				requestedFiles = append(requestedFiles, s[1])
+
+				next.ServeHTTP(w, r)
+			})
+		}
+
+		mux := newZipArchivesMux(t, callback, archive)
+		handleAdditionalFiles(mux, repo, additionalFiles, middle)
+
+		ts := httptest.NewServer(mux)
 		defer ts.Close()
 
 		var clientBuffer bytes.Buffer
@@ -258,8 +278,13 @@ func TestRepoFetcher_Fetch(t *testing.T) {
 			t.Fatalf("unexpected error: %s", err)
 		}
 
-		if !strings.HasSuffix(requestedPath, "raw/a/b") {
-			t.Fatalf("expected only directory to be fetched, but path is different: %q", requestedPath)
+		if !cmp.Equal(path, requestedArchivePath) {
+			t.Errorf("wrong paths requested (-want +got):\n%s", cmp.Diff(path, requestedArchivePath))
+		}
+
+		wantRequestedFiles := []string{".gitignore", ".gitattributes"}
+		if !cmp.Equal(wantRequestedFiles, requestedFiles, cmpopts.SortSlices(sortStrings)) {
+			t.Errorf("wrong paths requested (-want +got):\n%s", cmp.Diff(wantRequestedFiles, requestedFiles))
 		}
 
 		wantZipFile := repo.SlugForPath(path) + ".zip"
