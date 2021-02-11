@@ -20,9 +20,9 @@ import (
 // repository.
 type RepoFetcher interface {
 	// Checkout returns a RepoZip for the given repository and the given
-	// relative path in the repository. The RepoZip s possibly unfetched. Users
-	// need to call `Fetch()` on the RepoZip before using it and `Close()` once
-	// they're done using it.
+	// relative path in the repository. The RepoZip is possibly unfetched.
+	// Users need to call `Fetch()` on the RepoZip before using it and
+	// `Close()` once // they're done using it.
 	Checkout(repo *graphql.Repository, path string) RepoZip
 }
 
