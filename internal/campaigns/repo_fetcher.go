@@ -51,7 +51,7 @@ var AdditionalWorkspaceFiles = []string{
 	".gitattributes",
 }
 
-func (rf *repoFetcher) zipFor(repo *graphql.Repository, path string) *repoZip {
+func (rf *repoFetcher) zipFor(repo *graphql.Repository, workspacePath string) *repoZip {
 	rf.zipsMu.Lock()
 	defer rf.zipsMu.Unlock()
 
@@ -59,7 +59,7 @@ func (rf *repoFetcher) zipFor(repo *graphql.Repository, path string) *repoZip {
 		rf.zips = make(map[string]*repoZip)
 	}
 
-	slug := repo.SlugForPath(path)
+	slug := repo.SlugForPath(workspacePath)
 
 	zipPath := filepath.Join(rf.dir, slug+".zip")
 	zip, ok := rf.zips[zipPath]
@@ -69,10 +69,10 @@ func (rf *repoFetcher) zipFor(repo *graphql.Repository, path string) *repoZip {
 			repo:          repo,
 			client:        rf.client,
 			deleteOnClose: rf.deleteZips,
-			pathInRepo:    path,
+			pathInRepo:    workspacePath,
 		}
 
-		if path != "" {
+		if workspacePath != "" {
 			// We're doing another loop here to catch all
 			// AdditionalWorkspaceFiles on the way *up* from the workspace to the
 			// root.
@@ -90,12 +90,12 @@ func (rf *repoFetcher) zipFor(repo *graphql.Repository, path string) *repoZip {
 
 			// Split on '/' because the path comes from Sourcegraph and always
 			// has a "/".
-			pathComponents := strings.Split(path, "/")
+			pathComponents := strings.Split(workspacePath, "/")
 
 			var currentPath string
 			for _, component := range pathComponents {
 				for _, name := range []string{".gitignore", ".gitattributes"} {
-					filename := filepath.Join(currentPath, name)
+					filename := path.Join(currentPath, name)
 					localPath := filepath.Join(rf.dir, repo.SlugForPath(filename))
 
 					zip.additionalFiles = append(zip.additionalFiles, &additionalFile{
@@ -105,7 +105,7 @@ func (rf *repoFetcher) zipFor(repo *graphql.Repository, path string) *repoZip {
 					})
 				}
 
-				currentPath = filepath.Join(currentPath, component)
+				currentPath = path.Join(currentPath, component)
 			}
 		}
 
@@ -276,7 +276,6 @@ func (rz *repoZip) fetchArchiveAndFiles(ctx context.Context) (err error) {
 			continue
 		}
 
-		fmt.Printf("DEBUG! Fetching file %s\n", addFile.filename)
 		ok, err := fetchRepositoryFile(ctx, rz.client, rz.repo, addFile.filename, addFile.localPath)
 		if err != nil {
 			return errors.Wrapf(err, "fetching %s for repository archive", addFile.filename)
