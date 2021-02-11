@@ -232,6 +232,7 @@ func TestRepoFetcher_Fetch(t *testing.T) {
 			additionalFiles: map[string]string{
 				".gitignore":     "node_modules",
 				".gitattributes": "* -text",
+				"a/.gitignore":   "node_modules-in-a",
 			},
 		}
 
@@ -286,7 +287,7 @@ func TestRepoFetcher_Fetch(t *testing.T) {
 			t.Errorf("wrong paths requested (-want +got):\n%s", cmp.Diff(path, requestedArchivePath))
 		}
 
-		wantRequestedFiles := []string{".gitignore", ".gitattributes"}
+		wantRequestedFiles := []string{".gitignore", ".gitattributes", "a/.gitignore"}
 		if !cmp.Equal(wantRequestedFiles, requestedFiles, cmpopts.SortSlices(sortStrings)) {
 			t.Errorf("wrong paths requested (-want +got):\n%s", cmp.Diff(wantRequestedFiles, requestedFiles))
 		}
