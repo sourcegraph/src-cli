@@ -79,7 +79,7 @@ func (wc *dockerBindWorkspaceCreator) copyToWorkspace(ctx context.Context, w *do
 
 		destPath := path.Join(w.dir, name)
 
-		destFile, err := prepareCopyDestinationFile(src, srcStat, destPath)
+		destFile, err := prepareCopyDestinationFile(srcStat, destPath)
 		if err != nil {
 			return err
 		}
@@ -194,7 +194,7 @@ func unzip(zipFile, dest string) error {
 			continue
 		}
 
-		outFile, err := prepareCopyDestinationFile(f.Name, f.FileInfo(), fpath)
+		outFile, err := prepareCopyDestinationFile(f.FileInfo(), fpath)
 		if err != nil {
 			return err
 		}
@@ -224,8 +224,8 @@ type moder interface {
 	Mode() os.FileMode
 }
 
-func prepareCopyDestinationFile(sourcePath string, sourceInfo moder, dest string) (*os.File, error) {
-	if err := mkdirAll(filepath.Dir(dest), filepath.Dir(sourcePath), 0777); err != nil {
+func prepareCopyDestinationFile(sourceInfo moder, dest string) (*os.File, error) {
+	if err := mkdirAll(filepath.Dir(dest), "", 0777); err != nil {
 		return nil, err
 	}
 
