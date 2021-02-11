@@ -5,6 +5,7 @@ import (
 	"context"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -37,17 +38,14 @@ func TestVolumeWorkspaceCreator(t *testing.T) {
 		mockAdditionalFilePaths: map[string]string{},
 	}
 	for _, name := range []string{".gitignore", "another-file"} {
-		f, err := ioutil.TempFile(os.TempDir(), "volume-workspace-*-"+name)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if _, err := f.WriteString("this is " + name); err != nil {
-			t.Fatalf("failed to create temp file %s", name)
-		}
-		f.Close()
-		defer os.Remove(f.Name())
+		// Since we don't read the files and mock the Docker commands,
+		// we don't need to create them.
+		path := filepath.Join(os.TempDir(), "additional-file"+name)
+		// Instead we create a real-looking path that we sanitize so
+		// it doesn't trip up the globbing expecations below:
+		path = strings.ReplaceAll(path, string(os.PathSeparator), "-")
 
-		archiveWithAdditionalFiles.mockAdditionalFilePaths[name] = f.Name()
+		archiveWithAdditionalFiles.mockAdditionalFilePaths[name] = path
 	}
 
 	wc := &dockerVolumeWorkspaceCreator{}

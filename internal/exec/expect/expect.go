@@ -206,6 +206,10 @@ func NewGlobValidator(wantName string, wantArg ...string) CommandValidator {
 		} else {
 			for i, g := range wantArgGlobs {
 				if !g.Match(haveArg[i]) {
+					for j := range wantArg {
+						fmt.Printf("wantArg[%d]=%q\n", j, wantArg[j])
+						fmt.Printf("haveArg[%d]=%q\n", j, haveArg[j])
+					}
 					errs = multierror.Append(errs, errors.Errorf("unexpected argument at position %d:\nhave=%q\nwant=%q\ndiff=%q", i, haveArg[i], wantArg[i], cmp.Diff(haveArg[i], wantArg[i])))
 				}
 			}
