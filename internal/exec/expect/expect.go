@@ -25,6 +25,7 @@ import (
 	"testing"
 
 	"github.com/gobwas/glob"
+	"github.com/google/go-cmp/cmp"
 	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
 
@@ -205,7 +206,7 @@ func NewGlobValidator(wantName string, wantArg ...string) CommandValidator {
 		} else {
 			for i, g := range wantArgGlobs {
 				if !g.Match(haveArg[i]) {
-					errs = multierror.Append(errs, errors.Errorf("unexpected argument at position %d: have=%q want=%q", i, haveArg[i], wantArg[i]))
+					errs = multierror.Append(errs, errors.Errorf("unexpected argument at position %d:\nhave=%q\nwant=%q\ndiff=%q", i, haveArg[i], wantArg[i], cmp.Diff(haveArg[i], wantArg[i])))
 				}
 			}
 		}
