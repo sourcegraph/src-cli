@@ -944,6 +944,7 @@ type mockRepoAdditionalFiles struct {
 func handleAdditionalFiles(mux *http.ServeMux, files mockRepoAdditionalFiles, middle middleware) {
 	for name, content := range files.additionalFiles {
 		path := fmt.Sprintf("/%s@%s/-/raw/%s", files.repo.Name, files.repo.BaseRef(), name)
+		fmt.Printf("Setting up handler for path %s\n", path)
 		handler := func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "text/plain")
 

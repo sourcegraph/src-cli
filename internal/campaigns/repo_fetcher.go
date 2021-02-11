@@ -276,6 +276,7 @@ func (rz *repoZip) fetchArchiveAndFiles(ctx context.Context) (err error) {
 			continue
 		}
 
+		fmt.Printf("DEBUG! Fetching file %s\n", addFile.filename)
 		ok, err := fetchRepositoryFile(ctx, rz.client, rz.repo, addFile.filename, addFile.localPath)
 		if err != nil {
 			return errors.Wrapf(err, "fetching %s for repository archive", addFile.filename)
