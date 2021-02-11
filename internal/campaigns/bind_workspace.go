@@ -68,7 +68,6 @@ func (wc *dockerBindWorkspaceCreator) copyToWorkspace(ctx context.Context, w *do
 			return err
 		}
 
-		// TODO: This should use prepareCopyDestinationFile
 		if !srcStat.Mode().IsRegular() {
 			return fmt.Errorf("%s is not a regular file", src)
 		}
@@ -77,18 +76,23 @@ func (wc *dockerBindWorkspaceCreator) copyToWorkspace(ctx context.Context, w *do
 		if err != nil {
 			return err
 		}
-		defer srcFile.Close()
 
 		destPath := path.Join(w.dir, name)
-		destFile, err := os.Create(destPath)
+
+		destFile, err := prepareCopyDestinationFile(src, srcStat, destPath)
 		if err != nil {
 			return err
 		}
-		defer destFile.Close()
-
 		_, err = io.Copy(destFile, srcFile)
 		if err != nil {
 			return err
+		}
+
+		if cerr := destFile.Close(); cerr != nil {
+			return errors.Wrap(cerr, "closing destination file failed")
+		}
+		if cerr := srcFile.Close(); cerr != nil {
+			return errors.Wrap(cerr, "closing source file failed")
 		}
 	}
 
@@ -190,30 +194,10 @@ func unzip(zipFile, dest string) error {
 			continue
 		}
 
-		// TODO: This should use prepareCopyDestinationFile
-		if err := mkdirAll(dest, filepath.Dir(f.Name), 0777); err != nil {
-			return err
-		}
-
-		outFile, err := os.OpenFile(fpath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, f.Mode())
+		outFile, err := prepareCopyDestinationFile(f.Name, f.FileInfo(), fpath)
 		if err != nil {
 			return err
 		}
-
-		// Since the container might not run as the same user, we need to ensure
-		// that the file is globally writable. If the execute bit is normally
-		// set on the zipped up file, let's ensure we propagate that to the
-		// group and other permission bits too.
-		if f.Mode()&0111 != 0 {
-			if err := os.Chmod(outFile.Name(), 0777); err != nil {
-				return err
-			}
-		} else {
-			if err := os.Chmod(outFile.Name(), 0666); err != nil {
-				return err
-			}
-		}
-
 		rc, err := f.Open()
 		if err != nil {
 			outFile.Close()
@@ -241,13 +225,13 @@ type moder interface {
 }
 
 func prepareCopyDestinationFile(sourcePath string, sourceInfo moder, dest string) (*os.File, error) {
-	if err := mkdirAll(dest, filepath.Dir(sourcePath), 0777); err != nil {
+	if err := mkdirAll(filepath.Dir(dest), filepath.Dir(sourcePath), 0777); err != nil {
 		return nil, err
 	}
 
 	outFile, err := os.OpenFile(dest, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, sourceInfo.Mode())
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "opening destination file failed")
 	}
 
 	// Since the container might not run as the same user, we need to ensure
@@ -255,14 +239,15 @@ func prepareCopyDestinationFile(sourcePath string, sourceInfo moder, dest string
 	// set on the zipped up file, let's ensure we propagate that to the
 	// group and other permission bits too.
 	if sourceInfo.Mode()&0111 != 0 {
-		if err := os.Chmod(outFile.Name(), 0777); err != nil {
-			return nil, err
-		}
+		err = os.Chmod(outFile.Name(), 0777)
 	} else {
-		if err := os.Chmod(outFile.Name(), 0666); err != nil {
-			return nil, err
-		}
+		err = os.Chmod(outFile.Name(), 0666)
 	}
+	if err != nil {
+		outFile.Close()
+		return nil, err
+	}
+
 	return outFile, nil
 }
 
