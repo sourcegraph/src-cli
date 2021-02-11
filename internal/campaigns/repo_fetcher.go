@@ -73,12 +73,37 @@ func (rf *repoFetcher) zipFor(repo *graphql.Repository, path string) *repoZip {
 		}
 
 		if path != "" {
-			for _, name := range []string{".gitignore", ".gitattributes"} {
-				zip.additionalFiles = append(zip.additionalFiles, &additionalFile{
-					filename:  name,
-					localPath: filepath.Join(rf.dir, slug+"-"+name),
-					fetched:   false,
-				})
+			// We're doing another loop here to catch all
+			// AdditionalWorkspaceFiles on the way *up* from the workspace to the
+			// root.
+			//
+			// Example: path = /examples/cool/project3
+			//
+			// Then we want to fetch the following files:
+			//
+			// /.gitignore
+			// /.gitattributes
+			// /examples/.gitignore
+			// /examples/.gitattributes
+			// /examples/cool/.gitignore
+			// /examples/cool/.gitattributes
+
+			pathComponents := strings.Split(path, string(os.PathSeparator))
+
+			var currentPath string
+			for _, component := range pathComponents {
+				for _, name := range []string{".gitignore", ".gitattributes"} {
+					filename := filepath.Join(currentPath, name)
+					localPath := filepath.Join(rf.dir, repo.SlugForPath(filename))
+
+					zip.additionalFiles = append(zip.additionalFiles, &additionalFile{
+						filename:  filename,
+						localPath: localPath,
+						fetched:   false,
+					})
+				}
+
+				currentPath = filepath.Join(currentPath, component)
 			}
 		}
 

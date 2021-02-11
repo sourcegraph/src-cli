@@ -299,10 +299,12 @@ repository_name=github.com/sourcegraph/src-cli`,
 					".gitignore":      "node_modules",
 					"message.txt":     "root-dir",
 					"a/message.txt":   "a-dir",
+					"a/.gitignore":    "node_modules-in-a",
 					"a/b/message.txt": "b-dir",
 				}},
 				{repo: srcCLIRepo, path: "a", files: map[string]string{
 					"a/message.txt":   "a-dir",
+					"a/.gitignore":    "node_modules-in-a",
 					"a/b/message.txt": "b-dir",
 				}},
 				{repo: srcCLIRepo, path: "a/b", files: map[string]string{
@@ -311,7 +313,8 @@ repository_name=github.com/sourcegraph/src-cli`,
 			},
 			additionalFiles: []mockRepoAdditionalFiles{
 				{repo: srcCLIRepo, additionalFiles: map[string]string{
-					".gitignore": "node_modules",
+					".gitignore":   "node_modules",
+					"a/.gitignore": "node_modules-in-a",
 				}},
 			},
 			steps: []Step{
@@ -332,8 +335,13 @@ repository_name=github.com/sourcegraph/src-cli`,
 					Run:       `if [[ $(basename $(pwd)) == "a" && -f "../.gitignore" ]]; then echo "yes" >> gitignore-exists; fi`,
 					Container: "doesntmatter:13",
 				},
+				// In `a/b` we want the `.gitignore` file in the root folder and in `a` to be fetched:
 				{
 					Run:       `if [[ $(basename $(pwd)) == "b" && -f "../../.gitignore" ]]; then echo "yes" >> gitignore-exists; fi`,
+					Container: "doesntmatter:13",
+				},
+				{
+					Run:       `if [[ $(basename $(pwd)) == "b" && -f "../.gitignore" ]]; then echo "yes" >> gitignore-exists-in-a; fi`,
 					Container: "doesntmatter:13",
 				},
 			},
@@ -361,7 +369,7 @@ repository_name=github.com/sourcegraph/src-cli`,
 				srcCLIRepo.ID: filesByBranch{
 					"workspace-root-dir": []string{"hello.txt", "gitignore-exists"},
 					"workspace-a-dir":    []string{"a/hello.txt", "a/gitignore-exists"},
-					"workspace-b-dir":    []string{"a/b/hello.txt", "a/b/gitignore-exists"},
+					"workspace-b-dir":    []string{"a/b/hello.txt", "a/b/gitignore-exists", "a/b/gitignore-exists-in-a"},
 				},
 			},
 		},
