@@ -934,19 +934,14 @@ type mockRepoAdditionalFiles struct {
 }
 
 func handleAdditionalFiles(mux *http.ServeMux, files mockRepoAdditionalFiles, middle middleware) {
-	var requestedFiles []string
 	for name, content := range files.additionalFiles {
-		// Copy we can use inside closure
-		nameCopy := name
-
 		path := fmt.Sprintf("/%s@%s/-/raw/%s", files.repo.Name, files.repo.BaseRef(), name)
 		handler := func(w http.ResponseWriter, r *http.Request) {
-			requestedFiles = append(requestedFiles, nameCopy)
-
 			w.Header().Set("Content-Type", "text/plain")
 
 			w.Write([]byte(content))
 		}
+
 		if middle != nil {
 			mux.Handle(path, middle(http.HandlerFunc(handler)))
 		} else {
