@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"sort"
 	"strings"
 
 	"github.com/pkg/errors"
@@ -156,9 +157,16 @@ func (wc *dockerVolumeWorkspaceCreator) copyFilesIntoVolumes(ctx context.Context
 		"--workdir", "/work",
 	}, w.dockerRunOptsWithUser(w.uidGid, "/work")...)
 
-	var copyCmds []string
+	// We sort these so our tests don't break. Sorry.
+	var names []string
+	for name := range files {
+		names = append(names, name)
+	}
+	sort.Strings(names)
 
-	for name, localPath := range files {
+	var copyCmds []string
+	for _, name := range names {
+		localPath := files[name]
 		opts = append(opts, []string{
 			"--mount", "type=bind,source=" + localPath + ",target=/tmp/" + name + ",ro",
 		}...)
