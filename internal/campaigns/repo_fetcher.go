@@ -88,7 +88,9 @@ func (rf *repoFetcher) zipFor(repo *graphql.Repository, path string) *repoZip {
 			// /examples/cool/.gitignore
 			// /examples/cool/.gitattributes
 
-			pathComponents := strings.Split(path, string(os.PathSeparator))
+			// Split on '/' because the path comes from Sourcegraph and always
+			// has a "/".
+			pathComponents := strings.Split(path, "/")
 
 			var currentPath string
 			for _, component := range pathComponents {
