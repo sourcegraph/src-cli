@@ -83,6 +83,7 @@ const CampaignSpecJSON = `{
           },
           "onlyFetchWorkspace": {
             "type": "boolean",
+            "description": "If this is true only the files in the workspace (and additional .gitignore) are downloaded instead of an archive of the full repository.",
             "default": false
           }
         }
