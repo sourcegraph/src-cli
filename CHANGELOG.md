@@ -17,6 +17,8 @@ All notable changes to `src-cli` are documented in this file.
 
 ### Fixed
 
+- Workspaces could sometimes fail set up with docker bind mount errors.
+
 ### Removed
 
 ## 3.24.5
