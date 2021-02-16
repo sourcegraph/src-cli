@@ -17,7 +17,7 @@ All notable changes to `src-cli` are documented in this file.
 
 ### Fixed
 
-- Workspaces could sometimes fail set up with docker bind mount errors.
+- Workspaces could sometimes fail with docker bind mount errors, due to a race condition of multiple workspaces accessing the same auxilliary files. [#468](https://github.com/sourcegraph/src-cli/pull/468)
 
 ### Removed
 
