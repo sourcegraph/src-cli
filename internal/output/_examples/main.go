@@ -97,7 +97,7 @@ func demo(out *output.Output, duration time.Duration) {
 				return
 			}
 
-			pending.Updatef("Waiting for another %s", until.Sub(time.Now()))
+			pending.Updatef("Waiting for another %s", time.Until(until))
 		}
 	}()
 
