@@ -98,64 +98,57 @@ func streamHandler(args []string) error {
 		},
 		OnMatches: func(matches []streaming.EventMatch) {
 			for _, match := range matches {
-				if file, ok := match.(*streaming.EventFileMatch); ok {
+				switch match := match.(type) {
+				case *streaming.EventFileMatch:
 					err = t.ExecuteTemplate(os.Stdout, "file", struct {
+						Query string
 						*streaming.EventFileMatch
 					}{
-						EventFileMatch: file,
+						Query:          query,
+						EventFileMatch: match,
 					},
 					)
 					if err != nil {
 						_, _ = flagSet.Output().Write([]byte(fmt.Sprintf("error when executing template: %s\n", err)))
 						return
 					}
-					continue
-				}
-
-				if repo, ok := match.(*streaming.EventRepoMatch); ok {
+				case *streaming.EventRepoMatch:
 					err = t.ExecuteTemplate(os.Stdout, "repo", struct {
 						SourcegraphEndpoint string
 						*streaming.EventRepoMatch
 					}{
 						SourcegraphEndpoint: cfg.Endpoint,
-						EventRepoMatch:      repo,
+						EventRepoMatch:      match,
 					})
 					if err != nil {
 						_, _ = flagSet.Output().Write([]byte(fmt.Sprintf("error when executing template: %s\n", err)))
 						return
 					}
-					continue
-				}
-
-				if commit, ok := match.(*streaming.EventCommitMatch); ok {
+				case *streaming.EventCommitMatch:
 					err = t.ExecuteTemplate(os.Stdout, "commit", struct {
 						SourcegraphEndpoint string
 						*streaming.EventCommitMatch
 					}{
 						SourcegraphEndpoint: cfg.Endpoint,
-						EventCommitMatch:    commit,
+						EventCommitMatch:    match,
 					})
 					if err != nil {
 						_, _ = flagSet.Output().Write([]byte(fmt.Sprintf("error when executing template: %s\n", err)))
 						return
 					}
-					continue
-				}
-
-				if symbol, ok := match.(*streaming.EventSymbolMatch); ok {
+				case *streaming.EventSymbolMatch:
 					err = t.ExecuteTemplate(os.Stdout, "symbol", struct {
 						SourcegraphEndpoint string
 						*streaming.EventSymbolMatch
 					}{
 						SourcegraphEndpoint: cfg.Endpoint,
-						EventSymbolMatch:    symbol,
+						EventSymbolMatch:    match,
 					},
 					)
 					if err != nil {
 						_, _ = flagSet.Output().Write([]byte(fmt.Sprintf("error when executing template: %s\n", err)))
 						return
 					}
-					continue
 				}
 			}
 		},
@@ -391,7 +384,7 @@ func stripMarkdownMarkers(content string) string {
 
 // convertMatchToHighlights converts a FileMatch m to a highlight data type.
 // When isPreview is true, it is assumed that the result to highlight is only on
-// one line, and the offets are relative to this line. When isPreview is false,
+// one line, and the offsets are relative to this line. When isPreview is false,
 // the lineNumber from the FileMatch data is used, which is relative to the file
 // content.
 func streamConvertMatchToHighlights(m streaming.EventLineMatch, isPreview bool) (highlights []highlight) {
