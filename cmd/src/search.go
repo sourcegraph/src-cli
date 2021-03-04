@@ -54,11 +54,27 @@ Other tips:
 		explainJSONFlag = flagSet.Bool("explain-json", false, "Explain the JSON output schema and exit.")
 		apiFlags        = api.NewFlags(flagSet)
 		lessFlag        = flagSet.Bool("less", true, "Pipe output to 'less -R' (only if stdout is terminal, and not json flag)")
+		streamFlag      = flagSet.Bool("stream", false, "Consume results as stream.")
+
+		// Streaming.
+		_ = flagSet.Int("display", -1, "Limit the number of results shown. Only supported for streaming.")
 	)
 
 	handler := func(args []string) error {
 		if err := flagSet.Parse(args); err != nil {
 			return err
+		}
+
+		if *streamFlag {
+			// Remove -stream from args.
+			argsWOStream := make([]string, 0, len(args)-1)
+			for _, a := range args {
+				if a == "-stream" {
+					continue
+				}
+				argsWOStream = append(argsWOStream, a)
+			}
+			return streamHandler(argsWOStream)
 		}
 
 		if *explainJSONFlag {

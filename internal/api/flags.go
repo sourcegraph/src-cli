@@ -11,6 +11,13 @@ type Flags struct {
 	insecureSkipVerify *bool
 }
 
+func (f *Flags) Trace() bool {
+	if f.trace == nil {
+		return false
+	}
+	return *(f.trace)
+}
+
 // NewFlags instantiates a new Flags structure and attaches flags to the given
 // flag set.
 func NewFlags(flagSet *flag.FlagSet) *Flags {
@@ -29,5 +36,12 @@ func defaultFlags() *Flags {
 		getCurl:            &d,
 		trace:              &d,
 		insecureSkipVerify: &d,
+	}
+}
+
+func StreamingFlags(flagSet *flag.FlagSet) *Flags {
+	return &Flags{
+		trace:              flagSet.Bool("trace", false, "Log the trace ID for requests. See https://docs.sourcegraph.com/admin/observability/tracing"),
+		insecureSkipVerify: flagSet.Bool("insecure-skip-verify", false, "Skip validation of TLS certificates against trusted chains"),
 	}
 }
