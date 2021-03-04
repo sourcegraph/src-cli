@@ -7,9 +7,10 @@ require (
 	github.com/dustin/go-humanize v1.0.0
 	github.com/efritz/pentimento v0.0.0-20190429011147-ade47d831101
 	github.com/gobwas/glob v0.2.3
-	github.com/google/go-cmp v0.5.2
+	github.com/google/go-cmp v0.5.4
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-multierror v1.1.0
+	github.com/hexops/autogold v1.3.0
 	github.com/jig/teereadcloser v0.0.0-20181016160506-953720c48e05
 	github.com/json-iterator/go v1.1.10
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
@@ -26,9 +27,9 @@ require (
 	github.com/sourcegraph/jsonx v0.0.0-20200629203448-1a936bd500cf
 	github.com/ssor/bom v0.0.0-20170718123548-6386211fdfcf // indirect
 	github.com/xeipuuv/gojsonpointer v0.0.0-20190905194746-02993c407bfb // indirect
-	golang.org/x/net v0.0.0-20200625001655-4c5254603344
-	golang.org/x/sync v0.0.0-20190911185100-cd5d95a43a6e
-	golang.org/x/sys v0.0.0-20200622214017-ed371f2e16b4
+	golang.org/x/net v0.0.0-20201021035429-f5854403a974
+	golang.org/x/sync v0.0.0-20201020160332-67f06af15bc9
+	golang.org/x/sys v0.0.0-20210218084038-e8e29180ff58
 	gopkg.in/yaml.v3 v3.0.0-20200615113413-eeeca48fe776
 	jaytaylor.com/html2text v0.0.0-20200412013138-3577fbdbcff7
 )
