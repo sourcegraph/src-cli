@@ -70,7 +70,7 @@ func streamHandler(args []string) error {
 			}
 			err = t.ExecuteTemplate(os.Stdout, "progress", progress)
 			if err != nil {
-				fmt.Printf("ExecuteTemplate: %s\n", err)
+				_, _ = flagSet.Output().Write([]byte(fmt.Sprintf("error when executing template: %s\n", err)))
 			}
 			return
 		},
@@ -92,7 +92,7 @@ func streamHandler(args []string) error {
 				ProposedQueries: proposedQueries,
 			})
 			if err != nil {
-				fmt.Printf("ExecuteTemplate: %s\n", err)
+				_, _ = flagSet.Output().Write([]byte(fmt.Sprintf("error when executing template: %s\n", err)))
 				return
 			}
 		},
@@ -100,15 +100,13 @@ func streamHandler(args []string) error {
 			for _, match := range matches {
 				if file, ok := match.(*streaming.EventFileMatch); ok {
 					err = t.ExecuteTemplate(os.Stdout, "file", struct {
-						Query string
 						*streaming.EventFileMatch
 					}{
-						Query:          query,
 						EventFileMatch: file,
 					},
 					)
 					if err != nil {
-						fmt.Printf("ExecuteTemplate: %s\n", err)
+						_, _ = flagSet.Output().Write([]byte(fmt.Sprintf("error when executing template: %s\n", err)))
 						return
 					}
 					continue
@@ -123,7 +121,7 @@ func streamHandler(args []string) error {
 						EventRepoMatch:      repo,
 					})
 					if err != nil {
-						fmt.Printf("ExecuteTemplate: %s\n", err)
+						_, _ = flagSet.Output().Write([]byte(fmt.Sprintf("error when executing template: %s\n", err)))
 						return
 					}
 					continue
@@ -138,7 +136,7 @@ func streamHandler(args []string) error {
 						EventCommitMatch:    commit,
 					})
 					if err != nil {
-						fmt.Printf("ExecuteTemplate: %s\n", err)
+						_, _ = flagSet.Output().Write([]byte(fmt.Sprintf("error when executing template: %s\n", err)))
 						return
 					}
 					continue
@@ -154,7 +152,7 @@ func streamHandler(args []string) error {
 					},
 					)
 					if err != nil {
-						fmt.Printf("ExecuteTemplate: %s\n", err)
+						_, _ = flagSet.Output().Write([]byte(fmt.Sprintf("error when executing template: %s\n", err)))
 						return
 					}
 					continue
