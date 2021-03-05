@@ -233,7 +233,13 @@ const streamingTemplate = `
 	
 	{{- /* Repository > author name "commit subject" (time ago) */ -}}
 	{{- color "search-commit-subject"}}{{(streamSearchRenderCommitLabel .Label)}}{{color "nc" -}}
-	{{- color "success"}}{{matchOrMatches (len .Ranges)}}{{color "nc" -}}
+	{{- color "success" -}}
+		{{- if (len .Ranges) -}}
+			{{matchOrMatches (len .Ranges)}}
+		{{- else -}}
+			{{matchOrMatches 1}}
+		{{- end -}}
+	{{- color "nc" -}}
 	{{- "\n" -}}
 	{{- color "search-border"}}{{"--------------------------------------------------------------------------------\n"}}{{color "nc"}}
 	{{- color "search-border"}}{{color "nc"}}{{indent (streamSearchHighlightCommit .Content .Ranges) "  "}}
