@@ -5,6 +5,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"io"
 	"net/url"
 	"os"
 	"os/exec"
@@ -26,31 +27,31 @@ func init() {
 // Requests are sent to search/stream instead of the GraphQL api.
 func streamHandler(args []string) error {
 	flagSet := flag.NewFlagSet("streaming search", flag.ExitOnError)
-	var (
-		display  = flagSet.Int("display", -1, "Limit the number of results that are displayed. Note that the statistics continue to report all results.")
-		apiFlags = api.StreamingFlags(flagSet)
-	)
+	flags := newStreamingFlags(flagSet)
 	if err := flagSet.Parse(args); err != nil {
 		return err
 	}
 
+	client := cfg.apiClient(flags.apiFlags, flagSet.Output())
 	query := flagSet.Arg(0)
+	return doStreamSearch(query, flags, client, os.Stdout)
+}
 
+func doStreamSearch(query string, flags *streamingFlags, client api.Client, w io.Writer) error {
 	t, err := parseTemplate(streamingTemplate)
 	if err != nil {
 		panic(err)
 	}
 
 	// Create request.
-	client := cfg.apiClient(apiFlags, flagSet.Output())
 	req, err := client.NewHTTPRequest(context.Background(), "GET", "search/stream?q="+url.QueryEscape(query), nil)
 	if err != nil {
 		return err
 	}
 	req.Header.Set("Accept", "text/event-stream")
-	if *display >= 0 {
+	if flags.display >= 0 {
 		q := req.URL.Query()
-		q.Add("display", strconv.Itoa(*display))
+		q.Add("display", strconv.Itoa(flags.display))
 		req.URL.RawQuery = q.Encode()
 	}
 
@@ -61,6 +62,10 @@ func streamHandler(args []string) error {
 	}
 	defer resp.Body.Close()
 
+	logError := func(msg string) {
+		_, _ = fmt.Fprintf(os.Stderr, msg)
+	}
+
 	// Process response.
 	err = streaming.Decoder{
 		OnProgress: func(progress *streaming.Progress) {
@@ -68,9 +73,9 @@ func streamHandler(args []string) error {
 			if !progress.Done {
 				return
 			}
-			err = t.ExecuteTemplate(os.Stdout, "progress", progress)
+			err = t.ExecuteTemplate(w, "progress", progress)
 			if err != nil {
-				_, _ = flagSet.Output().Write([]byte(fmt.Sprintf("error when executing template: %s\n", err)))
+				logError(fmt.Sprintf("error when executing template: %s\n", err))
 			}
 			return
 		},
@@ -86,13 +91,13 @@ func streamHandler(args []string) error {
 				})
 			}
 
-			err = t.ExecuteTemplate(os.Stdout, "alert", searchResultsAlert{
+			err = t.ExecuteTemplate(w, "alert", searchResultsAlert{
 				Title:           alert.Title,
 				Description:     alert.Description,
 				ProposedQueries: proposedQueries,
 			})
 			if err != nil {
-				_, _ = flagSet.Output().Write([]byte(fmt.Sprintf("error when executing template: %s\n", err)))
+				logError(fmt.Sprintf("error when executing template: %s\n", err))
 				return
 			}
 		},
@@ -100,7 +105,7 @@ func streamHandler(args []string) error {
 			for _, match := range matches {
 				switch match := match.(type) {
 				case *streaming.EventFileMatch:
-					err = t.ExecuteTemplate(os.Stdout, "file", struct {
+					err = t.ExecuteTemplate(w, "file", struct {
 						Query string
 						*streaming.EventFileMatch
 					}{
@@ -109,11 +114,11 @@ func streamHandler(args []string) error {
 					},
 					)
 					if err != nil {
-						_, _ = flagSet.Output().Write([]byte(fmt.Sprintf("error when executing template: %s\n", err)))
+						logError(fmt.Sprintf("error when executing template: %s\n", err))
 						return
 					}
 				case *streaming.EventRepoMatch:
-					err = t.ExecuteTemplate(os.Stdout, "repo", struct {
+					err = t.ExecuteTemplate(w, "repo", struct {
 						SourcegraphEndpoint string
 						*streaming.EventRepoMatch
 					}{
@@ -121,11 +126,11 @@ func streamHandler(args []string) error {
 						EventRepoMatch:      match,
 					})
 					if err != nil {
-						_, _ = flagSet.Output().Write([]byte(fmt.Sprintf("error when executing template: %s\n", err)))
+						logError(fmt.Sprintf("error when executing template: %s\n", err))
 						return
 					}
 				case *streaming.EventCommitMatch:
-					err = t.ExecuteTemplate(os.Stdout, "commit", struct {
+					err = t.ExecuteTemplate(w, "commit", struct {
 						SourcegraphEndpoint string
 						*streaming.EventCommitMatch
 					}{
@@ -133,11 +138,11 @@ func streamHandler(args []string) error {
 						EventCommitMatch:    match,
 					})
 					if err != nil {
-						_, _ = flagSet.Output().Write([]byte(fmt.Sprintf("error when executing template: %s\n", err)))
+						logError(fmt.Sprintf("error when executing template: %s\n", err))
 						return
 					}
 				case *streaming.EventSymbolMatch:
-					err = t.ExecuteTemplate(os.Stdout, "symbol", struct {
+					err = t.ExecuteTemplate(w, "symbol", struct {
 						SourcegraphEndpoint string
 						*streaming.EventSymbolMatch
 					}{
@@ -146,7 +151,7 @@ func streamHandler(args []string) error {
 					},
 					)
 					if err != nil {
-						_, _ = flagSet.Output().Write([]byte(fmt.Sprintf("error when executing template: %s\n", err)))
+						logError(fmt.Sprintf("error when executing template: %s\n", err))
 						return
 					}
 				}
@@ -158,13 +163,12 @@ func streamHandler(args []string) error {
 	}
 
 	// Write trace to output.
-	if apiFlags.Trace() {
-		_, err := flagSet.Output().Write([]byte(fmt.Sprintf("x-trace: %s\n", resp.Header.Get("x-trace"))))
+	if flags.Trace() {
+		_, err = fmt.Fprintf(os.Stderr, fmt.Sprintf("x-trace: %s\n", resp.Header.Get("x-trace")))
 		if err != nil {
 			return err
 		}
 	}
-
 	return nil
 }
 
@@ -401,4 +405,21 @@ func streamConvertMatchToHighlights(m streaming.EventLineMatch, isPreview bool) 
 		highlights = append(highlights, highlight{line: line, character: offset, length: length})
 	}
 	return highlights
+}
+
+type streamingFlags struct {
+	apiFlags *api.Flags
+	display  int
+}
+
+func newStreamingFlags(flagSet *flag.FlagSet) *streamingFlags {
+	flags := &streamingFlags{
+		apiFlags: api.StreamingFlags(flagSet),
+	}
+	flagSet.IntVar(&flags.display, "display", -1, "Limit the number of results that are displayed. Note that the statistics continue to report all results.")
+	return flags
+}
+
+func (f *streamingFlags) Trace() bool {
+	return f.apiFlags.Trace()
 }
