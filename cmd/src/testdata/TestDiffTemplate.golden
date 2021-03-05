@@ -1,0 +1,11 @@
+`[38;5;239m([0m[38;5;237mhttps://sourcegraph.com[0m[38;5;239m)
+[0m[0m[38;5;68msourcegraph/sourcegraph-atom > Stephen Gutekanst : all: release v1.0.5[0m[38;5;2m (1 match)[0m
+[38;5;239m--------------------------------------------------------------------------------
+[0m[38;5;239m[0m  src/data.ts src/data.ts
+  @@ -0,0 +11,4 @@
+  +    return of<Data>({
+  +        title: 'Acme Corp open-source code [38;5;0m[48;5;11msearch[0m',
+  +        summary: 'Instant code search across all Acme Corp open-source code.',
+  +        githubOrgs: ['sourcegraph'],
+
+`

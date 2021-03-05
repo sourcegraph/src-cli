@@ -163,3 +163,36 @@ func TestProgressTemplate(t *testing.T) {
 
 	autogold.Equal(t, string(got.Bytes()))
 }
+
+func TestDiffTemplate(t *testing.T) {
+	v, err := parseTemplate(streamingTemplate)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	commit := &streaming.EventCommitMatch{
+		Type:    streaming.CommitMatchType,
+		Icon:    "",
+		Label:   "[sourcegraph/sourcegraph-atom](/github.com/sourcegraph/sourcegraph-atom) › [Stephen Gutekanst](/github.com/sourcegraph/sourcegraph-atom/-/commit/5b098d7fed963d88e23057ed99d73d3c7a33ad89): [all: release v1.0.5](/github.com/sourcegraph/sourcegraph-atom/-/commit/5b098d7fed963d88e23057ed99d73d3c7a33ad89)^",
+		URL:     "",
+		Detail:  "",
+		Content: "```diff\nsrc/data.ts src/data.ts\n@@ -0,0 +11,4 @@\n+    return of<Data>({\n+        title: 'Acme Corp open-source code search',\n+        summary: 'Instant code search across all Acme Corp open-source code.',\n+        githubOrgs: ['sourcegraph'],\n```",
+		Ranges: [][3]int32{
+			{4, 44, 6},
+		},
+	}
+
+	got := new(bytes.Buffer)
+	err = v.ExecuteTemplate(got, "commit", struct {
+		SourcegraphEndpoint string
+		*streaming.EventCommitMatch
+	}{
+		SourcegraphEndpoint: "https://sourcegraph.com",
+		EventCommitMatch:    commit,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	autogold.Equal(t, string(got.Bytes()))
+}
