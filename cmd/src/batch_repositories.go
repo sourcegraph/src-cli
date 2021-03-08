@@ -14,23 +14,23 @@ import (
 
 func init() {
 	usage := `
-'src campaigns repositories' works out the repositories that a campaign spec
-would apply to.
+'src batch repositories' works out the repositories that a batch spec would
+apply to.
 
 Usage:
 
-    src campaigns repositories -f FILE
+    src batch repositories -f FILE
 
 Examples:
 
-    $ src campaigns repositories -f campaign.spec.yaml
+    $ src batch repositories -f batch.spec.yaml
 
 `
 
 	flagSet := flag.NewFlagSet("repositories", flag.ExitOnError)
 
 	var (
-		fileFlag = flagSet.String("f", "", "The campaign spec file to read.")
+		fileFlag = flagSet.String("f", "", "The batch spec file to read.")
 		apiFlags = api.NewFlags(flagSet)
 	)
 
@@ -39,7 +39,7 @@ Examples:
 			return err
 		}
 
-		specFile, err := campaignsOpenFileFlag(fileFlag)
+		specFile, err := batchOpenFileFlag(fileFlag)
 		if err != nil {
 			return err
 		}
@@ -55,17 +55,17 @@ Examples:
 		}
 
 		out := output.NewOutput(flagSet.Output(), output.OutputOpts{Verbose: *verbose})
-		spec, _, err := campaignsParseSpec(out, svc, specFile)
+		spec, _, err := batchParseSpec(out, svc, specFile)
 		if err != nil {
 			return err
 		}
 
-		queryTmpl, err := parseTemplate(campaignsRepositoriesTemplate)
+		queryTmpl, err := parseTemplate(batchRepositoriesTemplate)
 		if err != nil {
 			return err
 		}
 
-		totalTmpl, err := parseTemplate(campaignsRepositoriesTotalTemplate)
+		totalTmpl, err := parseTemplate(batchRepositoriesTotalTemplate)
 		if err != nil {
 			return err
 		}
@@ -95,7 +95,7 @@ Examples:
 				finalMax = max
 			}
 
-			if err := execTemplate(queryTmpl, campaignsRepositoryTemplateInput{
+			if err := execTemplate(queryTmpl, batchRepositoryTemplateInput{
 				Max:                 max,
 				Query:               on.String(),
 				RepoCount:           len(repos),
@@ -106,24 +106,24 @@ Examples:
 			}
 		}
 
-		return execTemplate(totalTmpl, campaignsRepositoryTemplateInput{
+		return execTemplate(totalTmpl, batchRepositoryTemplateInput{
 			RepoCount: len(final),
 		})
 	}
 
-	campaignsCommands = append(campaignsCommands, &command{
+	batchCommands = append(batchCommands, &command{
 		flagSet: flagSet,
 		aliases: []string{"repos"},
 		handler: handler,
 		usageFunc: func() {
-			fmt.Fprintf(flag.CommandLine.Output(), "Usage of 'src campaigns %s':\n", flagSet.Name())
+			fmt.Fprintf(flag.CommandLine.Output(), "Usage of 'src batch %s':\n", flagSet.Name())
 			flagSet.PrintDefaults()
 			fmt.Println(usage)
 		},
 	})
 }
 
-const campaignsRepositoriesTemplate = `
+const batchRepositoriesTemplate = `
 {{- color "logo" -}}✱{{- color "nc" -}}
 {{- " " -}}
 {{- if eq .RepoCount 0 -}}
@@ -145,7 +145,7 @@ const campaignsRepositoriesTemplate = `
 {{- end -}}
 `
 
-const campaignsRepositoriesTotalTemplate = `
+const batchRepositoriesTotalTemplate = `
 {{- color "logo" -}}✱{{- color "nc" -}}
 {{- " " -}}
 {{- if eq .RepoCount 0 -}}
@@ -157,7 +157,7 @@ const campaignsRepositoriesTotalTemplate = `
 {{- color "nc" -}}
 `
 
-type campaignsRepositoryTemplateInput struct {
+type batchRepositoryTemplateInput struct {
 	Max                 int
 	Query               string
 	RepoCount           int

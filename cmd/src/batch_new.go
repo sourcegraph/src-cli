@@ -15,24 +15,24 @@ import (
 
 func init() {
 	usage := `
-'src campaigns new' creates a new campaign spec YAML, prefilled with all
-required fields.
+'src batch new' creates a new batch spec YAML, prefilled with all required
+fields.
 
 Usage:
 
-    src campaigns new [-f FILE]
+    src batch new [-f FILE]
 
 Examples:
 
 
-    $ src campaigns new -f campaign.spec.yaml
+    $ src batch new -f batch.spec.yaml
 
 `
 
 	flagSet := flag.NewFlagSet("new", flag.ExitOnError)
 
 	var (
-		fileFlag = flagSet.String("f", "campaign.yaml", "The name of campaign spec file to create.")
+		fileFlag = flagSet.String("f", "batch.yaml", "The name of the batch spec file to create.")
 	)
 
 	handler := func(args []string) error {
@@ -49,14 +49,14 @@ Examples:
 		}
 		defer f.Close()
 
-		tmpl, err := template.New("").Parse(campaignSpecTmpl)
+		tmpl, err := template.New("").Parse(batchSpecTmpl)
 		if err != nil {
 			return err
 		}
 
 		author := campaigns.GitCommitAuthor{
 			Name:  "Sourcegraph",
-			Email: "campaigns@sourcegraph.com",
+			Email: "batch-changes@sourcegraph.com",
 		}
 
 		// Try to get better default values from git, ignore any errors.
@@ -74,19 +74,19 @@ Examples:
 
 		err = tmpl.Execute(f, map[string]interface{}{"Author": author})
 		if err != nil {
-			return errors.Wrap(err, "failed to write campaign spec to file")
+			return errors.Wrap(err, "failed to write batch spec to file")
 		}
 
 		fmt.Printf("%s created.\n", *fileFlag)
 		return nil
 	}
 
-	campaignsCommands = append(campaignsCommands, &command{
+	batchCommands = append(batchCommands, &command{
 		flagSet: flagSet,
 		aliases: []string{},
 		handler: handler,
 		usageFunc: func() {
-			fmt.Fprintf(flag.CommandLine.Output(), "Usage of 'src campaigns %s':\n", flagSet.Name())
+			fmt.Fprintf(flag.CommandLine.Output(), "Usage of 'src batch %s':\n", flagSet.Name())
 			flagSet.PrintDefaults()
 			fmt.Println(usage)
 		},
@@ -102,8 +102,8 @@ func getGitConfig(attribute string) (string, error) {
 	return strings.TrimSpace(string(out)), nil
 }
 
-const campaignSpecTmpl = `name: NAME-OF-YOUR-CAMPAIGN
-description: DESCRIPTION-OF-YOUR-CAMPAIGN
+const batchSpecTmpl = `name: NAME-OF-YOUR-BATCH-CHANGE
+description: DESCRIPTION-OF-YOUR-BATCH-CHANGE
 
 # "on" specifies on which repositories to execute the "steps".
 on:

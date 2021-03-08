@@ -12,43 +12,43 @@ import (
 
 func init() {
 	usage := `
-'src campaigns apply' is used to apply a campaign spec on a Sourcegraph
-instance, creating or updating the described campaign if necessary.
+'src batch apply' is used to apply a batch spec on a Sourcegraph instance,
+creating or updating the described batch change if necessary.
 
 Usage:
 
-    src campaigns apply -f FILE [command options]
+    src batch apply -f FILE [command options]
 
 Examples:
 
-    $ src campaigns apply -f campaign.spec.yaml
+    $ src batch apply -f batch.spec.yaml
   
-    $ src campaigns apply -f campaign.spec.yaml -namespace myorg
+    $ src batch apply -f batch.spec.yaml -namespace myorg
 
 `
 
 	flagSet := flag.NewFlagSet("apply", flag.ExitOnError)
-	flags := newCampaignsApplyFlags(flagSet, campaignsDefaultCacheDir(), campaignsDefaultTempDirPrefix())
+	flags := newBatchApplyFlags(flagSet, batchDefaultCacheDir(), batchDefaultTempDirPrefix())
 
-	doApply := func(ctx context.Context, out *output.Output, svc *campaigns.Service, flags *campaignsApplyFlags) error {
-		id, _, err := campaignsExecute(ctx, out, svc, flags)
+	doApply := func(ctx context.Context, out *output.Output, svc *campaigns.Service, flags *batchApplyFlags) error {
+		id, _, err := batchExecute(ctx, out, svc, flags)
 		if err != nil {
 			return err
 		}
 
-		pending := campaignsCreatePending(out, "Applying campaign spec")
-		campaign, err := svc.ApplyCampaign(ctx, id)
+		pending := batchCreatePending(out, "Applying batch spec")
+		batch, err := svc.ApplyCampaign(ctx, id)
 		if err != nil {
 			return err
 		}
-		campaignsCompletePending(pending, "Applying campaign spec")
+		batchCompletePending(pending, "Applying batch spec")
 
 		out.Write("")
-		block := out.Block(output.Line(campaignsSuccessEmoji, campaignsSuccessColor, "Campaign applied!"))
+		block := out.Block(output.Line(batchSuccessEmoji, batchSuccessColor, "Batch change applied!"))
 		defer block.Close()
 
-		block.Write("To view the campaign, go to:")
-		block.Writef("%s%s", cfg.Endpoint, campaign.URL)
+		block.Write("To view the batch change, go to:")
+		block.Writef("%s%s", cfg.Endpoint, batch.URL)
 
 		return nil
 	}
@@ -86,11 +86,11 @@ Examples:
 		return nil
 	}
 
-	campaignsCommands = append(campaignsCommands, &command{
+	batchCommands = append(batchCommands, &command{
 		flagSet: flagSet,
 		handler: handler,
 		usageFunc: func() {
-			fmt.Fprintf(flag.CommandLine.Output(), "Usage of 'src campaigns %s':\n", flagSet.Name())
+			fmt.Fprintf(flag.CommandLine.Output(), "Usage of 'src batch %s':\n", flagSet.Name())
 			flagSet.PrintDefaults()
 			fmt.Println(usage)
 		},

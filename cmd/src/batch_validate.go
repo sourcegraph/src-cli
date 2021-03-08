@@ -11,20 +11,20 @@ import (
 
 func init() {
 	usage := `
-'src campaigns validate' validates the given campaign spec.
+'src batch validate' validates the given batch spec.
 
 Usage:
 
-    src campaigns validate -f FILE
+    src batch validate -f FILE
 
 Examples:
 
-    $ src campaigns validate -f campaign.spec.yaml
+    $ src batch validate -f batch.spec.yaml
 
 `
 
 	flagSet := flag.NewFlagSet("validate", flag.ExitOnError)
-	fileFlag := flagSet.String("f", "", "The campaign spec file to read.")
+	fileFlag := flagSet.String("f", "", "The batch spec file to read.")
 
 	handler := func(args []string) error {
 		if err := flagSet.Parse(args); err != nil {
@@ -35,7 +35,7 @@ Examples:
 			return &usageError{errors.New("additional arguments not allowed")}
 		}
 
-		specFile, err := campaignsOpenFileFlag(fileFlag)
+		specFile, err := batchOpenFileFlag(fileFlag)
 		if err != nil {
 			return err
 		}
@@ -44,19 +44,19 @@ Examples:
 		svc := campaigns.NewService(&campaigns.ServiceOpts{})
 
 		out := output.NewOutput(flagSet.Output(), output.OutputOpts{Verbose: *verbose})
-		if _, _, err := campaignsParseSpec(out, svc, specFile); err != nil {
+		if _, _, err := batchParseSpec(out, svc, specFile); err != nil {
 			return err
 		}
 
-		out.WriteLine(output.Line("\u2705", output.StyleSuccess, "Campaign spec successfully validated."))
+		out.WriteLine(output.Line("\u2705", output.StyleSuccess, "Batch spec successfully validated."))
 		return nil
 	}
 
-	campaignsCommands = append(campaignsCommands, &command{
+	batchCommands = append(batchCommands, &command{
 		flagSet: flagSet,
 		handler: handler,
 		usageFunc: func() {
-			fmt.Fprintf(flag.CommandLine.Output(), "Usage of 'src campaigns %s':\n", flagSet.Name())
+			fmt.Fprintf(flag.CommandLine.Output(), "Usage of 'src batch %s':\n", flagSet.Name())
 			flagSet.PrintDefaults()
 			fmt.Println(usage)
 		},

@@ -23,12 +23,12 @@ import (
 )
 
 var (
-	campaignsPendingColor = output.StylePending
-	campaignsSuccessColor = output.StyleSuccess
-	campaignsSuccessEmoji = output.EmojiSuccess
+	batchPendingColor = output.StylePending
+	batchSuccessColor = output.StyleSuccess
+	batchSuccessEmoji = output.EmojiSuccess
 )
 
-type campaignsApplyFlags struct {
+type batchApplyFlags struct {
 	allowUnsupported bool
 	api              *api.Flags
 	apply            bool
@@ -45,8 +45,8 @@ type campaignsApplyFlags struct {
 	skipErrors       bool
 }
 
-func newCampaignsApplyFlags(flagSet *flag.FlagSet, cacheDir, tempDir string) *campaignsApplyFlags {
-	caf := &campaignsApplyFlags{
+func newBatchApplyFlags(flagSet *flag.FlagSet, cacheDir, tempDir string) *batchApplyFlags {
+	caf := &batchApplyFlags{
 		api: api.NewFlags(flagSet),
 	}
 
@@ -68,11 +68,11 @@ func newCampaignsApplyFlags(flagSet *flag.FlagSet, cacheDir, tempDir string) *ca
 	)
 	flagSet.StringVar(
 		&caf.tempDir, "tmp", tempDir,
-		"Directory for storing temporary data, such as log files. Default is /tmp. Can also be set with environment variable SRC_CAMPAIGNS_TMP_DIR; if both are set, this flag will be used and not the environment variable.",
+		"Directory for storing temporary data, such as log files. Default is /tmp. Can also be set with environment variable SRC_BATCH_TMP_DIR; if both are set, this flag will be used and not the environment variable.",
 	)
 	flagSet.StringVar(
 		&caf.file, "f", "",
-		"The campaign spec file to read.",
+		"The batch spec file to read.",
 	)
 	flagSet.BoolVar(
 		&caf.keepLogs, "keep-logs", false,
@@ -80,7 +80,7 @@ func newCampaignsApplyFlags(flagSet *flag.FlagSet, cacheDir, tempDir string) *ca
 	)
 	flagSet.StringVar(
 		&caf.namespace, "namespace", "",
-		"The user or organization namespace to place the campaign within. Default is the currently authenticated user.",
+		"The user or organization namespace to place the batch change within. Default is the currently authenticated user.",
 	)
 	flagSet.StringVar(&caf.namespace, "n", "", "Alias for -namespace.")
 
@@ -90,15 +90,15 @@ func newCampaignsApplyFlags(flagSet *flag.FlagSet, cacheDir, tempDir string) *ca
 	)
 	flagSet.DurationVar(
 		&caf.timeout, "timeout", 60*time.Minute,
-		"The maximum duration a single set of campaign steps can take.",
+		"The maximum duration a single batch spec step can take.",
 	)
 	flagSet.BoolVar(
 		&caf.cleanArchives, "clean-archives", true,
-		"If true, deletes downloaded repository archives after executing campaign steps.",
+		"If true, deletes downloaded repository archives after executing batch spec steps.",
 	)
 	flagSet.BoolVar(
 		&caf.skipErrors, "skip-errors", false,
-		"If true, errors encountered while executing steps in a repository won't stop the execution of the campaign spec but only cause that repository to be skipped.",
+		"If true, errors encountered while executing steps in a repository won't stop the execution of the batch spec but only cause that repository to be skipped.",
 	)
 
 	flagSet.StringVar(
@@ -111,43 +111,64 @@ func newCampaignsApplyFlags(flagSet *flag.FlagSet, cacheDir, tempDir string) *ca
 	return caf
 }
 
-func campaignsCreatePending(out *output.Output, message string) output.Pending {
-	return out.Pending(output.Line("", campaignsPendingColor, message))
+func batchCreatePending(out *output.Output, message string) output.Pending {
+	return out.Pending(output.Line("", batchPendingColor, message))
 }
 
-func campaignsCompletePending(p output.Pending, message string) {
-	p.Complete(output.Line(campaignsSuccessEmoji, campaignsSuccessColor, message))
+func batchCompletePending(p output.Pending, message string) {
+	p.Complete(output.Line(batchSuccessEmoji, batchSuccessColor, message))
 }
 
-func campaignsDefaultCacheDir() string {
+func batchDefaultCacheDir() string {
 	uc, err := os.UserCacheDir()
 	if err != nil {
 		return ""
 	}
 
-	return path.Join(uc, "sourcegraph", "campaigns")
+	// Check if there's an old campaigns cache directory but not a new batch
+	// directory: if so, we should rename the old directory and carry on.
+	//
+	// TODO(campaigns-deprecation): we can remove this migration shim after June
+	// 2021.
+	old := path.Join(uc, "sourcegraph", "campaigns")
+	dir := path.Join(uc, "sourcegraph", "batch")
+	if _, err := os.Stat(dir); os.IsNotExist(err) {
+		if _, err := os.Stat(old); os.IsExist(err) {
+			// We'll just try to do this without checking for an error: if it
+			// fails, we'll carry on and let the normal cache directory handling
+			// logic take care of it.
+			os.Rename(old, dir)
+		}
+	}
+
+	return dir
 }
 
-// campaignsDefaultTempDirPrefix returns the prefix to be passed to ioutil.TempFile. If the
-// environment variable SRC_CAMPAIGNS_TMP_DIR is set, that is used as the
-// prefix. Otherwise we use "/tmp".
-func campaignsDefaultTempDirPrefix() string {
-	p := os.Getenv("SRC_CAMPAIGNS_TMP_DIR")
-	if p != "" {
-		return p
+// batchDefaultTempDirPrefix returns the prefix to be passed to ioutil.TempFile.
+// If one of the environment variables SRC_BATCH_TMP_DIR or
+// SRC_CAMPAIGNS_TMP_DIR is set, that is used as the prefix. Otherwise we use
+// "/tmp".
+func batchDefaultTempDirPrefix() string {
+	// TODO(campaigns-deprecation): we can remove this migration shim in
+	// Sourcegraph 4.0.
+	for _, env := range []string{"SRC_BATCH_TMP_DIR", "SRC_CAMPAIGNS_TMP_DIR"} {
+		if p := os.Getenv(env); p != "" {
+			return p
+		}
 	}
+
 	// On macOS, we use an explicit prefix for our temp directories, because
 	// otherwise Go would use $TMPDIR, which is set to `/var/folders` per
 	// default on macOS. But Docker for Mac doesn't have `/var/folders` in its
 	// default set of shared folders, but it does have `/tmp` in there.
 	if runtime.GOOS == "darwin" {
 		return "/tmp"
-
 	}
+
 	return os.TempDir()
 }
 
-func campaignsOpenFileFlag(flag *string) (io.ReadCloser, error) {
+func batchOpenFileFlag(flag *string) (io.ReadCloser, error) {
 	if flag == nil || *flag == "" || *flag == "-" {
 		return os.Stdin, nil
 	}
@@ -159,10 +180,10 @@ func campaignsOpenFileFlag(flag *string) (io.ReadCloser, error) {
 	return file, nil
 }
 
-// campaignsExecute performs all the steps required to upload the campaign spec
+// batchExecute performs all the steps required to upload the campaign spec
 // to Sourcegraph, including execution as needed. The return values are the
 // spec ID, spec URL, and error.
-func campaignsExecute(ctx context.Context, out *output.Output, svc *campaigns.Service, flags *campaignsApplyFlags) (campaigns.CampaignSpecID, string, error) {
+func batchExecute(ctx context.Context, out *output.Output, svc *campaigns.Service, flags *batchApplyFlags) (campaigns.CampaignSpecID, string, error) {
 	if err := checkExecutable("git", "version"); err != nil {
 		return "", "", err
 	}
@@ -173,31 +194,31 @@ func campaignsExecute(ctx context.Context, out *output.Output, svc *campaigns.Se
 
 	// Parse flags and build up our service and executor options.
 
-	specFile, err := campaignsOpenFileFlag(&flags.file)
+	specFile, err := batchOpenFileFlag(&flags.file)
 	if err != nil {
 		return "", "", err
 	}
 	defer specFile.Close()
 
-	pending := campaignsCreatePending(out, "Parsing campaign spec")
-	campaignSpec, rawSpec, err := campaignsParseSpec(out, svc, specFile)
+	pending := batchCreatePending(out, "Parsing batch spec")
+	batchSpec, rawSpec, err := batchParseSpec(out, svc, specFile)
 	if err != nil {
 		return "", "", err
 	}
-	campaignsCompletePending(pending, "Parsing campaign spec")
+	batchCompletePending(pending, "Parsing batch spec")
 
-	pending = campaignsCreatePending(out, "Resolving namespace")
+	pending = batchCreatePending(out, "Resolving namespace")
 	namespace, err := svc.ResolveNamespace(ctx, flags.namespace)
 	if err != nil {
 		return "", "", err
 	}
-	campaignsCompletePending(pending, "Resolving namespace")
+	batchCompletePending(pending, "Resolving namespace")
 
 	imageProgress := out.Progress([]output.ProgressBar{{
 		Label: "Preparing container images",
 		Max:   1.0,
 	}}, nil)
-	err = svc.SetDockerImages(ctx, campaignSpec, func(perc float64) {
+	err = svc.SetDockerImages(ctx, batchSpec, func(perc float64) {
 		imageProgress.SetValue(0, perc)
 	})
 	if err != nil {
@@ -205,11 +226,11 @@ func campaignsExecute(ctx context.Context, out *output.Output, svc *campaigns.Se
 	}
 	imageProgress.Complete()
 
-	pending = campaignsCreatePending(out, "Resolving repositories")
-	repos, err := svc.ResolveRepositories(ctx, campaignSpec)
+	pending = batchCreatePending(out, "Resolving repositories")
+	repos, err := svc.ResolveRepositories(ctx, batchSpec)
 	if err != nil {
 		if repoSet, ok := err.(campaigns.UnsupportedRepoSet); ok {
-			campaignsCompletePending(pending, "Resolved repositories")
+			batchCompletePending(pending, "Resolved repositories")
 
 			block := out.Block(output.Line(" ", output.StyleWarning, "Some repositories are hosted on unsupported code hosts and will be skipped. Use the -allow-unsupported flag to avoid skipping them."))
 			for repo := range repoSet {
@@ -220,20 +241,20 @@ func campaignsExecute(ctx context.Context, out *output.Output, svc *campaigns.Se
 			return "", "", errors.Wrap(err, "resolving repositories")
 		}
 	} else {
-		campaignsCompletePending(pending, fmt.Sprintf("Resolved %d repositories", len(repos)))
+		batchCompletePending(pending, fmt.Sprintf("Resolved %d repositories", len(repos)))
 	}
 
-	pending = campaignsCreatePending(out, "Determining workspaces")
-	tasks, err := svc.BuildTasks(ctx, repos, campaignSpec)
+	pending = batchCreatePending(out, "Determining workspaces")
+	tasks, err := svc.BuildTasks(ctx, repos, batchSpec)
 	if err != nil {
 		return "", "", errors.Wrap(err, "Calculating execution plan")
 	}
-	campaignsCompletePending(pending, fmt.Sprintf("Found %d workspaces", len(tasks)))
+	batchCompletePending(pending, fmt.Sprintf("Found %d workspaces", len(tasks)))
 
-	pending = campaignsCreatePending(out, "Preparing workspaces")
-	workspaceCreator := svc.NewWorkspaceCreator(ctx, flags.cacheDir, flags.tempDir, campaignSpec.Steps)
+	pending = batchCreatePending(out, "Preparing workspaces")
+	workspaceCreator := svc.NewWorkspaceCreator(ctx, flags.cacheDir, flags.tempDir, batchSpec.Steps)
 	pending.VerboseLine(output.Linef("🚧", output.StyleSuccess, "Workspace creator: %T", workspaceCreator))
-	campaignsCompletePending(pending, "Prepared workspaces")
+	batchCompletePending(pending, "Prepared workspaces")
 
 	fetcher := svc.NewRepoFetcher(flags.cacheDir, flags.cleanArchives)
 	for _, task := range tasks {
@@ -250,8 +271,8 @@ func campaignsExecute(ctx context.Context, out *output.Output, svc *campaigns.Se
 		Parallelism: flags.parallelism,
 	}
 
-	p := newCampaignProgressPrinter(out, *verbose, flags.parallelism)
-	specs, logFiles, err := svc.ExecuteCampaignSpec(ctx, opts, tasks, campaignSpec, p.PrintStatuses, flags.skipErrors)
+	p := newBatchProgressPrinter(out, *verbose, flags.parallelism)
+	specs, logFiles, err := svc.ExecuteCampaignSpec(ctx, opts, tasks, batchSpec, p.PrintStatuses, flags.skipErrors)
 	if err != nil && !flags.skipErrors {
 		return "", "", err
 	}
@@ -263,7 +284,7 @@ func campaignsExecute(ctx context.Context, out *output.Output, svc *campaigns.Se
 
 	if len(logFiles) > 0 && flags.keepLogs {
 		func() {
-			block := out.Block(output.Line("", campaignsSuccessColor, "Preserving log files:"))
+			block := out.Block(output.Line("", batchSuccessColor, "Preserving log files:"))
 			defer block.Close()
 
 			for _, file := range logFiles {
@@ -306,24 +327,24 @@ func campaignsExecute(ctx context.Context, out *output.Output, svc *campaigns.Se
 		}
 	}
 
-	pending = campaignsCreatePending(out, "Creating campaign spec on Sourcegraph")
+	pending = batchCreatePending(out, "Creating batch spec on Sourcegraph")
 	id, url, err := svc.CreateCampaignSpec(ctx, namespace, rawSpec, ids)
-	campaignsCompletePending(pending, "Creating campaign spec on Sourcegraph")
+	batchCompletePending(pending, "Creating batch spec on Sourcegraph")
 	if err != nil {
-		return "", "", prettyPrintCampaignsUnlicensedError(out, err)
+		return "", "", prettyPrintBatchUnlicensedError(out, err)
 	}
 
 	return id, url, nil
 }
 
-// campaignsParseSpec parses and validates the given campaign spec. If the spec
-// has validation errors, the errors are output in a human readable form and an
+// batchParseSpec parses and validates the given batch spec. If the spec has
+// validation errors, the errors are output in a human readable form and an
 // exitCodeError is returned.
-func campaignsParseSpec(out *output.Output, svc *campaigns.Service, input io.ReadCloser) (*campaigns.CampaignSpec, string, error) {
+func batchParseSpec(out *output.Output, svc *campaigns.Service, input io.ReadCloser) (*campaigns.CampaignSpec, string, error) {
 	spec, raw, err := svc.ParseCampaignSpec(input)
 	if err != nil {
 		if merr, ok := err.(*multierror.Error); ok {
-			block := out.Block(output.Line("\u274c", output.StyleWarning, "Campaign spec failed validation."))
+			block := out.Block(output.Line("\u274c", output.StyleWarning, "Batch spec failed validation."))
 			defer block.Close()
 
 			for i, err := range merr.Errors {
@@ -345,7 +366,7 @@ func campaignsParseSpec(out *output.Output, svc *campaigns.Service, input io.Rea
 }
 
 // printExecutionError is used to print the possible error returned by
-// campaignsExecute.
+// batchExecute.
 func printExecutionError(out *output.Output, err error) {
 	// exitCodeError shouldn't generate any specific output, since it indicates
 	// that this was done deeper in the call stack.
@@ -392,7 +413,7 @@ func printExecutionError(out *output.Output, err error) {
 	out.Write("")
 
 	block := out.Block(output.Line(output.EmojiLightbulb, output.StyleSuggestion, "The troubleshooting documentation can help to narrow down the cause of the errors:"))
-	block.WriteLine(output.Line("", output.StyleSuggestion, "https://docs.sourcegraph.com/campaigns/references/troubleshooting"))
+	block.WriteLine(output.Line("", output.StyleSuggestion, "https://docs.sourcegraph.com/batch-changes/references/troubleshooting"))
 	block.Close()
 }
 
@@ -440,12 +461,12 @@ func formatTaskExecutionErr(err campaigns.TaskExecutionErr) string {
 	)
 }
 
-// prettyPrintCampaignsUnlicensedError introspects the given error returned when
-// creating a campaign spec and ascertains whether it's a licensing error. If it
+// prettyPrintBatchUnlicensedError introspects the given error returned when
+// creating a batch spec and ascertains whether it's a licensing error. If it
 // is, then a better message is output. Regardless, the return value of this
 // function should be used to replace the original error passed in to ensure
 // that the displayed output is sensible.
-func prettyPrintCampaignsUnlicensedError(out *output.Output, err error) error {
+func prettyPrintBatchUnlicensedError(out *output.Output, err error) error {
 	// Pull apart the error to see if it's a licensing error: if so, we should
 	// display a friendlier and more actionable message than the usual GraphQL
 	// error output.
@@ -459,19 +480,21 @@ func prettyPrintCampaignsUnlicensedError(out *output.Output, err error) error {
 				// verbose mode, but let the original error bubble up rather
 				// than this one.
 				out.Verbosef("Unexpected error parsing the GraphQL error: %v", cerr)
-			} else if code == "ErrCampaignsUnlicensed" {
+			} else if code == "ErrCampaignsUnlicensed" || code == "ErrBatchChangesUnlicensed" {
 				// OK, let's print a better message, then return an
 				// exitCodeError to suppress the normal automatic error block.
 				// Note that we have hand wrapped the output at 80 (printable)
 				// characters: having automatic wrapping some day would be nice,
 				// but this should be sufficient for now.
-				block := out.Block(output.Line("🪙", output.StyleWarning, "Campaigns is a paid feature of Sourcegraph. All users can create sample"))
-				block.WriteLine(output.Linef("", output.StyleWarning, "campaigns with up to 5 changesets without a license. Contact Sourcegraph sales"))
-				block.WriteLine(output.Linef("", output.StyleWarning, "at %shttps://about.sourcegraph.com/contact/sales/%s to obtain a trial license.", output.StyleSearchLink, output.StyleWarning))
+				block := out.Block(output.Line("🪙", output.StyleWarning, "Batch Changes is a paid feature of Sourcegraph. All users can create sample"))
+				block.WriteLine(output.Linef("", output.StyleWarning, "batch changes with up to 5 changesets without a license. Contact Sourcegraph"))
+				block.WriteLine(output.Linef("", output.StyleWarning, "sales at %shttps://about.sourcegraph.com/contact/sales/%s to obtain a trial", output.StyleSearchLink, output.StyleWarning))
+				block.WriteLine(output.Linef("", output.StyleWarning, "license."))
 				block.Write("")
-				block.WriteLine(output.Linef("", output.StyleWarning, "To proceed with this campaign, you will need to create 5 or fewer changesets."))
-				block.WriteLine(output.Linef("", output.StyleWarning, "To do so, you could try adding %scount:5%s to your %srepositoriesMatchingQuery%s search,", output.StyleSearchAlertProposedQuery, output.StyleWarning, output.StyleReset, output.StyleWarning))
-				block.WriteLine(output.Linef("", output.StyleWarning, "or reduce the number of changesets in %simportChangesets%s.", output.StyleReset, output.StyleWarning))
+				block.WriteLine(output.Linef("", output.StyleWarning, "To proceed with this batch change, you will need to create 5 or fewer"))
+				block.WriteLine(output.Linef("", output.StyleWarning, "changesets. To do so, you could try adding %scount:5%s to your", output.StyleSearchAlertProposedQuery, output.StyleWarning))
+				block.WriteLine(output.Linef("", output.StyleWarning, "%srepositoriesMatchingQuery%s search, or reduce the number of changesets in", output.StyleReset, output.StyleWarning))
+				block.WriteLine(output.Linef("", output.StyleWarning, "%simportChangesets%s.", output.StyleReset, output.StyleWarning))
 				block.Close()
 				return &exitCodeError{exitCode: graphqlErrorsExitCode}
 			}
@@ -521,7 +544,7 @@ func diffStatDiagram(stat diff.Stat) string {
 func checkExecutable(cmd string, args ...string) error {
 	if err := exec.Command(cmd, args...).Run(); err != nil {
 		return fmt.Errorf(
-			"failed to execute \"%s %s\":\n\t%s\n\n'src campaigns' require %q to be available.",
+			"failed to execute \"%s %s\":\n\t%s\n\n'src batch' require %q to be available.",
 			cmd,
 			strings.Join(args, " "),
 			err,

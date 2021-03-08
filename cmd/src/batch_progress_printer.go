@@ -11,8 +11,8 @@ import (
 	"golang.org/x/sync/semaphore"
 )
 
-func newCampaignProgressPrinter(out *output.Output, verbose bool, numParallelism int) *campaignProgressPrinter {
-	return &campaignProgressPrinter{
+func newBatchProgressPrinter(out *output.Output, verbose bool, numParallelism int) *batchProgressPrinter {
+	return &batchProgressPrinter{
 		out: out,
 
 		sem: semaphore.NewWeighted(1),
@@ -29,7 +29,7 @@ func newCampaignProgressPrinter(out *output.Output, verbose bool, numParallelism
 	}
 }
 
-type campaignProgressPrinter struct {
+type batchProgressPrinter struct {
 	// Used in tests only
 	forceNoSpinner bool
 
@@ -52,7 +52,7 @@ type campaignProgressPrinter struct {
 	statusBarRepo map[int]string
 }
 
-func (p *campaignProgressPrinter) initProgressBar(statuses []*campaigns.TaskStatus) int {
+func (p *batchProgressPrinter) initProgressBar(statuses []*campaigns.TaskStatus) int {
 	numStatusBars := p.numParallelism
 	if len(statuses) < numStatusBars {
 		numStatusBars = len(statuses)
@@ -76,13 +76,13 @@ func (p *campaignProgressPrinter) initProgressBar(statuses []*campaigns.TaskStat
 	return numStatusBars
 }
 
-func (p *campaignProgressPrinter) Complete() {
+func (p *batchProgressPrinter) Complete() {
 	if p.progress != nil {
 		p.progress.Complete()
 	}
 }
 
-func (p *campaignProgressPrinter) updateProgressBar(completed, errored, total int) {
+func (p *batchProgressPrinter) updateProgressBar(completed, errored, total int) {
 	if p.progress == nil {
 		return
 	}
@@ -93,7 +93,7 @@ func (p *campaignProgressPrinter) updateProgressBar(completed, errored, total in
 	p.progress.SetLabelAndRecalc(0, label)
 }
 
-func (p *campaignProgressPrinter) PrintStatuses(statuses []*campaigns.TaskStatus) {
+func (p *batchProgressPrinter) PrintStatuses(statuses []*campaigns.TaskStatus) {
 	if len(statuses) == 0 {
 		return
 	}

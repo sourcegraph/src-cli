@@ -36,7 +36,7 @@ index 627c2ae..88f1836 100644
 +this is x (or is it?)
 `
 
-func TestCampaignProgressPrinterIntegration(t *testing.T) {
+func TestBatchProgressPrinterIntegration(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("Something emits different escape codes on windows.")
 	}
@@ -70,7 +70,7 @@ func TestCampaignProgressPrinterIntegration(t *testing.T) {
 		},
 	}
 
-	printer := newCampaignProgressPrinter(out, true, 4)
+	printer := newBatchProgressPrinter(out, true, 4)
 	printer.forceNoSpinner = true
 
 	// Print with all three tasks running
@@ -102,12 +102,12 @@ func TestCampaignProgressPrinterIntegration(t *testing.T) {
 					BaseRef:        "refs/heads/main",
 					BaseRev:        "d34db33f",
 					HeadRepository: "graphql-id",
-					HeadRef:        "refs/heads/my-campaign",
-					Title:          "This is my campaign",
-					Body:           "This is my campaign",
+					HeadRef:        "refs/heads/my-batch-change",
+					Title:          "This is my batch change",
+					Body:           "This is my batch change",
 					Commits: []campaigns.GitCommitDescription{
 						{
-							Message: "This is my campaign",
+							Message: "This is my batch change",
 							Diff:    progressPrinterDiff,
 						},
 					},

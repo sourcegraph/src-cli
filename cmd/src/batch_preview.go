@@ -12,21 +12,21 @@ import (
 
 func init() {
 	usage := `
-'src campaigns preview' executes the steps in a campaign spec and uploads it to
-a Sourcegraph instance, ready to be previewed and applied.
+'src batch preview' executes the steps in a batch spec and uploads it to a
+Sourcegraph instance, ready to be previewed and applied.
 
 Usage:
 
-    src campaigns preview -f FILE [command options]
+    src batch preview -f FILE [command options]
 
 Examples:
 
-    $ src campaigns preview -f campaign.spec.yaml
+    $ src batch preview -f batch.spec.yaml
 
 `
 
 	flagSet := flag.NewFlagSet("preview", flag.ExitOnError)
-	flags := newCampaignsApplyFlags(flagSet, campaignsDefaultCacheDir(), campaignsDefaultTempDirPrefix())
+	flags := newBatchApplyFlags(flagSet, batchDefaultCacheDir(), batchDefaultTempDirPrefix())
 
 	handler := func(args []string) error {
 		if err := flagSet.Parse(args); err != nil {
@@ -52,7 +52,7 @@ Examples:
 			return err
 		}
 
-		_, url, err := campaignsExecute(ctx, out, svc, flags)
+		_, url, err := batchExecute(ctx, out, svc, flags)
 		if err != nil {
 			printExecutionError(out, err)
 			out.Write("")
@@ -60,18 +60,18 @@ Examples:
 		}
 
 		out.Write("")
-		block := out.Block(output.Line(campaignsSuccessEmoji, campaignsSuccessColor, "To preview or apply the campaign spec, go to:"))
+		block := out.Block(output.Line(batchSuccessEmoji, batchSuccessColor, "To preview or apply the batch spec, go to:"))
 		defer block.Close()
 		block.Writef("%s%s", cfg.Endpoint, url)
 
 		return nil
 	}
 
-	campaignsCommands = append(campaignsCommands, &command{
+	batchCommands = append(batchCommands, &command{
 		flagSet: flagSet,
 		handler: handler,
 		usageFunc: func() {
-			fmt.Fprintf(flag.CommandLine.Output(), "Usage of 'src campaigns %s':\n", flagSet.Name())
+			fmt.Fprintf(flag.CommandLine.Output(), "Usage of 'src batch %s':\n", flagSet.Name())
 			flagSet.PrintDefaults()
 			fmt.Println(usage)
 		},

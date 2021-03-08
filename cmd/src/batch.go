@@ -5,38 +5,47 @@ import (
 	"fmt"
 )
 
-var campaignsCommands commander
+var batchCommands commander
 
 func init() {
-	usage := `'src campaigns' is a tool that manages campaigns on a Sourcegraph instance.
+	usage := `'src batch' manages batch changes on a Sourcegraph instance.
 
 Usage:
 
-	src campaigns command [command options]
+	src batch command [command options]
 
 The commands are:
 
-	apply                 applies a campaign spec to create or update a campaign
-	new                   creates a new campaign spec YAML file
-	preview               creates a campaign spec to be previewed or applied
-	repos,repositories    queries the exact repositories that a campaign spec
-	                      will apply to
-	validate              validates a campaign spec
+	apply                 applies a batch spec to create or update a batch
+						  change
+	new                   creates a new batch spec YAML file
+	preview               creates a batch spec to be previewed or applied
+	repos,repositories    queries the exact repositories that a batch spec will
+	                      apply to
+	validate              validates a batch spec
 
-Use "src campaigns [command] -h" for more information about a command.
+Use "src batch [command] -h" for more information about a command.
 
 `
 
-	flagSet := flag.NewFlagSet("campaigns", flag.ExitOnError)
+	flagSet := flag.NewFlagSet("batch", flag.ExitOnError)
 	handler := func(args []string) error {
-		campaignsCommands.run(flagSet, "src campaigns", usage, args)
+		batchCommands.run(flagSet, "src batch", usage, args)
 		return nil
 	}
 
 	// Register the command.
 	commands = append(commands, &command{
-		flagSet:   flagSet,
-		aliases:   []string{"campaign"},
+		flagSet: flagSet,
+		aliases: []string{
+			"batchchange",
+			"batch-change",
+			"batchchanges",
+			"batch-changes",
+			"batches",
+			"campaign",
+			"campaigns",
+		},
 		handler:   handler,
 		usageFunc: func() { fmt.Println(usage) },
 	})
