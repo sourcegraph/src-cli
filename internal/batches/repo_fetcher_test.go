@@ -1,4 +1,4 @@
-package campaigns
+package batches
 
 import (
 	"bytes"
@@ -16,7 +16,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/sourcegraph/src-cli/internal/api"
-	"github.com/sourcegraph/src-cli/internal/campaigns/graphql"
+	"github.com/sourcegraph/src-cli/internal/batches/graphql"
 )
 
 func TestRepoFetcher_Fetch(t *testing.T) {

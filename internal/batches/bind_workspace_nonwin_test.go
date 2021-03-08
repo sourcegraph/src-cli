@@ -1,6 +1,6 @@
 // +build !windows
 
-package campaigns
+package batches
 
 import (
 	"os"

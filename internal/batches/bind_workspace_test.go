@@ -1,4 +1,4 @@
-package campaigns
+package batches
 
 import (
 	"archive/zip"
@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/sourcegraph/src-cli/internal/campaigns/graphql"
+	"github.com/sourcegraph/src-cli/internal/batches/graphql"
 )
 
 func TestDockerBindWorkspaceCreator_Create(t *testing.T) {

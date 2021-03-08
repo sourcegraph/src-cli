@@ -1,4 +1,4 @@
-package campaigns
+package batches
 
 import (
 	"bytes"
@@ -13,8 +13,8 @@ import (
 
 	"github.com/pkg/errors"
 
-	"github.com/sourcegraph/src-cli/internal/campaigns/docker"
-	"github.com/sourcegraph/src-cli/internal/campaigns/graphql"
+	"github.com/sourcegraph/src-cli/internal/batches/docker"
+	"github.com/sourcegraph/src-cli/internal/batches/graphql"
 	"github.com/sourcegraph/src-cli/internal/exec"
 	"github.com/sourcegraph/src-cli/internal/version"
 )

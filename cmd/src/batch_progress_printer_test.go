@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/sourcegraph/src-cli/internal/campaigns"
+	"github.com/sourcegraph/src-cli/internal/batches"
 	"github.com/sourcegraph/src-cli/internal/output"
 )
 
@@ -52,7 +52,7 @@ func TestBatchProgressPrinterIntegration(t *testing.T) {
 	})
 
 	now := time.Now()
-	statuses := []*campaigns.TaskStatus{
+	statuses := []*batches.TaskStatus{
 		{
 			RepoName:           "github.com/sourcegraph/sourcegraph",
 			StartedAt:          now,
@@ -89,23 +89,23 @@ func TestBatchProgressPrinterIntegration(t *testing.T) {
 	}
 
 	// Now mark the last task as completed
-	statuses[len(statuses)-1] = &campaigns.TaskStatus{
+	statuses[len(statuses)-1] = &batches.TaskStatus{
 		RepoName:           "github.com/sourcegraph/automation-testing",
 		StartedAt:          now.Add(time.Duration(-5) * time.Second),
 		FinishedAt:         now.Add(time.Duration(5) * time.Second),
 		CurrentlyExecuting: "",
 		Err:                nil,
-		ChangesetSpecs: []*campaigns.ChangesetSpec{
+		ChangesetSpecs: []*batches.ChangesetSpec{
 			{
 				BaseRepository: "graphql-id",
-				CreatedChangeset: &campaigns.CreatedChangeset{
+				CreatedChangeset: &batches.CreatedChangeset{
 					BaseRef:        "refs/heads/main",
 					BaseRev:        "d34db33f",
 					HeadRepository: "graphql-id",
 					HeadRef:        "refs/heads/my-batch-change",
 					Title:          "This is my batch change",
 					Body:           "This is my batch change",
-					Commits: []campaigns.GitCommitDescription{
+					Commits: []batches.GitCommitDescription{
 						{
 							Message: "This is my batch change",
 							Diff:    progressPrinterDiff,

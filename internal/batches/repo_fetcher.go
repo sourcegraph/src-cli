@@ -1,4 +1,4 @@
-package campaigns
+package batches
 
 import (
 	"context"
@@ -13,7 +13,7 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/sourcegraph/src-cli/internal/api"
-	"github.com/sourcegraph/src-cli/internal/campaigns/graphql"
+	"github.com/sourcegraph/src-cli/internal/batches/graphql"
 )
 
 // RepoFetcher abstracts the process of retrieving an archive for the given

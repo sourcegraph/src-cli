@@ -7,8 +7,8 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/sourcegraph/src-cli/internal/api"
-	"github.com/sourcegraph/src-cli/internal/campaigns"
-	"github.com/sourcegraph/src-cli/internal/campaigns/graphql"
+	"github.com/sourcegraph/src-cli/internal/batches"
+	"github.com/sourcegraph/src-cli/internal/batches/graphql"
 	"github.com/sourcegraph/src-cli/internal/output"
 )
 
@@ -48,7 +48,7 @@ Examples:
 		ctx := context.Background()
 		client := cfg.apiClient(apiFlags, flagSet.Output())
 
-		svc := campaigns.NewService(&campaigns.ServiceOpts{Client: client})
+		svc := batches.NewService(&batches.ServiceOpts{Client: client})
 
 		if err := svc.DetermineFeatureFlags(ctx); err != nil {
 			return err

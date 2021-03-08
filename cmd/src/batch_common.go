@@ -18,7 +18,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/sourcegraph/go-diff/diff"
 	"github.com/sourcegraph/src-cli/internal/api"
-	"github.com/sourcegraph/src-cli/internal/campaigns"
+	"github.com/sourcegraph/src-cli/internal/batches"
 	"github.com/sourcegraph/src-cli/internal/output"
 )
 
@@ -183,7 +183,7 @@ func batchOpenFileFlag(flag *string) (io.ReadCloser, error) {
 // batchExecute performs all the steps required to upload the campaign spec
 // to Sourcegraph, including execution as needed. The return values are the
 // spec ID, spec URL, and error.
-func batchExecute(ctx context.Context, out *output.Output, svc *campaigns.Service, flags *batchApplyFlags) (campaigns.CampaignSpecID, string, error) {
+func batchExecute(ctx context.Context, out *output.Output, svc *batches.Service, flags *batchApplyFlags) (batches.CampaignSpecID, string, error) {
 	if err := checkExecutable("git", "version"); err != nil {
 		return "", "", err
 	}
@@ -229,7 +229,7 @@ func batchExecute(ctx context.Context, out *output.Output, svc *campaigns.Servic
 	pending = batchCreatePending(out, "Resolving repositories")
 	repos, err := svc.ResolveRepositories(ctx, batchSpec)
 	if err != nil {
-		if repoSet, ok := err.(campaigns.UnsupportedRepoSet); ok {
+		if repoSet, ok := err.(batches.UnsupportedRepoSet); ok {
 			batchCompletePending(pending, "Resolved repositories")
 
 			block := out.Block(output.Line(" ", output.StyleWarning, "Some repositories are hosted on unsupported code hosts and will be skipped. Use the -allow-unsupported flag to avoid skipping them."))
@@ -261,7 +261,7 @@ func batchExecute(ctx context.Context, out *output.Output, svc *campaigns.Servic
 		task.Archive = fetcher.Checkout(task.Repository, task.ArchivePathToFetch())
 	}
 
-	opts := campaigns.ExecutorOpts{
+	opts := batches.ExecutorOpts{
 		Cache:       svc.NewExecutionCache(flags.cacheDir),
 		Creator:     workspaceCreator,
 		ClearCache:  flags.clearCache,
@@ -298,7 +298,7 @@ func batchExecute(ctx context.Context, out *output.Output, svc *campaigns.Servic
 		return "", "", err
 	}
 
-	ids := make([]campaigns.ChangesetSpecID, len(specs))
+	ids := make([]batches.ChangesetSpecID, len(specs))
 
 	if len(specs) > 0 {
 		var label string
@@ -340,7 +340,7 @@ func batchExecute(ctx context.Context, out *output.Output, svc *campaigns.Servic
 // batchParseSpec parses and validates the given batch spec. If the spec has
 // validation errors, the errors are output in a human readable form and an
 // exitCodeError is returned.
-func batchParseSpec(out *output.Output, svc *campaigns.Service, input io.ReadCloser) (*campaigns.CampaignSpec, string, error) {
+func batchParseSpec(out *output.Output, svc *batches.Service, input io.ReadCloser) (*batches.CampaignSpec, string, error) {
 	spec, raw, err := svc.ParseCampaignSpec(input)
 	if err != nil {
 		if merr, ok := err.(*multierror.Error); ok {
@@ -386,7 +386,7 @@ func printExecutionError(out *output.Output, err error) {
 		}
 
 		for _, e := range errs {
-			if taskErr, ok := e.(campaigns.TaskExecutionErr); ok {
+			if taskErr, ok := e.(batches.TaskExecutionErr); ok {
 				block.Write(formatTaskExecutionErr(taskErr))
 			} else {
 				if err == context.Canceled {
@@ -441,7 +441,7 @@ func flattenErrs(err error) (result []error) {
 	return result
 }
 
-func formatTaskExecutionErr(err campaigns.TaskExecutionErr) string {
+func formatTaskExecutionErr(err batches.TaskExecutionErr) string {
 	if ee, ok := errors.Cause(err).(*exec.ExitError); ok && ee.String() == "signal: killed" {
 		return fmt.Sprintf(
 			"%s%s%s: killed by interrupt signal",

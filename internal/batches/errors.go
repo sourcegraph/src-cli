@@ -1,10 +1,10 @@
-package campaigns
+package batches
 
 import (
 	"fmt"
 	"strings"
 
-	"github.com/sourcegraph/src-cli/internal/campaigns/graphql"
+	"github.com/sourcegraph/src-cli/internal/batches/graphql"
 )
 
 // UnsupportedRepoSet provides a set to manage repositories that are on

@@ -1,4 +1,4 @@
-package campaigns
+package batches
 
 import (
 	"archive/zip"
@@ -13,7 +13,7 @@ import (
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
-	"github.com/sourcegraph/src-cli/internal/campaigns/graphql"
+	"github.com/sourcegraph/src-cli/internal/batches/graphql"
 )
 
 type dockerBindWorkspaceCreator struct {

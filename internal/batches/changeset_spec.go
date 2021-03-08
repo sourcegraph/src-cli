@@ -1,4 +1,4 @@
-package campaigns
+package batches
 
 // These struct definitions must line up with the changeset spec schema, as
 // defined in sourcegraph/sourcegraph.

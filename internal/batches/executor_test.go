@@ -1,4 +1,4 @@
-package campaigns
+package batches
 
 import (
 	"archive/zip"
@@ -23,7 +23,7 @@ import (
 	"github.com/sourcegraph/campaignutils/overridable"
 	"github.com/sourcegraph/go-diff/diff"
 	"github.com/sourcegraph/src-cli/internal/api"
-	"github.com/sourcegraph/src-cli/internal/campaigns/graphql"
+	"github.com/sourcegraph/src-cli/internal/batches/graphql"
 )
 
 func TestExecutor_Integration(t *testing.T) {

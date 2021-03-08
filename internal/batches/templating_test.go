@@ -1,11 +1,11 @@
-package campaigns
+package batches
 
 import (
 	"bytes"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/sourcegraph/src-cli/internal/campaigns/graphql"
+	"github.com/sourcegraph/src-cli/internal/batches/graphql"
 	"gopkg.in/yaml.v3"
 )
 

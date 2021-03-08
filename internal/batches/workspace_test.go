@@ -1,4 +1,4 @@
-package campaigns
+package batches
 
 import (
 	"context"
@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/pkg/errors"
-	"github.com/sourcegraph/src-cli/internal/campaigns/docker"
+	"github.com/sourcegraph/src-cli/internal/batches/docker"
 	"github.com/sourcegraph/src-cli/internal/exec/expect"
 )
 

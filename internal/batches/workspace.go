@@ -1,10 +1,10 @@
-package campaigns
+package batches
 
 import (
 	"context"
 	"runtime"
 
-	"github.com/sourcegraph/src-cli/internal/campaigns/graphql"
+	"github.com/sourcegraph/src-cli/internal/batches/graphql"
 )
 
 // WorkspaceCreator implementations are used to create workspaces, which manage

@@ -1,4 +1,4 @@
-package campaigns
+package batches
 
 import "github.com/sourcegraph/src-cli/internal/output"
 

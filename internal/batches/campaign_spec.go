@@ -1,4 +1,4 @@
-package campaigns
+package batches
 
 import (
 	"fmt"
@@ -9,7 +9,7 @@ import (
 	"github.com/sourcegraph/campaignutils/env"
 	"github.com/sourcegraph/campaignutils/overridable"
 	"github.com/sourcegraph/campaignutils/yaml"
-	"github.com/sourcegraph/src-cli/internal/campaigns/docker"
+	"github.com/sourcegraph/src-cli/internal/batches/docker"
 	"github.com/sourcegraph/src-cli/schema"
 )
 

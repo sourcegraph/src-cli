@@ -1,4 +1,4 @@
-package campaigns
+package batches
 
 import (
 	"bytes"
@@ -14,7 +14,7 @@ import (
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
-	"github.com/sourcegraph/src-cli/internal/campaigns/graphql"
+	"github.com/sourcegraph/src-cli/internal/batches/graphql"
 
 	yamlv3 "gopkg.in/yaml.v3"
 )

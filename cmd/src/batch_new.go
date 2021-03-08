@@ -10,7 +10,7 @@ import (
 	"text/template"
 
 	"github.com/pkg/errors"
-	"github.com/sourcegraph/src-cli/internal/campaigns"
+	"github.com/sourcegraph/src-cli/internal/batches"
 )
 
 func init() {
@@ -54,7 +54,7 @@ Examples:
 			return err
 		}
 
-		author := campaigns.GitCommitAuthor{
+		author := batches.GitCommitAuthor{
 			Name:  "Sourcegraph",
 			Email: "batch-changes@sourcegraph.com",
 		}

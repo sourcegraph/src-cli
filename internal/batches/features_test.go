@@ -1,4 +1,4 @@
-package campaigns
+package batches
 
 func featuresAllEnabled() featureFlags {
 	return featureFlags{

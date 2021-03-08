@@ -1,4 +1,4 @@
-package campaigns
+package batches
 
 import (
 	"bytes"
@@ -8,7 +8,7 @@ import (
 	"text/template"
 
 	"github.com/pkg/errors"
-	"github.com/sourcegraph/src-cli/internal/campaigns/graphql"
+	"github.com/sourcegraph/src-cli/internal/batches/graphql"
 )
 
 func renderStepTemplate(name, tmpl string, out io.Writer, stepCtx *StepContext) error {
