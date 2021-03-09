@@ -17,7 +17,7 @@ Usage:
 The commands are:
 
 	apply                 applies a batch spec to create or update a batch
-						  change
+	                      change
 	new                   creates a new batch spec YAML file
 	preview               creates a batch spec to be previewed or applied
 	repos,repositories    queries the exact repositories that a batch spec will
