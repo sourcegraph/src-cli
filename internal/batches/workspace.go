@@ -8,15 +8,15 @@ import (
 )
 
 // WorkspaceCreator implementations are used to create workspaces, which manage
-// per-changeset persistent storage when executing campaign steps and are
+// per-changeset persistent storage when executing batch change steps and are
 // responsible for ultimately generating a diff.
 type WorkspaceCreator interface {
 	// Create creates a new workspace for the given repository and archive file.
 	Create(ctx context.Context, repo *graphql.Repository, steps []Step, archive RepoZip) (Workspace, error)
 }
 
-// Workspace implementations manage per-changeset storage when executing
-// campaign step.
+// Workspace implementations manage per-changeset storage when executing batch
+// change steps.
 type Workspace interface {
 	// DockerRunOpts provides the options that should be given to `docker run`
 	// in order to use this workspace. Generally, this will be a set of mount
@@ -50,15 +50,15 @@ const (
 )
 
 // bestWorkspaceCreator determines the correct workspace creator to use based on
-// the environment and campaign to be executed.
+// the environment and batch change to be executed.
 func bestWorkspaceCreator(ctx context.Context, steps []Step) workspaceCreatorType {
 	// The basic theory here is that we have two options: bind and volume. Bind
 	// is battle tested and always safe, but can be slow on non-Linux platforms
 	// because bind mounts are slow. Volume is faster on those platforms, but
 	// exposes users to UID mismatch issues they'd otherwise be insulated from
 	// by the semantics of bind mounting on non-Linux platforms: specifically,
-	// if you have a campaign with steps that run as UID 1000 and then UID 2000,
-	// you'll get errors when the second step tries to write.
+	// if you have a batch change with steps that run as UID 1000 and then UID
+	// 2000, you'll get errors when the second step tries to write.
 
 	// For the time being, we're only going to consider volume mode on Intel
 	// macOS.

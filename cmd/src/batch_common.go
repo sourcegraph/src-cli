@@ -183,7 +183,7 @@ func batchOpenFileFlag(flag *string) (io.ReadCloser, error) {
 // batchExecute performs all the steps required to upload the campaign spec
 // to Sourcegraph, including execution as needed. The return values are the
 // spec ID, spec URL, and error.
-func batchExecute(ctx context.Context, out *output.Output, svc *batches.Service, flags *batchApplyFlags) (batches.CampaignSpecID, string, error) {
+func batchExecute(ctx context.Context, out *output.Output, svc *batches.Service, flags *batchApplyFlags) (batches.BatchSpecID, string, error) {
 	if err := checkExecutable("git", "version"); err != nil {
 		return "", "", err
 	}
@@ -272,7 +272,7 @@ func batchExecute(ctx context.Context, out *output.Output, svc *batches.Service,
 	}
 
 	p := newBatchProgressPrinter(out, *verbose, flags.parallelism)
-	specs, logFiles, err := svc.ExecuteCampaignSpec(ctx, opts, tasks, batchSpec, p.PrintStatuses, flags.skipErrors)
+	specs, logFiles, err := svc.ExecuteBatchSpec(ctx, opts, tasks, batchSpec, p.PrintStatuses, flags.skipErrors)
 	if err != nil && !flags.skipErrors {
 		return "", "", err
 	}
@@ -328,7 +328,7 @@ func batchExecute(ctx context.Context, out *output.Output, svc *batches.Service,
 	}
 
 	pending = batchCreatePending(out, "Creating batch spec on Sourcegraph")
-	id, url, err := svc.CreateCampaignSpec(ctx, namespace, rawSpec, ids)
+	id, url, err := svc.CreateBatchSpec(ctx, namespace, rawSpec, ids)
 	batchCompletePending(pending, "Creating batch spec on Sourcegraph")
 	if err != nil {
 		return "", "", prettyPrintBatchUnlicensedError(out, err)
@@ -340,8 +340,8 @@ func batchExecute(ctx context.Context, out *output.Output, svc *batches.Service,
 // batchParseSpec parses and validates the given batch spec. If the spec has
 // validation errors, the errors are output in a human readable form and an
 // exitCodeError is returned.
-func batchParseSpec(out *output.Output, svc *batches.Service, input io.ReadCloser) (*batches.CampaignSpec, string, error) {
-	spec, raw, err := svc.ParseCampaignSpec(input)
+func batchParseSpec(out *output.Output, svc *batches.Service, input io.ReadCloser) (*batches.BatchSpec, string, error) {
+	spec, raw, err := svc.ParseBatchSpec(input)
 	if err != nil {
 		if merr, ok := err.(*multierror.Error); ok {
 			block := out.Block(output.Line("\u274c", output.StyleWarning, "Batch spec failed validation."))

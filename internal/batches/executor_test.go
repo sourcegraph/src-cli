@@ -572,7 +572,7 @@ repository_name=github.com/sourcegraph/src-cli`,
 
 func TestValidateGroups(t *testing.T) {
 	repoName := "github.com/sourcegraph/src-cli"
-	defaultBranch := "my-campaign"
+	defaultBranch := "my-batch-change"
 
 	tests := []struct {
 		defaultBranch string
@@ -581,24 +581,24 @@ func TestValidateGroups(t *testing.T) {
 	}{
 		{
 			groups: []Group{
-				{Directory: "a", Branch: "my-campaign-a"},
-				{Directory: "b", Branch: "my-campaign-b"},
+				{Directory: "a", Branch: "my-batch-change-a"},
+				{Directory: "b", Branch: "my-batch-change-b"},
 			},
 			wantErr: "",
 		},
 		{
 			groups: []Group{
-				{Directory: "a", Branch: "my-campaign-SAME"},
-				{Directory: "b", Branch: "my-campaign-SAME"},
+				{Directory: "a", Branch: "my-batch-change-SAME"},
+				{Directory: "b", Branch: "my-batch-change-SAME"},
 			},
-			wantErr: "transformChanges would lead to multiple changesets in repository github.com/sourcegraph/src-cli to have the same branch \"my-campaign-SAME\"",
+			wantErr: "transformChanges would lead to multiple changesets in repository github.com/sourcegraph/src-cli to have the same branch \"my-batch-change-SAME\"",
 		},
 		{
 			groups: []Group{
-				{Directory: "a", Branch: "my-campaign-SAME"},
+				{Directory: "a", Branch: "my-batch-change-SAME"},
 				{Directory: "b", Branch: defaultBranch},
 			},
-			wantErr: "transformChanges group branch for repository github.com/sourcegraph/src-cli is the same as branch \"my-campaign\" in changesetTemplate",
+			wantErr: "transformChanges group branch for repository github.com/sourcegraph/src-cli is the same as branch \"my-batch-change\" in changesetTemplate",
 		},
 	}
 
@@ -759,7 +759,7 @@ func TestCreateChangesetSpecs(t *testing.T) {
 					Message:     "git commit message",
 					Diff:        "cool diff",
 					AuthorName:  "Sourcegraph",
-					AuthorEmail: "campaigns@sourcegraph.com",
+					AuthorEmail: "batch-changes@sourcegraph.com",
 				},
 			},
 			Published: false,

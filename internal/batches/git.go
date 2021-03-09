@@ -20,9 +20,9 @@ func runGitCmd(ctx context.Context, dir string, args ...string) ([]byte, error) 
 		// repository to generate diffs, but we don't want git to generate alarming
 		// looking warnings.
 		"GIT_AUTHOR_NAME=Sourcegraph",
-		"GIT_AUTHOR_EMAIL=campaigns@sourcegraph.com",
+		"GIT_AUTHOR_EMAIL=batch-changes@sourcegraph.com",
 		"GIT_COMMITTER_NAME=Sourcegraph",
-		"GIT_COMMITTER_EMAIL=campaigns@sourcegraph.com",
+		"GIT_COMMITTER_EMAIL=batch-changes@sourcegraph.com",
 	}
 	cmd.Dir = dir
 	out, err := cmd.CombinedOutput()

@@ -91,7 +91,7 @@ func (svc *Service) newRequest(query string, vars map[string]interface{}) api.Re
 	return svc.client.NewRequest(query, vars)
 }
 
-type CampaignSpecID string
+type BatchSpecID string
 type ChangesetSpecID string
 
 const applyCampaignMutation = `
@@ -102,7 +102,7 @@ mutation ApplyCampaign($campaignSpec: ID!) {
 }
 ` + graphql.CampaignFieldsFragment
 
-func (svc *Service) ApplyCampaign(ctx context.Context, spec CampaignSpecID) (*graphql.Campaign, error) {
+func (svc *Service) ApplyBatchChange(ctx context.Context, spec BatchSpecID) (*graphql.Campaign, error) {
 	var result struct {
 		Campaign *graphql.Campaign `json:"applyCampaign"`
 	}
@@ -131,7 +131,7 @@ mutation CreateCampaignSpec(
 }
 `
 
-func (svc *Service) CreateCampaignSpec(ctx context.Context, namespace, spec string, ids []ChangesetSpecID) (CampaignSpecID, string, error) {
+func (svc *Service) CreateBatchSpec(ctx context.Context, namespace, spec string, ids []ChangesetSpecID) (BatchSpecID, string, error) {
 	var result struct {
 		CreateCampaignSpec struct {
 			ID       string
@@ -146,7 +146,7 @@ func (svc *Service) CreateCampaignSpec(ctx context.Context, namespace, spec stri
 		return "", "", err
 	}
 
-	return CampaignSpecID(result.CreateCampaignSpec.ID), result.CreateCampaignSpec.ApplyURL, nil
+	return BatchSpecID(result.CreateCampaignSpec.ID), result.CreateCampaignSpec.ApplyURL, nil
 
 }
 
@@ -216,13 +216,13 @@ func (svc *Service) workspaceCreatorType(ctx context.Context, steps []Step) work
 	return bestWorkspaceCreator(ctx, steps)
 }
 
-// SetDockerImages updates the steps within the campaign spec to include the
-// exact content digest to be used when running each step, and ensures that all
-// Docker images are available, including any required by the service itself.
+// SetDockerImages updates the steps within the batch spec to include the exact
+// content digest to be used when running each step, and ensures that all Docker
+// images are available, including any required by the service itself.
 //
 // Progress information is reported back to the given progress function: perc
 // will be a value between 0.0 and 1.0, inclusive.
-func (svc *Service) SetDockerImages(ctx context.Context, spec *CampaignSpec, progress func(perc float64)) error {
+func (svc *Service) SetDockerImages(ctx context.Context, spec *BatchSpec, progress func(perc float64)) error {
 	total := len(spec.Steps) + 1
 	progress(0)
 
@@ -248,7 +248,7 @@ func (svc *Service) SetDockerImages(ctx context.Context, spec *CampaignSpec, pro
 	return nil
 }
 
-func (svc *Service) BuildTasks(ctx context.Context, repos []*graphql.Repository, spec *CampaignSpec) ([]*Task, error) {
+func (svc *Service) BuildTasks(ctx context.Context, repos []*graphql.Repository, spec *BatchSpec) ([]*Task, error) {
 	workspaceConfigs := []WorkspaceConfiguration{}
 	for _, conf := range spec.Workspaces {
 		g, err := glob.Compile(conf.In)
@@ -275,7 +275,7 @@ func (svc *Service) BuildTasks(ctx context.Context, repos []*graphql.Repository,
 			}
 
 			if matched {
-				return nil, fmt.Errorf("repository %s matches multiple workspaces.in globs in campaign spec. glob: %q", repo.Name, conf.In)
+				return nil, fmt.Errorf("repository %s matches multiple workspaces.in globs in the batch spec. glob: %q", repo.Name, conf.In)
 			}
 
 			if rs, ok := reposByWorkspaceConfig[i]; ok {
@@ -337,7 +337,7 @@ func (svc *Service) BuildTasks(ctx context.Context, repos []*graphql.Repository,
 	return tasks, nil
 }
 
-func (svc *Service) ExecuteCampaignSpec(ctx context.Context, opts ExecutorOpts, tasks []*Task, spec *CampaignSpec, progress func([]*TaskStatus), skipErrors bool) ([]*ChangesetSpec, []string, error) {
+func (svc *Service) ExecuteBatchSpec(ctx context.Context, opts ExecutorOpts, tasks []*Task, spec *BatchSpec, progress func([]*TaskStatus), skipErrors bool) ([]*ChangesetSpec, []string, error) {
 	x := newExecutor(opts, svc.client, svc.features)
 	for _, t := range tasks {
 		x.AddTask(t)
@@ -479,20 +479,20 @@ func (e *duplicateBranchesErr) Error() string {
 		}
 	}
 
-	fmt.Fprint(&out, "\nMake sure that the changesetTemplate.branch field in the campaign spec produces unique values for each changeset in a single repository and rerun this command.")
+	fmt.Fprint(&out, "\nMake sure that the changesetTemplate.branch field in the batch spec produces unique values for each changeset in a single repository and rerun this command.")
 
 	return out.String()
 }
 
-func (svc *Service) ParseCampaignSpec(in io.Reader) (*CampaignSpec, string, error) {
+func (svc *Service) ParseBatchSpec(in io.Reader) (*BatchSpec, string, error) {
 	data, err := ioutil.ReadAll(in)
 	if err != nil {
-		return nil, "", errors.Wrap(err, "reading campaign spec")
+		return nil, "", errors.Wrap(err, "reading batch spec")
 	}
 
-	spec, err := ParseCampaignSpec(data, svc.features)
+	spec, err := ParseBatchSpec(data, svc.features)
 	if err != nil {
-		return nil, "", errors.Wrap(err, "parsing campaign spec")
+		return nil, "", errors.Wrap(err, "parsing batch spec")
 	}
 	return spec, string(data), nil
 }
@@ -559,7 +559,7 @@ func (svc *Service) ResolveNamespace(ctx context.Context, namespace string) (str
 	return "", fmt.Errorf("failed to resolve namespace %q: no user or organization found", namespace)
 }
 
-func (svc *Service) ResolveRepositories(ctx context.Context, spec *CampaignSpec) ([]*graphql.Repository, error) {
+func (svc *Service) ResolveRepositories(ctx context.Context, spec *BatchSpec) ([]*graphql.Repository, error) {
 	seen := map[string]*graphql.Repository{}
 	unsupported := UnsupportedRepoSet{}
 
@@ -625,8 +625,8 @@ func (svc *Service) ResolveRepositoriesOn(ctx context.Context, on *OnQueryOrRepo
 		return []*graphql.Repository{repo}, nil
 	}
 
-	// This shouldn't happen on any campaign spec that has passed validation,
-	// but, alas, software.
+	// This shouldn't happen on any batch spec that has passed validation, but,
+	// alas, software.
 	return nil, ErrMalformedOnQueryOrRepository
 }
 

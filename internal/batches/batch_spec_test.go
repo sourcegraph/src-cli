@@ -2,7 +2,7 @@ package batches
 
 import "testing"
 
-func TestParseCampaignSpec(t *testing.T) {
+func TestParseBatchSpec(t *testing.T) {
 	t.Run("valid", func(t *testing.T) {
 		const spec = `
 name: hello-world
@@ -14,14 +14,14 @@ steps:
     container: alpine:3
 changesetTemplate:
   title: Hello World
-  body: My first campaign!
+  body: My first batch change!
   branch: hello-world
   commit:
     message: Append Hello World to all README.md files
   published: false
 `
 
-		_, err := ParseCampaignSpec([]byte(spec), featureFlags{})
+		_, err := ParseBatchSpec([]byte(spec), featureFlags{})
 		if err != nil {
 			t.Fatalf("parsing valid spec returned error: %s", err)
 		}
@@ -38,13 +38,13 @@ steps:
     container: alpine:3
 `
 
-		_, err := ParseCampaignSpec([]byte(spec), featureFlags{})
+		_, err := ParseBatchSpec([]byte(spec), featureFlags{})
 		if err == nil {
 			t.Fatal("no error returned")
 		}
 
 		wantErr := `1 error occurred:
-	* campaign spec includes steps but no changesetTemplate
+	* batch spec includes steps but no changesetTemplate
 
 `
 		haveErr := err.Error()

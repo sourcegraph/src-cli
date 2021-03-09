@@ -15,7 +15,7 @@ import (
 
 // Some general notes about the struct definitions below.
 //
-// 1. They map _very_ closely to the campaign spec JSON schema. We don't
+// 1. They map _very_ closely to the batch spec JSON schema. We don't
 //    auto-generate the types because we need YAML support (more on that in a
 //    moment) and because no generator can currently handle oneOf fields
 //    gracefully in Go, but that's a potential future enhancement.
@@ -29,7 +29,7 @@ import (
 //    omitted fields. The other option here was to have everything unmarshal to
 //    pointers, which is ugly and inefficient.
 
-type CampaignSpec struct {
+type BatchSpec struct {
 	Name              string                   `json:"name,omitempty" yaml:"name"`
 	Description       string                   `json:"description,omitempty" yaml:"description"`
 	On                []OnQueryOrRepository    `json:"on,omitempty" yaml:"on"`
@@ -104,8 +104,8 @@ type Group struct {
 	Repository string `json:"repository,omitempty" yaml:"repository"`
 }
 
-func ParseCampaignSpec(data []byte, features featureFlags) (*CampaignSpec, error) {
-	var spec CampaignSpec
+func ParseBatchSpec(data []byte, features featureFlags) (*BatchSpec, error) {
+	var spec BatchSpec
 	if err := yaml.UnmarshalValidate(schema.BatchSpecJSON, data, &spec); err != nil {
 		return nil, err
 	}
@@ -121,15 +121,15 @@ func ParseCampaignSpec(data []byte, features featureFlags) (*CampaignSpec, error
 	}
 
 	if len(spec.Steps) != 0 && spec.ChangesetTemplate == nil {
-		errs = multierror.Append(errs, errors.New("campaign spec includes steps but no changesetTemplate"))
+		errs = multierror.Append(errs, errors.New("batch spec includes steps but no changesetTemplate"))
 	}
 
 	if spec.TransformChanges != nil && !features.allowtransformChanges {
-		errs = multierror.Append(errs, errors.New("campaign spec includes transformChanges, which is not supported in this Sourcegraph version"))
+		errs = multierror.Append(errs, errors.New("batch spec includes transformChanges, which is not supported in this Sourcegraph version"))
 	}
 
 	if len(spec.Workspaces) != 0 && !features.allowtransformChanges {
-		errs = multierror.Append(errs, errors.New("campaign spec includes workspaces, which is not supported in this Sourcegraph version"))
+		errs = multierror.Append(errs, errors.New("batch spec includes workspaces, which is not supported in this Sourcegraph version"))
 	}
 
 	return &spec, errs.ErrorOrNil()

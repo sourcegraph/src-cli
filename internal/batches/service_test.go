@@ -137,7 +137,7 @@ func TestResolveRepositories_Unsupported(t *testing.T) {
 	client, done := mockGraphQLClient(testResolveRepositoriesUnsupported)
 	defer done()
 
-	spec := &CampaignSpec{
+	spec := &BatchSpec{
 		On: []OnQueryOrRepository{
 			{RepositoriesMatchingQuery: "testquery"},
 		},
@@ -315,7 +315,7 @@ func TestService_BuildTasks(t *testing.T) {
 	}
 
 	tests := map[string]struct {
-		spec  *CampaignSpec
+		spec  *BatchSpec
 		repos []*graphql.Repository
 
 		searchResults filesInRepos
@@ -326,7 +326,7 @@ func TestService_BuildTasks(t *testing.T) {
 		wantTasks map[string][]wantTask
 	}{
 		"no workspace configuration": {
-			spec:          &CampaignSpec{},
+			spec:          &BatchSpec{},
 			repos:         repos,
 			searchResults: filesInRepos{},
 			wantNumTasks:  len(repos),
@@ -338,7 +338,7 @@ func TestService_BuildTasks(t *testing.T) {
 		},
 
 		"workspace configuration matching no repos": {
-			spec: &CampaignSpec{
+			spec: &BatchSpec{
 				Workspaces: []WorkspaceConfiguration{
 					{In: "this-does-not-match", RootAtLocationOf: "package.json"},
 				},
@@ -354,7 +354,7 @@ func TestService_BuildTasks(t *testing.T) {
 		},
 
 		"workspace configuration matching 2 repos with no results": {
-			spec: &CampaignSpec{
+			spec: &BatchSpec{
 				Workspaces: []WorkspaceConfiguration{
 					{In: "*automation-testing", RootAtLocationOf: "package.json"},
 				},
@@ -371,7 +371,7 @@ func TestService_BuildTasks(t *testing.T) {
 		},
 
 		"workspace configuration matching 2 repos with 3 results each": {
-			spec: &CampaignSpec{
+			spec: &BatchSpec{
 				Workspaces: []WorkspaceConfiguration{
 					{In: "*automation-testing", RootAtLocationOf: "package.json"},
 				},
@@ -398,7 +398,7 @@ func TestService_BuildTasks(t *testing.T) {
 		},
 
 		"workspace configuration matches repo with OnlyFetchWorkspace": {
-			spec: &CampaignSpec{
+			spec: &BatchSpec{
 				Workspaces: []WorkspaceConfiguration{
 					{
 						OnlyFetchWorkspace: true,

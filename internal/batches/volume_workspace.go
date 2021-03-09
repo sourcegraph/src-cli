@@ -74,8 +74,8 @@ git init
 # Note that we don't actually use these anywhere, since we're not creating the
 # real commits in this container, but we do need _something_ set to avoid Git
 # erroring out.
-git config user.name 'Sourcegraph Campaigns'
-git config user.email campaigns@sourcegraph.com
+git config user.name 'Sourcegraph Batch Changes'
+git config user.email batch-changes@sourcegraph.com
 
 # --force because we want previously "gitignored" files in the repository
 git add --force --all
@@ -102,7 +102,7 @@ func (wc *dockerVolumeWorkspaceCreator) unzipRepoIntoVolume(ctx context.Context,
 	if _, err := rand.Read(randToken); err != nil {
 		return errors.Wrap(err, "generating randomness")
 	}
-	dummy := fmt.Sprintf(".campaign-workspace-placeholder-%s", hex.EncodeToString(randToken))
+	dummy := fmt.Sprintf(".batch-change-workspace-placeholder-%s", hex.EncodeToString(randToken))
 
 	// So, let's use that to set up the volume.
 	//

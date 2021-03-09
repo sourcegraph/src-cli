@@ -37,7 +37,7 @@ Examples:
 		}
 
 		pending := batchCreatePending(out, "Applying batch spec")
-		batch, err := svc.ApplyCampaign(ctx, id)
+		batch, err := svc.ApplyBatchChange(ctx, id)
 		if err != nil {
 			return err
 		}

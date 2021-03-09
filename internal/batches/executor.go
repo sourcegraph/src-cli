@@ -101,7 +101,7 @@ type TaskStatus struct {
 	CurrentlyExecuting string
 
 	// ChangesetSpecs are the specs produced by executing the Task in a
-	// repository. With the introduction of `transformChanges` to the campaign
+	// repository. With the introduction of `transformChanges` to the batch
 	// spec, one Task can produce multiple ChangesetSpecs.
 	ChangesetSpecs []*ChangesetSpec
 	// Err is set if executing the Task lead to an error.
@@ -478,7 +478,7 @@ func createChangesetSpecs(task *Task, result executionResult, features featureFl
 		if features.includeAutoAuthorDetails {
 			// user did not provide author info, so use defaults
 			authorName = "Sourcegraph"
-			authorEmail = "campaigns@sourcegraph.com"
+			authorEmail = "batch-changes@sourcegraph.com"
 		}
 	} else {
 		var err error
