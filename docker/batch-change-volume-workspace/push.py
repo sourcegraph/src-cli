@@ -11,7 +11,7 @@
 # image in a namespace that you have access to. For example, if your username is
 # "alice", you could build and push the image as follows:
 #
-# $ ./push.py -d Dockerfile -i alice/src-campaign-volume-workspace
+# $ ./push.py -d Dockerfile -i alice/src-batch-change-volume-workspace
 #
 # By default, only the "latest" tag will be built and pushed. The script refers
 # to the HEAD ref given to it, either via $GITHUB_REF or the -r argument. If

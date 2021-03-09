@@ -262,7 +262,7 @@ exec git diff --cached --no-prefix --binary
 // dockerVolumeWorkspaceImage is the Docker image we'll run our unzip and git
 // commands in. This needs to match the name defined in
 // .github/workflows/docker.yml.
-var dockerVolumeWorkspaceImage = "sourcegraph/src-campaign-volume-workspace"
+var dockerVolumeWorkspaceImage = "sourcegraph/src-batch-change-volume-workspace"
 
 func init() {
 	dockerTag := version.BuildTag
