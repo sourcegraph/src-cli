@@ -84,6 +84,15 @@ func (svc *Service) DetermineFeatureFlags(ctx context.Context) error {
 	return svc.features.setFromVersion(version)
 }
 
+// TODO(campaigns-deprecation): this shim can be removed in Sourcegraph 4.0.
+func (svc *Service) newOperations() graphql.Operations {
+	return graphql.NewOperations(
+		svc.client,
+		svc.features.batchChanges,
+		svc.features.useGzipCompression,
+	)
+}
+
 func (svc *Service) newRequest(query string, vars map[string]interface{}) api.Request {
 	if svc.features.useGzipCompression {
 		return svc.client.NewGzippedRequest(query, vars)
@@ -91,63 +100,17 @@ func (svc *Service) newRequest(query string, vars map[string]interface{}) api.Re
 	return svc.client.NewRequest(query, vars)
 }
 
-type BatchSpecID string
-type ChangesetSpecID string
-
-const applyCampaignMutation = `
-mutation ApplyCampaign($campaignSpec: ID!) {
-    applyCampaign(campaignSpec: $campaignSpec) {
-        ...campaignFields
-    }
-}
-` + graphql.CampaignFieldsFragment
-
-func (svc *Service) ApplyBatchChange(ctx context.Context, spec BatchSpecID) (*graphql.Campaign, error) {
-	var result struct {
-		Campaign *graphql.Campaign `json:"applyCampaign"`
-	}
-	if ok, err := svc.newRequest(applyCampaignMutation, map[string]interface{}{
-		"campaignSpec": spec,
-	}).Do(ctx, &result); err != nil || !ok {
-		return nil, err
-	}
-	return result.Campaign, nil
+func (svc *Service) ApplyBatchChange(ctx context.Context, spec graphql.BatchSpecID) (*graphql.BatchChange, error) {
+	return svc.newOperations().ApplyBatchChange(ctx, spec)
 }
 
-const createCampaignSpecMutation = `
-mutation CreateCampaignSpec(
-    $namespace: ID!,
-    $spec: String!,
-    $changesetSpecs: [ID!]!
-) {
-    createCampaignSpec(
-        namespace: $namespace, 
-        campaignSpec: $spec,
-        changesetSpecs: $changesetSpecs
-    ) {
-        id
-        applyURL
-    }
-}
-`
-
-func (svc *Service) CreateBatchSpec(ctx context.Context, namespace, spec string, ids []ChangesetSpecID) (BatchSpecID, string, error) {
-	var result struct {
-		CreateCampaignSpec struct {
-			ID       string
-			ApplyURL string
-		}
-	}
-	if ok, err := svc.client.NewRequest(createCampaignSpecMutation, map[string]interface{}{
-		"namespace":      namespace,
-		"spec":           spec,
-		"changesetSpecs": ids,
-	}).Do(ctx, &result); err != nil || !ok {
+func (svc *Service) CreateBatchSpec(ctx context.Context, namespace, spec string, ids []graphql.ChangesetSpecID) (graphql.BatchSpecID, string, error) {
+	result, err := svc.newOperations().CreateBatchSpec(ctx, namespace, spec, ids)
+	if err != nil {
 		return "", "", err
 	}
 
-	return BatchSpecID(result.CreateCampaignSpec.ID), result.CreateCampaignSpec.ApplyURL, nil
-
+	return result.ID, result.ApplyURL, nil
 }
 
 const createChangesetSpecMutation = `
@@ -163,7 +126,7 @@ mutation CreateChangesetSpec($spec: String!) {
 }
 `
 
-func (svc *Service) CreateChangesetSpec(ctx context.Context, spec *ChangesetSpec) (ChangesetSpecID, error) {
+func (svc *Service) CreateChangesetSpec(ctx context.Context, spec *ChangesetSpec) (graphql.ChangesetSpecID, error) {
 	raw, err := json.Marshal(spec)
 	if err != nil {
 		return "", errors.Wrap(err, "marshalling changeset spec JSON")
@@ -180,7 +143,7 @@ func (svc *Service) CreateChangesetSpec(ctx context.Context, spec *ChangesetSpec
 		return "", err
 	}
 
-	return ChangesetSpecID(result.CreateChangesetSpec.ID), nil
+	return graphql.ChangesetSpecID(result.CreateChangesetSpec.ID), nil
 }
 
 func (svc *Service) NewExecutionCache(dir string) ExecutionCache {

@@ -19,6 +19,7 @@ import (
 	"github.com/sourcegraph/go-diff/diff"
 	"github.com/sourcegraph/src-cli/internal/api"
 	"github.com/sourcegraph/src-cli/internal/batches"
+	"github.com/sourcegraph/src-cli/internal/batches/graphql"
 	"github.com/sourcegraph/src-cli/internal/output"
 )
 
@@ -183,7 +184,7 @@ func batchOpenFileFlag(flag *string) (io.ReadCloser, error) {
 // batchExecute performs all the steps required to upload the campaign spec
 // to Sourcegraph, including execution as needed. The return values are the
 // spec ID, spec URL, and error.
-func batchExecute(ctx context.Context, out *output.Output, svc *batches.Service, flags *batchApplyFlags) (batches.BatchSpecID, string, error) {
+func batchExecute(ctx context.Context, out *output.Output, svc *batches.Service, flags *batchApplyFlags) (graphql.BatchSpecID, string, error) {
 	if err := checkExecutable("git", "version"); err != nil {
 		return "", "", err
 	}
@@ -298,7 +299,7 @@ func batchExecute(ctx context.Context, out *output.Output, svc *batches.Service,
 		return "", "", err
 	}
 
-	ids := make([]batches.ChangesetSpecID, len(specs))
+	ids := make([]graphql.ChangesetSpecID, len(specs))
 
 	if len(specs) > 0 {
 		var label string
