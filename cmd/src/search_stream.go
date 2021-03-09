@@ -219,7 +219,6 @@ const streamingTemplate = `
 		{{- range $index, $skipped := $.Skipped -}}
 			{{indent $skipped.Title "    "}}{{- "\n" -}}
 		{{- end -}}
-		{{- "\n" -}}
 	{{- end -}}
 {{- end -}}
 `
