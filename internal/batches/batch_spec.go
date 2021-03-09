@@ -106,7 +106,7 @@ type Group struct {
 
 func ParseCampaignSpec(data []byte, features featureFlags) (*CampaignSpec, error) {
 	var spec CampaignSpec
-	if err := yaml.UnmarshalValidate(schema.CampaignSpecJSON, data, &spec); err != nil {
+	if err := yaml.UnmarshalValidate(schema.BatchSpecJSON, data, &spec); err != nil {
 		return nil, err
 	}
 
