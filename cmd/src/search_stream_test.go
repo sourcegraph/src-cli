@@ -11,6 +11,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 
+	"github.com/sourcegraph/src-cli/internal/api"
 	"github.com/sourcegraph/src-cli/internal/streaming"
 )
 
@@ -117,11 +118,10 @@ func TestSearchStream(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	flagSet := flag.NewFlagSet("streaming search test", flag.ExitOnError)
-	flags := newStreamingFlags(flagSet)
-	client := cfg.apiClient(flags.apiFlags, flagSet.Output())
-
-	err = doStreamSearch("", flags, client, w)
+	flagSet := flag.NewFlagSet("test", flag.ExitOnError)
+	flags := api.NewFlags(flagSet)
+	client := cfg.apiClient(flags, flagSet.Output())
+	err = streamSearch("", streaming.Opts{}, client, w)
 	if err != nil {
 		t.Fatal(err)
 	}

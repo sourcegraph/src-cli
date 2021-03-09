@@ -2,11 +2,8 @@ package main
 
 import (
 	"bytes"
-	"context"
-	"flag"
 	"fmt"
 	"io"
-	"net/url"
 	"os"
 	"os/exec"
 	"regexp"
@@ -23,51 +20,15 @@ func init() {
 	labelRegexp, _ = regexp.Compile("(?:\\[)(.*?)(?:])")
 }
 
-// streamHandler handles search requests which contain the flag "stream".
-// Requests are sent to search/stream instead of the GraphQL api.
-func streamHandler(args []string) error {
-	flagSet := flag.NewFlagSet("streaming search", flag.ExitOnError)
-	flags := newStreamingFlags(flagSet)
-	if err := flagSet.Parse(args); err != nil {
-		return err
-	}
-
-	client := cfg.apiClient(flags.apiFlags, flagSet.Output())
-	query := flagSet.Arg(0)
-	return doStreamSearch(query, flags, client, os.Stdout)
-}
-
-func doStreamSearch(query string, flags *streamingFlags, client api.Client, w io.Writer) error {
+func streamSearch(query string, opts streaming.Opts, client api.Client, w io.Writer) error {
 	t, err := parseTemplate(streamingTemplate)
 	if err != nil {
 		panic(err)
 	}
-
-	// Create request.
-	req, err := client.NewHTTPRequest(context.Background(), "GET", "search/stream?q="+url.QueryEscape(query), nil)
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Accept", "text/event-stream")
-	if flags.display >= 0 {
-		q := req.URL.Query()
-		q.Add("display", strconv.Itoa(flags.display))
-		req.URL.RawQuery = q.Encode()
-	}
-
-	// Send request.
-	resp, err := client.Do(req)
-	if err != nil {
-		return fmt.Errorf("error sending request: %w", err)
-	}
-	defer resp.Body.Close()
-
 	logError := func(msg string) {
 		_, _ = fmt.Fprintf(os.Stderr, msg)
 	}
-
-	// Process response.
-	err = streaming.Decoder{
+	decoder := streaming.Decoder{
 		OnProgress: func(progress *streaming.Progress) {
 			// We only show the final progress.
 			if !progress.Done {
@@ -157,19 +118,9 @@ func doStreamSearch(query string, flags *streamingFlags, client api.Client, w io
 				}
 			}
 		},
-	}.ReadAll(resp.Body)
-	if err != nil {
-		return fmt.Errorf("error during decoding: %w", err)
 	}
 
-	// Write trace to output.
-	if flags.Trace() {
-		_, err = fmt.Fprintf(os.Stderr, fmt.Sprintf("x-trace: %s\n", resp.Header.Get("x-trace")))
-		if err != nil {
-			return err
-		}
-	}
-	return nil
+	return streaming.Search(query, opts, client, decoder)
 }
 
 const streamingTemplate = `
@@ -411,21 +362,4 @@ func streamConvertMatchToHighlights(m streaming.EventLineMatch, isPreview bool) 
 		highlights = append(highlights, highlight{line: line, character: offset, length: length})
 	}
 	return highlights
-}
-
-type streamingFlags struct {
-	apiFlags *api.Flags
-	display  int
-}
-
-func newStreamingFlags(flagSet *flag.FlagSet) *streamingFlags {
-	flags := &streamingFlags{
-		apiFlags: api.StreamingFlags(flagSet),
-	}
-	flagSet.IntVar(&flags.display, "display", -1, "Limit the number of results that are displayed. Note that the statistics continue to report all results.")
-	return flags
-}
-
-func (f *streamingFlags) Trace() bool {
-	return f.apiFlags.Trace()
 }

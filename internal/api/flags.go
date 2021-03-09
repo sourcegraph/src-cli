@@ -38,10 +38,3 @@ func defaultFlags() *Flags {
 		insecureSkipVerify: &d,
 	}
 }
-
-func StreamingFlags(flagSet *flag.FlagSet) *Flags {
-	return &Flags{
-		trace:              flagSet.Bool("trace", false, "Log the trace ID for requests. See https://docs.sourcegraph.com/admin/observability/tracing"),
-		insecureSkipVerify: flagSet.Bool("insecure-skip-verify", false, "Skip validation of TLS certificates against trusted chains"),
-	}
-}
