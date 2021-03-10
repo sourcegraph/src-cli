@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"text/template"
 
 	"github.com/sourcegraph/src-cli/internal/api"
 	"github.com/sourcegraph/src-cli/internal/streaming"
@@ -21,20 +22,111 @@ func init() {
 }
 
 func streamSearch(query string, opts streaming.Opts, client api.Client, w io.Writer) error {
-	t, err := parseTemplate(streamingTemplate)
-	if err != nil {
-		panic(err)
+	var d streaming.Decoder
+	if opts.Json {
+		d = jsonDecoder(w)
+	} else {
+		t, err := parseTemplate(streamingTemplate)
+		if err != nil {
+			return err
+		}
+		d = textDecoder(query, t, w)
 	}
-	logError := func(msg string) {
-		_, _ = fmt.Fprintf(os.Stderr, msg)
+	return streaming.Search(query, opts, client, d)
+}
+
+// jsonDecoder streams results as JSON to w.
+func jsonDecoder(w io.Writer) streaming.Decoder {
+	// check is used whenever we write to w. If a write fails, the output is most
+	// likely not a valid JSON and we should stop the stream immediately. Since the
+	// handlers of the decoder don't handle errors we use panic.
+	check := func(err error) {
+		if err != nil {
+			panic(err)
+		}
 	}
-	decoder := streaming.Decoder{
+	_, err := w.Write([]byte("{\"Results\":[\n"))
+	check(err)
+
+	first := true
+	p := streaming.Progress{}
+	a := make([]*streaming.EventAlert, 0)
+
+	// write writes a key-value pair k, v to w; write will return an error if v
+	// cannot be JSON-encoded. The caller is responsible for adding a trailing comma
+	// if necessary.
+	write := func(k string, v interface{}) error {
+		b, err := marshalIndent(v)
+		if err != nil {
+			return err
+		}
+		_, err = w.Write([]byte(fmt.Sprintf("\"%s\":", k)))
+		if err != nil {
+			return err
+		}
+		_, err = w.Write(b)
+		if err != nil {
+			return err
+		}
+		return nil
+	}
+
+	comma := func() error {
+		_, err := w.Write([]byte(",\n"))
+		return err
+	}
+
+	return streaming.Decoder{
+		OnProgress: func(progress *streaming.Progress) {
+			if !progress.Done {
+				return
+			}
+			p = *progress
+		},
+		OnMatches: func(matches []streaming.EventMatch) {
+			if first {
+				first = false
+			} else {
+				check(comma())
+			}
+			b, err := marshalIndent(matches)
+			check(err)
+
+			// With each event we append to the list of results, hence we cut delimiters here
+			// and add them back later in OnDone.
+			b = bytes.Trim(b, "[]\n")
+			_, err = w.Write(b)
+			check(err)
+		},
+		OnAlert: func(alert *streaming.EventAlert) {
+			a = append(a, alert)
+		},
+		OnError: func(eventError *streaming.EventError) {
+			logError(eventError.Message)
+		},
+		OnDone: func() {
+			// Close top-level object.
+			defer w.Write([]byte("\n}\n"))
+
+			// Close the list of results.
+			_, err := w.Write([]byte("],\n"))
+			check(err)
+
+			check(write("Progress", p))
+			check(comma())
+			check(write("Alert", a))
+		},
+	}
+}
+
+func textDecoder(query string, t *template.Template, w io.Writer) streaming.Decoder {
+	return streaming.Decoder{
 		OnProgress: func(progress *streaming.Progress) {
 			// We only show the final progress.
 			if !progress.Done {
 				return
 			}
-			err = t.ExecuteTemplate(w, "progress", progress)
+			err := t.ExecuteTemplate(w, "progress", progress)
 			if err != nil {
 				logError(fmt.Sprintf("error when executing template: %s\n", err))
 			}
@@ -52,7 +144,7 @@ func streamSearch(query string, opts streaming.Opts, client api.Client, w io.Wri
 				})
 			}
 
-			err = t.ExecuteTemplate(w, "alert", searchResultsAlert{
+			err := t.ExecuteTemplate(w, "alert", searchResultsAlert{
 				Title:           alert.Title,
 				Description:     alert.Description,
 				ProposedQueries: proposedQueries,
@@ -66,7 +158,7 @@ func streamSearch(query string, opts streaming.Opts, client api.Client, w io.Wri
 			for _, match := range matches {
 				switch match := match.(type) {
 				case *streaming.EventFileMatch:
-					err = t.ExecuteTemplate(w, "file", struct {
+					err := t.ExecuteTemplate(w, "file", struct {
 						Query string
 						*streaming.EventFileMatch
 					}{
@@ -79,7 +171,7 @@ func streamSearch(query string, opts streaming.Opts, client api.Client, w io.Wri
 						return
 					}
 				case *streaming.EventRepoMatch:
-					err = t.ExecuteTemplate(w, "repo", struct {
+					err := t.ExecuteTemplate(w, "repo", struct {
 						SourcegraphEndpoint string
 						*streaming.EventRepoMatch
 					}{
@@ -91,7 +183,7 @@ func streamSearch(query string, opts streaming.Opts, client api.Client, w io.Wri
 						return
 					}
 				case *streaming.EventCommitMatch:
-					err = t.ExecuteTemplate(w, "commit", struct {
+					err := t.ExecuteTemplate(w, "commit", struct {
 						SourcegraphEndpoint string
 						*streaming.EventCommitMatch
 					}{
@@ -103,7 +195,7 @@ func streamSearch(query string, opts streaming.Opts, client api.Client, w io.Wri
 						return
 					}
 				case *streaming.EventSymbolMatch:
-					err = t.ExecuteTemplate(w, "symbol", struct {
+					err := t.ExecuteTemplate(w, "symbol", struct {
 						SourcegraphEndpoint string
 						*streaming.EventSymbolMatch
 					}{
@@ -119,8 +211,6 @@ func streamSearch(query string, opts streaming.Opts, client api.Client, w io.Wri
 			}
 		},
 	}
-
-	return streaming.Search(query, opts, client, decoder)
 }
 
 const streamingTemplate = `
@@ -361,4 +451,8 @@ func streamConvertMatchToHighlights(m streaming.EventLineMatch, isPreview bool) 
 		highlights = append(highlights, highlight{line: line, character: offset, length: length})
 	}
 	return highlights
+}
+
+func logError(msg string) {
+	_, _ = fmt.Fprintf(os.Stderr, msg)
 }

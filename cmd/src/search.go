@@ -68,6 +68,7 @@ Other tips:
 			opts := streaming.Opts{
 				Display: *display,
 				Trace:   apiFlags.Trace(),
+				Json:    *jsonFlag,
 			}
 			client := cfg.apiClient(apiFlags, flagSet.Output())
 			return streamSearch(flagSet.Arg(0), opts, client, os.Stdout)
