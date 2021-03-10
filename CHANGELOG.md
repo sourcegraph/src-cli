@@ -13,7 +13,7 @@ All notable changes to `src-cli` are documented in this file.
 
 ### Added
 
-- Two new [templating](https://docs.sourcegraph.com/campaigns/references/batch_spec_templating) variables have been added: `batch_change.name` and `batch_change.description`.
+- Two new [templating](https://docs.sourcegraph.com/campaigns/references/batch_spec_templating) variables have been added: `batch_change.name` and `batch_change.description`. [#491](https://github.com/sourcegraph/src-cli/pull/491)
 
 ### Changed
 
