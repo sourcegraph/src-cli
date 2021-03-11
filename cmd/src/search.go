@@ -55,7 +55,7 @@ Other tips:
 		explainJSONFlag = flagSet.Bool("explain-json", false, "Explain the JSON output schema and exit.")
 		apiFlags        = api.NewFlags(flagSet)
 		lessFlag        = flagSet.Bool("less", true, "Pipe output to 'less -R' (only if stdout is terminal, and not json flag).")
-		streamFlag      = flagSet.Bool("stream", false, "Consume results as stream. Streaming search only supports a subset of flags and parameters: trace, insecure-skip-verify, display.")
+		streamFlag      = flagSet.Bool("stream", false, "Consume results as stream. Streaming search only supports a subset of flags and parameters: trace, insecure-skip-verify, display, json.")
 		display         = flagSet.Int("display", -1, "Limit the number of results that are displayed. Only supported together with stream flag. Statistics continue to report all results.")
 	)
 
