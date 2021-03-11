@@ -31,7 +31,6 @@ type Decoder struct {
 	OnAlert    func(*EventAlert)
 	OnError    func(*EventError)
 	OnUnknown  func(event, data []byte)
-	OnDone     func()
 }
 
 func (rr Decoder) ReadAll(r io.Reader) error {
@@ -126,9 +125,6 @@ func (rr Decoder) ReadAll(r io.Reader) error {
 			rr.OnError(&d)
 		} else if bytes.Equal(event, []byte("done")) {
 			// Always the last event
-			if rr.OnDone != nil {
-				rr.OnDone()
-			}
 			break
 		} else {
 			if rr.OnUnknown == nil {
