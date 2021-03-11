@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -37,30 +38,9 @@ func streamSearch(query string, opts streaming.Opts, client api.Client, w io.Wri
 
 // jsonDecoder streams results as JSON to w.
 func jsonDecoder(w io.Writer) streaming.Decoder {
-	// check is used whenever we write to w. If a write fails, the output is most
-	// likely not a valid JSON and we should stop the stream immediately. Since the
-	// handlers of the decoder don't handle errors we use panic.
-	check := func(err error) {
-		if err != nil {
-			panic(err)
-		}
-	}
-	_, err := w.Write([]byte("{\"Results\":[\n"))
-	check(err)
-
-	first := true
-	p := streaming.Progress{}
-	a := make([]*streaming.EventAlert, 0)
-
-	// write writes a key-value pair k, v to w; write will return an error if v
-	// cannot be JSON-encoded. The caller is responsible for adding a trailing comma
-	// if necessary.
-	write := func(k string, v interface{}) error {
-		b, err := marshalIndent(v)
-		if err != nil {
-			return err
-		}
-		_, err = w.Write([]byte(fmt.Sprintf("\"%s\":", k)))
+	// write json.Marshals data and writes it as one line to w plus a newline.
+	write := func(data interface{}) error {
+		b, err := json.Marshal(data)
 		if err != nil {
 			return err
 		}
@@ -68,12 +48,11 @@ func jsonDecoder(w io.Writer) streaming.Decoder {
 		if err != nil {
 			return err
 		}
+		_, err = w.Write([]byte("\n"))
+		if err != nil {
+			return err
+		}
 		return nil
-	}
-
-	comma := func() error {
-		_, err := w.Write([]byte(",\n"))
-		return err
 	}
 
 	return streaming.Decoder{
@@ -81,40 +60,28 @@ func jsonDecoder(w io.Writer) streaming.Decoder {
 			if !progress.Done {
 				return
 			}
-			p = *progress
+			err := write(progress)
+			if err != nil {
+				logError(err.Error())
+			}
 		},
 		OnMatches: func(matches []streaming.EventMatch) {
-			if first {
-				first = false
-			} else {
-				check(comma())
+			for _, match := range matches {
+				err := write(match)
+				if err != nil {
+					logError(err.Error())
+				}
 			}
-			b, err := marshalIndent(matches)
-			check(err)
-
-			// With each event we append to the list of results, hence we cut delimiters here
-			// and add them back later in OnDone.
-			b = bytes.Trim(b, "[]\n")
-			_, err = w.Write(b)
-			check(err)
 		},
 		OnAlert: func(alert *streaming.EventAlert) {
-			a = append(a, alert)
+			err := write(alert)
+			if err != nil {
+				logError(err.Error())
+			}
 		},
 		OnError: func(eventError *streaming.EventError) {
+			// Errors are just written to stderr.
 			logError(eventError.Message)
-		},
-		OnDone: func() {
-			// Close top-level object.
-			defer w.Write([]byte("\n}\n"))
-
-			// Close the list of results.
-			_, err := w.Write([]byte("],\n"))
-			check(err)
-
-			check(write("Progress", p))
-			check(comma())
-			check(write("Alert", a))
 		},
 	}
 }

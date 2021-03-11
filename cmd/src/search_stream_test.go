@@ -151,7 +151,6 @@ func TestSearchStream(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-
 			want, err := ioutil.ReadFile(c.want)
 			if err != nil {
 				t.Fatal(err)
