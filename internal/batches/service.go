@@ -658,12 +658,6 @@ query ChangesetRepos(
                 ... on Repository {
                     ...repositoryFields
                 }
-                ... on FileMatch {
-                    file { path }
-                    repository {
-                        ...repositoryFields
-                    }
-                }
             }
         }
     }
@@ -679,26 +673,16 @@ func (svc *Service) resolveRepositorySearch(ctx context.Context, query string) (
 		}
 	}
 	if ok, err := svc.client.NewRequest(repositorySearchQuery, map[string]interface{}{
-		"query":       setDefaultQueryCount(query),
+		"query":       setDefaultQueryCount(query) + " select:repo",
 		"queryCommit": false,
 		"rev":         "",
 	}).Do(ctx, &result); err != nil || !ok {
 		return nil, err
 	}
 
-	ids := map[string]*graphql.Repository{}
 	var repos []*graphql.Repository
 	for _, r := range result.Search.Results.Results {
-		existing, ok := ids[r.ID]
-		if !ok {
-			repo := r.Repository
-			repos = append(repos, &repo)
-			ids[r.ID] = &repo
-		} else {
-			for file := range r.FileMatches {
-				existing.FileMatches[file] = true
-			}
-		}
+		repos = append(repos, &r.Repository)
 	}
 	return repos, nil
 }
@@ -758,7 +742,7 @@ func (svc *Service) FindDirectoriesInRepos(ctx context.Context, fileName string,
 		a.WriteString("query DirectoriesContainingFile() {\n")
 
 		for _, repo := range batch {
-			query := fmt.Sprintf(`file:(^|/)%s$ repo:^%s$ type:path count:99999`, regexp.QuoteMeta(fileName), regexp.QuoteMeta(repo.Name))
+			query := fmt.Sprintf(`file:(^|/)%s$ repo:^%s$ select:file count:99999`, regexp.QuoteMeta(fileName), regexp.QuoteMeta(repo.Name))
 
 			a.WriteString(fmt.Sprintf(searchQueryTmpl, queryIDByRepo[repo], query))
 		}
