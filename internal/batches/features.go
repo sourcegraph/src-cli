@@ -14,6 +14,7 @@ type featureFlags struct {
 	allowtransformChanges    bool
 	allowWorkspaces          bool
 	batchChanges             bool
+	selectSearchOperator     bool
 }
 
 func (ff *featureFlags) setFromVersion(version string) error {
@@ -28,6 +29,7 @@ func (ff *featureFlags) setFromVersion(version string) error {
 		{&ff.allowtransformChanges, ">= 3.23.0", "2020-12-11"},
 		{&ff.allowWorkspaces, ">= 3.25.0", "2021-01-29"},
 		{&ff.batchChanges, ">= 3.26.0", "2021-03-07"},
+		{&ff.selectSearchOperator, ">= 3.26.0", "2021-03-17"},
 	} {
 		value, err := api.CheckSourcegraphVersion(version, feature.constraint, feature.minDate)
 		if err != nil {

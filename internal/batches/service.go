@@ -658,6 +658,12 @@ query ChangesetRepos(
                 ... on Repository {
                     ...repositoryFields
                 }
+                ... on FileMatch {
+                    file { path }
+                    repository {
+                        ...repositoryFields
+                    }
+                }
             }
         }
     }
@@ -672,8 +678,16 @@ func (svc *Service) resolveRepositorySearch(ctx context.Context, query string) (
 			}
 		}
 	}
+	searchQuery := setDefaultQueryCount(query)
+	if svc.features.selectSearchOperator {
+		var err error
+		searchQuery, err = setSelectRepo(searchQuery)
+		if err != nil {
+			return nil, err
+		}
+	}
 	if ok, err := svc.client.NewRequest(repositorySearchQuery, map[string]interface{}{
-		"query":       setDefaultQueryCount(query) + " select:repo",
+		"query":       searchQuery,
 		"queryCommit": false,
 		"rev":         "",
 	}).Do(ctx, &result); err != nil || !ok {
@@ -681,8 +695,26 @@ func (svc *Service) resolveRepositorySearch(ctx context.Context, query string) (
 	}
 
 	var repos []*graphql.Repository
-	for _, r := range result.Search.Results.Results {
-		repos = append(repos, &r.Repository)
+	if svc.features.selectSearchOperator {
+		for _, r := range result.Search.Results.Results {
+			repos = append(repos, &r.Repository)
+		}
+	} else {
+		// This can be removed once we drop support for Sourcegraph instances that don't
+		// support `select:repo` (likely v4).
+		ids := map[string]*graphql.Repository{}
+		for _, r := range result.Search.Results.Results {
+			existing, ok := ids[r.ID]
+			if !ok {
+				repo := r.Repository
+				repos = append(repos, &repo)
+				ids[r.ID] = &repo
+			} else {
+				for file := range r.FileMatches {
+					existing.FileMatches[file] = true
+				}
+			}
+		}
 	}
 	return repos, nil
 }
@@ -725,6 +757,11 @@ func (svc *Service) FindDirectoriesInRepos(ctx context.Context, fileName string,
 		queryIDByRepo[repo] = queryID
 	}
 
+	searchSelector := "type:path"
+	if svc.features.selectSearchOperator {
+		searchSelector = "select:file"
+	}
+
 	findInBatch := func(batch []*graphql.Repository, results map[*graphql.Repository][]string) error {
 		const searchQueryTmpl = `%s: search(query: %q, version: V2) {
         results {
@@ -742,7 +779,7 @@ func (svc *Service) FindDirectoriesInRepos(ctx context.Context, fileName string,
 		a.WriteString("query DirectoriesContainingFile() {\n")
 
 		for _, repo := range batch {
-			query := fmt.Sprintf(`file:(^|/)%s$ repo:^%s$ select:file count:99999`, regexp.QuoteMeta(fileName), regexp.QuoteMeta(repo.Name))
+			query := fmt.Sprintf(`file:(^|/)%s$ repo:^%s$ %s count:99999`, regexp.QuoteMeta(fileName), regexp.QuoteMeta(repo.Name), searchSelector)
 
 			a.WriteString(fmt.Sprintf(searchQueryTmpl, queryIDByRepo[repo], query))
 		}
@@ -814,8 +851,25 @@ func setDefaultQueryCount(query string) string {
 	if defaultQueryCountRegex.MatchString(query) {
 		return query
 	}
-
 	return query + hardCodedCount
+}
+
+var defaultSelectRegex = regexp.MustCompile(`(?:\b|^)select:(\w+)(?:\b|$)`)
+
+const hardCodedSelectRepo = " select:repo"
+
+func setSelectRepo(query string) (string, error) {
+	matches := defaultSelectRegex.FindAllStringSubmatch(query, -1)
+	if matches == nil {
+		return query + hardCodedSelectRepo, nil
+	}
+	if len(matches) > 1 {
+		return "", errors.New("repository search query may not include multiple `select` properties")
+	}
+	if matches[0][1] != "repo" {
+		return "", errors.New("repository search query may not include a `select` property other than `repo`")
+	}
+	return query, nil
 }
 
 type searchResult struct {
