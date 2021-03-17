@@ -15,9 +15,18 @@
 
 ## Installation
 
-Binary downloads are available on the [releases tab](https://github.com/sourcegraph/src-cli/releases), and through Sourcegraph.com. _If the latest version does not work for you,_ consider using the version compatible with your Sourcegraph instance instead.
+Binary downloads are available on the [releases tab](https://github.com/sourcegraph/src-cli/releases), and through Sourcegraph.com. If you are not running the latest version of Sourcegraph, we suggest using the version compatible with your Sourcegraph instance, instead.
 
 ### Installation: Mac OS
+
+#### Version compatible with your Sourcegraph instance
+
+Replace `sourcegraph.example.com` with your Sourcegraph instance URL:
+
+```bash
+curl -L https://sourcegraph.example.com/.api/src-cli/src_darwin_amd64 -o /usr/local/bin/src
+chmod +x /usr/local/bin/src
+```
 
 #### Latest version
 
@@ -32,23 +41,7 @@ or
 brew install sourcegraph/src-cli/src-cli
 ```
 
-#### Version compatible with your Sourcegraph instance
-
-Replace `sourcegraph.example.com` with your Sourcegraph instance URL:
-
-```bash
-curl -L https://sourcegraph.example.com/.api/src-cli/src_darwin_amd64 -o /usr/local/bin/src
-chmod +x /usr/local/bin/src
-```
-
 ### Installation: Linux
-
-#### Latest version
-
-```bash
-curl -L https://sourcegraph.com/.api/src-cli/src_linux_amd64 -o /usr/local/bin/src
-chmod +x /usr/local/bin/src
-```
 
 #### Version compatible with your Sourcegraph instance
 
@@ -56,6 +49,13 @@ Replace `sourcegraph.example.com` with your Sourcegraph instance URL:
 
 ```bash
 curl -L https://sourcegraph.example.com/.api/src-cli/src_linux_amd64 -o /usr/local/bin/src
+chmod +x /usr/local/bin/src
+```
+
+#### Latest version
+
+```bash
+curl -L https://sourcegraph.com/.api/src-cli/src_linux_amd64 -o /usr/local/bin/src
 chmod +x /usr/local/bin/src
 ```
 
