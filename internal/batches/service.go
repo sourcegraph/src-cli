@@ -696,6 +696,7 @@ func (svc *Service) resolveRepositorySearch(ctx context.Context, query string) (
 
 	var repos []*graphql.Repository
 	if svc.features.selectSearchOperator {
+		repos = make([]*graphql.Repository, 0, len(result.Search.Results.Results))
 		for _, r := range result.Search.Results.Results {
 			repos = append(repos, &r.Repository)
 		}
