@@ -49,7 +49,8 @@ type Repository struct {
 	// branch's name and the contents of the Commit property.
 	Branch Branch
 
-	FileMatches map[string]bool
+	FileMatches             map[string]bool
+	IncludedInSearchQueries []string
 }
 
 func (r *Repository) HasBranch() bool {

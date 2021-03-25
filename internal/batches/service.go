@@ -679,6 +679,7 @@ func (svc *Service) resolveRepositorySearch(ctx context.Context, query string) (
 		}
 	}
 	searchQuery := setDefaultQueryCount(query)
+	queryWithDefaultCount := searchQuery
 	if svc.features.selectSearchOperator {
 		var err error
 		searchQuery, err = setSelectRepo(searchQuery)
@@ -698,6 +699,7 @@ func (svc *Service) resolveRepositorySearch(ctx context.Context, query string) (
 	if svc.features.selectSearchOperator {
 		repos = make([]*graphql.Repository, 0, len(result.Search.Results.Results))
 		for _, r := range result.Search.Results.Results {
+			r.Repository.IncludedInSearchQueries = append(r.Repository.IncludedInSearchQueries, queryWithDefaultCount)
 			repos = append(repos, &r.Repository)
 		}
 	} else {
@@ -842,6 +844,38 @@ func (svc *Service) FindDirectoriesInRepos(ctx context.Context, fileName string,
 	}
 
 	return results, nil
+}
+
+func (svc *Service) FetchFileResultsForRepo(ctx context.Context, repo *graphql.Repository, query string) (map[string]bool, error) {
+	q := `
+			query FileMatchesInRepo($query: String!) {
+			search(query: $query, version: V2) {
+				results {
+					results {
+						__typename
+						... on FileMatch {
+							file { path }
+						}
+					}
+				}
+			}
+		}
+	`
+	var result struct {
+		Search struct {
+			Results struct{ Results []searchResult }
+		}
+	}
+
+	searchQuery := fmt.Sprintf(`select:file repo:^%s$ %s`, regexp.QuoteMeta(repo.Name), query)
+	if ok, err := svc.client.NewRequest(q, map[string]interface{}{"query": searchQuery}).Do(ctx, &result); err != nil || !ok {
+		return nil, err
+	}
+
+	if len(result.Search.Results.Results) == 1 {
+		return result.Search.Results.Results[0].FileMatches, nil
+	}
+	return nil, errors.New("what the heck")
 }
 
 var defaultQueryCountRegex = regexp.MustCompile(`\bcount:\d+\b`)

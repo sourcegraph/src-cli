@@ -166,6 +166,8 @@ type ExecutorOpts struct {
 	Parallelism int
 	Timeout     time.Duration
 
+	FetchFileMatches func(repo *graphql.Repository) (map[string]bool, error)
+
 	ClearCache bool
 	KeepLogs   bool
 	TempDir    string
@@ -175,7 +177,6 @@ type executor struct {
 	ExecutorOpts
 
 	cache    ExecutionCache
-	client   api.Client
 	features featureFlags
 	logger   *LogManager
 	creator  WorkspaceCreator
@@ -198,7 +199,6 @@ func newExecutor(opts ExecutorOpts, client api.Client, features featureFlags) *e
 		ExecutorOpts:  opts,
 		cache:         opts.Cache,
 		creator:       opts.Creator,
-		client:        client,
 		features:      features,
 		doneEnqueuing: make(chan struct{}),
 		logger:        NewLogManager(opts.TempDir, opts.KeepLogs),
@@ -357,6 +357,20 @@ func (x *executor) do(ctx context.Context, task *Task) (err error) {
 		}
 		log.Close()
 	}()
+
+	if x.features.selectSearchOperator {
+		x.updateTaskStatus(task, func(status *TaskStatus) {
+			status.CurrentlyExecuting = "Resolving file matches..."
+		})
+		time.Sleep(10 * time.Second)
+		task.Repository.FileMatches, err = x.FetchFileMatches(task.Repository)
+		if err != nil {
+			return err
+		}
+		x.updateTaskStatus(task, func(status *TaskStatus) {
+			status.CurrentlyExecuting = "Executing steps..."
+		})
+	}
 
 	// Set up our timeout.
 	runCtx, cancel := context.WithTimeout(ctx, x.Timeout)
