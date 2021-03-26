@@ -116,12 +116,12 @@ Notes:
 
 			out, err := command.CombinedOutput()
 			if err != nil {
-				return fmt.Errorf("failed to determine git head: %q", err)
-			}
-
-			manifest, err = updatePropertyInManifest(manifest, "gitHead", strings.TrimSpace(string(out)))
-			if err != nil {
-				return err
+				fmt.Printf("failed to determine git head: %q\n", err)
+			} else {
+				manifest, err = updatePropertyInManifest(manifest, "gitHead", strings.TrimSpace(string(out)))
+				if err != nil {
+					return err
+				}
 			}
 		}
 
