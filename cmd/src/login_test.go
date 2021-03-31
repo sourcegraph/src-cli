@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -16,7 +15,7 @@ func TestLogin(t *testing.T) {
 		t.Helper()
 
 		var out bytes.Buffer
-		err = loginCmd(context.Background(), cfg, cfg.apiClient(nil, ioutil.Discard), endpointArg, &out)
+		err = loginCmd(context.Background(), cfg, cfg.apiClient(nil, io.Discard), endpointArg, &out)
 		return strings.TrimSpace(out.String()), err
 	}
 

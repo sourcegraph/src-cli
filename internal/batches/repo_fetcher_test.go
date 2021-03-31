@@ -3,7 +3,6 @@ package batches
 import (
 	"bytes"
 	"context"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -21,7 +20,7 @@ import (
 
 func TestRepoFetcher_Fetch(t *testing.T) {
 	workspaceTmpDir := func(t *testing.T) string {
-		testTempDir, err := ioutil.TempDir("", "executor-integration-test-*")
+		testTempDir, err := os.MkdirTemp("", "executor-integration-test-*")
 		if err != nil {
 			t.Fatal(err)
 		}

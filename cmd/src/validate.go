@@ -7,7 +7,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"os"
 	"strings"
@@ -89,7 +88,7 @@ Please visit https://docs.sourcegraph.com/admin/validation for documentation of 
 		var err error
 		if len(flagSet.Args()) == 1 {
 			filename := flagSet.Arg(0)
-			script, err = ioutil.ReadFile(filename)
+			script, err = os.ReadFile(filename)
 			if err != nil {
 				return err
 			}
@@ -99,7 +98,7 @@ Please visit https://docs.sourcegraph.com/admin/validation for documentation of 
 		}
 		if !isatty.IsTerminal(os.Stdin.Fd()) {
 			// stdin is a pipe not a terminal
-			script, err = ioutil.ReadAll(os.Stdin)
+			script, err = io.ReadAll(os.Stdin)
 			if err != nil {
 				return err
 			}
@@ -144,7 +143,7 @@ func (vd *validator) parseKVPairs(val string, pairSep string) map[string]string 
 }
 
 func (vd *validator) readSecrets(path string) (map[string]string, error) {
-	bs, err := ioutil.ReadFile(path)
+	bs, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
@@ -494,7 +493,7 @@ func (vd *validator) newClient(baseURL string) (*vdClient, error) {
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	p, err := ioutil.ReadAll(resp.Body)
+	p, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
 	}
@@ -545,7 +544,7 @@ func (c *vdClient) authenticate(path string, body interface{}) error {
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
-		p, err := ioutil.ReadAll(resp.Body)
+		p, err := io.ReadAll(resp.Body)
 		if err != nil {
 			return err
 		}
@@ -651,7 +650,7 @@ func (c *vdClient) graphQL(token, query string, variables map[string]interface{}
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
-		p, err := ioutil.ReadAll(resp.Body)
+		p, err := io.ReadAll(resp.Body)
 		if err != nil {
 			return err
 		}

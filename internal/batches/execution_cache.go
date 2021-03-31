@@ -5,7 +5,6 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sort"
@@ -112,7 +111,7 @@ func sortCacheFiles(paths []string) {
 func isOldCacheFile(path string) bool { return !strings.HasSuffix(path, cacheFileExt) }
 
 func (c ExecutionDiskCache) readCacheFile(path string, result *executionResult) error {
-	data, err := ioutil.ReadFile(path)
+	data, err := os.ReadFile(path)
 	if err != nil {
 		return err
 	}
@@ -142,7 +141,7 @@ func (c ExecutionDiskCache) Set(ctx context.Context, key ExecutionCacheKey, resu
 		return err
 	}
 
-	return ioutil.WriteFile(path, raw, 0600)
+	return os.WriteFile(path, raw, 0600)
 }
 
 func (c ExecutionDiskCache) Clear(ctx context.Context, key ExecutionCacheKey) error {

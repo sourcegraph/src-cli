@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path"
 	"path/filepath"
@@ -158,7 +157,7 @@ func fileExists(path string) (bool, error) {
 }
 
 func unzipToTempDir(ctx context.Context, zipFile, tempDir, tempFilePrefix string) (string, error) {
-	volumeDir, err := ioutil.TempDir(tempDir, tempFilePrefix)
+	volumeDir, err := os.MkdirTemp(tempDir, tempFilePrefix)
 	if err != nil {
 		return "", err
 	}

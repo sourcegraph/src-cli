@@ -6,7 +6,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"strings"
 
@@ -70,14 +69,14 @@ Examples:
 		// Determine if we are updating the JSON configuration or not.
 		var updateJSON []byte
 		if len(flagSet.Args()) == 1 {
-			updateJSON, err = ioutil.ReadFile(flagSet.Arg(0))
+			updateJSON, err = os.ReadFile(flagSet.Arg(0))
 			if err != nil {
 				return err
 			}
 		}
 		if !isatty.IsTerminal(os.Stdin.Fd()) {
 			// stdin is a pipe not a terminal
-			updateJSON, err = ioutil.ReadAll(os.Stdin)
+			updateJSON, err = io.ReadAll(os.Stdin)
 			if err != nil {
 				return err
 			}

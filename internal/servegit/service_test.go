@@ -2,7 +2,6 @@ package servegit
 
 import (
 	"bytes"
-	"io/ioutil"
 	"net/http/httptest"
 	"os"
 	"os/exec"
@@ -99,7 +98,7 @@ func runCmd(t *testing.T, dir string, cmd string, arg ...string) string {
 
 func tmpDir(t *testing.T) string {
 	t.Helper()
-	dir, err := ioutil.TempDir("", filepath.Base(t.Name()))
+	dir, err := os.MkdirTemp("", filepath.Base(t.Name()))
 	if err != nil {
 		t.Fatal(err)
 	}

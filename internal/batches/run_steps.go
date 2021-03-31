@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"strings"
@@ -83,7 +82,7 @@ func runSteps(ctx context.Context, opts *executionOpts) (result executionResult,
 		// Find a location that we can use for a cidfile, which will contain the
 		// container ID that is used below. We can then use this to remove the
 		// container on a successful run, rather than leaving it dangling.
-		cidFile, err := ioutil.TempFile(opts.tempDir, opts.repo.Slug()+"-container-id")
+		cidFile, err := os.CreateTemp(opts.tempDir, opts.repo.Slug()+"-container-id")
 		if err != nil {
 			return execResult, errors.Wrap(err, "Creating a CID file failed")
 		}
@@ -99,7 +98,7 @@ func runSteps(ctx context.Context, opts *executionOpts) (result executionResult,
 		// Since we went to all that effort, we can now defer a function that
 		// uses the cidfile to clean up after this function is done.
 		defer func() {
-			cid, err := ioutil.ReadFile(cidFile.Name())
+			cid, err := os.ReadFile(cidFile.Name())
 			_ = os.Remove(cidFile.Name())
 			if err == nil {
 				ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
@@ -122,7 +121,7 @@ func runSteps(ctx context.Context, opts *executionOpts) (result executionResult,
 
 		// Set up a temporary file on the host filesystem to contain the
 		// script.
-		runScriptFile, err := ioutil.TempFile(opts.tempDir, "")
+		runScriptFile, err := os.CreateTemp(opts.tempDir, "")
 		if err != nil {
 			return execResult, errors.Wrap(err, "creating temporary file")
 		}
@@ -163,7 +162,7 @@ func runSteps(ctx context.Context, opts *executionOpts) (result executionResult,
 		// can mount them into the container.
 		filesToMount := make(map[string]*os.File, len(files))
 		for name, content := range files {
-			fp, err := ioutil.TempFile(opts.tempDir, "")
+			fp, err := os.CreateTemp(opts.tempDir, "")
 			if err != nil {
 				return execResult, errors.Wrap(err, "creating temporary file")
 			}

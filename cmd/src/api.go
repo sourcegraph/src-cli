@@ -6,7 +6,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"strings"
 
@@ -67,7 +66,7 @@ Examples:
 			if isatty.IsTerminal(os.Stdin.Fd()) {
 				return &usageError{errors.New("expected query to be piped into 'src api' or -query flag to be specified")}
 			}
-			data, err := ioutil.ReadAll(os.Stdin)
+			data, err := io.ReadAll(os.Stdin)
 			if err != nil {
 				return err
 			}

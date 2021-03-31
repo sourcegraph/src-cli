@@ -3,8 +3,6 @@ package codeintel
 import (
 	"encoding/base64"
 	"fmt"
-
-	"github.com/sourcegraph/sourcegraph/lib/codeintel/utils"
 )
 
 type UploadIndexOpts = codeintelutils.UploadIndexOpts

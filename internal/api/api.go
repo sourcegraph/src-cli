@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"os"
 	"strings"
@@ -16,7 +15,6 @@ import (
 	ioaux "github.com/jig/teereadcloser"
 	"github.com/kballard/go-shellquote"
 	"github.com/mattn/go-isatty"
-	"github.com/sourcegraph/sourcegraph/lib/codeintel/utils"
 )
 
 // Client instances provide methods to create API requests.
@@ -249,7 +247,7 @@ func (r *request) do(ctx context.Context, result interface{}) (bool, error) {
 			fmt.Println("See https://github.com/sourcegraph/src-cli#readme")
 			fmt.Println("")
 		}
-		body, err := ioutil.ReadAll(resp.Body)
+		body, err := io.ReadAll(resp.Body)
 		if err != nil {
 			return false, err
 		}

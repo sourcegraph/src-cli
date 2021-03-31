@@ -6,7 +6,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"mime"
 	"net/http"
@@ -407,7 +406,7 @@ output4=integration-test-batch-change`,
 			var clientBuffer bytes.Buffer
 			client := api.NewClient(api.ClientOpts{Endpoint: ts.URL, Out: &clientBuffer})
 
-			testTempDir, err := ioutil.TempDir("", "executor-integration-test-*")
+			testTempDir, err := os.MkdirTemp("", "executor-integration-test-*")
 			if err != nil {
 				t.Fatal(err)
 			}

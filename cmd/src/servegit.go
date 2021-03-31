@@ -3,7 +3,6 @@ package main
 import (
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
 
@@ -53,7 +52,7 @@ Documentation at https://docs.sourcegraph.com/admin/external_service/src_serve_g
 			return &usageError{errors.New("requires zero or one arguments")}
 		}
 
-		dbug := log.New(ioutil.Discard, "", log.LstdFlags)
+		dbug := log.New(io.Discard, "", log.LstdFlags)
 		if *verbose {
 			dbug = log.New(os.Stderr, "DBUG serve-git: ", log.LstdFlags)
 		}

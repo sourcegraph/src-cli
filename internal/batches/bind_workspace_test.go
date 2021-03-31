@@ -3,7 +3,6 @@ package batches
 import (
 	"archive/zip"
 	"context"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -15,7 +14,7 @@ import (
 
 func TestDockerBindWorkspaceCreator_Create(t *testing.T) {
 	workspaceTmpDir := func(t *testing.T) string {
-		testTempDir, err := ioutil.TempDir("", "executor-integration-test-*")
+		testTempDir, err := os.MkdirTemp("", "executor-integration-test-*")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -37,7 +36,7 @@ func TestDockerBindWorkspaceCreator_Create(t *testing.T) {
 	fakeFilesTmpDir := workspaceTmpDir(t)
 
 	// Create a zip file for all the other tests to use.
-	f, err := ioutil.TempFile(fakeFilesTmpDir, "repo-zip-*")
+	f, err := os.CreateTemp(fakeFilesTmpDir, "repo-zip-*")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -64,7 +63,7 @@ func TestDockerBindWorkspaceCreator_Create(t *testing.T) {
 	}
 	additionalFilePaths := map[string]string{}
 	for name, content := range additionalFiles {
-		f, err := ioutil.TempFile(fakeFilesTmpDir, name+"-*")
+		f, err := os.CreateTemp(fakeFilesTmpDir, name+"-*")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -103,7 +102,7 @@ func TestDockerBindWorkspaceCreator_Create(t *testing.T) {
 		testTempDir := workspaceTmpDir(t)
 
 		// Create an empty file (which is therefore a bad zip file).
-		badZip, err := ioutil.TempFile(testTempDir, "bad-zip-*")
+		badZip, err := os.CreateTemp(testTempDir, "bad-zip-*")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -247,7 +246,7 @@ func TestEnsureAll(t *testing.T) {
 }
 
 func mustCreateWorkspace(t *testing.T) string {
-	base, err := ioutil.TempDir("", "")
+	base, err := os.MkdirTemp("", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -295,7 +294,7 @@ func readWorkspaceFiles(workspace Workspace) (map[string]string, error) {
 			return nil
 		}
 
-		content, err := ioutil.ReadFile(path)
+		content, err := os.ReadFile(path)
 		if err != nil {
 			return err
 		}
@@ -317,7 +316,7 @@ func readWorkspaceFiles(workspace Workspace) (map[string]string, error) {
 }
 
 func dirContains(dir, filename string) (bool, error) {
-	files, err := ioutil.ReadDir(dir)
+	files, err := os.ReadDir(dir)
 	if err != nil {
 		return false, err
 	}

@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"path"
 	"reflect"
 	"regexp"
@@ -452,7 +451,7 @@ func (e *duplicateBranchesErr) Error() string {
 }
 
 func (svc *Service) ParseBatchSpec(in io.Reader) (*BatchSpec, string, error) {
-	data, err := ioutil.ReadAll(in)
+	data, err := io.ReadAll(in)
 	if err != nil {
 		return nil, "", errors.Wrap(err, "reading batch spec")
 	}

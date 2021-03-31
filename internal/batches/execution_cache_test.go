@@ -3,7 +3,6 @@ package batches
 import (
 	"context"
 	"encoding/json"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -108,7 +107,7 @@ func TestExecutionDiskCache(t *testing.T) {
 	ctx := context.Background()
 
 	cacheTmpDir := func(t *testing.T) string {
-		testTempDir, err := ioutil.TempDir("", "execution-disk-cache-test-*")
+		testTempDir, err := os.MkdirTemp("", "execution-disk-cache-test-*")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -229,7 +228,7 @@ func writeV1CacheFile(t *testing.T, c ExecutionDiskCache, k ExecutionCacheKey, d
 		t.Fatal(err)
 	}
 
-	if err := ioutil.WriteFile(path, raw, 0600); err != nil {
+	if err := os.WriteFile(path, raw, 0600); err != nil {
 		t.Fatalf("writing the cache file failed: %s", err)
 	}
 
@@ -248,7 +247,7 @@ func writeV2CacheFile(t *testing.T, c ExecutionDiskCache, k ExecutionCacheKey, d
 	path = filepath.Join(c.Dir, hashedKey+".diff")
 
 	// v2 contained only a diff
-	if err := ioutil.WriteFile(path, []byte(diff), 0600); err != nil {
+	if err := os.WriteFile(path, []byte(diff), 0600); err != nil {
 		t.Fatalf("writing the cache file failed: %s", err)
 	}
 

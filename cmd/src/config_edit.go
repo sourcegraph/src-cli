@@ -5,7 +5,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"io/ioutil"
 
 	"github.com/sourcegraph/src-cli/internal/api"
 )
@@ -71,7 +70,7 @@ Examples:
 		if *valueFlag != "" {
 			value = *valueFlag
 		} else if *valueFileFlag != "" {
-			data, err := ioutil.ReadFile(*valueFileFlag)
+			data, err := os.ReadFile(*valueFileFlag)
 			if err != nil {
 				return err
 			}
