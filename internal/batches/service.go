@@ -886,7 +886,7 @@ func (svc *Service) FetchFileResultsForRepo(ctx context.Context, repo *graphql.R
 	if len(result.Search.Results.Results) == 1 {
 		return result.Search.Results.Results[0].FileMatches, nil
 	}
-	return nil, errors.New("what the heck")
+	return nil, fmt.Errorf("got invalid result count, expected to get exactly one result for the queried repository, but got %d", len(result.Search.Results.Results))
 }
 
 var defaultQueryCountRegex = regexp.MustCompile(`\bcount:\d+\b`)
