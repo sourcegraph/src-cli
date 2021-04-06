@@ -553,6 +553,14 @@ func (svc *Service) ResolveRepositories(ctx context.Context, spec *BatchSpec) ([
 					}
 				}
 			} else {
+				for filename := range repo.FileMatches {
+					other.FileMatches[filename] = true
+				}
+
+				for searchq := range repo.IncludedInSearchQueries {
+					other.IncludedInSearchQueries[searchq] = true
+				}
+
 				// If we've already seen this repository, we overwrite the
 				// Commit/Branch fields with the latest value we have
 				other.Commit = repo.Commit
@@ -699,7 +707,10 @@ func (svc *Service) resolveRepositorySearch(ctx context.Context, query string) (
 	if svc.features.selectSearchOperator {
 		repos = make([]*graphql.Repository, 0, len(result.Search.Results.Results))
 		for _, r := range result.Search.Results.Results {
-			r.Repository.IncludedInSearchQueries = append(r.Repository.IncludedInSearchQueries, queryWithDefaultCount)
+			if r.Repository.IncludedInSearchQueries == nil {
+				r.Repository.IncludedInSearchQueries = make(map[string]bool)
+			}
+			r.Repository.IncludedInSearchQueries[queryWithDefaultCount] = true
 			repos = append(repos, &r.Repository)
 		}
 	} else {

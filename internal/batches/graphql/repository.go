@@ -50,7 +50,7 @@ type Repository struct {
 	Branch Branch
 
 	FileMatches             map[string]bool
-	IncludedInSearchQueries []string
+	IncludedInSearchQueries map[string]bool
 }
 
 func (r *Repository) HasBranch() bool {

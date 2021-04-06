@@ -272,7 +272,7 @@ func batchExecute(ctx context.Context, out *output.Output, svc *batches.Service,
 		Parallelism: flags.parallelism,
 		FetchFileMatches: func(repo *graphql.Repository) (map[string]bool, error) {
 			fileResults := make(map[string]bool)
-			for _, onQuery := range repo.IncludedInSearchQueries {
+			for onQuery := range repo.IncludedInSearchQueries {
 				r, err := svc.FetchFileResultsForRepo(ctx, repo, onQuery)
 				if err != nil {
 					return nil, err
