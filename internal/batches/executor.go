@@ -362,7 +362,6 @@ func (x *executor) do(ctx context.Context, task *Task) (err error) {
 		x.updateTaskStatus(task, func(status *TaskStatus) {
 			status.CurrentlyExecuting = "Resolving file matches..."
 		})
-		time.Sleep(10 * time.Second)
 		task.Repository.FileMatches, err = x.FetchFileMatches(task.Repository)
 		if err != nil {
 			return err
