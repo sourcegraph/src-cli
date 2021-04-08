@@ -49,7 +49,25 @@ type Repository struct {
 	// branch's name and the contents of the Commit property.
 	Branch Branch
 
-	FileMatches map[string]bool
+	FileMatches             map[string]bool
+	IncludedInSearchQueries map[string]bool
+}
+
+func (r *Repository) Clone() *Repository {
+	c := *r
+	if r.DefaultBranch != nil {
+		db := *r.DefaultBranch
+		c.DefaultBranch = &db
+	}
+	c.FileMatches = make(map[string]bool)
+	for k, v := range r.FileMatches {
+		c.FileMatches[k] = v
+	}
+	c.IncludedInSearchQueries = make(map[string]bool)
+	for k, v := range r.IncludedInSearchQueries {
+		c.IncludedInSearchQueries[k] = v
+	}
+	return &c
 }
 
 func (r *Repository) HasBranch() bool {

@@ -343,3 +343,30 @@ ${{ steps.renamed_files }}
 		})
 	}
 }
+
+func TestUsesTemplating(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  bool
+	}{
+		{name: "no templating", input: "foobar", want: false},
+		{name: "only templating", input: "${{ .CoolVar }}", want: false},
+		{name: "text and templating", input: "foobar and ${{ .CoolVar }}", want: false},
+		{name: "uses repository.search_result_paths", input: "foobar and ${{ repository.search_result_paths }}", want: true},
+		{name: "uses repository.search_result_paths", input: `foobar and ${{ join repository.search_result_paths "," }}`, want: true},
+		{name: "repository.search_result_paths outside of template expression", input: "repository.search_result_paths", want: false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			have, err := usesTemplating(tc.input)
+			if err != nil {
+				t.Error(err)
+			}
+			if have != tc.want {
+				t.Errorf("wrong result. want=%t, have=%t", tc.want, have)
+			}
+		})
+	}
+}
