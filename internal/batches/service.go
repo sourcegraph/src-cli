@@ -278,7 +278,7 @@ func (svc *Service) BuildTasks(ctx context.Context, repos []*graphql.Repository,
 				}
 
 				tasks = append(tasks, &Task{
-					Repository:            repo,
+					Repository:            repo.Clone(),
 					Path:                  d,
 					Steps:                 spec.Steps,
 					TransformChanges:      spec.TransformChanges,
@@ -292,7 +292,7 @@ func (svc *Service) BuildTasks(ctx context.Context, repos []*graphql.Repository,
 
 	for r := range rootWorkspace {
 		tasks = append(tasks, &Task{
-			Repository:            r,
+			Repository:            r.Clone(),
 			Path:                  "",
 			Steps:                 spec.Steps,
 			TransformChanges:      spec.TransformChanges,

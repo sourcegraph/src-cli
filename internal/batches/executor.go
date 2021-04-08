@@ -362,9 +362,15 @@ func (x *executor) do(ctx context.Context, task *Task) (err error) {
 		x.updateTaskStatus(task, func(status *TaskStatus) {
 			status.CurrentlyExecuting = "Resolving file matches..."
 		})
-		task.Repository.FileMatches, err = x.FetchFileMatches(task.Repository)
+		req, err := requiresSearchResultPaths(task)
 		if err != nil {
 			return err
+		}
+		if req {
+			task.Repository.FileMatches, err = x.FetchFileMatches(task.Repository)
+			if err != nil {
+				return err
+			}
 		}
 		x.updateTaskStatus(task, func(status *TaskStatus) {
 			status.CurrentlyExecuting = "Executing steps..."

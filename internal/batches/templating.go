@@ -6,9 +6,15 @@ import (
 	"io"
 	"strings"
 	"text/template"
+	"text/template/parse"
 
 	"github.com/pkg/errors"
 	"github.com/sourcegraph/src-cli/internal/batches/graphql"
+)
+
+const (
+	startDelim = "${{"
+	endDelim   = "}}"
 )
 
 func renderStepTemplate(name, tmpl string, out io.Writer, stepCtx *StepContext) error {
@@ -21,7 +27,74 @@ func renderStepTemplate(name, tmpl string, out io.Writer, stepCtx *StepContext) 
 }
 
 func parseAsTemplate(name, input string, stepCtx *StepContext) (*template.Template, error) {
-	return template.New(name).Delims("${{", "}}").Funcs(stepCtx.ToFuncMap()).Parse(input)
+	return template.New(name).Delims(startDelim, endDelim).Funcs(stepCtx.ToFuncMap()).Parse(input)
+}
+
+// usesTemplating compiles the template and checks if any delimiters for a template
+// expression are found.
+func usesTemplating(in string) (bool, error) {
+	temp, err := template.
+		New("check-use-templating").
+		Delims(startDelim, endDelim).
+		Funcs((&StepContext{}).ToFuncMap()).
+		Funcs((&ChangesetTemplateContext{}).ToFuncMap()).
+		Parse(in)
+	if err != nil {
+		return false, err
+	}
+	for _, n := range temp.Tree.Root.Nodes {
+		if n.Type() == parse.NodeAction {
+			if strings.Contains(n.String(), ".search_result_paths") {
+				return true, nil
+			}
+		}
+	}
+	return false, nil
+}
+
+func requiresSearchResultPaths(task *Task) (bool, error) {
+	// TODO: This should actually check if search_result_paths is used in the template.
+	for _, step := range task.Steps {
+		if v, err := usesTemplating(step.Run); v || err != nil {
+			return v, err
+		}
+		for _, v := range step.Files {
+			if v, err := usesTemplating(v); v || err != nil {
+				return v, err
+			}
+		}
+		for _, v := range step.Outputs {
+			if v, err := usesTemplating(v.Value); v || err != nil {
+				return v, err
+			}
+		}
+		jsonEnv, err := step.Env.MarshalJSON()
+		if err != nil {
+			return false, err
+		}
+		if v, err := usesTemplating(string(jsonEnv)); v || err != nil {
+			return v, err
+		}
+	}
+	if v, err := usesTemplating(task.Template.Title); v || err != nil {
+		return v, err
+	}
+	if v, err := usesTemplating(task.Template.Body); v || err != nil {
+		return v, err
+	}
+	if v, err := usesTemplating(task.Template.Branch); v || err != nil {
+		return v, err
+	}
+	if v, err := usesTemplating(task.Template.Commit.Message); v || err != nil {
+		return v, err
+	}
+	if v, err := usesTemplating(task.Template.Commit.Author.Name); v || err != nil {
+		return v, err
+	}
+	if v, err := usesTemplating(task.Template.Commit.Author.Email); v || err != nil {
+		return v, err
+	}
+	return false, nil
 }
 
 func renderStepMap(m map[string]string, stepCtx *StepContext) (map[string]string, error) {
@@ -257,7 +330,7 @@ func (tmplCtx *ChangesetTemplateContext) ToFuncMap() template.FuncMap {
 func renderChangesetTemplateField(name, tmpl string, tmplCtx *ChangesetTemplateContext) (string, error) {
 	var out bytes.Buffer
 
-	t, err := template.New(name).Delims("${{", "}}").Funcs(tmplCtx.ToFuncMap()).Parse(tmpl)
+	t, err := template.New(name).Delims(startDelim, endDelim).Funcs(tmplCtx.ToFuncMap()).Parse(tmpl)
 	if err != nil {
 		return "", err
 	}
