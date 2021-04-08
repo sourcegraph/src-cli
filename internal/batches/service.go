@@ -23,6 +23,7 @@ import (
 
 type Service struct {
 	allowUnsupported bool
+	allowIgnored     bool
 	client           api.Client
 	features         featureFlags
 	imageCache       *docker.ImageCache
@@ -31,6 +32,7 @@ type Service struct {
 
 type ServiceOpts struct {
 	AllowUnsupported bool
+	AllowIgnored     bool
 	Client           api.Client
 	Workspace        string
 }
@@ -42,6 +44,7 @@ var (
 func NewService(opts *ServiceOpts) *Service {
 	return &Service{
 		allowUnsupported: opts.AllowUnsupported,
+		allowIgnored:     opts.AllowIgnored,
 		client:           opts.Client,
 		imageCache:       docker.NewImageCache(),
 		workspace:        opts.Workspace,
@@ -529,12 +532,18 @@ func (svc *Service) ResolveNamespace(ctx context.Context, namespace string) (str
 func (svc *Service) ResolveRepositories(ctx context.Context, spec *BatchSpec) ([]*graphql.Repository, error) {
 	seen := map[string]*graphql.Repository{}
 	unsupported := UnsupportedRepoSet{}
+	ignored := IgnoredRepoSet{}
 
 	// TODO: this could be trivially parallelised in the future.
 	for _, on := range spec.On {
 		repos, err := svc.ResolveRepositoriesOn(ctx, &on)
 		if err != nil {
 			return nil, errors.Wrapf(err, "resolving %q", on.String())
+		}
+
+		repoBatchIgnores, err := svc.FindDirectoriesInRepos(ctx, ".batchignore", repos...)
+		if err != nil {
+			return nil, err
 		}
 
 		for _, repo := range repos {
@@ -552,6 +561,12 @@ func (svc *Service) ResolveRepositories(ctx context.Context, spec *BatchSpec) ([
 						unsupported.appendRepo(repo)
 					}
 				}
+
+				if locations, ok := repoBatchIgnores[repo]; ok && len(locations) > 0 {
+					if !svc.allowIgnored {
+						ignored.appendRepo(repo)
+					}
+				}
 			} else {
 				// If we've already seen this repository, we overwrite the
 				// Commit/Branch fields with the latest value we have
@@ -563,13 +578,17 @@ func (svc *Service) ResolveRepositories(ctx context.Context, spec *BatchSpec) ([
 
 	final := make([]*graphql.Repository, 0, len(seen))
 	for _, repo := range seen {
-		if !unsupported.includes(repo) {
+		if !unsupported.includes(repo) && !ignored.includes(repo) {
 			final = append(final, repo)
 		}
 	}
 
 	if unsupported.hasUnsupported() {
 		return final, unsupported
+	}
+
+	if ignored.hasIgnored() {
+		return final, ignored
 	}
 
 	return final, nil
@@ -679,10 +698,8 @@ func (svc *Service) resolveRepositorySearch(ctx context.Context, query string) (
 		}
 	}
 
-	q := setBatchignoreFilter(setDefaultQueryCount(query))
-
 	if ok, err := svc.client.NewRequest(repositorySearchQuery, map[string]interface{}{
-		"query":       q,
+		"query":       setDefaultQueryCount(query),
 		"queryCommit": false,
 		"rev":         "",
 	}).Do(ctx, &result); err != nil || !ok {
@@ -835,18 +852,6 @@ func setDefaultQueryCount(query string) string {
 	}
 
 	return query + hardCodedCount
-}
-
-const batchignoreFilter = " -repohasfile:^.batchignore$"
-
-func setBatchignoreFilter(query string) string {
-	// If the user already defined something related to .batchignore, we don't
-	// mess with the query
-	if strings.Contains(query, ".batchignore") {
-		return query
-	}
-
-	return query + batchignoreFilter
 }
 
 type searchResult struct {
