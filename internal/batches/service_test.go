@@ -13,6 +13,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/pkg/errors"
 	"github.com/sourcegraph/src-cli/internal/api"
 	"github.com/sourcegraph/src-cli/internal/batches/graphql"
 )
@@ -31,6 +32,40 @@ func TestSetDefaultQueryCount(t *testing.T) {
 			have := setDefaultQueryCount(in)
 			if have != want {
 				t.Errorf("unexpected query: have %q; want %q", have, want)
+			}
+		})
+	}
+}
+
+func TestSetSelectRepo(t *testing.T) {
+	for in, tc := range map[string]struct {
+		want string
+		err  error
+	}{
+		// Add select statement.
+		"": {want: hardCodedSelectRepo},
+		// Do nothing if select:repo exists.
+		"select:repo": {want: "select:repo"},
+		// Complain if select is not set to repo.
+		"select:file": {err: errors.New("repository search query may not include a `select` property other than `repo`")},
+		// Complain if there are multiple select properties.
+		"select:repo select:repo": {err: errors.New("repository search query may not include multiple `select` properties")},
+	} {
+		t.Run(in, func(t *testing.T) {
+			have, err := setSelectRepo(in)
+			wantErr := "err <nil>"
+			if tc.err != nil {
+				wantErr = tc.err.Error()
+			}
+			haveErr := "err <nil>"
+			if err != nil {
+				haveErr = err.Error()
+			}
+			if wantErr != haveErr {
+				t.Fatalf("invalid err want=%v have=%v", wantErr, haveErr)
+			}
+			if have != tc.want {
+				t.Errorf("unexpected query: have %q; want %q", have, tc.want)
 			}
 		})
 	}
