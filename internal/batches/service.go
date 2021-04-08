@@ -678,8 +678,11 @@ func (svc *Service) resolveRepositorySearch(ctx context.Context, query string) (
 			}
 		}
 	}
+
+	q := setBatchignoreFilter(setDefaultQueryCount(query))
+
 	if ok, err := svc.client.NewRequest(repositorySearchQuery, map[string]interface{}{
-		"query":       setDefaultQueryCount(query),
+		"query":       q,
 		"queryCommit": false,
 		"rev":         "",
 	}).Do(ctx, &result); err != nil || !ok {
@@ -832,6 +835,18 @@ func setDefaultQueryCount(query string) string {
 	}
 
 	return query + hardCodedCount
+}
+
+const batchignoreFilter = " -repohasfile:^.batchignore$"
+
+func setBatchignoreFilter(query string) string {
+	// If the user already defined something related to .batchignore, we don't
+	// mess with the query
+	if strings.Contains(query, ".batchignore") {
+		return query
+	}
+
+	return query + batchignoreFilter
 }
 
 type searchResult struct {
