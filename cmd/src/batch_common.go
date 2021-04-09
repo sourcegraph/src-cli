@@ -57,7 +57,7 @@ func newBatchApplyFlags(flagSet *flag.FlagSet, cacheDir, tempDir string) *batchA
 		"Allow unsupported code hosts.",
 	)
 	flagSet.BoolVar(
-		&caf.allowIgnored, "no-ignore", false,
+		&caf.allowIgnored, "force-override-ignore", false,
 		"Do not ignore repositories that have a .batchignore file.",
 	)
 	flagSet.BoolVar(
@@ -246,7 +246,7 @@ func batchExecute(ctx context.Context, out *output.Output, svc *batches.Service,
 		} else if repoSet, ok := err.(batches.IgnoredRepoSet); ok {
 			batchCompletePending(pending, "Resolved repositories")
 
-			block := out.Block(output.Line(" ", output.StyleWarning, "The repositories listed below contain .batchignore files and will be skipped. Use the -no-ignore flag to avoid skipping them."))
+			block := out.Block(output.Line(" ", output.StyleWarning, "The repositories listed below contain .batchignore files and will be skipped. Use the -force-override-ignore flag to avoid skipping them."))
 			for repo := range repoSet {
 				block.Write(repo.Name)
 			}
