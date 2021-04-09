@@ -246,7 +246,7 @@ func batchExecute(ctx context.Context, out *output.Output, svc *batches.Service,
 		} else if repoSet, ok := err.(batches.IgnoredRepoSet); ok {
 			batchCompletePending(pending, "Resolved repositories")
 
-			block := out.Block(output.Line(" ", output.StyleWarning, "Some repositories contain .batchignore files and will be skipped. Use the -no-ignore flag to avoid skipping them."))
+			block := out.Block(output.Line(" ", output.StyleWarning, "The repositories listed below contain .batchignore files and will be skipped. Use the -no-ignore flag to avoid skipping them."))
 			for repo := range repoSet {
 				block.Write(repo.Name)
 			}
