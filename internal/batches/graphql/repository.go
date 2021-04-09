@@ -42,8 +42,6 @@ type Repository struct {
 	URL                string
 	ExternalRepository struct{ ServiceType string }
 
-	BatchIgnoreLocations []string
-
 	DefaultBranch *Branch
 
 	Commit Target
@@ -52,10 +50,6 @@ type Repository struct {
 	Branch Branch
 
 	FileMatches map[string]bool
-}
-
-func (r *Repository) HasBatchIgnoreFile() bool {
-	return len(r.BatchIgnoreLocations) != 0
 }
 
 func (r *Repository) HasBranch() bool {

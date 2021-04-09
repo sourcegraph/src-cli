@@ -541,9 +541,12 @@ func (svc *Service) ResolveRepositories(ctx context.Context, spec *BatchSpec) ([
 			return nil, errors.Wrapf(err, "resolving %q", on.String())
 		}
 
-		repoBatchIgnores, err := svc.FindDirectoriesInRepos(ctx, ".batchignore", repos...)
-		if err != nil {
-			return nil, err
+		var repoBatchIgnores map[*graphql.Repository][]string
+		if !svc.allowIgnored {
+			repoBatchIgnores, err = svc.FindDirectoriesInRepos(ctx, ".batchignore", repos...)
+			if err != nil {
+				return nil, err
+			}
 		}
 
 		for _, repo := range repos {
@@ -562,8 +565,8 @@ func (svc *Service) ResolveRepositories(ctx context.Context, spec *BatchSpec) ([
 					}
 				}
 
-				if locations, ok := repoBatchIgnores[repo]; ok && len(locations) > 0 {
-					if !svc.allowIgnored {
+				if !svc.allowIgnored {
+					if locations, ok := repoBatchIgnores[repo]; ok && len(locations) > 0 {
 						ignored.appendRepo(repo)
 					}
 				}
@@ -748,7 +751,7 @@ type findDirectoriesResult map[string]struct {
 // files matching the given file name in the repository.
 // The locations are paths relative to the root of the directory.
 // No "/" at the beginning.
-// An empty path ("") represents the root directory.
+// A dot (".") represents the root directory.
 func (svc *Service) FindDirectoriesInRepos(ctx context.Context, fileName string, repos ...*graphql.Repository) (map[*graphql.Repository][]string, error) {
 	const batchSize = 50
 
