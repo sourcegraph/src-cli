@@ -70,6 +70,8 @@ type Task struct {
 	Steps   []batches.Step
 	Outputs map[string]interface{}
 
+	// TODO(mrnugget): this should just be a single BatchSpec field instead, if
+	// we can make it work with caching
 	BatchChangeAttributes *BatchChangeAttributes     `json:"-"`
 	Template              *batches.ChangesetTemplate `json:"-"`
 	TransformChanges      *batches.TransformChanges  `json:"-"`
@@ -161,31 +163,34 @@ func (ts *TaskStatus) FileDiffs() ([]*diff.FileDiff, bool, error) {
 	return ts.fileDiffs, len(ts.fileDiffs) != 0, ts.fileDiffsErr
 }
 
-type ExecutorOpts struct {
-	Cache       ExecutionCache
+type Opts struct {
+	CacheDir   string
+	ClearCache bool
+
 	Creator     batches.WorkspaceCreator
 	Parallelism int
 	Timeout     time.Duration
 
-	ClearCache bool
-	KeepLogs   bool
-	TempDir    string
+	KeepLogs bool
+	TempDir  string
 }
 
 type executor struct {
-	ExecutorOpts
+	cache      ExecutionCache
+	clearCache bool
 
-	cache    ExecutionCache
-	client   api.Client
 	features batches.FeatureFlags
-	logger   *batches.LogManager
-	creator  batches.WorkspaceCreator
+
+	client  api.Client
+	logger  *batches.LogManager
+	creator batches.WorkspaceCreator
 
 	tasks      []*Task
 	statuses   map[*Task]*TaskStatus
 	statusesMu sync.RWMutex
 
 	tempDir string
+	timeout time.Duration
 
 	par           *parallel.Run
 	doneEnqueuing chan struct{}
@@ -194,16 +199,22 @@ type executor struct {
 	specsMu sync.Mutex
 }
 
-func New(opts ExecutorOpts, client api.Client, features batches.FeatureFlags) *executor {
+// TODO(mrnugget): Why are client and features not part of Opts?
+func New(opts Opts, client api.Client, features batches.FeatureFlags) *executor {
 	return &executor{
-		ExecutorOpts:  opts,
-		cache:         opts.Cache,
-		creator:       opts.Creator,
-		client:        client,
-		features:      features,
+		cache:      NewCache(opts.CacheDir),
+		clearCache: opts.ClearCache,
+
+		logger:  batches.NewLogManager(opts.TempDir, opts.KeepLogs),
+		creator: opts.Creator,
+
+		client:   client,
+		features: features,
+
+		tempDir: opts.TempDir,
+		timeout: opts.Timeout,
+
 		doneEnqueuing: make(chan struct{}),
-		logger:        batches.NewLogManager(opts.TempDir, opts.KeepLogs),
-		tempDir:       opts.TempDir,
 		par:           parallel.NewRun(opts.Parallelism),
 		tasks:         []*Task{},
 		statuses:      map[*Task]*TaskStatus{},
@@ -289,7 +300,7 @@ func (x *executor) do(ctx context.Context, task *Task) (err error) {
 
 	// Check if the task is cached.
 	cacheKey := task.cacheKey()
-	if x.ClearCache {
+	if x.clearCache {
 		if err = x.cache.Clear(ctx, cacheKey); err != nil {
 			err = errors.Wrapf(err, "clearing cache for %q", task.Repository.Name)
 			return
@@ -360,7 +371,7 @@ func (x *executor) do(ctx context.Context, task *Task) (err error) {
 	}()
 
 	// Set up our timeout.
-	runCtx, cancel := context.WithTimeout(ctx, x.Timeout)
+	runCtx, cancel := context.WithTimeout(ctx, x.timeout)
 	defer cancel()
 
 	// Actually execute the steps.
@@ -382,7 +393,7 @@ func (x *executor) do(ctx context.Context, task *Task) (err error) {
 	result, err := runSteps(runCtx, opts)
 	if err != nil {
 		if reachedTimeout(runCtx, err) {
-			err = &errTimeoutReached{timeout: x.Timeout}
+			err = &errTimeoutReached{timeout: x.timeout}
 		}
 		return
 	}

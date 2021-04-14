@@ -152,11 +152,6 @@ func (svc *Service) CreateChangesetSpec(ctx context.Context, spec *batches.Chang
 }
 
 // TODO(mrnugget): This can be removed
-func (svc *Service) NewExecutionCache(dir string) executor.ExecutionCache {
-	return executor.NewCache(dir)
-}
-
-// TODO(mrnugget): This can be removed
 func (svc *Service) NewRepoFetcher(dir string, cleanArchives bool) batches.RepoFetcher {
 	return batches.NewRepoFetcher2(
 		svc.client,
@@ -297,7 +292,7 @@ func (svc *Service) BuildTasks(ctx context.Context, repos []*graphql.Repository,
 	return tasks, nil
 }
 
-func (svc *Service) ExecuteBatchSpec(ctx context.Context, opts executor.ExecutorOpts, tasks []*executor.Task, spec *batches.BatchSpec, progress func([]*executor.TaskStatus), skipErrors bool) ([]*batches.ChangesetSpec, []string, error) {
+func (svc *Service) ExecuteBatchSpec(ctx context.Context, opts executor.Opts, tasks []*executor.Task, spec *batches.BatchSpec, progress func([]*executor.TaskStatus), skipErrors bool) ([]*batches.ChangesetSpec, []string, error) {
 	x := executor.New(opts, svc.client, svc.features)
 	for _, t := range tasks {
 		x.AddTask(t)

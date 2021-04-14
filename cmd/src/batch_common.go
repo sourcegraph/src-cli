@@ -277,13 +277,12 @@ func batchExecute(ctx context.Context, out *output.Output, svc *service.Service,
 		task.Archive = fetcher.Checkout(task.Repository, task.ArchivePathToFetch())
 	}
 
-	opts := executor.ExecutorOpts{
-		Cache:       svc.NewExecutionCache(flags.cacheDir),
+	opts := executor.Opts{
+		TempDir:     flags.tempDir,
 		Creator:     workspaceCreator,
 		ClearCache:  flags.clearCache,
 		KeepLogs:    flags.keepLogs,
 		Timeout:     flags.timeout,
-		TempDir:     flags.tempDir,
 		Parallelism: flags.parallelism,
 	}
 

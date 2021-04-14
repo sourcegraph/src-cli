@@ -401,8 +401,7 @@ output4=integration-test-batch-change`,
 
 			cache := newInMemoryExecutionCache()
 			creator := &batches.DockerBindWorkspaceCreator{Dir: testTempDir}
-			opts := ExecutorOpts{
-				Cache:       cache,
+			opts := Opts{
 				Creator:     creator,
 				TempDir:     testTempDir,
 				Parallelism: runtime.GOMAXPROCS(0),
@@ -419,6 +418,7 @@ output4=integration-test-batch-change`,
 			// and non-cache code paths.
 			execute := func(t *testing.T) {
 				executor := New(opts, client, featuresAllEnabled())
+				executor.cache = cache
 
 				for i := range tc.steps {
 					tc.steps[i].SetImage(&mock.Image{
