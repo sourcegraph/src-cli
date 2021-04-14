@@ -412,7 +412,7 @@ output4=integration-test-batch-change`,
 				opts.Timeout = 30 * time.Second
 			}
 
-			repoFetcher := batches.NewRepoFetcher(client, testTempDir)
+			repoFetcher := batches.NewRepoFetcher(client, testTempDir, false)
 			// execute contains the actual logic running the tasks on an
 			// executor. We'll run this multiple times to cover both the cache
 			// and non-cache code paths.

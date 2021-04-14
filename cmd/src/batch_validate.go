@@ -41,7 +41,7 @@ Examples:
 		}
 		defer specFile.Close()
 
-		svc := service.NewService(&service.ServiceOpts{})
+		svc := service.New(&service.Opts{})
 
 		out := output.NewOutput(flagSet.Output(), output.OutputOpts{Verbose: *verbose})
 		if _, _, err := batchParseSpec(out, svc, specFile); err != nil {

@@ -48,7 +48,7 @@ Examples:
 		ctx := context.Background()
 		client := cfg.apiClient(apiFlags, flagSet.Output())
 
-		svc := service.NewService(&service.ServiceOpts{Client: client})
+		svc := service.New(&service.Opts{Client: client})
 
 		if err := svc.DetermineFeatureFlags(ctx); err != nil {
 			return err

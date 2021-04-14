@@ -67,7 +67,7 @@ Examples:
 		ctx, cancel := contextCancelOnInterrupt(context.Background())
 		defer cancel()
 
-		svc := service.NewService(&service.ServiceOpts{
+		svc := service.New(&service.Opts{
 			AllowUnsupported: flags.allowUnsupported,
 			AllowIgnored:     flags.allowIgnored,
 			Client:           cfg.apiClient(flags.api, flagSet.Output()),

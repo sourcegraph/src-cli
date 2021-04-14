@@ -32,7 +32,7 @@ type Service struct {
 	workspace        string
 }
 
-type ServiceOpts struct {
+type Opts struct {
 	AllowUnsupported bool
 	AllowIgnored     bool
 	Client           api.Client
@@ -43,7 +43,7 @@ var (
 	ErrMalformedOnQueryOrRepository = errors.New("malformed 'on' field; missing either a repository name or a query")
 )
 
-func NewService(opts *ServiceOpts) *Service {
+func New(opts *Opts) *Service {
 	return &Service{
 		allowUnsupported: opts.AllowUnsupported,
 		allowIgnored:     opts.AllowIgnored,
@@ -153,7 +153,7 @@ func (svc *Service) CreateChangesetSpec(ctx context.Context, spec *batches.Chang
 
 // TODO(mrnugget): This can be removed
 func (svc *Service) NewRepoFetcher(dir string, cleanArchives bool) batches.RepoFetcher {
-	return batches.NewRepoFetcher2(
+	return batches.NewRepoFetcher(
 		svc.client,
 		dir,
 		cleanArchives,
