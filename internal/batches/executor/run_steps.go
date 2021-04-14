@@ -18,6 +18,7 @@ import (
 	"github.com/sourcegraph/src-cli/internal/batches/git"
 	"github.com/sourcegraph/src-cli/internal/batches/graphql"
 	"github.com/sourcegraph/src-cli/internal/batches/log"
+	"github.com/sourcegraph/src-cli/internal/batches/workspace"
 
 	yamlv3 "gopkg.in/yaml.v3"
 )
@@ -41,7 +42,7 @@ type executionResult struct {
 type executionOpts struct {
 	archive batches.RepoZip
 
-	wc   batches.WorkspaceCreator
+	wc   workspace.Creator
 	path string
 
 	batchChangeAttributes *BatchChangeAttributes

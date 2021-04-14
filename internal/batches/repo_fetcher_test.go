@@ -305,3 +305,18 @@ func TestRepoFetcher_Fetch(t *testing.T) {
 }
 
 func sortStrings(a, b string) bool { return a < b }
+
+func dirContains(dir, filename string) (bool, error) {
+	files, err := ioutil.ReadDir(dir)
+	if err != nil {
+		return false, err
+	}
+
+	for _, f := range files {
+		if f.Name() == filename {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}

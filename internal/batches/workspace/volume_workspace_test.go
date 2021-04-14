@@ -1,4 +1,4 @@
-package batches
+package workspace
 
 import (
 	"bytes"
@@ -12,6 +12,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/pkg/errors"
 
+	"github.com/sourcegraph/src-cli/internal/batches"
 	"github.com/sourcegraph/src-cli/internal/batches/docker"
 	"github.com/sourcegraph/src-cli/internal/batches/git"
 	"github.com/sourcegraph/src-cli/internal/batches/graphql"
@@ -57,10 +58,16 @@ func TestVolumeWorkspaceCreator(t *testing.T) {
 		DefaultBranch: &graphql.Branch{Name: "main"},
 	}
 
+	stepWithImage := func(image docker.Image) batches.Step {
+		s := batches.Step{}
+		s.SetImage(image)
+		return s
+	}
+
 	for name, tc := range map[string]struct {
 		archive      *fakeRepoArchive
 		expectations []*expect.Expectation
-		steps        []Step
+		steps        []batches.Step
 		wantErr      bool
 	}{
 		"no steps": {
@@ -97,7 +104,7 @@ func TestVolumeWorkspaceCreator(t *testing.T) {
 					"sh", "/run.sh",
 				),
 			},
-			steps: []Step{},
+			steps: []batches.Step{},
 		},
 		"one root:root step": {
 			expectations: []*expect.Expectation{
@@ -133,8 +140,8 @@ func TestVolumeWorkspaceCreator(t *testing.T) {
 					"sh", "/run.sh",
 				),
 			},
-			steps: []Step{
-				{image: &mock.Image{UidGid: docker.Root}},
+			steps: []batches.Step{
+				stepWithImage(&mock.Image{UidGid: docker.Root}),
 			},
 		},
 		"one user:user step": {
@@ -171,8 +178,8 @@ func TestVolumeWorkspaceCreator(t *testing.T) {
 					"sh", "/run.sh",
 				),
 			},
-			steps: []Step{
-				{image: &mock.Image{UidGid: docker.UIDGID{UID: 1, GID: 2}}},
+			steps: []batches.Step{
+				stepWithImage(&mock.Image{UidGid: docker.UIDGID{UID: 1, GID: 2}}),
 			},
 		},
 		"docker volume create failure": {
@@ -182,8 +189,8 @@ func TestVolumeWorkspaceCreator(t *testing.T) {
 					"docker", "volume", "create",
 				),
 			},
-			steps: []Step{
-				{image: &mock.Image{UidGid: docker.Root}},
+			steps: []batches.Step{
+				stepWithImage(&mock.Image{UidGid: docker.Root}),
 			},
 			wantErr: true,
 		},
@@ -202,8 +209,8 @@ func TestVolumeWorkspaceCreator(t *testing.T) {
 					"sh", "-c", "touch /work/*; chown -R 0:0 /work",
 				),
 			},
-			steps: []Step{
-				{image: &mock.Image{UidGid: docker.Root}},
+			steps: []batches.Step{
+				stepWithImage(&mock.Image{UidGid: docker.Root}),
 			},
 			wantErr: true,
 		},
@@ -241,8 +248,8 @@ func TestVolumeWorkspaceCreator(t *testing.T) {
 					"sh", "/run.sh",
 				),
 			},
-			steps: []Step{
-				{image: &mock.Image{UidGid: docker.Root}},
+			steps: []batches.Step{
+				stepWithImage(&mock.Image{UidGid: docker.Root}),
 			},
 			wantErr: true,
 		},
@@ -271,8 +278,8 @@ func TestVolumeWorkspaceCreator(t *testing.T) {
 					"sh", "-c", "unzip /tmp/zip; rm /work/*",
 				),
 			},
-			steps: []Step{
-				{image: &mock.Image{UidGid: docker.Root}},
+			steps: []batches.Step{
+				stepWithImage(&mock.Image{UidGid: docker.Root}),
 			},
 			wantErr: true,
 		},
@@ -322,8 +329,8 @@ func TestVolumeWorkspaceCreator(t *testing.T) {
 					"sh", "/run.sh",
 				),
 			},
-			steps: []Step{
-				{image: &mock.Image{UidGid: docker.Root}},
+			steps: []batches.Step{
+				stepWithImage(&mock.Image{UidGid: docker.Root}),
 			},
 		},
 	} {

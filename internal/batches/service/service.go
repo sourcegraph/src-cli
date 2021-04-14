@@ -21,6 +21,7 @@ import (
 	"github.com/sourcegraph/src-cli/internal/batches/docker"
 	"github.com/sourcegraph/src-cli/internal/batches/executor"
 	"github.com/sourcegraph/src-cli/internal/batches/graphql"
+	"github.com/sourcegraph/src-cli/internal/batches/workspace"
 )
 
 type Service struct {
@@ -161,8 +162,8 @@ func (svc *Service) NewRepoFetcher(dir string, cleanArchives bool) batches.RepoF
 }
 
 // TODO(mrnugget): This can be removed
-func (svc *Service) NewWorkspaceCreator(ctx context.Context, cacheDir, tempDir string, steps []batches.Step) batches.WorkspaceCreator {
-	return batches.NewWorkspaceCreator(ctx, svc.workspace, cacheDir, tempDir, steps)
+func (svc *Service) NewWorkspaceCreator(ctx context.Context, cacheDir, tempDir string, steps []batches.Step) workspace.Creator {
+	return workspace.NewCreator(ctx, svc.workspace, cacheDir, tempDir, steps)
 }
 
 // SetDockerImages updates the steps within the batch spec to include the exact
@@ -190,8 +191,8 @@ func (svc *Service) SetDockerImages(ctx context.Context, spec *batches.BatchSpec
 
 	// TODO(mrnugget): figure out how to check for this, but load it always now
 	// if svc.workspaceCreatorType(ctx, spec.Steps) == workspaceCreatorVolume {
-	if err := svc.imageCache.Get(batches.DockerVolumeWorkspaceImage).Ensure(ctx); err != nil {
-		return errors.Wrapf(err, "pulling image %q", batches.DockerVolumeWorkspaceImage)
+	if err := svc.imageCache.Get(workspace.DockerVolumeWorkspaceImage).Ensure(ctx); err != nil {
+		return errors.Wrapf(err, "pulling image %q", workspace.DockerVolumeWorkspaceImage)
 	}
 	// }
 

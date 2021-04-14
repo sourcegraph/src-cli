@@ -15,6 +15,7 @@ import (
 	"github.com/sourcegraph/src-cli/internal/batches"
 	"github.com/sourcegraph/src-cli/internal/batches/graphql"
 	"github.com/sourcegraph/src-cli/internal/batches/log"
+	"github.com/sourcegraph/src-cli/internal/batches/workspace"
 )
 
 type TaskExecutionErr struct {
@@ -168,7 +169,7 @@ type Opts struct {
 	CacheDir   string
 	ClearCache bool
 
-	Creator     batches.WorkspaceCreator
+	Creator     workspace.Creator
 	Parallelism int
 	Timeout     time.Duration
 
@@ -184,7 +185,7 @@ type executor struct {
 
 	client  api.Client
 	logger  *log.Manager
-	creator batches.WorkspaceCreator
+	creator workspace.Creator
 
 	tasks      []*Task
 	statuses   map[*Task]*TaskStatus

@@ -1,4 +1,4 @@
-package batches
+package workspace
 
 import (
 	"archive/zip"
@@ -13,18 +13,18 @@ import (
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
+	"github.com/sourcegraph/src-cli/internal/batches"
 	"github.com/sourcegraph/src-cli/internal/batches/git"
 	"github.com/sourcegraph/src-cli/internal/batches/graphql"
 )
 
-// TODO(mrnugget): unexport this
-type DockerBindWorkspaceCreator struct {
+type dockerBindWorkspaceCreator struct {
 	Dir string
 }
 
-var _ WorkspaceCreator = &DockerBindWorkspaceCreator{}
+var _ Creator = &dockerBindWorkspaceCreator{}
 
-func (wc *DockerBindWorkspaceCreator) Create(ctx context.Context, repo *graphql.Repository, steps []Step, archive RepoZip) (Workspace, error) {
+func (wc *dockerBindWorkspaceCreator) Create(ctx context.Context, repo *graphql.Repository, steps []batches.Step, archive batches.RepoZip) (Workspace, error) {
 	w, err := wc.unzipToWorkspace(ctx, repo, archive.Path())
 	if err != nil {
 		return nil, errors.Wrap(err, "unzipping the repository")
@@ -37,7 +37,7 @@ func (wc *DockerBindWorkspaceCreator) Create(ctx context.Context, repo *graphql.
 	return w, errors.Wrap(wc.prepareGitRepo(ctx, w), "preparing local git repo")
 }
 
-func (*DockerBindWorkspaceCreator) prepareGitRepo(ctx context.Context, w *dockerBindWorkspace) error {
+func (*dockerBindWorkspaceCreator) prepareGitRepo(ctx context.Context, w *dockerBindWorkspace) error {
 	if _, err := runGitCmd(ctx, w.dir, "init"); err != nil {
 		return errors.Wrap(err, "git init failed")
 	}
@@ -53,7 +53,7 @@ func (*DockerBindWorkspaceCreator) prepareGitRepo(ctx context.Context, w *docker
 	return nil
 }
 
-func (wc *DockerBindWorkspaceCreator) unzipToWorkspace(ctx context.Context, repo *graphql.Repository, zip string) (*dockerBindWorkspace, error) {
+func (wc *dockerBindWorkspaceCreator) unzipToWorkspace(ctx context.Context, repo *graphql.Repository, zip string) (*dockerBindWorkspace, error) {
 	prefix := "workspace-" + repo.Slug()
 	workspace, err := unzipToTempDir(ctx, zip, wc.Dir, prefix)
 	if err != nil {
@@ -63,7 +63,7 @@ func (wc *DockerBindWorkspaceCreator) unzipToWorkspace(ctx context.Context, repo
 	return &dockerBindWorkspace{dir: workspace}, nil
 }
 
-func (wc *DockerBindWorkspaceCreator) copyToWorkspace(ctx context.Context, w *dockerBindWorkspace, files map[string]string) error {
+func (wc *dockerBindWorkspaceCreator) copyToWorkspace(ctx context.Context, w *dockerBindWorkspace, files map[string]string) error {
 	for name, src := range files {
 		srcStat, err := os.Stat(src)
 		if err != nil {

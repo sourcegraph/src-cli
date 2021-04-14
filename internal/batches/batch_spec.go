@@ -101,6 +101,7 @@ func (s *Step) SetImage(image docker.Image) {
 	s.image = image
 }
 
+// TODO(mrnugget): All of these wrappers are not good
 func (s Step) ImageDigest(ctx context.Context) (string, error) {
 	return s.image.Digest(ctx)
 }
@@ -111,6 +112,10 @@ func (s Step) DockerImage() docker.Image {
 
 func (s Step) EnsureImage(ctx context.Context) error {
 	return s.image.Ensure(ctx)
+}
+
+func (s Step) ImageUIDGID(ctx context.Context) (docker.UIDGID, error) {
+	return s.image.UIDGID(ctx)
 }
 
 type Outputs map[string]Output

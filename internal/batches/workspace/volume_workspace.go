@@ -1,4 +1,4 @@
-package batches
+package workspace
 
 import (
 	"bytes"
@@ -13,6 +13,7 @@ import (
 
 	"github.com/pkg/errors"
 
+	"github.com/sourcegraph/src-cli/internal/batches"
 	"github.com/sourcegraph/src-cli/internal/batches/docker"
 	"github.com/sourcegraph/src-cli/internal/batches/git"
 	"github.com/sourcegraph/src-cli/internal/batches/graphql"
@@ -22,9 +23,9 @@ import (
 
 type dockerVolumeWorkspaceCreator struct{ tempDir string }
 
-var _ WorkspaceCreator = &dockerVolumeWorkspaceCreator{}
+var _ Creator = &dockerVolumeWorkspaceCreator{}
 
-func (wc *dockerVolumeWorkspaceCreator) Create(ctx context.Context, repo *graphql.Repository, steps []Step, archive RepoZip) (Workspace, error) {
+func (wc *dockerVolumeWorkspaceCreator) Create(ctx context.Context, repo *graphql.Repository, steps []batches.Step, archive batches.RepoZip) (Workspace, error) {
 	volume, err := wc.createVolume(ctx)
 	if err != nil {
 		return nil, errors.Wrap(err, "creating Docker volume")
@@ -34,7 +35,7 @@ func (wc *dockerVolumeWorkspaceCreator) Create(ctx context.Context, repo *graphq
 	ug := docker.UIDGID{}
 	if len(steps) > 0 {
 		var err error
-		if ug, err = steps[0].image.UIDGID(ctx); err != nil {
+		if ug, err = steps[0].ImageUIDGID(ctx); err != nil {
 			return nil, errors.Wrap(err, "getting container UID and GID")
 		}
 	}

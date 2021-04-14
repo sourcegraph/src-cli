@@ -24,6 +24,7 @@ import (
 	"github.com/sourcegraph/src-cli/internal/batches/git"
 	"github.com/sourcegraph/src-cli/internal/batches/graphql"
 	"github.com/sourcegraph/src-cli/internal/batches/mock"
+	"github.com/sourcegraph/src-cli/internal/batches/workspace"
 )
 
 func TestExecutor_Integration(t *testing.T) {
@@ -400,7 +401,7 @@ output4=integration-test-batch-change`,
 			defer os.Remove(testTempDir)
 
 			cache := newInMemoryExecutionCache()
-			creator := &batches.DockerBindWorkspaceCreator{Dir: testTempDir}
+			creator := workspace.NewCreator(context.Background(), "bind", testTempDir, testTempDir, []batches.Step{})
 			opts := Opts{
 				Creator:     creator,
 				TempDir:     testTempDir,
