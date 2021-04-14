@@ -26,6 +26,16 @@ type RepoFetcher interface {
 	Checkout(repo *graphql.Repository, path string) RepoZip
 }
 
+// TODO(mrnugget): just added this for executor tests
+func NewRepoFetcher(client api.Client, dir string) RepoFetcher {
+	return &repoFetcher{client: client, dir: dir}
+}
+
+// TODO(mrnugget): just added this for executor tests
+func NewRepoFetcher2(client api.Client, dir string, deleteZips bool) RepoFetcher {
+	return &repoFetcher{client: client, dir: dir, deleteZips: deleteZips}
+}
+
 // repoFetcher is the concrete implementation of the RepoFetcher interface used
 // outside of tests.
 type repoFetcher struct {

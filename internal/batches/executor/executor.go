@@ -1,4 +1,4 @@
-package batches
+package executor
 
 import (
 	"context"
@@ -12,6 +12,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/sourcegraph/go-diff/diff"
 	"github.com/sourcegraph/src-cli/internal/api"
+	"github.com/sourcegraph/src-cli/internal/batches"
 	"github.com/sourcegraph/src-cli/internal/batches/graphql"
 )
 
@@ -45,7 +46,7 @@ type Executor interface {
 	AddTask(*Task)
 	LogFiles() []string
 	Start(ctx context.Context)
-	Wait(ctx context.Context) ([]*ChangesetSpec, error)
+	Wait(ctx context.Context) ([]*batches.ChangesetSpec, error)
 
 	// LockedTaskStatuses calls the given function with the current state of
 	// the task statuses. Before calling the function, the statuses are locked
@@ -66,14 +67,14 @@ type Task struct {
 	// If Path is "" then this setting has no effect.
 	OnlyFetchWorkspace bool
 
-	Steps   []Step
+	Steps   []batches.Step
 	Outputs map[string]interface{}
 
-	BatchChangeAttributes *BatchChangeAttributes `json:"-"`
-	Template              *ChangesetTemplate     `json:"-"`
-	TransformChanges      *TransformChanges      `json:"-"`
+	BatchChangeAttributes *BatchChangeAttributes     `json:"-"`
+	Template              *batches.ChangesetTemplate `json:"-"`
+	TransformChanges      *batches.TransformChanges  `json:"-"`
 
-	Archive RepoZip `json:"-"`
+	Archive batches.RepoZip `json:"-"`
 }
 
 func (t *Task) ArchivePathToFetch() string {
@@ -104,7 +105,7 @@ type TaskStatus struct {
 	// ChangesetSpecs are the specs produced by executing the Task in a
 	// repository. With the introduction of `transformChanges` to the batch
 	// spec, one Task can produce multiple ChangesetSpecs.
-	ChangesetSpecs []*ChangesetSpec
+	ChangesetSpecs []*batches.ChangesetSpec
 	// Err is set if executing the Task lead to an error.
 	Err error
 
@@ -162,7 +163,7 @@ func (ts *TaskStatus) FileDiffs() ([]*diff.FileDiff, bool, error) {
 
 type ExecutorOpts struct {
 	Cache       ExecutionCache
-	Creator     WorkspaceCreator
+	Creator     batches.WorkspaceCreator
 	Parallelism int
 	Timeout     time.Duration
 
@@ -176,9 +177,9 @@ type executor struct {
 
 	cache    ExecutionCache
 	client   api.Client
-	features featureFlags
-	logger   *LogManager
-	creator  WorkspaceCreator
+	features batches.FeatureFlags
+	logger   *batches.LogManager
+	creator  batches.WorkspaceCreator
 
 	tasks      []*Task
 	statuses   map[*Task]*TaskStatus
@@ -189,11 +190,11 @@ type executor struct {
 	par           *parallel.Run
 	doneEnqueuing chan struct{}
 
-	specs   []*ChangesetSpec
+	specs   []*batches.ChangesetSpec
 	specsMu sync.Mutex
 }
 
-func newExecutor(opts ExecutorOpts, client api.Client, features featureFlags) *executor {
+func New(opts ExecutorOpts, client api.Client, features batches.FeatureFlags) *executor {
 	return &executor{
 		ExecutorOpts:  opts,
 		cache:         opts.Cache,
@@ -201,7 +202,7 @@ func newExecutor(opts ExecutorOpts, client api.Client, features featureFlags) *e
 		client:        client,
 		features:      features,
 		doneEnqueuing: make(chan struct{}),
-		logger:        NewLogManager(opts.TempDir, opts.KeepLogs),
+		logger:        batches.NewLogManager(opts.TempDir, opts.KeepLogs),
 		tempDir:       opts.TempDir,
 		par:           parallel.NewRun(opts.Parallelism),
 		tasks:         []*Task{},
@@ -249,7 +250,7 @@ func (x *executor) Start(ctx context.Context) {
 	}
 }
 
-func (x *executor) Wait(ctx context.Context) ([]*ChangesetSpec, error) {
+func (x *executor) Wait(ctx context.Context) ([]*batches.ChangesetSpec, error) {
 	<-x.doneEnqueuing
 
 	result := make(chan error, 1)
@@ -318,7 +319,7 @@ func (x *executor) do(ctx context.Context, task *Task) (err error) {
 				return
 			}
 
-			var specs []*ChangesetSpec
+			var specs []*batches.ChangesetSpec
 			specs, err = createChangesetSpecs(task, result, x.features)
 			if err != nil {
 				return err
@@ -341,7 +342,7 @@ func (x *executor) do(ctx context.Context, task *Task) (err error) {
 
 	// It isn't, so let's get ready to run the task. First, let's set up our
 	// logging.
-	log, err := x.logger.AddTask(task)
+	log, err := x.logger.AddTask(task.Repository.SlugForPath(task.Path))
 	if err != nil {
 		err = errors.Wrap(err, "creating log file")
 		return
@@ -425,7 +426,7 @@ func (x *executor) updateTaskStatus(task *Task, update func(status *TaskStatus))
 	}
 }
 
-func (x *executor) addCompletedSpecs(repository *graphql.Repository, specs []*ChangesetSpec) error {
+func (x *executor) addCompletedSpecs(repository *graphql.Repository, specs []*batches.ChangesetSpec) error {
 	x.specsMu.Lock()
 	defer x.specsMu.Unlock()
 
@@ -461,7 +462,7 @@ func reachedTimeout(cmdCtx context.Context, err error) bool {
 	return errors.Is(errors.Cause(err), context.DeadlineExceeded)
 }
 
-func createChangesetSpecs(task *Task, result executionResult, features featureFlags) ([]*ChangesetSpec, error) {
+func createChangesetSpecs(task *Task, result executionResult, features batches.FeatureFlags) ([]*batches.ChangesetSpec, error) {
 	repo := task.Repository.Name
 
 	tmplCtx := &ChangesetTemplateContext{
@@ -478,7 +479,7 @@ func createChangesetSpecs(task *Task, result executionResult, features featureFl
 	var authorEmail string
 
 	if task.Template.Commit.Author == nil {
-		if features.includeAutoAuthorDetails {
+		if features.IncludeAutoAuthorDetails {
 			// user did not provide author info, so use defaults
 			authorName = "Sourcegraph"
 			authorEmail = "batch-changes@sourcegraph.com"
@@ -518,17 +519,17 @@ func createChangesetSpecs(task *Task, result executionResult, features featureFl
 		return nil, err
 	}
 
-	newSpec := func(branch, diff string) *ChangesetSpec {
-		return &ChangesetSpec{
+	newSpec := func(branch, diff string) *batches.ChangesetSpec {
+		return &batches.ChangesetSpec{
 			BaseRepository: task.Repository.ID,
-			CreatedChangeset: &CreatedChangeset{
+			CreatedChangeset: &batches.CreatedChangeset{
 				BaseRef:        task.Repository.BaseRef(),
 				BaseRev:        task.Repository.Rev(),
 				HeadRepository: task.Repository.ID,
 				HeadRef:        "refs/heads/" + branch,
 				Title:          title,
 				Body:           body,
-				Commits: []GitCommitDescription{
+				Commits: []batches.GitCommitDescription{
 					{
 						Message:     message,
 						AuthorName:  authorName,
@@ -541,7 +542,7 @@ func createChangesetSpecs(task *Task, result executionResult, features featureFl
 		}
 	}
 
-	var specs []*ChangesetSpec
+	var specs []*batches.ChangesetSpec
 
 	groups := groupsForRepository(task.Repository.Name, task.TransformChanges)
 	if len(groups) != 0 {
@@ -566,8 +567,8 @@ func createChangesetSpecs(task *Task, result executionResult, features featureFl
 	return specs, nil
 }
 
-func groupsForRepository(repo string, transform *TransformChanges) []Group {
-	var groups []Group
+func groupsForRepository(repo string, transform *batches.TransformChanges) []batches.Group {
+	var groups []batches.Group
 
 	if transform == nil {
 		return groups
@@ -586,7 +587,7 @@ func groupsForRepository(repo string, transform *TransformChanges) []Group {
 	return groups
 }
 
-func validateGroups(repo, defaultBranch string, groups []Group) error {
+func validateGroups(repo, defaultBranch string, groups []batches.Group) error {
 	uniqueBranches := make(map[string]struct{}, len(groups))
 
 	for _, g := range groups {
@@ -604,7 +605,7 @@ func validateGroups(repo, defaultBranch string, groups []Group) error {
 	return nil
 }
 
-func groupFileDiffs(completeDiff, defaultBranch string, groups []Group) (map[string]string, error) {
+func groupFileDiffs(completeDiff, defaultBranch string, groups []batches.Group) (map[string]string, error) {
 	fileDiffs, err := diff.ParseMultiFileDiff([]byte(completeDiff))
 	if err != nil {
 		return nil, err

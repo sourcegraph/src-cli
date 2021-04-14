@@ -1,4 +1,4 @@
-package batches
+package executor
 
 import (
 	"bytes"
@@ -14,6 +14,8 @@ import (
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
+	"github.com/sourcegraph/src-cli/internal/batches"
+	"github.com/sourcegraph/src-cli/internal/batches/git"
 	"github.com/sourcegraph/src-cli/internal/batches/graphql"
 
 	yamlv3 "gopkg.in/yaml.v3"
@@ -24,7 +26,7 @@ type executionResult struct {
 	Diff string `json:"diff"`
 
 	// ChangedFiles are files that have been changed by all steps.
-	ChangedFiles *StepChanges `json:"changedFiles"`
+	ChangedFiles *git.Changes `json:"changedFiles"`
 
 	// Outputs are the outputs produced by all steps.
 	Outputs map[string]interface{} `json:"outputs"`
@@ -36,18 +38,18 @@ type executionResult struct {
 }
 
 type executionOpts struct {
-	archive RepoZip
+	archive batches.RepoZip
 
-	wc   WorkspaceCreator
+	wc   batches.WorkspaceCreator
 	path string
 
 	batchChangeAttributes *BatchChangeAttributes
 	repo                  *graphql.Repository
-	steps                 []Step
+	steps                 []batches.Step
 
 	tempDir string
 
-	logger         *TaskLogger
+	logger         *batches.TaskLogger
 	reportProgress func(string)
 }
 
@@ -109,15 +111,15 @@ func runSteps(ctx context.Context, opts *executionOpts) (result executionResult,
 		}()
 
 		// We need to grab the digest for the exact image we're using.
-		digest, err := step.image.Digest(ctx)
+		digest, err := step.ImageDigest(ctx)
 		if err != nil {
-			return execResult, errors.Wrapf(err, "getting digest for %v", step.image)
+			return execResult, errors.Wrapf(err, "getting digest for %v", step.DockerImage())
 		}
 
 		// For now, we only support shell scripts provided via the Run field.
 		shell, containerTemp, err := probeImageForShell(ctx, digest)
 		if err != nil {
-			return execResult, errors.Wrapf(err, "probing image %q for shell", step.image)
+			return execResult, errors.Wrapf(err, "probing image %q for shell", step.DockerImage())
 		}
 
 		// Set up a temporary file on the host filesystem to contain the
@@ -284,7 +286,7 @@ func runSteps(ctx context.Context, opts *executionOpts) (result executionResult,
 	return execResult, err
 }
 
-func setOutputs(stepOutputs Outputs, global map[string]interface{}, stepCtx *StepContext) error {
+func setOutputs(stepOutputs batches.Outputs, global map[string]interface{}, stepCtx *StepContext) error {
 	for name, output := range stepOutputs {
 		var value bytes.Buffer
 

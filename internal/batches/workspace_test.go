@@ -7,6 +7,7 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/sourcegraph/src-cli/internal/batches/docker"
+	"github.com/sourcegraph/src-cli/internal/batches/mock"
 	"github.com/sourcegraph/src-cli/internal/exec/expect"
 )
 
@@ -24,41 +25,41 @@ func TestBestWorkspaceCreator(t *testing.T) {
 	}
 	for name, tc := range map[string]struct {
 		images []docker.Image
-		want   workspaceCreatorType
+		want   WorkspaceCreatorType
 	}{
 		"nil steps": {
 			images: nil,
-			want:   workspaceCreatorVolume,
+			want:   WorkspaceCreatorVolume,
 		},
 		"no steps": {
 			images: []docker.Image{},
-			want:   workspaceCreatorVolume,
+			want:   WorkspaceCreatorVolume,
 		},
 		"root": {
 			images: []docker.Image{
-				&mockImage{uidGid: uidGid(0, 0)},
+				&mock.Image{UidGid: uidGid(0, 0)},
 			},
-			want: workspaceCreatorVolume,
+			want: WorkspaceCreatorVolume,
 		},
 		"same user": {
 			images: []docker.Image{
-				&mockImage{uidGid: uidGid(1000, 1000)},
-				&mockImage{uidGid: uidGid(1000, 1000)},
+				&mock.Image{UidGid: uidGid(1000, 1000)},
+				&mock.Image{UidGid: uidGid(1000, 1000)},
 			},
-			want: workspaceCreatorVolume,
+			want: WorkspaceCreatorVolume,
 		},
 		"different user": {
 			images: []docker.Image{
-				&mockImage{uidGid: uidGid(1000, 1000)},
-				&mockImage{uidGid: uidGid(0, 0)},
+				&mock.Image{UidGid: uidGid(1000, 1000)},
+				&mock.Image{UidGid: uidGid(0, 0)},
 			},
-			want: workspaceCreatorBind,
+			want: WorkspaceCreatorBind,
 		},
 		"id error": {
 			images: []docker.Image{
-				&mockImage{uidGidErr: errors.New("foo")},
+				&mock.Image{UidGidErr: errors.New("foo")},
 			},
-			want: workspaceCreatorBind,
+			want: WorkspaceCreatorBind,
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -73,11 +74,11 @@ func TestBestWorkspaceCreator(t *testing.T) {
 			if isOverridden {
 				// This is an overridden platform, so the workspace type will
 				// always be bind from bestWorkspaceCreator().
-				if have, want := bestWorkspaceCreator(ctx, steps), workspaceCreatorBind; have != want {
+				if have, want := BestWorkspaceCreator(ctx, steps), WorkspaceCreatorBind; have != want {
 					t.Errorf("unexpected creator type on overridden platform: have=%d want=%d", have, want)
 				}
 			} else {
-				if have := bestWorkspaceCreator(ctx, steps); have != tc.want {
+				if have := BestWorkspaceCreator(ctx, steps); have != tc.want {
 					t.Errorf("unexpected creator type on non-overridden platform: have=%d want=%d", have, tc.want)
 				}
 			}

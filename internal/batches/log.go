@@ -24,13 +24,13 @@ func NewLogManager(dir string, keepLogs bool) *LogManager {
 	return &LogManager{dir: dir, keepLogs: keepLogs}
 }
 
-func (lm *LogManager) AddTask(task *Task) (*TaskLogger, error) {
-	tl, err := newTaskLogger(task, lm.keepLogs, lm.dir)
+func (lm *LogManager) AddTask(slug string) (*TaskLogger, error) {
+	tl, err := newTaskLogger(slug, lm.keepLogs, lm.dir)
 	if err != nil {
 		return nil, err
 	}
 
-	lm.tasks.Store(task, tl)
+	lm.tasks.Store(slug, tl)
 	return tl, nil
 }
 
@@ -68,8 +68,8 @@ type TaskLogger struct {
 	keep    bool
 }
 
-func newTaskLogger(task *Task, keep bool, dir string) (*TaskLogger, error) {
-	prefix := "changeset-" + task.Repository.Slug()
+func newTaskLogger(slug string, keep bool, dir string) (*TaskLogger, error) {
+	prefix := "changeset-" + slug
 
 	f, err := ioutil.TempFile(dir, prefix+".*.log")
 	if err != nil {

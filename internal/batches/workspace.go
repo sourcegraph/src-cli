@@ -4,6 +4,7 @@ import (
 	"context"
 	"runtime"
 
+	"github.com/sourcegraph/src-cli/internal/batches/git"
 	"github.com/sourcegraph/src-cli/internal/batches/graphql"
 )
 
@@ -35,23 +36,39 @@ type Workspace interface {
 
 	// Changes is called after each step is executed, and should return the
 	// cumulative file changes that have occurred since Prepare was called.
-	Changes(ctx context.Context) (*StepChanges, error)
+	Changes(ctx context.Context) (*git.Changes, error)
 
 	// Diff should return the total diff for the workspace. This may be called
 	// multiple times in the life of a workspace.
 	Diff(ctx context.Context) ([]byte, error)
 }
 
-type workspaceCreatorType int
+type WorkspaceCreatorType int
 
 const (
-	workspaceCreatorBind workspaceCreatorType = iota
-	workspaceCreatorVolume
+	WorkspaceCreatorBind WorkspaceCreatorType = iota
+	WorkspaceCreatorVolume
 )
 
-// bestWorkspaceCreator determines the correct workspace creator to use based on
+func NewWorkspaceCreator(ctx context.Context, preference, cacheDir, tempDir string, steps []Step) WorkspaceCreator {
+	var workspaceType WorkspaceCreatorType
+	if preference == "volume" {
+		workspaceType = WorkspaceCreatorVolume
+	} else if preference == "bind" {
+		workspaceType = WorkspaceCreatorBind
+	} else {
+		workspaceType = BestWorkspaceCreator(ctx, steps)
+	}
+
+	if workspaceType == WorkspaceCreatorVolume {
+		return &dockerVolumeWorkspaceCreator{tempDir: tempDir}
+	}
+	return &DockerBindWorkspaceCreator{Dir: cacheDir}
+}
+
+// BestWorkspaceCreator determines the correct workspace creator to use based on
 // the environment and batch change to be executed.
-func bestWorkspaceCreator(ctx context.Context, steps []Step) workspaceCreatorType {
+func BestWorkspaceCreator(ctx context.Context, steps []Step) WorkspaceCreatorType {
 	// The basic theory here is that we have two options: bind and volume. Bind
 	// is battle tested and always safe, but can be slow on non-Linux platforms
 	// because bind mounts are slow. Volume is faster on those platforms, but
@@ -63,13 +80,13 @@ func bestWorkspaceCreator(ctx context.Context, steps []Step) workspaceCreatorTyp
 	// For the time being, we're only going to consider volume mode on Intel
 	// macOS.
 	if runtime.GOOS != "darwin" || runtime.GOARCH != "amd64" {
-		return workspaceCreatorBind
+		return WorkspaceCreatorBind
 	}
 
 	return detectBestWorkspaceCreator(ctx, steps)
 }
 
-func detectBestWorkspaceCreator(ctx context.Context, steps []Step) workspaceCreatorType {
+func detectBestWorkspaceCreator(ctx context.Context, steps []Step) WorkspaceCreatorType {
 	// OK, so we're interested in volume mode, but we need to take its
 	// shortcomings around mixed user environments into account.
 	//
@@ -94,15 +111,15 @@ func detectBestWorkspaceCreator(ctx context.Context, steps []Step) workspaceCrea
 			// An error here likely indicates that `id` isn't available on the
 			// path. That's OK: let's not make any assumptions at this point
 			// about the image, and we'll default to the always safe option.
-			return workspaceCreatorBind
+			return WorkspaceCreatorBind
 		}
 
 		if uid == nil {
 			uid = &ug.UID
 		} else if *uid != ug.UID {
-			return workspaceCreatorBind
+			return WorkspaceCreatorBind
 		}
 	}
 
-	return workspaceCreatorVolume
+	return WorkspaceCreatorVolume
 }
