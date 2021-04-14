@@ -1,4 +1,4 @@
-package batches
+package log
 
 import (
 	"bytes"
@@ -6,60 +6,10 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
-	"sync"
 	"time"
 
-	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
 )
-
-type LogManager struct {
-	dir      string
-	keepLogs bool
-
-	tasks sync.Map
-}
-
-func NewLogManager(dir string, keepLogs bool) *LogManager {
-	return &LogManager{dir: dir, keepLogs: keepLogs}
-}
-
-func (lm *LogManager) AddTask(slug string) (*TaskLogger, error) {
-	tl, err := newTaskLogger(slug, lm.keepLogs, lm.dir)
-	if err != nil {
-		return nil, err
-	}
-
-	lm.tasks.Store(slug, tl)
-	return tl, nil
-}
-
-func (lm *LogManager) Close() error {
-	var errs *multierror.Error
-
-	lm.tasks.Range(func(_, v interface{}) bool {
-		logger := v.(*TaskLogger)
-
-		if err := logger.Close(); err != nil {
-			errs = multierror.Append(errs, err)
-		}
-
-		return true
-	})
-
-	return errs
-}
-
-func (lm *LogManager) LogFiles() []string {
-	var files []string
-
-	lm.tasks.Range(func(_, v interface{}) bool {
-		files = append(files, v.(*TaskLogger).Path())
-		return true
-	})
-
-	return files
-}
 
 type TaskLogger struct {
 	f *os.File

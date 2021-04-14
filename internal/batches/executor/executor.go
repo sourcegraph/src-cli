@@ -14,6 +14,7 @@ import (
 	"github.com/sourcegraph/src-cli/internal/api"
 	"github.com/sourcegraph/src-cli/internal/batches"
 	"github.com/sourcegraph/src-cli/internal/batches/graphql"
+	"github.com/sourcegraph/src-cli/internal/batches/log"
 )
 
 type TaskExecutionErr struct {
@@ -182,7 +183,7 @@ type executor struct {
 	features batches.FeatureFlags
 
 	client  api.Client
-	logger  *batches.LogManager
+	logger  *log.Manager
 	creator batches.WorkspaceCreator
 
 	tasks      []*Task
@@ -205,7 +206,7 @@ func New(opts Opts, client api.Client, features batches.FeatureFlags) *executor 
 		cache:      NewCache(opts.CacheDir),
 		clearCache: opts.ClearCache,
 
-		logger:  batches.NewLogManager(opts.TempDir, opts.KeepLogs),
+		logger:  log.NewManager(opts.TempDir, opts.KeepLogs),
 		creator: opts.Creator,
 
 		client:   client,

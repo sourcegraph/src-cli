@@ -17,6 +17,7 @@ import (
 	"github.com/sourcegraph/src-cli/internal/batches"
 	"github.com/sourcegraph/src-cli/internal/batches/git"
 	"github.com/sourcegraph/src-cli/internal/batches/graphql"
+	"github.com/sourcegraph/src-cli/internal/batches/log"
 
 	yamlv3 "gopkg.in/yaml.v3"
 )
@@ -49,7 +50,7 @@ type executionOpts struct {
 
 	tempDir string
 
-	logger         *batches.TaskLogger
+	logger         *log.TaskLogger
 	reportProgress func(string)
 }
 
