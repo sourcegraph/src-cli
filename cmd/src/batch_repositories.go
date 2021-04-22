@@ -6,10 +6,10 @@ import (
 	"fmt"
 
 	"github.com/pkg/errors"
+	"github.com/sourcegraph/batch-change-utils/output"
 	"github.com/sourcegraph/src-cli/internal/api"
 	"github.com/sourcegraph/src-cli/internal/batches/graphql"
 	"github.com/sourcegraph/src-cli/internal/batches/service"
-	"github.com/sourcegraph/src-cli/internal/output"
 )
 
 func init() {

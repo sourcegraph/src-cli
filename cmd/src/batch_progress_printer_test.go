@@ -7,9 +7,9 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/sourcegraph/batch-change-utils/output"
 	"github.com/sourcegraph/src-cli/internal/batches"
 	"github.com/sourcegraph/src-cli/internal/batches/executor"
-	"github.com/sourcegraph/src-cli/internal/output"
 )
 
 const progressPrinterDiff = `diff --git README.md README.md

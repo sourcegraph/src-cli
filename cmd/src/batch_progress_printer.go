@@ -5,9 +5,9 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/sourcegraph/batch-change-utils/output"
 	"github.com/sourcegraph/go-diff/diff"
 	"github.com/sourcegraph/src-cli/internal/batches/executor"
-	"github.com/sourcegraph/src-cli/internal/output"
 	"golang.org/x/sync/semaphore"
 )
 
