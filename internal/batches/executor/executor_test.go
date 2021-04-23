@@ -440,7 +440,6 @@ output4=integration-test-batch-change`,
 					}
 
 					task.Steps = tc.steps
-					// task.Archive = repoFetcher.Checkout(task.Repository, task.Path)
 					executor.AddTask(task)
 				}
 
