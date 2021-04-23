@@ -197,9 +197,9 @@ type executeBatchSpecOpts struct {
 	client api.Client
 }
 
-// executeBatchSpec performs all the steps required to upload the campaign spec
-// to Sourcegraph, including execution as needed. The return values are the
-// spec ID, spec URL, and error.
+// executeBatchSpec performs all the steps required to upload the batch spec to
+// Sourcegraph, including execution as needed and applying the resulting batch
+// spec if specified.
 func executeBatchSpec(ctx context.Context, opts executeBatchSpecOpts) error {
 	svc := service.New(&service.Opts{
 		AllowUnsupported: opts.flags.allowUnsupported,
