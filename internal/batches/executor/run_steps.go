@@ -77,12 +77,21 @@ func runSteps(ctx context.Context, opts *executionOpts) (result executionResult,
 	results := make([]StepResult, len(opts.steps))
 
 	for i, step := range opts.steps {
-		opts.reportProgress(fmt.Sprintf("Preparing step %d", i+1))
-
 		stepContext := StepContext{BatchChange: *opts.batchChangeAttributes, Repository: *opts.repo, Outputs: execResult.Outputs}
 		if i > 0 {
 			stepContext.PreviousStep = results[i-1]
 		}
+
+		cond, err := evalStepCondition(step.If, &stepContext)
+		if err != nil {
+			return execResult, errors.Wrap(err, "evaluating step condition")
+		}
+		if !cond {
+			opts.reportProgress(fmt.Sprintf("Skipping step %d", i+1))
+			continue
+		}
+
+		opts.reportProgress(fmt.Sprintf("Preparing step %d", i+1))
 
 		// Find a location that we can use for a cidfile, which will contain the
 		// container ID that is used below. We can then use this to remove the

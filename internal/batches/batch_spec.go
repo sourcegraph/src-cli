@@ -97,6 +97,8 @@ type Step struct {
 	In     string `json:"in,omitempty" yaml:"in"`
 	inGlob glob.Glob
 
+	If string `json:"if,omitempty" yaml:"if"`
+
 	image docker.Image
 }
 

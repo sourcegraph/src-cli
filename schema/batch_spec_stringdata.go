@@ -165,8 +165,13 @@ const BatchSpecJSON = `{
           },
           "in": {
             "type": "string",
-            "description": "The repositories in which to apply the workspace configuration. Supports globbing.",
+            "description": "The repositories in which to execute the step. Supports globbing.",
             "examples": ["github.com/sourcegraph/src-cli", "github.com/sourcegraph/*"]
+          },
+          "if": {
+            "type": "string",
+            "description": "A condition to check before executing steps. Supports templating. The values 'true' and '1' are interpreted as true.",
+            "examples": ["${{ previous_step.stdout }}", "${{ outputs.goModFileExists }}"]
           }
         }
       }

@@ -10,6 +10,87 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+func TestRenderStepTemplate_Conditionals(t *testing.T) {
+	// To avoid bugs due to differences between test setup and actual code, we
+	// do the actual parsing of YAML here to get an interface{} which we'll put
+	// in the StepContext.
+	var parsedYaml interface{}
+	if err := yaml.Unmarshal([]byte(rawYaml), &parsedYaml); err != nil {
+		t.Fatalf("failed to parse YAML: %s", err)
+	}
+
+	stepCtx := &StepContext{
+		BatchChange: BatchChangeAttributes{
+			Name:        "test-batch-change",
+			Description: "This batch change is just an experiment",
+		},
+		PreviousStep: StepResult{
+			files: &git.Changes{
+				Modified: []string{"go.mod"},
+				Added:    []string{"main.go.swp"},
+				Deleted:  []string{".DS_Store"},
+				Renamed:  []string{"new-filename.txt"},
+			},
+			Stdout: bytes.NewBufferString("this is previous step's stdout"),
+			Stderr: bytes.NewBufferString("this is previous step's stderr"),
+		},
+		Outputs: map[string]interface{}{
+			"lastLine": "lastLine is this",
+			"project":  parsedYaml,
+		},
+		Step: StepResult{
+			files: &git.Changes{
+				Modified: []string{"step-go.mod"},
+				Added:    []string{"step-main.go.swp"},
+				Deleted:  []string{"step-.DS_Store"},
+				Renamed:  []string{"step-new-filename.txt"},
+			},
+			Stdout: bytes.NewBufferString("this is current step's stdout"),
+			Stderr: bytes.NewBufferString("this is current step's stderr"),
+		},
+		Repository: graphql.Repository{
+			Name: "github.com/sourcegraph/src-cli",
+			FileMatches: map[string]bool{
+				"README.md": true,
+				"main.go":   true,
+			},
+		},
+	}
+
+	tests := []struct {
+		name    string
+		stepCtx *StepContext
+		run     string
+		want    bool
+	}{
+		{
+			name:    "true literal",
+			stepCtx: stepCtx,
+			run:     `true`,
+			want:    true,
+		},
+		{
+			name:    "eq func producing true",
+			stepCtx: stepCtx,
+			run:     `${{ eq repository.name "github.com/sourcegraph/src-cli" }}`,
+			want:    true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := evalStepCondition(tc.run, tc.stepCtx)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if got != tc.want {
+				t.Fatalf("wrong value. want=%t, got=%t", tc.want, got)
+			}
+		})
+	}
+}
+
 const rawYaml = `dist: release
 env:
   - GO111MODULE=on

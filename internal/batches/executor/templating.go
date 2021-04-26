@@ -11,6 +11,20 @@ import (
 	"github.com/sourcegraph/src-cli/internal/batches/graphql"
 )
 
+func evalStepCondition(condition string, stepCtx *StepContext) (bool, error) {
+	if condition == "" {
+		return true, nil
+	}
+
+	var out bytes.Buffer
+	if err := renderStepTemplate("step-condition", condition, &out, stepCtx); err != nil {
+		return false, errors.Wrap(err, "parsing step if")
+	}
+
+	val := strings.ToLower(out.String())
+	return val == "true", nil
+}
+
 func renderStepTemplate(name, tmpl string, out io.Writer, stepCtx *StepContext) error {
 	t, err := parseAsTemplate(name, tmpl, stepCtx)
 	if err != nil {
