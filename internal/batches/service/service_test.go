@@ -408,7 +408,7 @@ const testFindDirectoriesInRepos = `{
 }
 `
 
-func TestService_BuildTasks(t *testing.T) {
+func TestService_BuildTasks_Workspaces(t *testing.T) {
 	repos := []*graphql.Repository{
 		{ID: "repo-id-0", Name: "github.com/sourcegraph/automation-testing"},
 		{ID: "repo-id-1", Name: "github.com/sourcegraph/sourcegraph"},
@@ -572,6 +572,96 @@ func TestService_BuildTasks(t *testing.T) {
 			}
 
 			if diff := cmp.Diff(tt.wantTasks, haveTasks); diff != "" {
+				t.Errorf("mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestService_BuildTasks_InGlobbing(t *testing.T) {
+	repos := []*graphql.Repository{
+		{ID: "repo-id-0", Name: "github.com/sourcegraph/automation-testing"},
+		{ID: "repo-id-1", Name: "github.com/sourcegraph/sourcegraph"},
+		{ID: "repo-id-2", Name: "bitbucket.sgdev.org/SOUR/automation-testing"},
+	}
+
+	tests := map[string]struct {
+		spec  *batches.BatchSpec
+		repos []*graphql.Repository
+
+		// tasks per repository ID and in which path they are executed
+		wantSteps map[string][]batches.Step
+	}{
+		"no globbing": {
+			spec: &batches.BatchSpec{
+				Steps: []batches.Step{
+					{Run: "echo 1"},
+				},
+			},
+			repos: repos,
+			wantSteps: map[string][]batches.Step{
+				repos[0].ID: {{Run: "echo 1"}},
+				repos[1].ID: {{Run: "echo 1"}},
+				repos[2].ID: {{Run: "echo 1"}},
+			},
+		},
+
+		"globbing on single step": {
+			spec: &batches.BatchSpec{
+				Steps: []batches.Step{
+					{Run: "echo 1", In: "github.com*"},
+				},
+			},
+			repos: repos,
+			wantSteps: map[string][]batches.Step{
+				repos[0].ID: {{Run: "echo 1", In: "github.com*"}},
+				repos[1].ID: {{Run: "echo 1", In: "github.com*"}},
+				repos[2].ID: nil,
+			},
+		},
+
+		"globbing on multiple steps": {
+			spec: &batches.BatchSpec{
+				Steps: []batches.Step{
+					{Run: "echo 1", In: "github.com*"},
+					{Run: "echo 2"},
+					{Run: "echo 3", In: "github.com*"},
+				},
+			},
+			repos: repos,
+			wantSteps: map[string][]batches.Step{
+				repos[0].ID: {
+					{Run: "echo 1", In: "github.com*"},
+					{Run: "echo 2"},
+					{Run: "echo 3", In: "github.com*"},
+				},
+				repos[1].ID: {
+					{Run: "echo 1", In: "github.com*"},
+					{Run: "echo 2"},
+					{Run: "echo 3", In: "github.com*"},
+				},
+				repos[2].ID: {
+					{Run: "echo 2"},
+				},
+			},
+		},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			svc := &Service{}
+			tasks, err := svc.BuildTasks(context.Background(), tt.repos, tt.spec)
+			if err != nil {
+				t.Fatalf("unexpected err: %s", err)
+			}
+
+			haveSteps := map[string][]batches.Step{}
+			for _, task := range tasks {
+				haveSteps[task.Repository.ID] = task.Steps
+			}
+
+			opts := cmpopts.IgnoreUnexported(batches.Step{})
+			if diff := cmp.Diff(tt.wantSteps, haveSteps, opts); diff != "" {
 				t.Errorf("mismatch (-want +got):\n%s", diff)
 			}
 		})
