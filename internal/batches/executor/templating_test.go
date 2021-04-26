@@ -326,13 +326,13 @@ func TestRenderChangesetTemplateField(t *testing.T) {
 	tests := []struct {
 		name    string
 		tmplCtx *ChangesetTemplateContext
-		run     string
+		tmpl    string
 		want    string
 	}{
 		{
 			name:    "lower-case aliases",
 			tmplCtx: tmplCtx,
-			run: `${{ repository.search_result_paths }}
+			tmpl: `${{ repository.search_result_paths }}
 ${{ repository.name }}
 ${{ batch_change.name }}
 ${{ batch_change.description }}
@@ -359,7 +359,7 @@ infrastructure/sub-project`,
 		{
 			name:    "empty context",
 			tmplCtx: &ChangesetTemplateContext{},
-			run: `${{ repository.search_result_paths }}
+			tmpl: `${{ repository.search_result_paths }}
 ${{ repository.name }}
 ${{ outputs.lastLine }}
 ${{ outputs.project }}
@@ -379,7 +379,7 @@ ${{ steps.renamed_files }}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			out, err := renderChangesetTemplateField("testing", tc.run, tc.tmplCtx)
+			out, err := renderChangesetTemplateField("testing", tc.tmpl, tc.tmplCtx)
 			if err != nil {
 				t.Fatal(err)
 			}

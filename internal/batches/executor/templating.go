@@ -49,16 +49,12 @@ func evalStepCondition(condition string, stepCtx *StepContext) (bool, error) {
 }
 
 func renderStepTemplate(name, tmpl string, out io.Writer, stepCtx *StepContext) error {
-	t, err := parseAsTemplate(name, tmpl, stepCtx)
+	t, err := template.New(name).Delims("${{", "}}").Funcs(builtins).Funcs(stepCtx.ToFuncMap()).Parse(tmpl)
 	if err != nil {
 		return errors.Wrap(err, "parsing step run")
 	}
 
 	return t.Execute(out, stepCtx)
-}
-
-func parseAsTemplate(name, input string, stepCtx *StepContext) (*template.Template, error) {
-	return template.New(name).Delims("${{", "}}").Funcs(builtins).Funcs(stepCtx.ToFuncMap()).Parse(input)
 }
 
 func renderStepMap(m map[string]string, stepCtx *StepContext) (map[string]string, error) {
