@@ -58,36 +58,26 @@ func TestRenderStepTemplate_Conditionals(t *testing.T) {
 	}
 
 	tests := []struct {
-		name    string
-		stepCtx *StepContext
-		run     string
-		want    bool
+		run  string
+		want bool
 	}{
-		{
-			name:    "true literal",
-			stepCtx: stepCtx,
-			run:     `true`,
-			want:    true,
-		},
-		{
-			name:    "eq func producing true",
-			stepCtx: stepCtx,
-			run:     `${{ eq repository.name "github.com/sourcegraph/src-cli" }}`,
-			want:    true,
-		},
+		{run: `true`, want: true},
+		{run: `TRUE`, want: true},
+		{run: `false`, want: false},
+		{run: `FALSE`, want: false},
+		{run: `${{ eq repository.name "github.com/sourcegraph/src-cli" }}`, want: true},
+		{run: `${{ matches repository.name "github.com/sourcegraph/*" }}`, want: true},
 	}
 
 	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			got, err := evalStepCondition(tc.run, tc.stepCtx)
-			if err != nil {
-				t.Fatal(err)
-			}
+		got, err := evalStepCondition(tc.run, stepCtx)
+		if err != nil {
+			t.Fatal(err)
+		}
 
-			if got != tc.want {
-				t.Fatalf("wrong value. want=%t, got=%t", tc.want, got)
-			}
-		})
+		if got != tc.want {
+			t.Fatalf("wrong value. want=%t, got=%t", tc.want, got)
+		}
 	}
 }
 
