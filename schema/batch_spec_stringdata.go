@@ -162,6 +162,11 @@ const BatchSpecJSON = `{
             "type": "object",
             "description": "Files that should be mounted into or be created inside the Docker container.",
             "additionalProperties": { "type": "string" }
+          },
+          "in": {
+            "type": "string",
+            "description": "The repositories in which to apply the workspace configuration. Supports globbing.",
+            "examples": ["github.com/sourcegraph/src-cli", "github.com/sourcegraph/*"]
           }
         }
       }

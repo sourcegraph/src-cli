@@ -195,6 +195,21 @@ func (svc *Service) BuildTasks(ctx context.Context, repos []*graphql.Repository,
 		workspaceConfigs = append(workspaceConfigs, conf)
 	}
 
+	steps := []batches.Step{}
+	for _, step := range spec.Steps {
+		if step.In == "" {
+			steps = append(steps, step)
+			continue
+		}
+
+		g, err := glob.Compile(step.In)
+		if err != nil {
+			return nil, err
+		}
+		step.SetInGlob(g)
+		steps = append(steps, step)
+	}
+
 	// rootWorkspace contains all the repositories that didn't match a
 	// `workspaces` configuration.
 	rootWorkspace := map[*graphql.Repository]struct{}{}
@@ -229,7 +244,30 @@ func (svc *Service) BuildTasks(ctx context.Context, repos []*graphql.Repository,
 
 	var tasks []*executor.Task
 
-	attr := &executor.BatchChangeAttributes{Name: spec.Name, Description: spec.Description}
+	// TODO(mrnugget): Factor this out
+	buildTaskForRepo := func(r *graphql.Repository, spec *batches.BatchSpec, path string, onlyWorkspace bool) *executor.Task {
+		var taskSteps []batches.Step
+		for _, s := range steps {
+			if s.InMatches(r.Name) {
+				taskSteps = append(taskSteps, s)
+			}
+		}
+
+		task := &executor.Task{
+			Repository:         r,
+			Path:               path,
+			Steps:              taskSteps,
+			OnlyFetchWorkspace: onlyWorkspace,
+
+			TransformChanges: spec.TransformChanges,
+			Template:         spec.ChangesetTemplate,
+			BatchChangeAttributes: &executor.BatchChangeAttributes{
+				Name:        spec.Name,
+				Description: spec.Description,
+			},
+		}
+		return task
+	}
 
 	for configIndex, repos := range reposByWorkspaceConfig {
 		workspaceConfig := workspaceConfigs[configIndex]
@@ -250,28 +288,14 @@ func (svc *Service) BuildTasks(ctx context.Context, repos []*graphql.Repository,
 					}
 				}
 
-				tasks = append(tasks, &executor.Task{
-					Repository:            repo,
-					Path:                  d,
-					Steps:                 spec.Steps,
-					TransformChanges:      spec.TransformChanges,
-					Template:              spec.ChangesetTemplate,
-					BatchChangeAttributes: attr,
-					OnlyFetchWorkspace:    workspaceConfig.OnlyFetchWorkspace,
-				})
+				t := buildTaskForRepo(repo, spec, d, workspaceConfig.OnlyFetchWorkspace)
+				tasks = append(tasks, t)
 			}
 		}
 	}
 
 	for r := range rootWorkspace {
-		tasks = append(tasks, &executor.Task{
-			Repository:            r,
-			Path:                  "",
-			Steps:                 spec.Steps,
-			TransformChanges:      spec.TransformChanges,
-			Template:              spec.ChangesetTemplate,
-			BatchChangeAttributes: attr,
-		})
+		tasks = append(tasks, buildTaskForRepo(r, spec, "", false))
 	}
 
 	return tasks, nil

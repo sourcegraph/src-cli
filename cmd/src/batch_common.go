@@ -284,6 +284,7 @@ func executeBatchSpec(ctx context.Context, opts executeBatchSpecOpts) error {
 		batchCompletePending(pending, fmt.Sprintf("Resolved %d repositories", len(repos)))
 	}
 
+	batches.DebugOut = opts.out
 	pending = batchCreatePending(opts.out, "Determining workspaces")
 	tasks, err := svc.BuildTasks(ctx, repos, batchSpec)
 	if err != nil {
