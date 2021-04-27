@@ -196,18 +196,9 @@ func (svc *Service) BuildTasks(ctx context.Context, repos []*graphql.Repository,
 		workspaceConfigs = append(workspaceConfigs, conf)
 	}
 
-	// Initialize the steps and, if required, their globs
-	var steps []batches.Step
-	for _, step := range spec.Steps {
-		if step.In != "" {
-			g, err := glob.Compile(step.In)
-			if err != nil {
-				return nil, err
-			}
-			step.SetInGlob(g)
-		}
-
-		steps = append(steps, step)
+	builder, err := executor.NewTaskBuilder(spec)
+	if err != nil {
+		return nil, err
 	}
 
 	// Find workspaces in repositories, if configured
@@ -219,13 +210,13 @@ func (svc *Service) BuildTasks(ctx context.Context, repos []*graphql.Repository,
 	var tasks []*executor.Task
 	for repo, ws := range workspaces {
 		for _, path := range ws.paths {
-			t := svc.buildTask(repo, steps, spec, path, ws.onlyFetchWorkspace)
+			t := builder.Build(repo, path, ws.onlyFetchWorkspace)
 			tasks = append(tasks, t)
 		}
 	}
 
 	for _, repo := range root {
-		tasks = append(tasks, svc.buildTask(repo, steps, spec, "", false))
+		tasks = append(tasks, builder.Build(repo, "", false))
 	}
 
 	return tasks, nil
@@ -292,34 +283,6 @@ func (svc *Service) findWorkspaces(
 	}
 
 	return workspaces, root, nil
-}
-
-func (svc *Service) buildTask(r *graphql.Repository, steps []batches.Step, spec *batches.BatchSpec, path string, onlyWorkspace bool) *executor.Task {
-	var taskSteps []batches.Step
-	for _, s := range steps {
-		if s.InMatches(r.Name) {
-			taskSteps = append(taskSteps, s)
-		}
-	}
-
-	// "." means the path is root, but in the executor we use "" to signify root
-	if path == "." {
-		path = ""
-	}
-
-	return &executor.Task{
-		Repository:         r,
-		Path:               path,
-		Steps:              taskSteps,
-		OnlyFetchWorkspace: onlyWorkspace,
-
-		TransformChanges: spec.TransformChanges,
-		Template:         spec.ChangesetTemplate,
-		BatchChangeAttributes: &executor.BatchChangeAttributes{
-			Name:        spec.Name,
-			Description: spec.Description,
-		},
-	}
 }
 
 func (svc *Service) RunExecutor(ctx context.Context, opts executor.Opts, tasks []*executor.Task, spec *batches.BatchSpec, progress func([]*executor.TaskStatus), skipErrors bool) ([]*batches.ChangesetSpec, []string, error) {
