@@ -199,86 +199,113 @@ func (svc *Service) BuildTasks(ctx context.Context, repos []*graphql.Repository,
 	// Initialize the steps and, if required, their globs
 	var steps []batches.Step
 	for _, step := range spec.Steps {
-		if step.In == "" {
-			steps = append(steps, step)
-			continue
+		if step.In != "" {
+			g, err := glob.Compile(step.In)
+			if err != nil {
+				return nil, err
+			}
+			step.SetInGlob(g)
 		}
 
-		g, err := glob.Compile(step.In)
-		if err != nil {
-			return nil, err
-		}
-		step.SetInGlob(g)
 		steps = append(steps, step)
 	}
 
-	// rootWorkspace contains all the repositories that didn't match a
-	// `workspaces` configuration.
-	rootWorkspace := map[*graphql.Repository]struct{}{}
-	// reposByWorkspaceConfig maps workspace config to repositories in which
-	// the workspace config should be used.
-	reposByWorkspaceConfig := make(map[int][]*graphql.Repository, len(workspaceConfigs))
-
-	for _, repo := range repos {
-		matched := false
-
-		for i, conf := range workspaceConfigs {
-			if !conf.Matches(repo.Name) {
-				continue
-			}
-
-			if matched {
-				return nil, fmt.Errorf("repository %s matches multiple workspaces.in globs in the batch spec. glob: %q", repo.Name, conf.In)
-			}
-
-			if rs, ok := reposByWorkspaceConfig[i]; ok {
-				reposByWorkspaceConfig[i] = append(rs, repo)
-			} else {
-				reposByWorkspaceConfig[i] = []*graphql.Repository{repo}
-			}
-			matched = true
-		}
-
-		if !matched {
-			rootWorkspace[repo] = struct{}{}
-		}
+	// Find workspaces in repositories, if configured
+	workspaces, root, err := svc.findWorkspaces(ctx, repos, workspaceConfigs)
+	if err != nil {
+		return nil, err
 	}
 
 	var tasks []*executor.Task
-
-	for configIndex, repos := range reposByWorkspaceConfig {
-		workspaceConfig := workspaceConfigs[configIndex]
-		repoDirs, err := svc.FindDirectoriesInRepos(ctx, workspaceConfig.RootAtLocationOf, repos...)
-		if err != nil {
-			return nil, err
-		}
-
-		for repo, dirs := range repoDirs {
-			for _, d := range dirs {
-				// Directory is root.
-				if d == "." {
-					// This shouldn't happen, but sanity check:
-					if _, ok := rootWorkspace[repo]; ok {
-						continue
-					} else {
-						d = ""
-					}
-				}
-
-				t := svc.buildTaskForRepo(repo, steps, spec, d, workspaceConfig.OnlyFetchWorkspace)
-				tasks = append(tasks, t)
-			}
+	for repo, ws := range workspaces {
+		for _, path := range ws.paths {
+			t := svc.buildTask(repo, steps, spec, path, ws.onlyFetchWorkspace)
+			tasks = append(tasks, t)
 		}
 	}
 
-	for r := range rootWorkspace {
-		tasks = append(tasks, svc.buildTaskForRepo(r, steps, spec, "", false))
+	for _, repo := range root {
+		tasks = append(tasks, svc.buildTask(repo, steps, spec, "", false))
 	}
 
 	return tasks, nil
 }
 
-func (svc *Service) buildTaskForRepo(r *graphql.Repository, steps []batches.Step, spec *batches.BatchSpec, path string, onlyWorkspace bool) *executor.Task {
+type repoWorkspaces struct {
+	paths              []string
+	onlyFetchWorkspace bool
+}
+
+// findWorkspaces matches the given repos to the workspace configs and
+// searches, via the Sourcegraph instance, the locations of the workspaces in
+// each repository.
+// The repositories that were matched by a workspace config are returned in
+// workspaces. root contains the repositories that didn't match a config.
+// If the user didn't specify any workspaces, the repositories are returned as
+// root repositories.
+func (svc *Service) findWorkspaces(
+	ctx context.Context,
+	repos []*graphql.Repository,
+	configs []batches.WorkspaceConfiguration,
+) (workspaces map[*graphql.Repository]repoWorkspaces, root []*graphql.Repository, err error) {
+	if len(configs) == 0 {
+		return nil, repos, nil
+	}
+
+	matched := map[int][]*graphql.Repository{}
+
+	for _, repo := range repos {
+		found := false
+
+		for idx, conf := range configs {
+			if !conf.Matches(repo.Name) {
+				continue
+			}
+
+			if found {
+				return nil, nil, fmt.Errorf("repository %s matches multiple workspaces.in globs in the batch spec. glob: %q", repo.Name, conf.In)
+			}
+
+			if rs, ok := matched[idx]; ok {
+				matched[idx] = append(rs, repo)
+			} else {
+				matched[idx] = []*graphql.Repository{repo}
+			}
+			found = true
+		}
+
+		if !found {
+			root = append(root, repo)
+		}
+	}
+
+	workspaces = map[*graphql.Repository]repoWorkspaces{}
+	for idx, repos := range matched {
+		conf := configs[idx]
+		repoDirs, err := svc.FindDirectoriesInRepos(ctx, conf.RootAtLocationOf, repos...)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		for repo, dirs := range repoDirs {
+			var paths []string
+
+			for _, d := range dirs {
+				// Directory is root, but in the executor we use "" to signify root
+				if d == "." {
+					d = ""
+				}
+				paths = append(paths, d)
+			}
+
+			workspaces[repo] = repoWorkspaces{paths: paths, onlyFetchWorkspace: conf.OnlyFetchWorkspace}
+		}
+	}
+
+	return workspaces, root, nil
+}
+
+func (svc *Service) buildTask(r *graphql.Repository, steps []batches.Step, spec *batches.BatchSpec, path string, onlyWorkspace bool) *executor.Task {
 	var taskSteps []batches.Step
 	for _, s := range steps {
 		if s.InMatches(r.Name) {
