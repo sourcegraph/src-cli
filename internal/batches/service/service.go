@@ -266,11 +266,7 @@ func (svc *Service) findWorkspaces(
 				return nil, nil, fmt.Errorf("repository %s matches multiple workspaces.in globs in the batch spec. glob: %q", repo.Name, conf.In)
 			}
 
-			if rs, ok := matched[idx]; ok {
-				matched[idx] = append(rs, repo)
-			} else {
-				matched[idx] = []*graphql.Repository{repo}
-			}
+			matched[idx] = append(matched[idx], repo)
 			found = true
 		}
 
@@ -288,17 +284,10 @@ func (svc *Service) findWorkspaces(
 		}
 
 		for repo, dirs := range repoDirs {
-			var paths []string
-
-			for _, d := range dirs {
-				// Directory is root, but in the executor we use "" to signify root
-				if d == "." {
-					d = ""
-				}
-				paths = append(paths, d)
+			workspaces[repo] = repoWorkspaces{
+				paths:              dirs,
+				onlyFetchWorkspace: conf.OnlyFetchWorkspace,
 			}
-
-			workspaces[repo] = repoWorkspaces{paths: paths, onlyFetchWorkspace: conf.OnlyFetchWorkspace}
 		}
 	}
 
@@ -311,6 +300,11 @@ func (svc *Service) buildTask(r *graphql.Repository, steps []batches.Step, spec 
 		if s.InMatches(r.Name) {
 			taskSteps = append(taskSteps, s)
 		}
+	}
+
+	// "." means the path is root, but in the executor we use "" to signify root
+	if path == "." {
+		path = ""
 	}
 
 	return &executor.Task{
