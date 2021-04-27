@@ -12,6 +12,9 @@ import (
 	"github.com/sourcegraph/src-cli/internal/batches/graphql"
 )
 
+const startDelim = "${{"
+const endDelim = "}}"
+
 var builtins = template.FuncMap{
 	"join":    strings.Join,
 	"split":   strings.Split,
@@ -49,7 +52,7 @@ func evalStepCondition(condition string, stepCtx *StepContext) (bool, error) {
 }
 
 func renderStepTemplate(name, tmpl string, out io.Writer, stepCtx *StepContext) error {
-	t, err := template.New(name).Delims("${{", "}}").Funcs(builtins).Funcs(stepCtx.ToFuncMap()).Parse(tmpl)
+	t, err := template.New(name).Delims(startDelim, endDelim).Funcs(builtins).Funcs(stepCtx.ToFuncMap()).Parse(tmpl)
 	if err != nil {
 		return errors.Wrap(err, "parsing step run")
 	}
@@ -259,7 +262,7 @@ func (tmplCtx *ChangesetTemplateContext) ToFuncMap() template.FuncMap {
 func renderChangesetTemplateField(name, tmpl string, tmplCtx *ChangesetTemplateContext) (string, error) {
 	var out bytes.Buffer
 
-	t, err := template.New(name).Delims("${{", "}}").Funcs(builtins).Funcs(tmplCtx.ToFuncMap()).Parse(tmpl)
+	t, err := template.New(name).Delims(startDelim, endDelim).Funcs(builtins).Funcs(tmplCtx.ToFuncMap()).Parse(tmpl)
 	if err != nil {
 		return "", err
 	}
