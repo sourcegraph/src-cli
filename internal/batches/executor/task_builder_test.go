@@ -1,6 +1,8 @@
 package executor
 
 import (
+	"context"
+	"sort"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -68,7 +70,7 @@ func TestTaskBuilder_Build_Globbing(t *testing.T) {
 
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			builder, err := NewTaskBuilder(tt.spec)
+			builder, err := NewTaskBuilder(tt.spec, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -83,4 +85,162 @@ func TestTaskBuilder_Build_Globbing(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestTaskBuilder_BuildAll_Workspaces(t *testing.T) {
+	repos := []*graphql.Repository{
+		{ID: "repo-id-0", Name: "github.com/sourcegraph/automation-testing"},
+		{ID: "repo-id-1", Name: "github.com/sourcegraph/sourcegraph"},
+		{ID: "repo-id-2", Name: "bitbucket.sgdev.org/SOUR/automation-testing"},
+	}
+
+	type finderResults map[*graphql.Repository][]string
+
+	type wantTask struct {
+		Path               string
+		ArchivePathToFetch string
+	}
+
+	tests := map[string]struct {
+		spec          *batches.BatchSpec
+		finderResults map[*graphql.Repository][]string
+
+		wantNumTasks int
+
+		// tasks per repository ID and in which path they are executed
+		wantTasks map[string][]wantTask
+	}{
+		"no workspace configuration": {
+			spec:          &batches.BatchSpec{},
+			finderResults: finderResults{},
+			wantNumTasks:  len(repos),
+			wantTasks: map[string][]wantTask{
+				repos[0].ID: {{Path: ""}},
+				repos[1].ID: {{Path: ""}},
+				repos[2].ID: {{Path: ""}},
+			},
+		},
+
+		"workspace configuration matching no repos": {
+			spec: &batches.BatchSpec{
+				Workspaces: []batches.WorkspaceConfiguration{
+					{In: "this-does-not-match", RootAtLocationOf: "package.json"},
+				},
+			},
+			finderResults: finderResults{},
+			wantNumTasks:  len(repos),
+			wantTasks: map[string][]wantTask{
+				repos[0].ID: {{Path: ""}},
+				repos[1].ID: {{Path: ""}},
+				repos[2].ID: {{Path: ""}},
+			},
+		},
+
+		"workspace configuration matching 2 repos with no results": {
+			spec: &batches.BatchSpec{
+				Workspaces: []batches.WorkspaceConfiguration{
+					{In: "*automation-testing", RootAtLocationOf: "package.json"},
+				},
+			},
+			finderResults: finderResults{
+				repos[0]: []string{},
+				repos[2]: []string{},
+			},
+			wantNumTasks: 1,
+			wantTasks: map[string][]wantTask{
+				repos[1].ID: {{Path: ""}},
+			},
+		},
+
+		"workspace configuration matching 2 repos with 3 results each": {
+			spec: &batches.BatchSpec{
+				Workspaces: []batches.WorkspaceConfiguration{
+					{In: "*automation-testing", RootAtLocationOf: "package.json"},
+				},
+			},
+			finderResults: finderResults{
+				repos[0]: {"a/b", "a/b/c", "d/e/f"},
+				repos[2]: {"a/b", "a/b/c", "d/e/f"},
+			},
+			wantNumTasks: 7,
+			wantTasks: map[string][]wantTask{
+				repos[0].ID: {{Path: "a/b"}, {Path: "a/b/c"}, {Path: "d/e/f"}},
+				repos[1].ID: {{Path: ""}},
+				repos[2].ID: {{Path: "a/b"}, {Path: "a/b/c"}, {Path: "d/e/f"}},
+			},
+		},
+
+		"workspace configuration matches repo with OnlyFetchWorkspace": {
+			spec: &batches.BatchSpec{
+				Workspaces: []batches.WorkspaceConfiguration{
+					{
+						OnlyFetchWorkspace: true,
+						In:                 "*automation-testing",
+						RootAtLocationOf:   "package.json",
+					},
+				},
+			},
+			finderResults: finderResults{
+				repos[0]: {"a/b", "a/b/c", "d/e/f"},
+				repos[2]: {"a/b", "a/b/c", "d/e/f"},
+			},
+			wantNumTasks: 7,
+			wantTasks: map[string][]wantTask{
+				repos[0].ID: {
+					{Path: "a/b", ArchivePathToFetch: "a/b"},
+					{Path: "a/b/c", ArchivePathToFetch: "a/b/c"},
+					{Path: "d/e/f", ArchivePathToFetch: "d/e/f"},
+				},
+				repos[1].ID: {{Path: ""}},
+				repos[2].ID: {
+					{Path: "a/b", ArchivePathToFetch: "a/b"},
+					{Path: "a/b/c", ArchivePathToFetch: "a/b/c"},
+					{Path: "d/e/f", ArchivePathToFetch: "d/e/f"},
+				},
+			},
+		},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			finder := &mockDirectoryFinder{results: tt.finderResults}
+			tb, err := NewTaskBuilder(tt.spec, finder)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			tasks, err := tb.BuildAll(context.Background(), repos)
+			if err != nil {
+				t.Fatalf("unexpected err: %s", err)
+			}
+
+			if have := len(tasks); have != tt.wantNumTasks {
+				t.Fatalf("wrong number of tasks. want=%d, got=%d", tt.wantNumTasks, have)
+			}
+
+			haveTasks := map[string][]wantTask{}
+			for _, task := range tasks {
+				haveTasks[task.Repository.ID] = append(haveTasks[task.Repository.ID], wantTask{
+					Path:               task.Path,
+					ArchivePathToFetch: task.ArchivePathToFetch(),
+				})
+			}
+
+			for _, tasks := range haveTasks {
+				sort.Slice(tasks, func(i, j int) bool { return tasks[i].Path < tasks[j].Path })
+			}
+
+			if diff := cmp.Diff(tt.wantTasks, haveTasks); diff != "" {
+				t.Errorf("mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+type mockDirectoryFinder struct {
+	results map[*graphql.Repository][]string
+}
+
+func (m *mockDirectoryFinder) FindDirectoriesInRepos(ctx context.Context, fileName string, repos ...*graphql.Repository) (map[*graphql.Repository][]string, error) {
+	return m.results, nil
 }

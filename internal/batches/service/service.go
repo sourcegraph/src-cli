@@ -13,7 +13,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gobwas/glob"
 	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
 	"github.com/sourcegraph/src-cli/internal/api"
@@ -185,41 +184,12 @@ func (svc *Service) EnsureImage(ctx context.Context, name string) (docker.Image,
 }
 
 func (svc *Service) BuildTasks(ctx context.Context, repos []*graphql.Repository, spec *batches.BatchSpec) ([]*executor.Task, error) {
-	// Initialize the workspaceConfigs and their globs
-	var workspaceConfigs []batches.WorkspaceConfiguration
-	for _, conf := range spec.Workspaces {
-		g, err := glob.Compile(conf.In)
-		if err != nil {
-			return nil, err
-		}
-		conf.SetGlob(g)
-		workspaceConfigs = append(workspaceConfigs, conf)
-	}
-
-	builder, err := executor.NewTaskBuilder(spec)
+	builder, err := executor.NewTaskBuilder(spec, svc)
 	if err != nil {
 		return nil, err
 	}
 
-	// Find workspaces in repositories, if configured
-	workspaces, root, err := svc.findWorkspaces(ctx, repos, workspaceConfigs)
-	if err != nil {
-		return nil, err
-	}
-
-	var tasks []*executor.Task
-	for repo, ws := range workspaces {
-		for _, path := range ws.paths {
-			t := builder.Build(repo, path, ws.onlyFetchWorkspace)
-			tasks = append(tasks, t)
-		}
-	}
-
-	for _, repo := range root {
-		tasks = append(tasks, builder.Build(repo, "", false))
-	}
-
-	return tasks, nil
+	return builder.BuildAll(ctx, repos)
 }
 
 type repoWorkspaces struct {
