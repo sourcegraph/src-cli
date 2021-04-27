@@ -185,7 +185,8 @@ func (svc *Service) EnsureImage(ctx context.Context, name string) (docker.Image,
 }
 
 func (svc *Service) BuildTasks(ctx context.Context, repos []*graphql.Repository, spec *batches.BatchSpec) ([]*executor.Task, error) {
-	workspaceConfigs := []batches.WorkspaceConfiguration{}
+	// Initialize the workspaceConfigs and their globs
+	var workspaceConfigs []batches.WorkspaceConfiguration
 	for _, conf := range spec.Workspaces {
 		g, err := glob.Compile(conf.In)
 		if err != nil {
@@ -195,7 +196,8 @@ func (svc *Service) BuildTasks(ctx context.Context, repos []*graphql.Repository,
 		workspaceConfigs = append(workspaceConfigs, conf)
 	}
 
-	steps := []batches.Step{}
+	// Initialize the steps and, if required, their globs
+	var steps []batches.Step
 	for _, step := range spec.Steps {
 		if step.In == "" {
 			steps = append(steps, step)
@@ -244,31 +246,6 @@ func (svc *Service) BuildTasks(ctx context.Context, repos []*graphql.Repository,
 
 	var tasks []*executor.Task
 
-	// TODO(mrnugget): Factor this out
-	buildTaskForRepo := func(r *graphql.Repository, spec *batches.BatchSpec, path string, onlyWorkspace bool) *executor.Task {
-		var taskSteps []batches.Step
-		for _, s := range steps {
-			if s.InMatches(r.Name) {
-				taskSteps = append(taskSteps, s)
-			}
-		}
-
-		task := &executor.Task{
-			Repository:         r,
-			Path:               path,
-			Steps:              taskSteps,
-			OnlyFetchWorkspace: onlyWorkspace,
-
-			TransformChanges: spec.TransformChanges,
-			Template:         spec.ChangesetTemplate,
-			BatchChangeAttributes: &executor.BatchChangeAttributes{
-				Name:        spec.Name,
-				Description: spec.Description,
-			},
-		}
-		return task
-	}
-
 	for configIndex, repos := range reposByWorkspaceConfig {
 		workspaceConfig := workspaceConfigs[configIndex]
 		repoDirs, err := svc.FindDirectoriesInRepos(ctx, workspaceConfig.RootAtLocationOf, repos...)
@@ -288,17 +265,40 @@ func (svc *Service) BuildTasks(ctx context.Context, repos []*graphql.Repository,
 					}
 				}
 
-				t := buildTaskForRepo(repo, spec, d, workspaceConfig.OnlyFetchWorkspace)
+				t := svc.buildTaskForRepo(repo, steps, spec, d, workspaceConfig.OnlyFetchWorkspace)
 				tasks = append(tasks, t)
 			}
 		}
 	}
 
 	for r := range rootWorkspace {
-		tasks = append(tasks, buildTaskForRepo(r, spec, "", false))
+		tasks = append(tasks, svc.buildTaskForRepo(r, steps, spec, "", false))
 	}
 
 	return tasks, nil
+}
+
+func (svc *Service) buildTaskForRepo(r *graphql.Repository, steps []batches.Step, spec *batches.BatchSpec, path string, onlyWorkspace bool) *executor.Task {
+	var taskSteps []batches.Step
+	for _, s := range steps {
+		if s.InMatches(r.Name) {
+			taskSteps = append(taskSteps, s)
+		}
+	}
+
+	return &executor.Task{
+		Repository:         r,
+		Path:               path,
+		Steps:              taskSteps,
+		OnlyFetchWorkspace: onlyWorkspace,
+
+		TransformChanges: spec.TransformChanges,
+		Template:         spec.ChangesetTemplate,
+		BatchChangeAttributes: &executor.BatchChangeAttributes{
+			Name:        spec.Name,
+			Description: spec.Description,
+		},
+	}
 }
 
 func (svc *Service) RunExecutor(ctx context.Context, opts executor.Opts, tasks []*executor.Task, spec *batches.BatchSpec, progress func([]*executor.TaskStatus), skipErrors bool) ([]*batches.ChangesetSpec, []string, error) {
