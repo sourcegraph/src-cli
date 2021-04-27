@@ -11,7 +11,7 @@ import (
 	"github.com/sourcegraph/src-cli/internal/batches/graphql"
 )
 
-func TestTaskBuilder_Build_Globbing(t *testing.T) {
+func TestTaskBuilder_BuildTask_Globbing(t *testing.T) {
 	repo := &graphql.Repository{Name: "github.com/sourcegraph/automation-testing"}
 
 	tests := map[string]struct {
@@ -74,7 +74,7 @@ func TestTaskBuilder_Build_Globbing(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			task := builder.Build(repo, "", false)
+			task := builder.buildTask(repo, "", false)
 			if err != nil {
 				t.Fatalf("unexpected err: %s", err)
 			}

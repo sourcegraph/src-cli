@@ -284,11 +284,14 @@ func executeBatchSpec(ctx context.Context, opts executeBatchSpecOpts) error {
 		batchCompletePending(pending, fmt.Sprintf("Resolved %d repositories", len(repos)))
 	}
 
-	batches.DebugOut = opts.out
 	pending = batchCreatePending(opts.out, "Determining workspaces")
-	tasks, err := svc.BuildTasks(ctx, repos, batchSpec)
+	tb, err := executor.NewTaskBuilder(batchSpec, svc)
 	if err != nil {
-		return errors.Wrap(err, "Calculating execution plan")
+		return errors.Wrap(err, "Parsing batch spec to determine workspaces")
+	}
+	tasks, err := tb.BuildAll(ctx, repos)
+	if err != nil {
+		return err
 	}
 	batchCompletePending(pending, fmt.Sprintf("Found %d workspaces", len(tasks)))
 

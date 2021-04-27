@@ -48,7 +48,7 @@ func NewTaskBuilder(spec *batches.BatchSpec, finder DirectoryFinder) (*TaskBuild
 	return s, nil
 }
 
-func (s *TaskBuilder) Build(r *graphql.Repository, path string, onlyWorkspace bool) *Task {
+func (s *TaskBuilder) buildTask(r *graphql.Repository, path string, onlyWorkspace bool) *Task {
 	var taskSteps []batches.Step
 	for _, s := range s.initializedSteps {
 		if s.InMatches(r.Name) {
@@ -86,13 +86,13 @@ func (s *TaskBuilder) BuildAll(ctx context.Context, repos []*graphql.Repository)
 	var tasks []*Task
 	for repo, ws := range workspaces {
 		for _, path := range ws.paths {
-			t := s.Build(repo, path, ws.onlyFetchWorkspace)
+			t := s.buildTask(repo, path, ws.onlyFetchWorkspace)
 			tasks = append(tasks, t)
 		}
 	}
 
 	for _, repo := range root {
-		tasks = append(tasks, s.Build(repo, "", false))
+		tasks = append(tasks, s.buildTask(repo, "", false))
 	}
 
 	return tasks, nil
