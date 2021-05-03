@@ -186,29 +186,32 @@ func evalNode(ctx *StepContext, n parse.Node) (reflect.Value, bool) {
 		return reflect.ValueOf(n.Text), true
 
 	case *parse.ChainNode:
+		// For now we only support fields that are 1 level deep (see below).
+		// Should we ever want to support more than one level, we need to
+		// revise this.
+		if len(n.Field) != 1 {
+			return noValue, false
+		}
+
 		if ident, ok := n.Node.(*parse.IdentifierNode); ok {
 			switch ident.Ident {
 			case "repository":
-				// TODO: Check that `field` is a single field
-				for _, field := range n.Field {
-					switch field {
-					case "search_result_paths":
-						// TODO: We don't eval search_result_paths for now, since
-						// it's a "complex" value: a slice of strings.
-						return noValue, false
-					case "name":
-						return reflect.ValueOf(ctx.Repository.Name), true
-					}
+				switch n.Field[0] {
+				case "search_result_paths":
+					// TODO: We don't eval search_result_paths for now, since it's a
+					// "complex" value, a slice of strings, and turning that
+					// into text might not be useful to the user. So we abort.
+					return noValue, false
+				case "name":
+					return reflect.ValueOf(ctx.Repository.Name), true
 				}
+
 			case "batch_change":
-				// TODO: Check that `field` is a single field
-				for _, field := range n.Field {
-					switch field {
-					case "name":
-						return reflect.ValueOf(ctx.BatchChange.Name), true
-					case "description":
-						return reflect.ValueOf(ctx.BatchChange.Description), true
-					}
+				switch n.Field[0] {
+				case "name":
+					return reflect.ValueOf(ctx.BatchChange.Name), true
+				case "description":
+					return reflect.ValueOf(ctx.BatchChange.Description), true
 				}
 			}
 		}

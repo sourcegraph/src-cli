@@ -138,6 +138,16 @@ func TestParseAndPartialEval(t *testing.T) {
 	t.Run("aborted", func(t *testing.T) {
 		for _, tt := range []struct{ input, want string }{
 			{
+				// Field that doesn't exist
+				`${{ repository.secretlocation }}`,
+				`{{repository.secretlocation}}`,
+			},
+			{
+				// Field access that's too deep
+				`${{ repository.name.doesnotexist }}`,
+				`{{repository.name.doesnotexist}}`,
+			},
+			{
 				// Complex value
 				`${{ repository.search_result_paths }}`,
 				// String representation of templates uses standard delimiters
