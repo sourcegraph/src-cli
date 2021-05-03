@@ -9,29 +9,6 @@ import (
 	"github.com/sourcegraph/src-cli/internal/batches/graphql"
 )
 
-// func TestGoVariadicBuiltins(t *testing.T) {
-// 	input := `${{ coolFunc "-" (split "-" "a-b-c-d-e-f") }}`
-// 	tmp, err := template.
-// 		New("partial-eval").
-// 		Delims(startDelim, endDelim).
-// 		Funcs(builtins).
-// 		Parse(input)
-//
-// 	if err != nil {
-// 		t.Fatal(err)
-// 	}
-//
-// 	var out bytes.Buffer
-// 	err = tmp.Execute(&out, nil)
-// 	if err != nil {
-// 		t.Fatal(err)
-// 	}
-//
-// 	if out.String() != "abcde" {
-// 		t.Fatalf("wrong output: %q", out.String())
-// 	}
-// }
-//
 var partialEvalStepCtx = &StepContext{
 	BatchChange: BatchChangeAttributes{
 		Name:        "test-batch-change",
