@@ -116,8 +116,15 @@ func evalPipe(ctx *StepContext, p *parse.PipeNode) (reflect.Value, bool) {
 		return noValue, false
 	}
 
-	var finalVal reflect.Value
-	var ok bool
+	// TODO: Support finalVal
+	var (
+		// finalVal is the value of the previous Cmd in a pipe (i.e. `${{ 3 + 3 | eq 6 }}`)
+		// It needs to be the final (fixed) argument of a call if it's set.
+		finalVal reflect.Value
+
+		ok bool
+	)
+
 	for _, c := range p.Cmds {
 		finalVal, ok = evalCmd(ctx, c, finalVal)
 		if !ok {
@@ -137,9 +144,11 @@ func evalCmd(ctx *StepContext, c *parse.CommandNode, previousValue reflect.Value
 		return noValue, false
 
 	case *parse.IdentifierNode:
+		// A function call always starts with an identifier
 		return evalFunction(ctx, first, first.Ident, c.Args, previousValue)
 
 	default:
+		// Node type that we don't care about, so we don't even try to evaluate it
 		return noValue, false
 	}
 }
@@ -230,29 +239,7 @@ func evalFunction(ctx *StepContext, fn *parse.IdentifierNode, name string, args 
 
 	switch name {
 	case "eq":
-		if len(args[1:]) != 2 {
-			// I'm lazy, let's do the easy case first
-			return noValue, false
-		}
-
-		// We can eval `eq` if all args are static:
-		var evaluatedArgs []reflect.Value
-		for _, a := range args[1:] {
-			v, ok := evalNode(ctx, a)
-			if !ok {
-				// One of the args is not static, abort
-				return noValue, false
-			}
-			evaluatedArgs = append(evaluatedArgs, v)
-		}
-
-		if len(evaluatedArgs) != 2 {
-			// safety check
-			return noValue, false
-		}
-
-		isEqual := evaluatedArgs[0].Interface() == evaluatedArgs[1].Interface()
-		return reflect.ValueOf(isEqual), true
+		return evalEqCall(ctx, args)
 
 	default:
 		concreteFn, ok := builtins[name]
@@ -280,6 +267,32 @@ func evalFunction(ctx *StepContext, fn *parse.IdentifierNode, name string, args 
 		}
 		return ret[0], true
 	}
+}
+
+func evalEqCall(ctx *StepContext, args []parse.Node) (reflect.Value, bool) {
+	// We only support 2 args for now:
+	if len(args[1:]) != 2 {
+		return noValue, false
+	}
+
+	// We only eval `eq` if all args are static:
+	var evaluatedArgs []reflect.Value
+	for _, a := range args[1:] {
+		v, ok := evalNode(ctx, a)
+		if !ok {
+			// One of the args is not static, abort
+			return noValue, false
+		}
+		evaluatedArgs = append(evaluatedArgs, v)
+	}
+
+	if len(evaluatedArgs) != 2 {
+		// safety check
+		return noValue, false
+	}
+
+	isEqual := evaluatedArgs[0].Interface() == evaluatedArgs[1].Interface()
+	return reflect.ValueOf(isEqual), true
 }
 
 // debugParseNode can be used to produce a debug-friendly version of a parse.Node.
