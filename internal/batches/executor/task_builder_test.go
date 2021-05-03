@@ -11,7 +11,7 @@ import (
 	"github.com/sourcegraph/src-cli/internal/batches/graphql"
 )
 
-func TestTaskBuilder_BuildTask_Globbing(t *testing.T) {
+func TestTaskBuilder_BuildTask_IfConditions(t *testing.T) {
 	repo := &graphql.Repository{Name: "github.com/sourcegraph/automation-testing"}
 
 	tests := map[string]struct {
@@ -19,7 +19,7 @@ func TestTaskBuilder_BuildTask_Globbing(t *testing.T) {
 
 		wantSteps []batches.Step
 	}{
-		"no globbing": {
+		"no if": {
 			spec: &batches.BatchSpec{
 				Steps: []batches.Step{
 					{Run: "echo 1"},
@@ -30,40 +30,54 @@ func TestTaskBuilder_BuildTask_Globbing(t *testing.T) {
 			},
 		},
 
-		"glob matches": {
+		"if has static true value": {
 			spec: &batches.BatchSpec{
 				Steps: []batches.Step{
-					{Run: "echo 1", In: "github.com*"},
+					{Run: "echo 1", If: "true"},
 				},
 			},
 			wantSteps: []batches.Step{
-				{Run: "echo 1", In: "github.com*"},
+				{Run: "echo 1", If: "true"},
 			},
 		},
 
-		"glob does not match": {
+		"if has static non-true value": {
 			spec: &batches.BatchSpec{
 				Steps: []batches.Step{
-					{Run: "echo 1", In: "bitbucket"},
+					{Run: "echo 1", If: "this is not true"},
 				},
 			},
 			wantSteps: nil,
 		},
 
-		"glob matches subset of steps": {
+		"if expression that can be partially evaluated to true": {
 			spec: &batches.BatchSpec{
 				Steps: []batches.Step{
-					{Run: "echo 1", In: "github.com*"},
-					{Run: "echo 2"},
-					{Run: "echo 3", In: "bitbucket"},
-					{Run: "echo 4", In: "bitbucket"},
-					{Run: "echo 5", In: "*automation-testing*"},
+					{Run: "echo 1", If: `${{ matches repository.name "github.com/sourcegraph/automation*" }}`},
 				},
 			},
 			wantSteps: []batches.Step{
-				{Run: "echo 1", In: "github.com*"},
-				{Run: "echo 2"},
-				{Run: "echo 5", In: "*automation-testing*"},
+				{Run: "echo 1", If: `${{ matches repository.name "github.com/sourcegraph/automation*" }}`},
+			},
+		},
+
+		"if expression that can be partially evaluated to false": {
+			spec: &batches.BatchSpec{
+				Steps: []batches.Step{
+					{Run: "echo 1", If: `${{ matches repository.name "horse" }}`},
+				},
+			},
+			wantSteps: nil,
+		},
+
+		"if expression that can NOT be partially evaluated": {
+			spec: &batches.BatchSpec{
+				Steps: []batches.Step{
+					{Run: "echo 1", If: `${{ eq outputs.value "foobar" }}`},
+				},
+			},
+			wantSteps: []batches.Step{
+				{Run: "echo 1", If: `${{ eq outputs.value "foobar" }}`},
 			},
 		},
 	}

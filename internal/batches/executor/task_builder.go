@@ -25,14 +25,7 @@ func NewTaskBuilder(spec *batches.BatchSpec, finder DirectoryFinder) (*TaskBuild
 	s := &TaskBuilder{spec: spec, finder: finder}
 
 	for _, step := range spec.Steps {
-		if step.In != "" {
-			g, err := glob.Compile(step.In)
-			if err != nil {
-				return nil, err
-			}
-			step.SetInGlob(g)
-		}
-
+		// TODO
 		s.initializedSteps = append(s.initializedSteps, step)
 	}
 
@@ -51,9 +44,8 @@ func NewTaskBuilder(spec *batches.BatchSpec, finder DirectoryFinder) (*TaskBuild
 func (s *TaskBuilder) buildTask(r *graphql.Repository, path string, onlyWorkspace bool) *Task {
 	var taskSteps []batches.Step
 	for _, s := range s.initializedSteps {
-		if s.InMatches(r.Name) {
-			taskSteps = append(taskSteps, s)
-		}
+		// TODO
+		taskSteps = append(taskSteps, s)
 	}
 
 	// "." means the path is root, but in the executor we use "" to signify root

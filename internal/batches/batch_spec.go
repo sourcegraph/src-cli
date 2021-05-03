@@ -94,23 +94,9 @@ type Step struct {
 	Files     map[string]string `json:"files,omitempty" yaml:"files,omitempty"`
 	Outputs   Outputs           `json:"outputs,omitempty" yaml:"outputs,omitempty"`
 
-	In     string `json:"in,omitempty" yaml:"in"`
-	inGlob glob.Glob
-
 	If string `json:"if,omitempty" yaml:"if"`
 
 	image docker.Image
-}
-
-func (s *Step) SetInGlob(g glob.Glob) {
-	s.inGlob = g
-}
-
-func (s *Step) InMatches(repoName string) bool {
-	if s.In == "" {
-		return true
-	}
-	return s.inGlob.Match(repoName)
 }
 
 func (s *Step) SetImage(image docker.Image) {
