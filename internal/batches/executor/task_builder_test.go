@@ -41,6 +41,21 @@ func TestTaskBuilder_BuildTask_IfConditions(t *testing.T) {
 			},
 		},
 
+		"one of many steps has if with static true value": {
+			spec: &batches.BatchSpec{
+				Steps: []batches.Step{
+					{Run: "echo 1"},
+					{Run: "echo 2", If: "true"},
+					{Run: "echo 3"},
+				},
+			},
+			wantSteps: []batches.Step{
+				{Run: "echo 1"},
+				{Run: "echo 2", If: "true"},
+				{Run: "echo 3"},
+			},
+		},
+
 		"if has static non-true value": {
 			spec: &batches.BatchSpec{
 				Steps: []batches.Step{
@@ -48,6 +63,20 @@ func TestTaskBuilder_BuildTask_IfConditions(t *testing.T) {
 				},
 			},
 			wantSteps: nil,
+		},
+
+		"one of many steps has if with static non-true value": {
+			spec: &batches.BatchSpec{
+				Steps: []batches.Step{
+					{Run: "echo 1"},
+					{Run: "echo 2", If: "every type system needs generics"},
+					{Run: "echo 3"},
+				},
+			},
+			wantSteps: []batches.Step{
+				{Run: "echo 1"},
+				{Run: "echo 3"},
+			},
 		},
 
 		"if expression that can be partially evaluated to true": {
@@ -62,6 +91,15 @@ func TestTaskBuilder_BuildTask_IfConditions(t *testing.T) {
 		},
 
 		"if expression that can be partially evaluated to false": {
+			spec: &batches.BatchSpec{
+				Steps: []batches.Step{
+					{Run: "echo 1", If: `${{ matches repository.name "horse" }}`},
+				},
+			},
+			wantSteps: nil,
+		},
+
+		"one of many steps has if expression that can be evaluated to true": {
 			spec: &batches.BatchSpec{
 				Steps: []batches.Step{
 					{Run: "echo 1", If: `${{ matches repository.name "horse" }}`},
@@ -88,7 +126,7 @@ func TestTaskBuilder_BuildTask_IfConditions(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			task := builder.buildTask(repo, "", false)
+			task, err := builder.buildTask(repo, "", false)
 			if err != nil {
 				t.Fatalf("unexpected err: %s", err)
 			}

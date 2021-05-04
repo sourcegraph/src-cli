@@ -17,35 +17,52 @@ type TaskBuilder struct {
 	spec   *batches.BatchSpec
 	finder DirectoryFinder
 
-	initializedSteps            []batches.Step
 	initializedWorkspaceConfigs []batches.WorkspaceConfiguration
 }
 
 func NewTaskBuilder(spec *batches.BatchSpec, finder DirectoryFinder) (*TaskBuilder, error) {
-	s := &TaskBuilder{spec: spec, finder: finder}
+	tb := &TaskBuilder{spec: spec, finder: finder}
 
-	for _, step := range spec.Steps {
-		// TODO
-		s.initializedSteps = append(s.initializedSteps, step)
-	}
-
-	for _, conf := range s.spec.Workspaces {
+	for _, conf := range tb.spec.Workspaces {
 		g, err := glob.Compile(conf.In)
 		if err != nil {
 			return nil, err
 		}
 		conf.SetGlob(g)
-		s.initializedWorkspaceConfigs = append(s.initializedWorkspaceConfigs, conf)
+		tb.initializedWorkspaceConfigs = append(tb.initializedWorkspaceConfigs, conf)
 	}
 
-	return s, nil
+	return tb, nil
 }
 
-func (s *TaskBuilder) buildTask(r *graphql.Repository, path string, onlyWorkspace bool) *Task {
+func (tb *TaskBuilder) buildTask(r *graphql.Repository, path string, onlyWorkspace bool) (*Task, error) {
+	stepCtx := &StepContext{
+		Repository: *r,
+		BatchChange: BatchChangeAttributes{
+			Name:        tb.spec.Name,
+			Description: tb.spec.Description,
+		},
+	}
+
 	var taskSteps []batches.Step
-	for _, s := range s.initializedSteps {
-		// TODO
-		taskSteps = append(taskSteps, s)
+	for _, step := range tb.spec.Steps {
+		if step.If == "" {
+			taskSteps = append(taskSteps, step)
+			continue
+		}
+
+		static, boolVal, err := isStaticBool(step.If, stepCtx)
+		if err != nil {
+			return nil, err
+		}
+
+		// If we could evaluate the condition statically and the resulting
+		// boolean is false, we don't add that step.
+		if !static {
+			taskSteps = append(taskSteps, step)
+		} else if boolVal {
+			taskSteps = append(taskSteps, step)
+		}
 	}
 
 	// "." means the path is root, but in the executor we use "" to signify root
@@ -59,18 +76,18 @@ func (s *TaskBuilder) buildTask(r *graphql.Repository, path string, onlyWorkspac
 		Steps:              taskSteps,
 		OnlyFetchWorkspace: onlyWorkspace,
 
-		TransformChanges: s.spec.TransformChanges,
-		Template:         s.spec.ChangesetTemplate,
+		TransformChanges: tb.spec.TransformChanges,
+		Template:         tb.spec.ChangesetTemplate,
 		BatchChangeAttributes: &BatchChangeAttributes{
-			Name:        s.spec.Name,
-			Description: s.spec.Description,
+			Name:        tb.spec.Name,
+			Description: tb.spec.Description,
 		},
-	}
+	}, nil
 }
 
-func (s *TaskBuilder) BuildAll(ctx context.Context, repos []*graphql.Repository) ([]*Task, error) {
+func (tb *TaskBuilder) BuildAll(ctx context.Context, repos []*graphql.Repository) ([]*Task, error) {
 	// Find workspaces in repositories, if configured
-	workspaces, root, err := s.findWorkspaces(ctx, repos, s.initializedWorkspaceConfigs)
+	workspaces, root, err := tb.findWorkspaces(ctx, repos, tb.initializedWorkspaceConfigs)
 	if err != nil {
 		return nil, err
 	}
@@ -78,13 +95,21 @@ func (s *TaskBuilder) BuildAll(ctx context.Context, repos []*graphql.Repository)
 	var tasks []*Task
 	for repo, ws := range workspaces {
 		for _, path := range ws.paths {
-			t := s.buildTask(repo, path, ws.onlyFetchWorkspace)
+			t, err := tb.buildTask(repo, path, ws.onlyFetchWorkspace)
+			if err != nil {
+				return nil, err
+			}
 			tasks = append(tasks, t)
 		}
 	}
 
 	for _, repo := range root {
-		tasks = append(tasks, s.buildTask(repo, "", false))
+		t, err := tb.buildTask(repo, "", false)
+		if err != nil {
+			return nil, err
+		}
+
+		tasks = append(tasks, t)
 	}
 
 	return tasks, nil
@@ -102,7 +127,7 @@ type repoWorkspaces struct {
 // workspaces. root contains the repositories that didn't match a config.
 // If the user didn't specify any workspaces, the repositories are returned as
 // root repositories.
-func (s *TaskBuilder) findWorkspaces(
+func (tb *TaskBuilder) findWorkspaces(
 	ctx context.Context,
 	repos []*graphql.Repository,
 	configs []batches.WorkspaceConfiguration,
@@ -137,7 +162,7 @@ func (s *TaskBuilder) findWorkspaces(
 	workspaces = map[*graphql.Repository]repoWorkspaces{}
 	for idx, repos := range matched {
 		conf := configs[idx]
-		repoDirs, err := s.finder.FindDirectoriesInRepos(ctx, conf.RootAtLocationOf, repos...)
+		repoDirs, err := tb.finder.FindDirectoriesInRepos(ctx, conf.RootAtLocationOf, repos...)
 		if err != nil {
 			return nil, nil, err
 		}

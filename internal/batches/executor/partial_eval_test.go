@@ -1,11 +1,9 @@
 package executor
 
 import (
-	"bytes"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/sourcegraph/src-cli/internal/batches/git"
 	"github.com/sourcegraph/src-cli/internal/batches/graphql"
 )
 
@@ -13,19 +11,6 @@ var partialEvalStepCtx = &StepContext{
 	BatchChange: BatchChangeAttributes{
 		Name:        "test-batch-change",
 		Description: "test-description",
-	},
-	PreviousStep: StepResult{
-		files: &git.Changes{
-			Modified: []string{"go.mod"},
-			Added:    []string{"main.go.swp"},
-			Deleted:  []string{".DS_Store"},
-			Renamed:  []string{"new-filename.txt"},
-		},
-		Stdout: bytes.NewBufferString("this is previous step's stdout"),
-		Stderr: bytes.NewBufferString("this is previous step's stderr"),
-	},
-	Outputs: map[string]interface{}{
-		"output1": "output-value-1",
 	},
 	// Step is not set when evalStepCondition is called
 	Repository: graphql.Repository{
@@ -139,6 +124,11 @@ func TestParseAndPartialEval(t *testing.T) {
 				// Runtime value
 				`${{ step.modified_files }}`,
 				`{{step.modified_files}}`,
+			},
+			{
+				// Runtime value
+				`${{ previous_step.modified_files }}`,
+				`{{previous_step.modified_files}}`,
 			},
 			{
 				// "eq" call with static value and runtime value:
