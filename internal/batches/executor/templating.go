@@ -37,6 +37,10 @@ var builtins = template.FuncMap{
 	},
 }
 
+func isTrueOutput(output interface{ String() string }) bool {
+	return strings.TrimSpace(output.String()) == "true"
+}
+
 func evalStepCondition(condition string, stepCtx *StepContext) (bool, error) {
 	if condition == "" {
 		return true, nil
@@ -47,8 +51,7 @@ func evalStepCondition(condition string, stepCtx *StepContext) (bool, error) {
 		return false, errors.Wrap(err, "parsing step if")
 	}
 
-	val := strings.ToLower(out.String())
-	return val == "true", nil
+	return isTrueOutput(&out), nil
 }
 
 func renderStepTemplate(name, tmpl string, out io.Writer, stepCtx *StepContext) error {
@@ -92,6 +95,9 @@ type StepContext struct {
 	// Step is the result of the current step. Empty when evaluating the "run" field
 	// but filled when evaluating the "outputs" field.
 	Step StepResult
+	// Steps contains the path in which the steps are being executed and the
+	// changes made by all steps that were executed up until the current step.
+	Steps StepsContext
 	// PreviousStep is the result of the previous step. Empty when there is no
 	// previous step.
 	PreviousStep StepResult
@@ -137,6 +143,11 @@ func (stepCtx *StepContext) ToFuncMap() template.FuncMap {
 		},
 		"step": func() map[string]interface{} {
 			return newStepResult(&stepCtx.Step)
+		},
+		"steps": func() map[string]interface{} {
+			res := newStepResult(&StepResult{files: stepCtx.Steps.Changes})
+			res["path"] = stepCtx.Steps.Path
+			return res
 		},
 		"outputs": func() map[string]interface{} {
 			return stepCtx.Outputs

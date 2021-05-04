@@ -39,8 +39,7 @@ func isStaticBool(input string, ctx *StepContext) (bool, bool, error) {
 		return isStatic, false, nil
 	}
 
-	tmplStr := t.Tree.Root.String()
-	return true, strings.TrimSpace(tmplStr) == "true", nil
+	return true, isTrueOutput(t.Tree.Root), nil
 }
 
 // parseAndPartialEval parses input as a text/template and then attempts to

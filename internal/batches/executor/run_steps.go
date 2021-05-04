@@ -77,9 +77,17 @@ func runSteps(ctx context.Context, opts *executionOpts) (result executionResult,
 	results := make([]StepResult, len(opts.steps))
 
 	for i, step := range opts.steps {
-		stepContext := StepContext{BatchChange: *opts.batchChangeAttributes, Repository: *opts.repo, Outputs: execResult.Outputs}
+		stepContext := StepContext{
+			BatchChange: *opts.batchChangeAttributes,
+			Repository:  *opts.repo,
+			Outputs:     execResult.Outputs,
+			Steps: StepsContext{
+				Path: execResult.Path,
+			},
+		}
 		if i > 0 {
 			stepContext.PreviousStep = results[i-1]
+			stepContext.Steps.Changes = results[i-1].files
 		}
 
 		cond, err := evalStepCondition(step.If, &stepContext)

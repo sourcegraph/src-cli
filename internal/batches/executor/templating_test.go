@@ -10,6 +10,13 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+var testChanges = &git.Changes{
+	Modified: []string{"go.mod"},
+	Added:    []string{"main.go.swp"},
+	Deleted:  []string{".DS_Store"},
+	Renamed:  []string{"new-filename.txt"},
+}
+
 func TestEvalStepCondition(t *testing.T) {
 	stepCtx := &StepContext{
 		BatchChange: BatchChangeAttributes{
@@ -17,14 +24,13 @@ func TestEvalStepCondition(t *testing.T) {
 			Description: "This batch change is just an experiment",
 		},
 		PreviousStep: StepResult{
-			files: &git.Changes{
-				Modified: []string{"go.mod"},
-				Added:    []string{"main.go.swp"},
-				Deleted:  []string{".DS_Store"},
-				Renamed:  []string{"new-filename.txt"},
-			},
+			files:  testChanges,
 			Stdout: bytes.NewBufferString("this is previous step's stdout"),
 			Stderr: bytes.NewBufferString("this is previous step's stderr"),
+		},
+		Steps: StepsContext{
+			Changes: testChanges,
+			Path:    "sub/directory/of/repo",
 		},
 		Outputs: map[string]interface{}{},
 		// Step is not set when evalStepCondition is called
@@ -42,10 +48,12 @@ func TestEvalStepCondition(t *testing.T) {
 		want bool
 	}{
 		{run: `true`, want: true},
-		{run: `TRUE`, want: true},
+		{run: `  true    `, want: true},
+		{run: `TRUE`, want: false},
 		{run: `false`, want: false},
 		{run: `FALSE`, want: false},
 		{run: `${{ eq repository.name "github.com/sourcegraph/src-cli" }}`, want: true},
+		{run: `${{ eq steps.path "sub/directory/of/repo" }}`, want: true},
 		{run: `${{ matches repository.name "github.com/sourcegraph/*" }}`, want: true},
 	}
 
@@ -87,12 +95,7 @@ func TestRenderStepTemplate(t *testing.T) {
 			Description: "This batch change is just an experiment",
 		},
 		PreviousStep: StepResult{
-			files: &git.Changes{
-				Modified: []string{"go.mod"},
-				Added:    []string{"main.go.swp"},
-				Deleted:  []string{".DS_Store"},
-				Renamed:  []string{"new-filename.txt"},
-			},
+			files:  testChanges,
 			Stdout: bytes.NewBufferString("this is previous step's stdout"),
 			Stderr: bytes.NewBufferString("this is previous step's stderr"),
 		},
@@ -101,15 +104,11 @@ func TestRenderStepTemplate(t *testing.T) {
 			"project":  parsedYaml,
 		},
 		Step: StepResult{
-			files: &git.Changes{
-				Modified: []string{"step-go.mod"},
-				Added:    []string{"step-main.go.swp"},
-				Deleted:  []string{"step-.DS_Store"},
-				Renamed:  []string{"step-new-filename.txt"},
-			},
+			files:  testChanges,
 			Stdout: bytes.NewBufferString("this is current step's stdout"),
 			Stderr: bytes.NewBufferString("this is current step's stderr"),
 		},
+		Steps: StepsContext{Changes: testChanges, Path: "sub/directory/of/repo"},
 		Repository: graphql.Repository{
 			Name: "github.com/sourcegraph/src-cli",
 			FileMatches: map[string]bool{
@@ -146,6 +145,11 @@ ${{ step.deleted_files }}
 ${{ step.renamed_files }}
 ${{ step.stdout}}
 ${{ step.stderr}}
+${{ steps.modified_files }}
+${{ steps.added_files }}
+${{ steps.deleted_files }}
+${{ steps.renamed_files }}
+${{ steps.path }}
 `,
 			want: `README.md main.go
 github.com/sourcegraph/src-cli
@@ -159,12 +163,17 @@ this is previous step's stdout
 this is previous step's stderr
 lastLine is this
 CGO_ENABLED=0
-[step-go.mod]
-[step-main.go.swp]
-[step-.DS_Store]
-[step-new-filename.txt]
+[go.mod]
+[main.go.swp]
+[.DS_Store]
+[new-filename.txt]
 this is current step's stdout
 this is current step's stderr
+[go.mod]
+[main.go.swp]
+[.DS_Store]
+[new-filename.txt]
+sub/directory/of/repo
 `,
 		},
 		{
@@ -186,6 +195,11 @@ ${{ step.deleted_files }}
 ${{ step.renamed_files }}
 ${{ step.stdout}}
 ${{ step.stderr}}
+${{ steps.modified_files }}
+${{ steps.added_files }}
+${{ steps.deleted_files }}
+${{ steps.renamed_files }}
+${{ steps.path }}
 `,
 			want: `
 
@@ -202,6 +216,11 @@ ${{ step.stderr}}
 []
 []
 
+
+[]
+[]
+[]
+[]
 
 `,
 		},
@@ -226,12 +245,7 @@ ${{ step.stderr}}
 func TestRenderStepMap(t *testing.T) {
 	stepCtx := &StepContext{
 		PreviousStep: StepResult{
-			files: &git.Changes{
-				Modified: []string{"go.mod"},
-				Added:    []string{"main.go.swp"},
-				Deleted:  []string{".DS_Store"},
-				Renamed:  []string{"new-filename.txt"},
-			},
+			files:  testChanges,
 			Stdout: bytes.NewBufferString("this is previous step's stdout"),
 			Stderr: bytes.NewBufferString("this is previous step's stderr"),
 		},
@@ -369,55 +383,4 @@ ${{ steps.renamed_files }}
 			}
 		})
 	}
-}
-
-func fullStepContext(t *testing.T) *StepContext {
-	t.Helper()
-
-	// To avoid bugs due to differences between test setup and actual code, we
-	// do the actual parsing of YAML here to get an interface{} which we'll put
-	// in the StepContext.
-	var parsedYaml interface{}
-	if err := yaml.Unmarshal([]byte(rawYaml), &parsedYaml); err != nil {
-		t.Fatalf("failed to parse YAML: %s", err)
-	}
-
-	return &StepContext{
-		BatchChange: BatchChangeAttributes{
-			Name:        "test-batch-change",
-			Description: "This batch change is just an experiment",
-		},
-		PreviousStep: StepResult{
-			files: &git.Changes{
-				Modified: []string{"go.mod"},
-				Added:    []string{"main.go.swp"},
-				Deleted:  []string{".DS_Store"},
-				Renamed:  []string{"new-filename.txt"},
-			},
-			Stdout: bytes.NewBufferString("this is previous step's stdout"),
-			Stderr: bytes.NewBufferString("this is previous step's stderr"),
-		},
-		Outputs: map[string]interface{}{
-			"lastLine": "lastLine is this",
-			"project":  parsedYaml,
-		},
-		Step: StepResult{
-			files: &git.Changes{
-				Modified: []string{"step-go.mod"},
-				Added:    []string{"step-main.go.swp"},
-				Deleted:  []string{"step-.DS_Store"},
-				Renamed:  []string{"step-new-filename.txt"},
-			},
-			Stdout: bytes.NewBufferString("this is current step's stdout"),
-			Stderr: bytes.NewBufferString("this is current step's stderr"),
-		},
-		Repository: graphql.Repository{
-			Name: "github.com/sourcegraph/src-cli",
-			FileMatches: map[string]bool{
-				"README.md": true,
-				"main.go":   true,
-			},
-		},
-	}
-
 }

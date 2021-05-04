@@ -389,17 +389,21 @@ output4=integration-test-batch-change`,
 					Run: `echo "foobar" >> hello.txt`,
 					If:  `${{ matches repository.name "github.com/sourcegraph/sourcegra*" }}`,
 				},
+				{
+					Run: `echo "foobar" >> in-path.txt`,
+					If:  `${{ matches steps.path "sub/directory/of/repo" }}`,
+				},
 			},
 			tasks: []*Task{
 				{Repository: srcCLIRepo},
-				{Repository: sourcegraphRepo},
+				{Repository: sourcegraphRepo, Path: "sub/directory/of/repo"},
 			},
 			wantFilesChanged: filesByRepository{
 				srcCLIRepo.ID: filesByBranch{
 					changesetTemplateBranch: []string{"README.md"},
 				},
 				sourcegraphRepo.ID: {
-					changesetTemplateBranch: []string{"README.md", "hello.txt"},
+					changesetTemplateBranch: []string{"README.md", "hello.txt", "in-path.txt"},
 				},
 			},
 		},
