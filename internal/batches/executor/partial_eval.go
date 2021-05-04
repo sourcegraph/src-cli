@@ -318,23 +318,8 @@ func debugParseNode(n parse.Node) string {
 	case *parse.BoolNode:
 		return fmt.Sprintf("parse.BoolNode")
 
-	case *parse.BranchNode:
-		return fmt.Sprintf("parse.BranchNode")
-
 	case *parse.CommandNode:
 		return fmt.Sprintf("parse.CommandNode")
-
-	case *parse.CommentNode:
-		return fmt.Sprintf("parse.CommentNode")
-
-	case *parse.DotNode:
-		return fmt.Sprintf("parse.DotNode")
-
-	case *parse.IfNode:
-		return fmt.Sprintf("parse.IfNode")
-
-	case *parse.ListNode:
-		return fmt.Sprintf("parse.ListNode")
 
 	case *parse.NilNode:
 		return fmt.Sprintf("parse.NilNode")
@@ -345,22 +330,7 @@ func debugParseNode(n parse.Node) string {
 	case *parse.PipeNode:
 		return fmt.Sprintf("parse.PipeNode")
 
-	case *parse.RangeNode:
-		return fmt.Sprintf("parse.RangeNode")
-
-	case *parse.StringNode:
-		return fmt.Sprintf("parse.StringNode")
-
-	case *parse.TemplateNode:
-		return fmt.Sprintf("parse.TemplateNode")
-
-	case *parse.VariableNode:
-		return fmt.Sprintf("parse.VariableNode")
-
-	case *parse.WithNode:
-		return fmt.Sprintf("parse.WithNode")
-
 	default:
-		return n.String()
+		return fmt.Sprintf("UNHANDLED parse.Node TYPE: %s", n.String())
 	}
 }
