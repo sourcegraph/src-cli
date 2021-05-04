@@ -978,5 +978,6 @@ func featuresAllEnabled() batches.FeatureFlags {
 		UseGzipCompression:       true,
 		AllowTransformChanges:    true,
 		AllowWorkspaces:          true,
+		AllowConditionalExec:     true,
 	}
 }

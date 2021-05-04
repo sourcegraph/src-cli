@@ -87,4 +87,39 @@ changesetTemplate:
 			t.Fatalf("wrong error. want=%q, have=%q", wantErr, haveErr)
 		}
 	})
+
+	t.Run("uses unsupported conditional exec", func(t *testing.T) {
+		const spec = `
+name: hello-world
+description: Add Hello World to READMEs
+on:
+  - repositoriesMatchingQuery: file:README.md
+steps:
+  - run: echo Hello World | tee -a $(find -name README.md)
+    if: "false"
+    container: alpine:3
+
+changesetTemplate:
+  title: Hello World
+  body: My first batch change!
+  branch: hello-world
+  commit:
+    message: Append Hello World to all README.md files
+  published: false
+`
+
+		_, err := ParseBatchSpec([]byte(spec), FeatureFlags{})
+		if err == nil {
+			t.Fatal("no error returned")
+		}
+
+		wantErr := `1 error occurred:
+	* step 1 in batch spec uses the 'if' attribute for conditional execution, which is not supported in this Sourcegraph version
+
+`
+		haveErr := err.Error()
+		if haveErr != wantErr {
+			t.Fatalf("wrong error. want=%q, have=%q", wantErr, haveErr)
+		}
+	})
 }
