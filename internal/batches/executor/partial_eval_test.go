@@ -88,6 +88,16 @@ func TestParseAndPartialEval(t *testing.T) {
 				`false true false`,
 			},
 			{
+				// "ne" call with 2 static values:
+				`${{ ne repository.name "github.com/sourcegraph/src-cli" }}`,
+				`false`,
+			},
+			{
+				// "ne" call with 2 literal values:
+				`${{ ne 5 5 }}`,
+				`false`,
+			},
+			{
 				// Function call with builtin function and static values:
 				`${{ matches repository.name "github.com*" }}`,
 				`true`,

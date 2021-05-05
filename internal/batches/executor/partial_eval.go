@@ -243,6 +243,13 @@ func evalFunction(ctx *StepContext, fn *parse.IdentifierNode, name string, args 
 	case "eq":
 		return evalEqCall(ctx, args[1:])
 
+	case "ne":
+		equal, ok := evalEqCall(ctx, args[1:])
+		if !ok {
+			return noValue, false
+		}
+		return reflect.ValueOf(!equal.Bool()), true
+
 	case "not":
 		return evalNotCall(ctx, args[1:])
 
