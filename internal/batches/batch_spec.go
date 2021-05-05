@@ -194,12 +194,14 @@ func ParseBatchSpec(data []byte, features FeatureFlags) (*BatchSpec, error) {
 		errs = multierror.Append(errs, errors.New("batch spec includes workspaces, which is not supported in this Sourcegraph version"))
 	}
 
-	for i, step := range spec.Steps {
-		if step.IfCondition() != "" && !features.AllowConditionalExec {
-			errs = multierror.Append(errs, fmt.Errorf(
-				"step %d in batch spec uses the 'if' attribute for conditional execution, which is not supported in this Sourcegraph version",
-				i+1,
-			))
+	if !features.AllowConditionalExec {
+		for i, step := range spec.Steps {
+			if step.IfCondition() != "" {
+				errs = multierror.Append(errs, fmt.Errorf(
+					"step %d in batch spec uses the 'if' attribute for conditional execution, which is not supported in this Sourcegraph version",
+					i+1,
+				))
+			}
 		}
 	}
 
