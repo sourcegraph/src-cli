@@ -9,9 +9,7 @@ const BatchSpecJSON = `{
   "description": "A batch specification, which describes the batch change and what kinds of changes to make (or what existing changesets to track).",
   "type": "object",
   "additionalProperties": false,
-  "required": [
-    "name"
-  ],
+  "required": ["name"],
   "properties": {
     "name": {
       "type": "string",
@@ -33,16 +31,12 @@ const BatchSpecJSON = `{
             "type": "object",
             "description": "A Sourcegraph search query that matches a set of repositories (and branches). Each matched repository branch is added to the list of repositories that the batch change will be run on.",
             "additionalProperties": false,
-            "required": [
-              "repositoriesMatchingQuery"
-            ],
+            "required": ["repositoriesMatchingQuery"],
             "properties": {
               "repositoriesMatchingQuery": {
                 "type": "string",
                 "description": "A Sourcegraph search query that matches a set of repositories (and branches). If the query matches files, symbols, or some other object inside a repository, the object's repository is included.",
-                "examples": [
-                  "file:README.md"
-                ]
+                "examples": ["file:README.md"]
               }
             }
           },
@@ -51,16 +45,12 @@ const BatchSpecJSON = `{
             "type": "object",
             "description": "A specific repository (and branch) that is added to the list of repositories that the batch change will be run on.",
             "additionalProperties": false,
-            "required": [
-              "repository"
-            ],
+            "required": ["repository"],
             "properties": {
               "repository": {
                 "type": "string",
                 "description": "The name of the repository (as it is known to Sourcegraph).",
-                "examples": [
-                  "github.com/foo/bar"
-                ]
+                "examples": ["github.com/foo/bar"]
               },
               "branch": {
                 "type": "string",
@@ -79,28 +69,17 @@ const BatchSpecJSON = `{
         "type": "object",
         "description": "Configuration for how to setup workspaces in repositories",
         "additionalProperties": false,
-        "required": [
-          "rootAtLocationOf"
-        ],
+        "required": ["rootAtLocationOf"],
         "properties": {
           "rootAtLocationOf": {
             "type": "string",
             "description": "The name of the file that sits at the root of the desired workspace.",
-            "examples": [
-              "package.json",
-              "go.mod",
-              "Gemfile",
-              "Cargo.toml",
-              "README.md"
-            ]
+            "examples": ["package.json", "go.mod", "Gemfile", "Cargo.toml", "README.md"]
           },
           "in": {
             "type": "string",
             "description": "The repositories in which to apply the workspace configuration. Supports globbing.",
-            "examples": [
-              "github.com/sourcegraph/src-cli",
-              "github.com/sourcegraph/*"
-            ]
+            "examples": ["github.com/sourcegraph/src-cli", "github.com/sourcegraph/*"]
           },
           "onlyFetchWorkspace": {
             "type": "boolean",
@@ -118,10 +97,7 @@ const BatchSpecJSON = `{
         "type": "object",
         "description": "A command to run (as part of a sequence) in a repository branch to produce the required changes.",
         "additionalProperties": false,
-        "required": [
-          "run",
-          "container"
-        ],
+        "required": ["run", "container"],
         "properties": {
           "run": {
             "type": "string",
@@ -130,36 +106,24 @@ const BatchSpecJSON = `{
           "container": {
             "type": "string",
             "description": "The Docker image used to launch the Docker container in which the shell command is run.",
-            "examples": [
-              "alpine:3"
-            ]
+            "examples": ["alpine:3"]
           },
           "outputs": {
             "type": "object",
             "description": "Output variables of this step that can be referenced in the changesetTemplate or other steps via outputs.<name-of-output>",
             "additionalProperties": {
               "type": "object",
-              "required": [
-                "value"
-              ],
+              "required": ["value"],
               "properties": {
                 "value": {
                   "type": "string",
                   "description": "The value of the output, which can be a template string.",
-                  "examples": [
-                    "hello world",
-                    "${{ step.stdout }}",
-                    "${{ repository.name }}"
-                  ]
+                  "examples": ["hello world", "${{ step.stdout }}", "${{ repository.name }}"]
                 },
                 "format": {
                   "type": "string",
                   "description": "The expected format of the output. If set, the output is being parsed in that format before being stored in the var. If not set, 'text' is assumed to the format.",
-                  "enum": [
-                    "json",
-                    "yaml",
-                    "text"
-                  ]
+                  "enum": ["json", "yaml", "text"]
                 }
               }
             }
@@ -204,7 +168,7 @@ const BatchSpecJSON = `{
             }
           },
           "if": {
-            "type": "string",
+            "oneOf": [{ "type": "boolean" }, { "type": "string" }],
             "description": "A condition to check before executing steps. Supports templating. The value 'true' is interpreted as true.",
             "examples": [
               "true",
@@ -225,10 +189,7 @@ const BatchSpecJSON = `{
           "type": "array",
           "description": "A list of groups of changes in a repository that each create a separate, additional changeset for this repository, with all ungrouped changes being in the default changeset.",
           "additionalProperties": false,
-          "required": [
-            "directory",
-            "branchSuffix"
-          ],
+          "required": ["directory", "branchSuffix"],
           "properties": {
             "directory": {
               "type": "string",
@@ -243,9 +204,7 @@ const BatchSpecJSON = `{
             "repository": {
               "type": "string",
               "description": "Only apply this transformation in the repository with this name (as it is known to Sourcegraph).",
-              "examples": [
-                "github.com/foo/bar"
-              ]
+              "examples": ["github.com/foo/bar"]
             }
           }
         }
@@ -257,10 +216,7 @@ const BatchSpecJSON = `{
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": [
-          "repository",
-          "externalIDs"
-        ],
+        "required": ["repository", "externalIDs"],
         "properties": {
           "repository": {
             "type": "string",
@@ -280,10 +236,7 @@ const BatchSpecJSON = `{
                 }
               ]
             },
-            "examples": [
-              120,
-              "120"
-            ]
+            "examples": [120, "120"]
           }
         }
       }
@@ -292,12 +245,7 @@ const BatchSpecJSON = `{
       "type": "object",
       "description": "A template describing how to create (and update) changesets with the file changes produced by the command steps.",
       "additionalProperties": false,
-      "required": [
-        "title",
-        "branch",
-        "commit",
-        "published"
-      ],
+      "required": ["title", "branch", "commit", "published"],
       "properties": {
         "title": {
           "type": "string",
@@ -316,9 +264,7 @@ const BatchSpecJSON = `{
           "type": "object",
           "description": "The Git commit to create with the changes.",
           "additionalProperties": false,
-          "required": [
-            "message"
-          ],
+          "required": ["message"],
           "properties": {
             "message": {
               "type": "string",
@@ -329,10 +275,7 @@ const BatchSpecJSON = `{
               "type": "object",
               "description": "The author of the Git commit.",
               "additionalProperties": false,
-              "required": [
-                "name",
-                "email"
-              ],
+              "required": ["name", "email"],
               "properties": {
                 "name": {
                   "type": "string",

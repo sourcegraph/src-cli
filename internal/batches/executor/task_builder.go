@@ -46,12 +46,12 @@ func (tb *TaskBuilder) buildTask(r *graphql.Repository, path string, onlyWorkspa
 
 	var taskSteps []batches.Step
 	for _, step := range tb.spec.Steps {
-		if step.If == "" {
+		if step.IfCondition() == "" {
 			taskSteps = append(taskSteps, step)
 			continue
 		}
 
-		static, boolVal, err := isStaticBool(step.If, stepCtx)
+		static, boolVal, err := isStaticBool(step.IfCondition(), stepCtx)
 		if err != nil {
 			return nil, err
 		}

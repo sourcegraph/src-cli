@@ -94,9 +94,23 @@ type Step struct {
 	Files     map[string]string `json:"files,omitempty" yaml:"files,omitempty"`
 	Outputs   Outputs           `json:"outputs,omitempty" yaml:"outputs,omitempty"`
 
-	If string `json:"if,omitempty" yaml:"if,omitempty"`
+	If interface{} `json:"if,omitempty" yaml:"if,omitempty"`
 
 	image docker.Image
+}
+
+func (s *Step) IfCondition() string {
+	switch v := s.If.(type) {
+	case bool:
+		if v {
+			return "true"
+		}
+		return "false"
+	case string:
+		return v
+	default:
+		return ""
+	}
 }
 
 func (s *Step) SetImage(image docker.Image) {
@@ -181,7 +195,7 @@ func ParseBatchSpec(data []byte, features FeatureFlags) (*BatchSpec, error) {
 	}
 
 	for i, step := range spec.Steps {
-		if step.If != "" && !features.AllowConditionalExec {
+		if step.IfCondition() != "" && !features.AllowConditionalExec {
 			errs = multierror.Append(errs, fmt.Errorf(
 				"step %d in batch spec uses the 'if' attribute for conditional execution, which is not supported in this Sourcegraph version",
 				i+1,

@@ -90,7 +90,7 @@ func runSteps(ctx context.Context, opts *executionOpts) (result executionResult,
 			stepContext.Steps.Changes = results[i-1].files
 		}
 
-		cond, err := evalStepCondition(step.If, &stepContext)
+		cond, err := evalStepCondition(step.IfCondition(), &stepContext)
 		if err != nil {
 			return execResult, errors.Wrap(err, "evaluating step condition")
 		}
