@@ -241,7 +241,10 @@ func evalFunction(ctx *StepContext, fn *parse.IdentifierNode, name string, args 
 
 	switch name {
 	case "eq":
-		return evalEqCall(ctx, args)
+		return evalEqCall(ctx, args[1:])
+
+	case "not":
+		return evalNotCall(ctx, args[1:])
 
 	default:
 		concreteFn, ok := builtins[name]
@@ -271,15 +274,29 @@ func evalFunction(ctx *StepContext, fn *parse.IdentifierNode, name string, args 
 	}
 }
 
+func evalNotCall(ctx *StepContext, args []parse.Node) (reflect.Value, bool) {
+	// We only support 1 arg for now:
+	if len(args) != 1 {
+		return noValue, false
+	}
+
+	arg, ok := evalNode(ctx, args[0])
+	if !ok {
+		return noValue, false
+	}
+
+	return reflect.ValueOf(!isTrue(arg)), true
+}
+
 func evalEqCall(ctx *StepContext, args []parse.Node) (reflect.Value, bool) {
 	// We only support 2 args for now:
-	if len(args[1:]) != 2 {
+	if len(args) != 2 {
 		return noValue, false
 	}
 
 	// We only eval `eq` if all args are static:
 	var evaluatedArgs []reflect.Value
-	for _, a := range args[1:] {
+	for _, a := range args {
 		v, ok := evalNode(ctx, a)
 		if !ok {
 			// One of the args is not static, abort
@@ -295,6 +312,34 @@ func evalEqCall(ctx *StepContext, args []parse.Node) (reflect.Value, bool) {
 
 	isEqual := evaluatedArgs[0].Interface() == evaluatedArgs[1].Interface()
 	return reflect.ValueOf(isEqual), true
+}
+
+// isTrue is taken from Go's text/template/exec.go and simplified
+func isTrue(val reflect.Value) (truth bool) {
+	if !val.IsValid() {
+		// Something like var x interface{}, never set. It's a form of nil.
+		return false
+	}
+	switch val.Kind() {
+	case reflect.Array, reflect.Map, reflect.Slice, reflect.String:
+		return val.Len() > 0
+	case reflect.Bool:
+		return val.Bool()
+	case reflect.Complex64, reflect.Complex128:
+		return val.Complex() != 0
+	case reflect.Chan, reflect.Func, reflect.Ptr, reflect.Interface:
+		return !val.IsNil()
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		return val.Int() != 0
+	case reflect.Float32, reflect.Float64:
+		return val.Float() != 0
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr:
+		return val.Uint() != 0
+	case reflect.Struct:
+		return true // Struct values are always true.
+	default:
+		return false
+	}
 }
 
 // debugParseNode can be used to produce a debug-friendly version of a parse.Node.

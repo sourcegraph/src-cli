@@ -78,6 +78,16 @@ func TestParseAndPartialEval(t *testing.T) {
 				`true`,
 			},
 			{
+				// "not" call:
+				`${{ not (eq repository.name "bitbucket-repo") }}`,
+				`true`,
+			},
+			{
+				// "not" call:
+				`${{ not 1234 }} ${{ not false }} ${{ not true }}`,
+				`false true false`,
+			},
+			{
 				// Function call with builtin function and static values:
 				`${{ matches repository.name "github.com*" }}`,
 				`true`,
