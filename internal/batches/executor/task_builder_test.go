@@ -126,9 +126,16 @@ func TestTaskBuilder_BuildTask_IfConditions(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			task, err := builder.buildTask(repo, "", false)
+			task, ok, err := builder.buildTask(repo, "", false)
 			if err != nil {
 				t.Fatalf("unexpected err: %s", err)
+			}
+
+			if !ok {
+				if tt.wantSteps != nil {
+					t.Fatalf("no task built, but steps expected")
+				}
+				return
 			}
 
 			opts := cmpopts.IgnoreUnexported(batches.Step{})
@@ -145,6 +152,7 @@ func TestTaskBuilder_BuildAll_Workspaces(t *testing.T) {
 		{ID: "repo-id-1", Name: "github.com/sourcegraph/sourcegraph"},
 		{ID: "repo-id-2", Name: "bitbucket.sgdev.org/SOUR/automation-testing"},
 	}
+	steps := []batches.Step{{Run: "echo 1"}}
 
 	type finderResults map[*graphql.Repository][]string
 
@@ -163,7 +171,7 @@ func TestTaskBuilder_BuildAll_Workspaces(t *testing.T) {
 		wantTasks map[string][]wantTask
 	}{
 		"no workspace configuration": {
-			spec:          &batches.BatchSpec{},
+			spec:          &batches.BatchSpec{Steps: steps},
 			finderResults: finderResults{},
 			wantNumTasks:  len(repos),
 			wantTasks: map[string][]wantTask{
@@ -175,6 +183,7 @@ func TestTaskBuilder_BuildAll_Workspaces(t *testing.T) {
 
 		"workspace configuration matching no repos": {
 			spec: &batches.BatchSpec{
+				Steps: steps,
 				Workspaces: []batches.WorkspaceConfiguration{
 					{In: "this-does-not-match", RootAtLocationOf: "package.json"},
 				},
@@ -190,6 +199,7 @@ func TestTaskBuilder_BuildAll_Workspaces(t *testing.T) {
 
 		"workspace configuration matching 2 repos with no results": {
 			spec: &batches.BatchSpec{
+				Steps: steps,
 				Workspaces: []batches.WorkspaceConfiguration{
 					{In: "*automation-testing", RootAtLocationOf: "package.json"},
 				},
@@ -206,6 +216,7 @@ func TestTaskBuilder_BuildAll_Workspaces(t *testing.T) {
 
 		"workspace configuration matching 2 repos with 3 results each": {
 			spec: &batches.BatchSpec{
+				Steps: steps,
 				Workspaces: []batches.WorkspaceConfiguration{
 					{In: "*automation-testing", RootAtLocationOf: "package.json"},
 				},
@@ -224,6 +235,7 @@ func TestTaskBuilder_BuildAll_Workspaces(t *testing.T) {
 
 		"workspace configuration matches repo with OnlyFetchWorkspace": {
 			spec: &batches.BatchSpec{
+				Steps: steps,
 				Workspaces: []batches.WorkspaceConfiguration{
 					{
 						OnlyFetchWorkspace: true,
