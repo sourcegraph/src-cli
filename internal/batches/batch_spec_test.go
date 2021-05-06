@@ -156,6 +156,7 @@ changesetTemplate:
 			{raw: `false`, want: "false"},
 			{raw: `"${{ foobar }}"`, want: "${{ foobar }}"},
 			{raw: `${{ foobar }}`, want: "${{ foobar }}"},
+			{raw: `foobar`, want: "foobar"},
 		} {
 			spec := fmt.Sprintf(specTemplate, tt.raw)
 			batchSpec, err := ParseBatchSpec([]byte(spec), FeatureFlags{AllowConditionalExec: true})

@@ -22,13 +22,13 @@ import (
 //
 // If only text is left we check whether that text equals "true". The result of
 // that check is the second return value.
-func isStaticBool(input string, ctx *StepContext) (bool, bool, error) {
+func isStaticBool(input string, ctx *StepContext) (isStatic bool, boolVal bool, err error) {
 	t, err := parseAndPartialEval(input, ctx)
 	if err != nil {
 		return false, false, err
 	}
 
-	isStatic := true
+	isStatic = true
 	for _, n := range t.Tree.Root.Nodes {
 		if n.Type() != parse.NodeText {
 			isStatic = false
@@ -45,7 +45,7 @@ func isStaticBool(input string, ctx *StepContext) (bool, bool, error) {
 // parseAndPartialEval parses input as a text/template and then attempts to
 // partially evaluate the parts of the template it can evaluate ahead of time
 // (meaning: before we've executed any batch spec steps and have a full
-// StepContet available).
+// StepContext available).
 //
 // If it's possible to evaluate a parse.ActionNode (which is what sits between
 // delimiters in a text/template), the node is rewritten into a parse.TextNode,
@@ -109,20 +109,15 @@ func rewriteNode(n parse.Node, ctx *StepContext) parse.Node {
 // to signify that evaluation was not possible or did not yield a value.
 var noValue reflect.Value
 
-func evalPipe(ctx *StepContext, p *parse.PipeNode) (reflect.Value, bool) {
+func evalPipe(ctx *StepContext, p *parse.PipeNode) (finalVal reflect.Value, ok bool) {
 	// If the pipe contains declaration we abort evaluation.
 	if len(p.Decl) > 0 {
 		return noValue, false
 	}
 
 	// TODO: Support finalVal
-	var (
-		// finalVal is the value of the previous Cmd in a pipe (i.e. `${{ 3 + 3 | eq 6 }}`)
-		// It needs to be the final (fixed) argument of a call if it's set.
-		finalVal reflect.Value
-
-		ok bool
-	)
+	// finalVal is the value of the previous Cmd in a pipe (i.e. `${{ 3 + 3 | eq 6 }}`)
+	// It needs to be the final (fixed) argument of a call if it's set.
 
 	for _, c := range p.Cmds {
 		finalVal, ok = evalCmd(ctx, c, finalVal)

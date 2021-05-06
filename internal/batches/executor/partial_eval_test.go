@@ -268,6 +268,12 @@ func TestIsStaticBool(t *testing.T) {
 			wantIsStatic: false,
 			wantBoolVal:  false,
 		},
+		{
+			name:         "random string",
+			template:     `adfadsfasdfadsfasdfasdfadsf`,
+			wantIsStatic: true,
+			wantBoolVal:  false,
+		},
 	}
 
 	for _, tt := range tests {
