@@ -192,69 +192,6 @@ func (svc *Service) BuildTasks(ctx context.Context, repos []*graphql.Repository,
 	return builder.BuildAll(ctx, repos)
 }
 
-type repoWorkspaces struct {
-	paths              []string
-	onlyFetchWorkspace bool
-}
-
-// findWorkspaces matches the given repos to the workspace configs and
-// searches, via the Sourcegraph instance, the locations of the workspaces in
-// each repository.
-// The repositories that were matched by a workspace config are returned in
-// workspaces. root contains the repositories that didn't match a config.
-// If the user didn't specify any workspaces, the repositories are returned as
-// root repositories.
-func (svc *Service) findWorkspaces(
-	ctx context.Context,
-	repos []*graphql.Repository,
-	configs []batches.WorkspaceConfiguration,
-) (workspaces map[*graphql.Repository]repoWorkspaces, root []*graphql.Repository, err error) {
-	if len(configs) == 0 {
-		return nil, repos, nil
-	}
-
-	matched := map[int][]*graphql.Repository{}
-
-	for _, repo := range repos {
-		found := false
-
-		for idx, conf := range configs {
-			if !conf.Matches(repo.Name) {
-				continue
-			}
-
-			if found {
-				return nil, nil, fmt.Errorf("repository %s matches multiple workspaces.in globs in the batch spec. glob: %q", repo.Name, conf.In)
-			}
-
-			matched[idx] = append(matched[idx], repo)
-			found = true
-		}
-
-		if !found {
-			root = append(root, repo)
-		}
-	}
-
-	workspaces = map[*graphql.Repository]repoWorkspaces{}
-	for idx, repos := range matched {
-		conf := configs[idx]
-		repoDirs, err := svc.FindDirectoriesInRepos(ctx, conf.RootAtLocationOf, repos...)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		for repo, dirs := range repoDirs {
-			workspaces[repo] = repoWorkspaces{
-				paths:              dirs,
-				onlyFetchWorkspace: conf.OnlyFetchWorkspace,
-			}
-		}
-	}
-
-	return workspaces, root, nil
-}
-
 func (svc *Service) RunExecutor(ctx context.Context, opts executor.Opts, tasks []*executor.Task, spec *batches.BatchSpec, progress func([]*executor.TaskStatus), skipErrors bool) ([]*batches.ChangesetSpec, []string, error) {
 	x := executor.New(opts, svc.client, svc.features)
 	for _, t := range tasks {
