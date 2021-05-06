@@ -35,7 +35,7 @@ func NewTaskBuilder(spec *batches.BatchSpec, finder DirectoryFinder) (*TaskBuild
 	return tb, nil
 }
 
-func (tb *TaskBuilder) buildTask(r *graphql.Repository, path string, onlyWorkspace bool) (*Task, error) {
+func (tb *TaskBuilder) buildTask(r *graphql.Repository, path string, onlyWorkspace bool) (*Task, bool, error) {
 	stepCtx := &StepContext{
 		Repository: *r,
 		BatchChange: BatchChangeAttributes{
@@ -53,7 +53,7 @@ func (tb *TaskBuilder) buildTask(r *graphql.Repository, path string, onlyWorkspa
 
 		static, boolVal, err := isStaticBool(step.IfCondition(), stepCtx)
 		if err != nil {
-			return nil, err
+			return nil, false, err
 		}
 
 		// If we could evaluate the condition statically and the resulting
@@ -63,6 +63,11 @@ func (tb *TaskBuilder) buildTask(r *graphql.Repository, path string, onlyWorkspa
 		} else if boolVal {
 			taskSteps = append(taskSteps, step)
 		}
+	}
+
+	// If the task doesn't have any steps we don't need to execute it
+	if len(taskSteps) == 0 {
+		return nil, false, nil
 	}
 
 	// "." means the path is root, but in the executor we use "" to signify root
@@ -82,7 +87,7 @@ func (tb *TaskBuilder) buildTask(r *graphql.Repository, path string, onlyWorkspa
 			Name:        tb.spec.Name,
 			Description: tb.spec.Description,
 		},
-	}, nil
+	}, true, nil
 }
 
 func (tb *TaskBuilder) BuildAll(ctx context.Context, repos []*graphql.Repository) ([]*Task, error) {
@@ -95,21 +100,26 @@ func (tb *TaskBuilder) BuildAll(ctx context.Context, repos []*graphql.Repository
 	var tasks []*Task
 	for repo, ws := range workspaces {
 		for _, path := range ws.paths {
-			t, err := tb.buildTask(repo, path, ws.onlyFetchWorkspace)
+			t, ok, err := tb.buildTask(repo, path, ws.onlyFetchWorkspace)
 			if err != nil {
 				return nil, err
 			}
-			tasks = append(tasks, t)
+
+			if ok {
+				tasks = append(tasks, t)
+			}
 		}
 	}
 
 	for _, repo := range root {
-		t, err := tb.buildTask(repo, "", false)
+		t, ok, err := tb.buildTask(repo, "", false)
 		if err != nil {
 			return nil, err
 		}
 
-		tasks = append(tasks, t)
+		if ok {
+			tasks = append(tasks, t)
+		}
 	}
 
 	return tasks, nil
