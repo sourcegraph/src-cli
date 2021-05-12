@@ -13,47 +13,9 @@ import (
 	"github.com/sourcegraph/go-diff/diff"
 	"github.com/sourcegraph/src-cli/internal/api"
 	"github.com/sourcegraph/src-cli/internal/batches"
-	"github.com/sourcegraph/src-cli/internal/batches/graphql"
 	"github.com/sourcegraph/src-cli/internal/batches/log"
 	"github.com/sourcegraph/src-cli/internal/batches/workspace"
 )
-
-func CheckCache(ctx context.Context, cache ExecutionCache, clearCache bool, features batches.FeatureFlags, task *Task) (specs []*batches.ChangesetSpec, found bool, err error) {
-	// Check if the task is cached.
-	cacheKey := task.cacheKey()
-	if clearCache {
-		if err = cache.Clear(ctx, cacheKey); err != nil {
-			return specs, false, errors.Wrapf(err, "clearing cache for %q", task.Repository.Name)
-		}
-
-		return specs, false, nil
-	}
-
-	var result executionResult
-	result, found, err = cache.Get(ctx, cacheKey)
-	if err != nil {
-		return specs, false, errors.Wrapf(err, "checking cache for %q", task.Repository.Name)
-	}
-
-	if !found {
-		return specs, false, nil
-	}
-
-	// If the cached result resulted in an empty diff, we don't need to
-	// add it to the list of specs that are displayed to the user and
-	// send to the server. Instead, we can just report that the task is
-	// complete and move on.
-	if result.Diff == "" {
-		return specs, true, nil
-	}
-
-	specs, err = createChangesetSpecs(task, result, features)
-	if err != nil {
-		return specs, false, err
-	}
-
-	return specs, true, nil
-}
 
 type TaskExecutionErr struct {
 	Err        error
@@ -92,113 +54,6 @@ type Executor interface {
 	// to provide a consistent view of all statuses, but that also means the
 	// callback should be as fast as possible.
 	LockedTaskStatuses(func([]*TaskStatus))
-}
-
-type Task struct {
-	Repository *graphql.Repository
-
-	// Path is the folder relative to the repository's root in which the steps
-	// should be executed.
-	Path string
-	// OnlyFetchWorkspace determines whether the repository archive contains
-	// the complete repository or just the files in Path (and additional files,
-	// see RepoFetcher).
-	// If Path is "" then this setting has no effect.
-	OnlyFetchWorkspace bool
-
-	Steps []batches.Step
-
-	// TODO(mrnugget): this should just be a single BatchSpec field instead, if
-	// we can make it work with caching
-	BatchChangeAttributes *BatchChangeAttributes     `json:"-"`
-	Template              *batches.ChangesetTemplate `json:"-"`
-	TransformChanges      *batches.TransformChanges  `json:"-"`
-
-	Archive batches.RepoZip `json:"-"`
-}
-
-func (t *Task) ArchivePathToFetch() string {
-	if t.OnlyFetchWorkspace {
-		return t.Path
-	}
-	return ""
-}
-
-func (t *Task) cacheKey() ExecutionCacheKey {
-	return ExecutionCacheKey{t}
-}
-
-type TaskStatus struct {
-	RepoName string
-	Path     string
-
-	Cached bool
-
-	LogFile    string
-	EnqueuedAt time.Time
-	StartedAt  time.Time
-	FinishedAt time.Time
-
-	// TODO: add current step and progress fields.
-	CurrentlyExecuting string
-
-	// ChangesetSpecs are the specs produced by executing the Task in a
-	// repository. With the introduction of `transformChanges` to the batch
-	// spec, one Task can produce multiple ChangesetSpecs.
-	ChangesetSpecs []*batches.ChangesetSpec
-	// Err is set if executing the Task lead to an error.
-	Err error
-
-	fileDiffs     []*diff.FileDiff
-	fileDiffsErr  error
-	fileDiffsOnce sync.Once
-}
-
-func (ts *TaskStatus) DisplayName() string {
-	if ts.Path != "" {
-		return ts.RepoName + ":" + ts.Path
-	}
-	return ts.RepoName
-}
-
-func (ts *TaskStatus) IsRunning() bool {
-	return !ts.StartedAt.IsZero() && ts.FinishedAt.IsZero()
-}
-
-func (ts *TaskStatus) IsCompleted() bool {
-	return !ts.StartedAt.IsZero() && !ts.FinishedAt.IsZero()
-}
-
-func (ts *TaskStatus) ExecutionTime() time.Duration {
-	return ts.FinishedAt.Sub(ts.StartedAt).Truncate(time.Millisecond)
-}
-
-// FileDiffs returns the file diffs produced by the Task in the given
-// repository.
-// If no file diffs were produced, the task resulted in an error, or the task
-// hasn't finished execution yet, the second return value is false.
-func (ts *TaskStatus) FileDiffs() ([]*diff.FileDiff, bool, error) {
-	if !ts.IsCompleted() || len(ts.ChangesetSpecs) == 0 || ts.Err != nil {
-		return nil, false, nil
-	}
-
-	ts.fileDiffsOnce.Do(func() {
-		var all []*diff.FileDiff
-
-		for _, spec := range ts.ChangesetSpecs {
-			fd, err := diff.ParseMultiFileDiff([]byte(spec.Commits[0].Diff))
-			if err != nil {
-				ts.fileDiffsErr = err
-				return
-			}
-
-			all = append(all, fd...)
-		}
-
-		ts.fileDiffs = all
-	})
-
-	return ts.fileDiffs, len(ts.fileDiffs) != 0, ts.fileDiffsErr
 }
 
 type Opts struct {
