@@ -203,7 +203,7 @@ func (svc *Service) InitCache(cacheDir string) {
 
 // TODO(mrnugget): This is not good. Ideally the executor wouldn't have to know
 // anything about the cache.
-func (svc *Service) InitExecutor(ctx context.Context, opts executor.Opts) {
+func (svc *Service) InitExecutor(ctx context.Context, opts executor.NewExecutorOpts) {
 	opts.Cache = svc.cache
 	opts.Client = svc.client
 	opts.Features = svc.features

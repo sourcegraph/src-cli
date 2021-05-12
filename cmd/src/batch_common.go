@@ -298,7 +298,7 @@ func executeBatchSpec(ctx context.Context, opts executeBatchSpecOpts) error {
 	// EXECUTION OF TASKS
 
 	svc.InitCache(opts.flags.cacheDir)
-	svc.InitExecutor(ctx, executor.Opts{
+	svc.InitExecutor(ctx, executor.NewExecutorOpts{
 		CacheDir:      opts.flags.cacheDir,
 		CleanArchives: opts.flags.cleanArchives,
 		Creator:       workspaceCreator,
