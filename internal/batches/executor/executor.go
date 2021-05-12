@@ -50,6 +50,8 @@ type Executor interface {
 	Start(ctx context.Context)
 	Wait(ctx context.Context) ([]*batches.ChangesetSpec, error)
 
+	CheckCache(ctx context.Context, task *Task) (specs []*batches.ChangesetSpec, found bool, err error)
+
 	// LockedTaskStatuses calls the given function with the current state of
 	// the task statuses. Before calling the function, the statuses are locked
 	// to provide a consistent view of all statuses, but that also means the
@@ -289,6 +291,43 @@ func (x *executor) Wait(ctx context.Context) ([]*batches.ChangesetSpec, error) {
 	return x.specs, nil
 }
 
+func (x *executor) CheckCache(ctx context.Context, task *Task) (specs []*batches.ChangesetSpec, found bool, err error) {
+	// Check if the task is cached.
+	cacheKey := task.cacheKey()
+	if x.clearCache {
+		if err = x.cache.Clear(ctx, cacheKey); err != nil {
+			return specs, false, errors.Wrapf(err, "clearing cache for %q", task.Repository.Name)
+		}
+
+		return specs, false, nil
+	}
+
+	var result executionResult
+	result, found, err = x.cache.Get(ctx, cacheKey)
+	if err != nil {
+		return specs, false, errors.Wrapf(err, "checking cache for %q", task.Repository.Name)
+	}
+
+	if !found {
+		return specs, false, nil
+	}
+
+	// If the cached result resulted in an empty diff, we don't need to
+	// add it to the list of specs that are displayed to the user and
+	// send to the server. Instead, we can just report that the task is
+	// complete and move on.
+	if result.Diff == "" {
+		return specs, true, nil
+	}
+
+	specs, err = createChangesetSpecs(task, result, x.features)
+	if err != nil {
+		return specs, false, err
+	}
+
+	return specs, true, nil
+}
+
 func (x *executor) do(ctx context.Context, task *Task) (err error) {
 	// Ensure that the status is updated when we're done.
 	defer func() {
@@ -349,7 +388,7 @@ func (x *executor) do(ctx context.Context, task *Task) (err error) {
 			})
 
 			// Add the spec to the executor's list of completed specs.
-			if err := x.addCompletedSpecs(task.Repository, specs); err != nil {
+			if err := x.addCompletedSpecs(specs); err != nil {
 				return err
 			}
 
@@ -429,7 +468,7 @@ func (x *executor) do(ctx context.Context, task *Task) (err error) {
 		status.ChangesetSpecs = specs
 	})
 
-	if err := x.addCompletedSpecs(task.Repository, specs); err != nil {
+	if err := x.addCompletedSpecs(specs); err != nil {
 		return err
 	}
 
@@ -446,7 +485,7 @@ func (x *executor) updateTaskStatus(task *Task, update func(status *TaskStatus))
 	}
 }
 
-func (x *executor) addCompletedSpecs(repository *graphql.Repository, specs []*batches.ChangesetSpec) error {
+func (x *executor) addCompletedSpecs(specs []*batches.ChangesetSpec) error {
 	x.specsMu.Lock()
 	defer x.specsMu.Unlock()
 

@@ -295,7 +295,9 @@ func executeBatchSpec(ctx context.Context, opts executeBatchSpecOpts) error {
 	}
 	batchCompletePending(pending, fmt.Sprintf("Found %d workspaces with steps to execute", len(tasks)))
 
-	execOpts := executor.Opts{
+	// EXECUTION OF TASKS
+
+	svc.InitExecutor(ctx, executor.Opts{
 		CacheDir:      opts.flags.cacheDir,
 		ClearCache:    opts.flags.clearCache,
 		CleanArchives: opts.flags.cleanArchives,
@@ -304,10 +306,21 @@ func executeBatchSpec(ctx context.Context, opts executeBatchSpecOpts) error {
 		Timeout:       opts.flags.timeout,
 		KeepLogs:      opts.flags.keepLogs,
 		TempDir:       opts.flags.tempDir,
+	})
+
+	pending = batchCreatePending(opts.out, "Checking cache for changeset specs")
+	uncachedTasks, cachedSpecs, err := svc.CheckCache(ctx, tasks)
+	if err != nil {
+		return err
+	}
+	if len(uncachedTasks) > 0 {
+		batchCompletePending(pending, fmt.Sprintf("Found %d cached changeset specs. %d tasks need to be executed", len(cachedSpecs), len(uncachedTasks)))
+	} else {
+		batchCompletePending(pending, fmt.Sprintf("Found %d cached changeset specs. No tasks need to be executed", len(cachedSpecs)))
 	}
 
 	p := newBatchProgressPrinter(opts.out, *verbose, opts.flags.parallelism)
-	specs, logFiles, err := svc.RunExecutor(ctx, execOpts, tasks, batchSpec, p.PrintStatuses, opts.flags.skipErrors)
+	freshSpecs, logFiles, err := svc.RunExecutor(ctx, uncachedTasks, batchSpec, p.PrintStatuses, opts.flags.skipErrors)
 	if err != nil && !opts.flags.skipErrors {
 		return err
 	}
@@ -327,6 +340,8 @@ func executeBatchSpec(ctx context.Context, opts executeBatchSpecOpts) error {
 			}
 		}()
 	}
+
+	specs := append(cachedSpecs, freshSpecs...)
 
 	err = svc.ValidateChangesetSpecs(repos, specs)
 	if err != nil {

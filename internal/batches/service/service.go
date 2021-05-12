@@ -28,6 +28,9 @@ type Service struct {
 	client           api.Client
 	features         batches.FeatureFlags
 	imageCache       *docker.ImageCache
+
+	// TODO(mrnugget): I don't like this state here, ugh.
+	exec executor.Executor
 }
 
 type Opts struct {
@@ -192,16 +195,37 @@ func (svc *Service) BuildTasks(ctx context.Context, repos []*graphql.Repository,
 	return builder.BuildAll(ctx, repos)
 }
 
-func (svc *Service) RunExecutor(ctx context.Context, opts executor.Opts, tasks []*executor.Task, spec *batches.BatchSpec, progress func([]*executor.TaskStatus), skipErrors bool) ([]*batches.ChangesetSpec, []string, error) {
-	x := executor.New(opts, svc.client, svc.features)
+func (svc *Service) InitExecutor(ctx context.Context, opts executor.Opts) {
+	svc.exec = executor.New(opts, svc.client, svc.features)
+}
+
+func (svc *Service) CheckCache(ctx context.Context, tasks []*executor.Task) (uncached []*executor.Task, specs []*batches.ChangesetSpec, err error) {
 	for _, t := range tasks {
-		x.AddTask(t)
+		cachedSpecs, found, err := svc.exec.CheckCache(ctx, t)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		if !found {
+			uncached = append(uncached, t)
+			continue
+		}
+
+		specs = append(specs, cachedSpecs...)
+	}
+
+	return uncached, specs, nil
+}
+
+func (svc *Service) RunExecutor(ctx context.Context, tasks []*executor.Task, spec *batches.BatchSpec, progress func([]*executor.TaskStatus), skipErrors bool) ([]*batches.ChangesetSpec, []string, error) {
+	for _, t := range tasks {
+		svc.exec.AddTask(t)
 	}
 
 	done := make(chan struct{})
 	if progress != nil {
 		go func() {
-			x.LockedTaskStatuses(progress)
+			svc.exec.LockedTaskStatuses(progress)
 
 			ticker := time.NewTicker(1 * time.Second)
 			defer ticker.Stop()
@@ -209,7 +233,7 @@ func (svc *Service) RunExecutor(ctx context.Context, opts executor.Opts, tasks [
 			for {
 				select {
 				case <-ticker.C:
-					x.LockedTaskStatuses(progress)
+					svc.exec.LockedTaskStatuses(progress)
 
 				case <-done:
 					return
@@ -220,10 +244,10 @@ func (svc *Service) RunExecutor(ctx context.Context, opts executor.Opts, tasks [
 
 	var errs *multierror.Error
 
-	x.Start(ctx)
-	specs, err := x.Wait(ctx)
+	svc.exec.Start(ctx)
+	specs, err := svc.exec.Wait(ctx)
 	if progress != nil {
-		x.LockedTaskStatuses(progress)
+		svc.exec.LockedTaskStatuses(progress)
 		done <- struct{}{}
 	}
 	if err != nil {
@@ -272,7 +296,7 @@ func (svc *Service) RunExecutor(ctx context.Context, opts executor.Opts, tasks [
 		}
 	}
 
-	return specs, x.LogFiles(), errs.ErrorOrNil()
+	return specs, svc.exec.LogFiles(), errs.ErrorOrNil()
 }
 
 func (svc *Service) ValidateChangesetSpecs(repos []*graphql.Repository, specs []*batches.ChangesetSpec) error {
