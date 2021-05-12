@@ -202,14 +202,15 @@ func (ts *TaskStatus) FileDiffs() ([]*diff.FileDiff, bool, error) {
 }
 
 type Opts struct {
+	Cache    ExecutionCache
+	Client   api.Client
+	Features batches.FeatureFlags
+	Creator  workspace.Creator
+
 	CleanArchives bool
 
 	CacheDir string
 
-	// TODO: shoudl be builder
-	Cache ExecutionCache
-
-	Creator     workspace.Creator
 	Parallelism int
 	Timeout     time.Duration
 
@@ -241,18 +242,16 @@ type executor struct {
 	specsMu sync.Mutex
 }
 
-// TODO(mrnugget): Why are client and features not part of Opts?
-func New(opts Opts, client api.Client, features batches.FeatureFlags) *executor {
+func New(opts Opts) *executor {
 	return &executor{
-		cache: opts.Cache,
+		cache:    opts.Cache,
+		client:   opts.Client,
+		features: opts.Features,
+		creator:  opts.Creator,
 
-		logger:  log.NewManager(opts.TempDir, opts.KeepLogs),
-		creator: opts.Creator,
+		logger: log.NewManager(opts.TempDir, opts.KeepLogs),
 
-		fetcher: batches.NewRepoFetcher(client, opts.CacheDir, opts.CleanArchives),
-
-		client:   client,
-		features: features,
+		fetcher: batches.NewRepoFetcher(opts.Client, opts.CacheDir, opts.CleanArchives),
 
 		tempDir: opts.TempDir,
 		timeout: opts.Timeout,

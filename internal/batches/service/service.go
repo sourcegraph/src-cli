@@ -196,16 +196,24 @@ func (svc *Service) BuildTasks(ctx context.Context, repos []*graphql.Repository,
 	return builder.BuildAll(ctx, repos)
 }
 
-func (svc *Service) InitExecutor(ctx context.Context, opts executor.Opts) {
-	svc.cache = executor.NewCache(opts.CacheDir)
-	opts.Cache = svc.cache
+// TODO(mrnugget): This is not good.
+func (svc *Service) InitCache(cacheDir string) {
+	svc.cache = executor.NewCache(cacheDir)
+}
 
-	svc.exec = executor.New(opts, svc.client, svc.features)
+// TODO(mrnugget): This is not good. Ideally the executor wouldn't have to know
+// anything about the cache.
+func (svc *Service) InitExecutor(ctx context.Context, opts executor.Opts) {
+	opts.Cache = svc.cache
+	opts.Client = svc.client
+	opts.Features = svc.features
+
+	svc.exec = executor.New(opts)
 }
 
 func (svc *Service) CheckCache(ctx context.Context, tasks []*executor.Task, clearCache bool) (uncached []*executor.Task, specs []*batches.ChangesetSpec, err error) {
 	for _, t := range tasks {
-		cachedSpecs, found, err := executor.CheckCache(ctx, svc.cache, false, svc.features, t)
+		cachedSpecs, found, err := executor.CheckCache(ctx, svc.cache, clearCache, svc.features, t)
 		if err != nil {
 			return nil, nil, err
 		}
