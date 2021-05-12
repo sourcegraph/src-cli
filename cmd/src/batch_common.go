@@ -299,7 +299,6 @@ func executeBatchSpec(ctx context.Context, opts executeBatchSpecOpts) error {
 
 	svc.InitExecutor(ctx, executor.Opts{
 		CacheDir:      opts.flags.cacheDir,
-		ClearCache:    opts.flags.clearCache,
 		CleanArchives: opts.flags.cleanArchives,
 		Creator:       workspaceCreator,
 		Parallelism:   opts.flags.parallelism,
@@ -309,7 +308,7 @@ func executeBatchSpec(ctx context.Context, opts executeBatchSpecOpts) error {
 	})
 
 	pending = batchCreatePending(opts.out, "Checking cache for changeset specs")
-	uncachedTasks, cachedSpecs, err := svc.CheckCache(ctx, tasks)
+	uncachedTasks, cachedSpecs, err := svc.CheckCache(ctx, tasks, opts.flags.clearCache)
 	if err != nil {
 		return err
 	}

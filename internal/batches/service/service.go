@@ -30,7 +30,8 @@ type Service struct {
 	imageCache       *docker.ImageCache
 
 	// TODO(mrnugget): I don't like this state here, ugh.
-	exec executor.Executor
+	exec  executor.Executor
+	cache executor.ExecutionCache
 }
 
 type Opts struct {
@@ -196,12 +197,15 @@ func (svc *Service) BuildTasks(ctx context.Context, repos []*graphql.Repository,
 }
 
 func (svc *Service) InitExecutor(ctx context.Context, opts executor.Opts) {
+	svc.cache = executor.NewCache(opts.CacheDir)
+	opts.Cache = svc.cache
+
 	svc.exec = executor.New(opts, svc.client, svc.features)
 }
 
-func (svc *Service) CheckCache(ctx context.Context, tasks []*executor.Task) (uncached []*executor.Task, specs []*batches.ChangesetSpec, err error) {
+func (svc *Service) CheckCache(ctx context.Context, tasks []*executor.Task, clearCache bool) (uncached []*executor.Task, specs []*batches.ChangesetSpec, err error) {
 	for _, t := range tasks {
-		cachedSpecs, found, err := svc.exec.CheckCache(ctx, t)
+		cachedSpecs, found, err := executor.CheckCache(ctx, svc.cache, false, svc.features, t)
 		if err != nil {
 			return nil, nil, err
 		}

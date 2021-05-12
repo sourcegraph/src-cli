@@ -18,6 +18,43 @@ import (
 	"github.com/sourcegraph/src-cli/internal/batches/workspace"
 )
 
+func CheckCache(ctx context.Context, cache ExecutionCache, clearCache bool, features batches.FeatureFlags, task *Task) (specs []*batches.ChangesetSpec, found bool, err error) {
+	// Check if the task is cached.
+	cacheKey := task.cacheKey()
+	if clearCache {
+		if err = cache.Clear(ctx, cacheKey); err != nil {
+			return specs, false, errors.Wrapf(err, "clearing cache for %q", task.Repository.Name)
+		}
+
+		return specs, false, nil
+	}
+
+	var result executionResult
+	result, found, err = cache.Get(ctx, cacheKey)
+	if err != nil {
+		return specs, false, errors.Wrapf(err, "checking cache for %q", task.Repository.Name)
+	}
+
+	if !found {
+		return specs, false, nil
+	}
+
+	// If the cached result resulted in an empty diff, we don't need to
+	// add it to the list of specs that are displayed to the user and
+	// send to the server. Instead, we can just report that the task is
+	// complete and move on.
+	if result.Diff == "" {
+		return specs, true, nil
+	}
+
+	specs, err = createChangesetSpecs(task, result, features)
+	if err != nil {
+		return specs, false, err
+	}
+
+	return specs, true, nil
+}
+
 type TaskExecutionErr struct {
 	Err        error
 	Logfile    string
@@ -49,8 +86,6 @@ type Executor interface {
 	LogFiles() []string
 	Start(ctx context.Context)
 	Wait(ctx context.Context) ([]*batches.ChangesetSpec, error)
-
-	CheckCache(ctx context.Context, task *Task) (specs []*batches.ChangesetSpec, found bool, err error)
 
 	// LockedTaskStatuses calls the given function with the current state of
 	// the task statuses. Before calling the function, the statuses are locked
@@ -167,10 +202,12 @@ func (ts *TaskStatus) FileDiffs() ([]*diff.FileDiff, bool, error) {
 }
 
 type Opts struct {
-	CacheDir   string
-	ClearCache bool
-
 	CleanArchives bool
+
+	CacheDir string
+
+	// TODO: shoudl be builder
+	Cache ExecutionCache
 
 	Creator     workspace.Creator
 	Parallelism int
@@ -181,8 +218,7 @@ type Opts struct {
 }
 
 type executor struct {
-	cache      ExecutionCache
-	clearCache bool
+	cache ExecutionCache
 
 	features batches.FeatureFlags
 
@@ -208,8 +244,7 @@ type executor struct {
 // TODO(mrnugget): Why are client and features not part of Opts?
 func New(opts Opts, client api.Client, features batches.FeatureFlags) *executor {
 	return &executor{
-		cache:      NewCache(opts.CacheDir),
-		clearCache: opts.ClearCache,
+		cache: opts.Cache,
 
 		logger:  log.NewManager(opts.TempDir, opts.KeepLogs),
 		creator: opts.Creator,
@@ -291,43 +326,6 @@ func (x *executor) Wait(ctx context.Context) ([]*batches.ChangesetSpec, error) {
 	return x.specs, nil
 }
 
-func (x *executor) CheckCache(ctx context.Context, task *Task) (specs []*batches.ChangesetSpec, found bool, err error) {
-	// Check if the task is cached.
-	cacheKey := task.cacheKey()
-	if x.clearCache {
-		if err = x.cache.Clear(ctx, cacheKey); err != nil {
-			return specs, false, errors.Wrapf(err, "clearing cache for %q", task.Repository.Name)
-		}
-
-		return specs, false, nil
-	}
-
-	var result executionResult
-	result, found, err = x.cache.Get(ctx, cacheKey)
-	if err != nil {
-		return specs, false, errors.Wrapf(err, "checking cache for %q", task.Repository.Name)
-	}
-
-	if !found {
-		return specs, false, nil
-	}
-
-	// If the cached result resulted in an empty diff, we don't need to
-	// add it to the list of specs that are displayed to the user and
-	// send to the server. Instead, we can just report that the task is
-	// complete and move on.
-	if result.Diff == "" {
-		return specs, true, nil
-	}
-
-	specs, err = createChangesetSpecs(task, result, x.features)
-	if err != nil {
-		return specs, false, err
-	}
-
-	return specs, true, nil
-}
-
 func (x *executor) do(ctx context.Context, task *Task) (err error) {
 	// Ensure that the status is updated when we're done.
 	defer func() {
@@ -342,59 +340,6 @@ func (x *executor) do(ctx context.Context, task *Task) (err error) {
 	x.updateTaskStatus(task, func(status *TaskStatus) {
 		status.StartedAt = time.Now()
 	})
-
-	// Check if the task is cached.
-	cacheKey := task.cacheKey()
-	if x.clearCache {
-		if err = x.cache.Clear(ctx, cacheKey); err != nil {
-			err = errors.Wrapf(err, "clearing cache for %q", task.Repository.Name)
-			return
-		}
-	} else {
-		var (
-			result executionResult
-			found  bool
-		)
-
-		result, found, err = x.cache.Get(ctx, cacheKey)
-		if err != nil {
-			err = errors.Wrapf(err, "checking cache for %q", task.Repository.Name)
-			return
-		}
-		if found {
-			// If the cached result resulted in an empty diff, we don't need to
-			// add it to the list of specs that are displayed to the user and
-			// send to the server. Instead, we can just report that the task is
-			// complete and move on.
-			if result.Diff == "" {
-				x.updateTaskStatus(task, func(status *TaskStatus) {
-					status.Cached = true
-					status.FinishedAt = time.Now()
-
-				})
-				return
-			}
-
-			var specs []*batches.ChangesetSpec
-			specs, err = createChangesetSpecs(task, result, x.features)
-			if err != nil {
-				return err
-			}
-
-			x.updateTaskStatus(task, func(status *TaskStatus) {
-				status.ChangesetSpecs = specs
-				status.Cached = true
-				status.FinishedAt = time.Now()
-			})
-
-			// Add the spec to the executor's list of completed specs.
-			if err := x.addCompletedSpecs(specs); err != nil {
-				return err
-			}
-
-			return
-		}
-	}
 
 	// It isn't, so let's get ready to run the task. First, let's set up our
 	// logging.
@@ -446,11 +391,8 @@ func (x *executor) do(ctx context.Context, task *Task) (err error) {
 		return
 	}
 
-	// Build the changeset specs.
-	specs, err := createChangesetSpecs(task, result, x.features)
-	if err != nil {
-		return err
-	}
+	// Check if the task is cached.
+	cacheKey := task.cacheKey()
 
 	// Add to the cache. We don't use runCtx here because we want to write to
 	// the cache even if we've now reached the timeout.
@@ -462,6 +404,12 @@ func (x *executor) do(ctx context.Context, task *Task) (err error) {
 	// list of specs that are displayed to the user and send to the server.
 	if result.Diff == "" {
 		return
+	}
+
+	// Build the changeset specs.
+	specs, err := createChangesetSpecs(task, result, x.features)
+	if err != nil {
+		return err
 	}
 
 	x.updateTaskStatus(task, func(status *TaskStatus) {
