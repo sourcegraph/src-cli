@@ -468,6 +468,7 @@ output4=integration-test-batch-change`,
 			cache := newInMemoryExecutionCache()
 			creator := workspace.NewCreator(context.Background(), "bind", testTempDir, testTempDir, []batches.Step{})
 			opts := NewExecutorOpts{
+				StatusThing: NewStatusHubThing(),
 				Cache:       cache,
 				Creator:     creator,
 				Client:      client,
@@ -507,10 +508,9 @@ output4=integration-test-batch-change`,
 					}
 
 					task.Steps = tc.steps
-					executor.AddTask(task)
 				}
 
-				executor.Start(context.Background())
+				executor.Start(context.Background(), tc.tasks)
 				specs, err := executor.Wait(context.Background())
 				if tc.wantErrInclude == "" {
 					if err != nil {

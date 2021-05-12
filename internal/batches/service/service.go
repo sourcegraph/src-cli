@@ -30,8 +30,9 @@ type Service struct {
 	imageCache       *docker.ImageCache
 
 	// TODO(mrnugget): I don't like this state here, ugh.
-	exec  executor.Executor
-	cache executor.ExecutionCache
+	exec   executor.Executor
+	cache  executor.ExecutionCache
+	status *executor.TaskStatusHubThing
 }
 
 type Opts struct {
@@ -201,16 +202,6 @@ func (svc *Service) InitCache(cacheDir string) {
 	svc.cache = executor.NewCache(cacheDir)
 }
 
-// TODO(mrnugget): This is not good. Ideally the executor wouldn't have to know
-// anything about the cache.
-func (svc *Service) InitExecutor(ctx context.Context, opts executor.NewExecutorOpts) {
-	opts.Cache = svc.cache
-	opts.Client = svc.client
-	opts.Features = svc.features
-
-	svc.exec = executor.New(opts)
-}
-
 func (svc *Service) CheckCache(ctx context.Context, tasks []*executor.Task, clearCache bool) (uncached []*executor.Task, specs []*batches.ChangesetSpec, err error) {
 	for _, t := range tasks {
 		cachedSpecs, found, err := executor.CheckCache(ctx, svc.cache, clearCache, svc.features, t)
@@ -229,15 +220,16 @@ func (svc *Service) CheckCache(ctx context.Context, tasks []*executor.Task, clea
 	return uncached, specs, nil
 }
 
-func (svc *Service) RunExecutor(ctx context.Context, tasks []*executor.Task, spec *batches.BatchSpec, progress func([]*executor.TaskStatus), skipErrors bool) ([]*batches.ChangesetSpec, []string, error) {
-	for _, t := range tasks {
-		svc.exec.AddTask(t)
-	}
+func (svc *Service) ExecuteTasks(ctx context.Context, tasks []*executor.Task, spec *batches.BatchSpec, progress func([]*executor.TaskStatus), skipErrors bool, execOpts executor.NewExecutorOpts) ([]*batches.ChangesetSpec, []string, error) {
+	var errs *multierror.Error
 
+	// Start the goroutine that updates the UI
+	status := executor.NewStatusHubThing()
+	status.AddTasks(tasks)
 	done := make(chan struct{})
 	if progress != nil {
 		go func() {
-			svc.exec.LockedTaskStatuses(progress)
+			status.LockedTaskStatuses(progress)
 
 			ticker := time.NewTicker(1 * time.Second)
 			defer ticker.Stop()
@@ -245,7 +237,7 @@ func (svc *Service) RunExecutor(ctx context.Context, tasks []*executor.Task, spe
 			for {
 				select {
 				case <-ticker.C:
-					svc.exec.LockedTaskStatuses(progress)
+					status.LockedTaskStatuses(progress)
 
 				case <-done:
 					return
@@ -254,12 +246,19 @@ func (svc *Service) RunExecutor(ctx context.Context, tasks []*executor.Task, spe
 		}()
 	}
 
-	var errs *multierror.Error
+	// Setup executor
+	execOpts.Cache = svc.cache
+	execOpts.Client = svc.client
+	execOpts.Features = svc.features
+	execOpts.StatusThing = status
 
-	svc.exec.Start(ctx)
-	specs, err := svc.exec.Wait(ctx)
+	exec := executor.New(execOpts)
+
+	// Run executor
+	exec.Start(ctx, tasks)
+	specs, err := exec.Wait(ctx)
 	if progress != nil {
-		svc.exec.LockedTaskStatuses(progress)
+		status.LockedTaskStatuses(progress)
 		done <- struct{}{}
 	}
 	if err != nil {

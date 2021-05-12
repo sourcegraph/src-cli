@@ -8,6 +8,52 @@ import (
 	"github.com/sourcegraph/src-cli/internal/batches"
 )
 
+func NewStatusHubThing() *TaskStatusHubThing {
+	return &TaskStatusHubThing{
+		statuses: make(map[*Task]*TaskStatus),
+	}
+}
+
+type TaskStatusHubThing struct {
+	statuses   map[*Task]*TaskStatus
+	statusesMu sync.RWMutex
+}
+
+func (hub *TaskStatusHubThing) AddTasks(tasks []*Task) {
+	hub.statusesMu.Lock()
+	defer hub.statusesMu.Unlock()
+
+	for _, t := range tasks {
+		hub.statuses[t] = &TaskStatus{
+			RepoName:   t.Repository.Name,
+			Path:       t.Path,
+			EnqueuedAt: time.Now(),
+		}
+	}
+}
+
+func (hub *TaskStatusHubThing) UpdateTaskStatus(task *Task, update func(status *TaskStatus)) {
+	hub.statusesMu.Lock()
+	defer hub.statusesMu.Unlock()
+
+	status, ok := hub.statuses[task]
+	if ok {
+		update(status)
+	}
+}
+
+func (hub *TaskStatusHubThing) LockedTaskStatuses(callback func([]*TaskStatus)) {
+	hub.statusesMu.RLock()
+	defer hub.statusesMu.RUnlock()
+
+	var s []*TaskStatus
+	for _, status := range hub.statuses {
+		s = append(s, status)
+	}
+
+	callback(s)
+}
+
 type TaskStatus struct {
 	RepoName string
 	Path     string

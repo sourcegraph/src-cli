@@ -42,16 +42,9 @@ func (e TaskExecutionErr) StatusText() string {
 }
 
 type Executor interface {
-	AddTask(*Task)
 	LogFiles() []string
-	Start(ctx context.Context)
+	Start(ctx context.Context, tasks []*Task)
 	Wait(ctx context.Context) ([]*batches.ChangesetSpec, error)
-
-	// LockedTaskStatuses calls the given function with the current state of
-	// the task statuses. Before calling the function, the statuses are locked
-	// to provide a consistent view of all statuses, but that also means the
-	// callback should be as fast as possible.
-	LockedTaskStatuses(func([]*TaskStatus))
 }
 
 type NewExecutorOpts struct {
@@ -59,6 +52,9 @@ type NewExecutorOpts struct {
 	Client   api.Client
 	Features batches.FeatureFlags
 	Creator  workspace.Creator
+
+	// TODO?
+	StatusThing *TaskStatusHubThing
 
 	CleanArchives bool
 
@@ -72,6 +68,8 @@ type NewExecutorOpts struct {
 }
 
 type executor struct {
+	status *TaskStatusHubThing
+
 	cache ExecutionCache
 
 	features batches.FeatureFlags
@@ -97,6 +95,8 @@ type executor struct {
 
 func New(opts NewExecutorOpts) *executor {
 	return &executor{
+		status: opts.StatusThing,
+
 		cache:    opts.Cache,
 		client:   opts.Client,
 		features: opts.Features,
@@ -111,27 +111,18 @@ func New(opts NewExecutorOpts) *executor {
 
 		doneEnqueuing: make(chan struct{}),
 		par:           parallel.NewRun(opts.Parallelism),
-		tasks:         []*Task{},
 		statuses:      map[*Task]*TaskStatus{},
 	}
-}
-
-func (x *executor) AddTask(task *Task) {
-	x.tasks = append(x.tasks, task)
-
-	x.statusesMu.Lock()
-	x.statuses[task] = &TaskStatus{RepoName: task.Repository.Name, Path: task.Path, EnqueuedAt: time.Now()}
-	x.statusesMu.Unlock()
 }
 
 func (x *executor) LogFiles() []string {
 	return x.logger.LogFiles()
 }
 
-func (x *executor) Start(ctx context.Context) {
+func (x *executor) Start(ctx context.Context, tasks []*Task) {
 	defer func() { close(x.doneEnqueuing) }()
 
-	for _, task := range x.tasks {
+	for _, task := range tasks {
 		select {
 		case <-ctx.Done():
 			return
@@ -181,7 +172,7 @@ func (x *executor) Wait(ctx context.Context) ([]*batches.ChangesetSpec, error) {
 func (x *executor) do(ctx context.Context, task *Task) (err error) {
 	// Ensure that the status is updated when we're done.
 	defer func() {
-		x.updateTaskStatus(task, func(status *TaskStatus) {
+		x.status.UpdateTaskStatus(task, func(status *TaskStatus) {
 			status.FinishedAt = time.Now()
 			status.CurrentlyExecuting = ""
 			status.Err = err
@@ -189,7 +180,7 @@ func (x *executor) do(ctx context.Context, task *Task) (err error) {
 	}()
 
 	// We're away!
-	x.updateTaskStatus(task, func(status *TaskStatus) {
+	x.status.UpdateTaskStatus(task, func(status *TaskStatus) {
 		status.StartedAt = time.Now()
 	})
 
@@ -230,11 +221,12 @@ func (x *executor) do(ctx context.Context, task *Task) (err error) {
 		logger:                log,
 		tempDir:               x.tempDir,
 		reportProgress: func(currentlyExecuting string) {
-			x.updateTaskStatus(task, func(status *TaskStatus) {
+			x.status.UpdateTaskStatus(task, func(status *TaskStatus) {
 				status.CurrentlyExecuting = currentlyExecuting
 			})
 		},
 	}
+
 	result, err := runSteps(runCtx, opts)
 	if err != nil {
 		if reachedTimeout(runCtx, err) {
@@ -264,7 +256,7 @@ func (x *executor) do(ctx context.Context, task *Task) (err error) {
 		return err
 	}
 
-	x.updateTaskStatus(task, func(status *TaskStatus) {
+	x.status.UpdateTaskStatus(task, func(status *TaskStatus) {
 		status.ChangesetSpecs = specs
 	})
 
@@ -275,34 +267,12 @@ func (x *executor) do(ctx context.Context, task *Task) (err error) {
 	return
 }
 
-func (x *executor) updateTaskStatus(task *Task, update func(status *TaskStatus)) {
-	x.statusesMu.Lock()
-	defer x.statusesMu.Unlock()
-
-	status, ok := x.statuses[task]
-	if ok {
-		update(status)
-	}
-}
-
 func (x *executor) addCompletedSpecs(specs []*batches.ChangesetSpec) error {
 	x.specsMu.Lock()
 	defer x.specsMu.Unlock()
 
 	x.specs = append(x.specs, specs...)
 	return nil
-}
-
-func (x *executor) LockedTaskStatuses(callback func([]*TaskStatus)) {
-	x.statusesMu.RLock()
-	defer x.statusesMu.RUnlock()
-
-	var s []*TaskStatus
-	for _, status := range x.statuses {
-		s = append(s, status)
-	}
-
-	callback(s)
 }
 
 type errTimeoutReached struct{ timeout time.Duration }
