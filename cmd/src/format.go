@@ -12,7 +12,7 @@ import (
 	"github.com/sourcegraph/jsonx"
 )
 
-func parseTemplate(text string) (*template.Template, error) {
+func parseTemplate(text string, additional ...map[string]interface{}) (*template.Template, error) {
 	tmpl := template.New("")
 	tmpl.Funcs(map[string]interface{}{
 		"join": strings.Join,
@@ -111,6 +111,9 @@ func parseTemplate(text string) (*template.Template, error) {
 			}
 		},
 	})
+	for _, add := range additional {
+		tmpl.Funcs(add)
+	}
 	return tmpl.Parse(text)
 }
 

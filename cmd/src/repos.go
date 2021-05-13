@@ -22,6 +22,7 @@ The commands are:
 	enable     enables repositories
 	disable    disables repositories
 	delete 	   deletes repositories
+	tags       commands to manage repository tags
 
 Use "src repos [command] -h" for more information about a command.
 `
