@@ -313,10 +313,19 @@ func executeBatchSpec(ctx context.Context, opts executeBatchSpecOpts) error {
 	if err != nil {
 		return err
 	}
-	if len(uncachedTasks) > 0 {
-		batchCompletePending(pending, fmt.Sprintf("Found %d cached changeset specs. %d tasks need to be executed", len(cachedSpecs), len(uncachedTasks)))
+	var specsFoundMessage string
+	if len(cachedSpecs) == 1 {
+		specsFoundMessage = "Found 1 cached changeset spec"
 	} else {
-		batchCompletePending(pending, fmt.Sprintf("Found %d cached changeset specs. No tasks need to be executed", len(cachedSpecs)))
+		specsFoundMessage = fmt.Sprintf("Found %d cached changeset specs", len(cachedSpecs))
+	}
+	switch len(uncachedTasks) {
+	case 0:
+		batchCompletePending(pending, fmt.Sprintf("%s; no tasks need to be executed", specsFoundMessage))
+	case 1:
+		batchCompletePending(pending, fmt.Sprintf("%s; %d task needs to be executed", specsFoundMessage, len(uncachedTasks)))
+	default:
+		batchCompletePending(pending, fmt.Sprintf("%s; %d tasks need to be executed", specsFoundMessage, len(uncachedTasks)))
 	}
 
 	p := newBatchProgressPrinter(opts.out, *verbose, opts.flags.parallelism)
