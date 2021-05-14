@@ -292,11 +292,20 @@ func executeBatchSpec(ctx context.Context, opts executeBatchSpecOpts) error {
 	batchCompletePending(pending, fmt.Sprintf("Found %d workspaces with steps to execute", len(tasks)))
 
 	// EXECUTION OF TASKS
-
-	svc.InitCache(opts.flags.cacheDir)
+	coord := svc.NewCoordinator(executor.NewCoordinatorOpts{
+		Creator:       workspaceCreator,
+		CacheDir:      opts.flags.cacheDir,
+		ClearCache:    opts.flags.clearCache,
+		SkipErrors:    opts.flags.skipErrors,
+		CleanArchives: opts.flags.cleanArchives,
+		Parallelism:   opts.flags.parallelism,
+		Timeout:       opts.flags.timeout,
+		KeepLogs:      opts.flags.keepLogs,
+		TempDir:       opts.flags.tempDir,
+	})
 
 	pending = batchCreatePending(opts.out, "Checking cache for changeset specs")
-	uncachedTasks, cachedSpecs, err := svc.CheckCache(ctx, tasks, opts.flags.clearCache)
+	uncachedTasks, cachedSpecs, err := coord.CheckCache(ctx, tasks)
 	if err != nil {
 		return err
 	}
@@ -316,15 +325,7 @@ func executeBatchSpec(ctx context.Context, opts executeBatchSpecOpts) error {
 	}
 
 	p := newBatchProgressPrinter(opts.out, *verbose, opts.flags.parallelism)
-	freshSpecs, logFiles, err := svc.ExecuteTasks(ctx, uncachedTasks, batchSpec, p.PrintStatuses, opts.flags.skipErrors, executor.NewExecutorOpts{
-		CacheDir:      opts.flags.cacheDir,
-		CleanArchives: opts.flags.cleanArchives,
-		Creator:       workspaceCreator,
-		Parallelism:   opts.flags.parallelism,
-		Timeout:       opts.flags.timeout,
-		KeepLogs:      opts.flags.keepLogs,
-		TempDir:       opts.flags.tempDir,
-	})
+	freshSpecs, logFiles, err := coord.ExecuteTasks(ctx, uncachedTasks, batchSpec, p.PrintStatuses)
 	if err != nil && !opts.flags.skipErrors {
 		return err
 	}

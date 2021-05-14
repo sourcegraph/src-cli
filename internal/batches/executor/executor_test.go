@@ -472,7 +472,6 @@ output4=integration-test-batch-change`,
 				Cache:       cache,
 				Creator:     creator,
 				Client:      client,
-				Features:    featuresAllEnabled(),
 				TempDir:     testTempDir,
 				Parallelism: runtime.GOMAXPROCS(0),
 				Timeout:     tc.executorTimeout,
@@ -912,7 +911,7 @@ func TestCreateChangesetSpecs(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			have, err := createChangesetSpecs(tt.task, tt.result, featuresAllEnabled())
+			have, err := createChangesetSpecs(tt.task, tt.result, true)
 			if err != nil {
 				if tt.wantErr != "" {
 					if err.Error() != tt.wantErr {

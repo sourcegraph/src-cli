@@ -48,15 +48,15 @@ type Executor interface {
 }
 
 type NewExecutorOpts struct {
-	Cache    ExecutionCache
-	Client   api.Client
-	Features batches.FeatureFlags
-	Creator  workspace.Creator
+	Cache   ExecutionCache
+	Client  api.Client
+	Creator workspace.Creator
 
 	// TODO?
 	StatusThing *TaskStatusHubThing
 
-	CleanArchives bool
+	CleanArchives     bool
+	AutoAuthorDetails bool
 
 	CacheDir string
 
@@ -72,9 +72,8 @@ type executor struct {
 
 	cache ExecutionCache
 
-	features batches.FeatureFlags
+	autoAuthorDetails bool
 
-	client  api.Client
 	logger  *log.Manager
 	creator workspace.Creator
 	fetcher batches.RepoFetcher
@@ -97,10 +96,9 @@ func New(opts NewExecutorOpts) *executor {
 	return &executor{
 		status: opts.StatusThing,
 
-		cache:    opts.Cache,
-		client:   opts.Client,
-		features: opts.Features,
-		creator:  opts.Creator,
+		cache:             opts.Cache,
+		autoAuthorDetails: opts.AutoAuthorDetails,
+		creator:           opts.Creator,
 
 		logger: log.NewManager(opts.TempDir, opts.KeepLogs),
 
@@ -251,7 +249,7 @@ func (x *executor) do(ctx context.Context, task *Task) (err error) {
 	}
 
 	// Build the changeset specs.
-	specs, err := createChangesetSpecs(task, result, x.features)
+	specs, err := createChangesetSpecs(task, result, x.autoAuthorDetails)
 	if err != nil {
 		return err
 	}
