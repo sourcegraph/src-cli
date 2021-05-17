@@ -122,29 +122,29 @@ func TestExecutor_Integration(t *testing.T) {
 			executorTimeout: 100 * time.Millisecond,
 			wantErrInclude:  "execution in github.com/sourcegraph/src-cli failed: Timeout reached. Execution took longer than 100ms.",
 		},
-		// {
-		// 	name: "templated",
-		// 	archives: []mock.RepoArchive{
-		// 		{Repo: srcCLIRepo, Files: map[string]string{
-		// 			"README.md": "# Welcome to the README\n",
-		// 			"main.go":   "package main\n\nfunc main() {\n\tfmt.Println(     \"Hello World\")\n}\n",
-		// 		}},
-		// 	},
-		// 	steps: []batches.Step{
-		// 		{Run: `go fmt main.go`},
-		// 		{Run: `touch modified-${{ join previous_step.modified_files " " }}.md`},
-		// 		{Run: `touch added-${{ join previous_step.added_files " " }}`},
-		// 	},
-		//
-		// 	tasks: []*Task{
-		// 		{Repository: srcCLIRepo},
-		// 	},
-		// 	wantFilesChanged: filesByRepository{
-		// 		srcCLIRepo.ID: filesByBranch{
-		// 			changesetTemplateBranch: []string{"main.go", "modified-main.go.md", "added-modified-main.go.md"},
-		// 		},
-		// 	},
-		// },
+		{
+			name: "templated step run",
+			archives: []mock.RepoArchive{
+				{Repo: srcCLIRepo, Files: map[string]string{
+					"README.md": "# Welcome to the README\n",
+					"main.go":   "package main\n\nfunc main() {\n\tfmt.Println(     \"Hello World\")\n}\n",
+				}},
+			},
+			steps: []batches.Step{
+				{Run: `go fmt main.go`},
+				{Run: `touch modified-${{ join previous_step.modified_files " " }}.md`},
+				{Run: `touch added-${{ join previous_step.added_files " " }}`},
+			},
+
+			tasks: []*Task{
+				{Repository: srcCLIRepo},
+			},
+			wantFilesChanged: filesByRepository{
+				srcCLIRepo.ID: filesByPath{
+					rootPath: []string{"main.go", "modified-main.go.md", "added-modified-main.go.md"},
+				},
+			},
+		},
 		// {
 		// 	name: "transform group",
 		// 	archives: []mock.RepoArchive{
@@ -275,7 +275,6 @@ func TestExecutor_Integration(t *testing.T) {
 				},
 			},
 		},
-		// TODO: Test that checks for outputs being rendered
 		{
 			name: "step condition",
 			archives: []mock.RepoArchive{
@@ -332,13 +331,12 @@ func TestExecutor_Integration(t *testing.T) {
 				{Repository: sourcegraphRepo},
 			},
 			wantFilesChanged: filesByRepository{
-				srcCLIRepo.ID: filesByBranch{
-					changesetTemplateBranch: []string{"README.md"},
+				srcCLIRepo.ID: filesByPath{
+					rootPath: []string{"README.md"},
 				},
 				sourcegraphRepo.ID: {},
 			},
 			wantErrInclude: "execution in github.com/sourcegraph/sourcegraph failed: run: exit 1",
-			wantCacheHits:  1,
 		},
 	}
 

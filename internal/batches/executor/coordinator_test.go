@@ -17,11 +17,6 @@ import (
 )
 
 func TestCoordinator_Execute(t *testing.T) {
-	batchChangeAttrs := &BatchChangeAttributes{
-		Name:        "test-name",
-		Description: "test description",
-	}
-
 	template := &batches.ChangesetTemplate{
 		Title:  "commit title",
 		Body:   "commit body",
@@ -132,6 +127,8 @@ func TestCoordinator_Execute(t *testing.T) {
 			tasks: []*Task{srcCLITask},
 
 			batchSpec: &batches.BatchSpec{
+				Name:        "my-batch-change",
+				Description: "the description",
 				ChangesetTemplate: &batches.ChangesetTemplate{
 					Title: `output1=${{ outputs.output1}}`,
 					Body: `output1=${{ outputs.output1}}
@@ -199,8 +196,8 @@ func TestCoordinator_Execute(t *testing.T) {
 
 		repository_name=github.com/sourcegraph/src-cli
 
-		batch_change_name=test-name
-		batch_change_description=test description`,
+		batch_change_name=my-batch-change
+		batch_change_description=the description`,
 						Commits: []batches.GitCommitDescription{
 							{
 								Message:     "output1=myOutputValue1,output2=subFieldValue",
@@ -220,10 +217,13 @@ func TestCoordinator_Execute(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := context.Background()
 
-			// Copy over the template to the task, which would be done by the TaskBuilder
+			// Set attributes on Task which would be set by the TaskBuilder
 			for _, t := range tc.tasks {
 				t.Template = tc.batchSpec.ChangesetTemplate
-				t.BatchChangeAttributes = batchChangeAttrs
+				t.BatchChangeAttributes = &BatchChangeAttributes{
+					Name:        tc.batchSpec.Name,
+					Description: tc.batchSpec.Description,
+				}
 			}
 
 			testTempDir, err := ioutil.TempDir("", "executor-integration-test-*")
