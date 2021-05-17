@@ -467,9 +467,9 @@ output4=integration-test-batch-change`,
 			defer os.Remove(testTempDir)
 
 			cache := newInMemoryExecutionCache()
+			statusHandler := NewTaskStatusCollection([]*Task{})
 
 			opts := newExecutorOpts{
-				Status:  NewTaskStatusCollection([]*Task{}),
 				Cache:   cache,
 				Creator: workspace.NewCreator(context.Background(), "bind", testTempDir, testTempDir, []batches.Step{}),
 				Fetcher: batches.NewRepoFetcher(client, testTempDir, false),
@@ -509,7 +509,7 @@ output4=integration-test-batch-change`,
 					task.Steps = tc.steps
 				}
 
-				executor.Start(context.Background(), tc.tasks)
+				executor.Start(context.Background(), tc.tasks, statusHandler)
 				specs, err := executor.Wait(context.Background())
 				if tc.wantErrInclude == "" {
 					if err != nil {

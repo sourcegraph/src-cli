@@ -44,7 +44,6 @@ type newExecutorOpts struct {
 	// Dependencies
 	Cache   ExecutionCache
 	Creator workspace.Creator
-	Status  *TaskStatusCollection
 	Fetcher batches.RepoFetcher
 	Logger  *log.Manager
 
@@ -78,7 +77,13 @@ func (x *executor) LogFiles() []string {
 	return x.opts.Logger.LogFiles()
 }
 
-func (x *executor) Start(ctx context.Context, tasks []*Task) {
+type taskStatusHandler interface {
+	Update(task *Task, callback func(status *TaskStatus))
+}
+
+// Start starts the execution of the given Tasks in goroutines, calling the
+// given taskStatusHandler to update the progress of the tasks.
+func (x *executor) Start(ctx context.Context, tasks []*Task, status taskStatusHandler) {
 	defer func() { close(x.doneEnqueuing) }()
 
 	for _, task := range tasks {
@@ -90,22 +95,23 @@ func (x *executor) Start(ctx context.Context, tasks []*Task) {
 
 		x.par.Acquire()
 
-		go func(task *Task) {
+		go func(task *Task, status taskStatusHandler) {
 			defer x.par.Release()
 
 			select {
 			case <-ctx.Done():
 				return
 			default:
-				err := x.do(ctx, task)
+				err := x.do(ctx, task, status)
 				if err != nil {
 					x.par.Error(err)
 				}
 			}
-		}(task)
+		}(task, status)
 	}
 }
 
+// Wait blocks until all Tasks enqueued with Start have been executed.
 func (x *executor) Wait(ctx context.Context) ([]*batches.ChangesetSpec, error) {
 	<-x.doneEnqueuing
 
@@ -128,10 +134,10 @@ func (x *executor) Wait(ctx context.Context) ([]*batches.ChangesetSpec, error) {
 	return x.specs, nil
 }
 
-func (x *executor) do(ctx context.Context, task *Task) (err error) {
+func (x *executor) do(ctx context.Context, task *Task, status taskStatusHandler) (err error) {
 	// Ensure that the status is updated when we're done.
 	defer func() {
-		x.opts.Status.Update(task, func(status *TaskStatus) {
+		status.Update(task, func(status *TaskStatus) {
 			status.FinishedAt = time.Now()
 			status.CurrentlyExecuting = ""
 			status.Err = err
@@ -139,7 +145,7 @@ func (x *executor) do(ctx context.Context, task *Task) (err error) {
 	}()
 
 	// We're away!
-	x.opts.Status.Update(task, func(status *TaskStatus) {
+	status.Update(task, func(status *TaskStatus) {
 		status.StartedAt = time.Now()
 	})
 
@@ -180,7 +186,7 @@ func (x *executor) do(ctx context.Context, task *Task) (err error) {
 		logger:                log,
 		tempDir:               x.opts.TempDir,
 		reportProgress: func(currentlyExecuting string) {
-			x.opts.Status.Update(task, func(status *TaskStatus) {
+			status.Update(task, func(status *TaskStatus) {
 				status.CurrentlyExecuting = currentlyExecuting
 			})
 		},
@@ -215,7 +221,7 @@ func (x *executor) do(ctx context.Context, task *Task) (err error) {
 		return err
 	}
 
-	x.opts.Status.Update(task, func(status *TaskStatus) {
+	status.Update(task, func(status *TaskStatus) {
 		status.ChangesetSpecs = specs
 	})
 

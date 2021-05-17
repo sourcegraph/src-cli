@@ -22,6 +22,7 @@ type Coordinator struct {
 	opts NewCoordinatorOpts
 
 	cache ExecutionCache
+	exec  *executor
 }
 
 type repoNameResolver func(ctx context.Context, name string) (*graphql.Repository, error)
@@ -51,10 +52,25 @@ type NewCoordinatorOpts struct {
 }
 
 func NewCoordinator(opts NewCoordinatorOpts) *Coordinator {
+	cache := NewCache(opts.CacheDir)
+
+	exec := newExecutor(newExecutorOpts{
+		Cache:   cache,
+		Fetcher: batches.NewRepoFetcher(opts.Client, opts.CacheDir, opts.CleanArchives),
+		Creator: opts.Creator,
+		Logger:  log.NewManager(opts.TempDir, opts.KeepLogs),
+
+		AutoAuthorDetails: opts.AutoAuthorDetails,
+		Parallelism:       opts.Parallelism,
+		Timeout:           opts.Timeout,
+		TempDir:           opts.TempDir,
+	})
+
 	return &Coordinator{
 		opts: opts,
 
-		cache: NewCache(opts.CacheDir),
+		cache: cache,
+		exec:  exec,
 	}
 }
 
@@ -149,22 +165,9 @@ func (c *Coordinator) Execute(ctx context.Context, tasks []*Task, spec *batches.
 
 	// Setup executor
 
-	exec := newExecutor(newExecutorOpts{
-		Status:  status,
-		Cache:   c.cache,
-		Fetcher: batches.NewRepoFetcher(c.opts.Client, c.opts.CacheDir, c.opts.CleanArchives),
-		Creator: c.opts.Creator,
-		Logger:  log.NewManager(c.opts.TempDir, c.opts.KeepLogs),
-
-		AutoAuthorDetails: c.opts.AutoAuthorDetails,
-		Parallelism:       c.opts.Parallelism,
-		Timeout:           c.opts.Timeout,
-		TempDir:           c.opts.TempDir,
-	})
-
 	// Run executor
-	exec.Start(ctx, tasks)
-	specs, err := exec.Wait(ctx)
+	c.exec.Start(ctx, tasks, status)
+	specs, err := c.exec.Wait(ctx)
 	if printer != nil {
 		status.CopyStatuses(printer)
 		done <- struct{}{}
@@ -215,5 +218,5 @@ func (c *Coordinator) Execute(ctx context.Context, tasks []*Task, spec *batches.
 		}
 	}
 
-	return specs, exec.LogFiles(), errs.ErrorOrNil()
+	return specs, c.exec.LogFiles(), errs.ErrorOrNil()
 }
