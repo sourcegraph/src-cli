@@ -23,6 +23,7 @@ import (
 	"github.com/sourcegraph/src-cli/internal/batches"
 	"github.com/sourcegraph/src-cli/internal/batches/git"
 	"github.com/sourcegraph/src-cli/internal/batches/graphql"
+	"github.com/sourcegraph/src-cli/internal/batches/log"
 	"github.com/sourcegraph/src-cli/internal/batches/mock"
 	"github.com/sourcegraph/src-cli/internal/batches/workspace"
 )
@@ -468,10 +469,12 @@ output4=integration-test-batch-change`,
 			cache := newInMemoryExecutionCache()
 			creator := workspace.NewCreator(context.Background(), "bind", testTempDir, testTempDir, []batches.Step{})
 			opts := NewExecutorOpts{
-				Status:      NewTaskStatusCollection([]*Task{}),
-				Cache:       cache,
-				Creator:     creator,
-				Client:      client,
+				Status:  NewTaskStatusCollection([]*Task{}),
+				Cache:   cache,
+				Creator: creator,
+				Fetcher: batches.NewRepoFetcher(client, testTempDir, false),
+				Logger:  log.NewManager(testTempDir, false),
+
 				TempDir:     testTempDir,
 				Parallelism: runtime.GOMAXPROCS(0),
 				Timeout:     tc.executorTimeout,
@@ -481,14 +484,11 @@ output4=integration-test-batch-change`,
 				opts.Timeout = 30 * time.Second
 			}
 
-			repoFetcher := batches.NewRepoFetcher(client, testTempDir, false)
-
 			// execute contains the actual logic running the tasks on an
 			// executor. We'll run this multiple times to cover both the cache
 			// and non-cache code paths.
 			execute := func(t *testing.T) {
 				executor := New(opts)
-				executor.fetcher = repoFetcher
 
 				for i := range tc.steps {
 					tc.steps[i].SetImage(&mock.Image{

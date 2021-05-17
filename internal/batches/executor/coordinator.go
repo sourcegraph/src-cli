@@ -11,6 +11,7 @@ import (
 	"github.com/sourcegraph/src-cli/internal/api"
 	"github.com/sourcegraph/src-cli/internal/batches"
 	"github.com/sourcegraph/src-cli/internal/batches/graphql"
+	"github.com/sourcegraph/src-cli/internal/batches/log"
 	"github.com/sourcegraph/src-cli/internal/batches/workspace"
 )
 
@@ -146,19 +147,17 @@ func (c *Coordinator) ExecuteTasks(ctx context.Context, tasks []*Task, spec *bat
 	// Setup executor
 
 	exec := New(NewExecutorOpts{
-		Status: status,
-
-		Cache: c.cache,
-
-		Client:  c.opts.Client,
+		// Dependencies
+		Status:  status,
+		Cache:   c.cache,
+		Fetcher: batches.NewRepoFetcher(c.opts.Client, c.opts.CacheDir, c.opts.CleanArchives),
 		Creator: c.opts.Creator,
+		Logger:  log.NewManager(c.opts.TempDir, c.opts.KeepLogs),
 
-		CleanArchives:     c.opts.CleanArchives,
+		// Options
 		AutoAuthorDetails: c.opts.AutoAuthorDetails,
-		CacheDir:          c.opts.CacheDir,
 		Parallelism:       c.opts.Parallelism,
 		Timeout:           c.opts.Timeout,
-		KeepLogs:          c.opts.KeepLogs,
 		TempDir:           c.opts.TempDir,
 	})
 

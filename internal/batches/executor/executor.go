@@ -9,7 +9,6 @@ import (
 
 	"github.com/neelance/parallel"
 	"github.com/pkg/errors"
-	"github.com/sourcegraph/src-cli/internal/api"
 	"github.com/sourcegraph/src-cli/internal/batches"
 	"github.com/sourcegraph/src-cli/internal/batches/log"
 	"github.com/sourcegraph/src-cli/internal/batches/workspace"
@@ -48,39 +47,34 @@ type Executor interface {
 }
 
 type NewExecutorOpts struct {
+	// Dependencies
 	Cache   ExecutionCache
-	Client  api.Client
 	Creator workspace.Creator
 	Status  *TaskStatusCollection
+	Fetcher batches.RepoFetcher
+	Logger  *log.Manager
 
-	CleanArchives     bool
+	// Config
 	AutoAuthorDetails bool
-
-	CacheDir string
-
-	Parallelism int
-	Timeout     time.Duration
-
-	KeepLogs bool
-	TempDir  string
+	Parallelism       int
+	Timeout           time.Duration
+	TempDir           string
 }
 
 type executor struct {
-	status *TaskStatusCollection
-
-	cache ExecutionCache
-
-	autoAuthorDetails bool
-
+	// Dependencies
+	status  *TaskStatusCollection
+	cache   ExecutionCache
 	logger  *log.Manager
 	creator workspace.Creator
 	fetcher batches.RepoFetcher
 
-	tasks []*Task
+	// Config
+	autoAuthorDetails bool
+	tempDir           string
+	timeout           time.Duration
 
-	tempDir string
-	timeout time.Duration
-
+	// Internal
 	par           *parallel.Run
 	doneEnqueuing chan struct{}
 
@@ -90,15 +84,13 @@ type executor struct {
 
 func New(opts NewExecutorOpts) *executor {
 	return &executor{
-		status: opts.Status,
+		cache:   opts.Cache,
+		creator: opts.Creator,
+		status:  opts.Status,
+		fetcher: opts.Fetcher,
+		logger:  opts.Logger,
 
-		cache:             opts.Cache,
 		autoAuthorDetails: opts.AutoAuthorDetails,
-		creator:           opts.Creator,
-
-		logger: log.NewManager(opts.TempDir, opts.KeepLogs),
-
-		fetcher: batches.NewRepoFetcher(opts.Client, opts.CacheDir, opts.CleanArchives),
 
 		tempDir: opts.TempDir,
 		timeout: opts.Timeout,
