@@ -40,13 +40,7 @@ func (e TaskExecutionErr) StatusText() string {
 	return e.Err.Error()
 }
 
-type Executor interface {
-	LogFiles() []string
-	Start(ctx context.Context, tasks []*Task)
-	Wait(ctx context.Context) ([]*batches.ChangesetSpec, error)
-}
-
-type NewExecutorOpts struct {
+type newExecutorOpts struct {
 	// Dependencies
 	Cache   ExecutionCache
 	Creator workspace.Creator
@@ -62,19 +56,8 @@ type NewExecutorOpts struct {
 }
 
 type executor struct {
-	// Dependencies
-	status  *TaskStatusCollection
-	cache   ExecutionCache
-	logger  *log.Manager
-	creator workspace.Creator
-	fetcher batches.RepoFetcher
+	opts newExecutorOpts
 
-	// Config
-	autoAuthorDetails bool
-	tempDir           string
-	timeout           time.Duration
-
-	// Internal
 	par           *parallel.Run
 	doneEnqueuing chan struct{}
 
@@ -82,18 +65,9 @@ type executor struct {
 	specsMu sync.Mutex
 }
 
-func New(opts NewExecutorOpts) *executor {
+func newExecutor(opts newExecutorOpts) *executor {
 	return &executor{
-		cache:   opts.Cache,
-		creator: opts.Creator,
-		status:  opts.Status,
-		fetcher: opts.Fetcher,
-		logger:  opts.Logger,
-
-		autoAuthorDetails: opts.AutoAuthorDetails,
-
-		tempDir: opts.TempDir,
-		timeout: opts.Timeout,
+		opts: opts,
 
 		doneEnqueuing: make(chan struct{}),
 		par:           parallel.NewRun(opts.Parallelism),
@@ -101,7 +75,7 @@ func New(opts NewExecutorOpts) *executor {
 }
 
 func (x *executor) LogFiles() []string {
-	return x.logger.LogFiles()
+	return x.opts.Logger.LogFiles()
 }
 
 func (x *executor) Start(ctx context.Context, tasks []*Task) {
@@ -157,7 +131,7 @@ func (x *executor) Wait(ctx context.Context) ([]*batches.ChangesetSpec, error) {
 func (x *executor) do(ctx context.Context, task *Task) (err error) {
 	// Ensure that the status is updated when we're done.
 	defer func() {
-		x.status.Update(task, func(status *TaskStatus) {
+		x.opts.Status.Update(task, func(status *TaskStatus) {
 			status.FinishedAt = time.Now()
 			status.CurrentlyExecuting = ""
 			status.Err = err
@@ -165,13 +139,13 @@ func (x *executor) do(ctx context.Context, task *Task) (err error) {
 	}()
 
 	// We're away!
-	x.status.Update(task, func(status *TaskStatus) {
+	x.opts.Status.Update(task, func(status *TaskStatus) {
 		status.StartedAt = time.Now()
 	})
 
 	// It isn't, so let's get ready to run the task. First, let's set up our
 	// logging.
-	log, err := x.logger.AddTask(task.Repository.SlugForPath(task.Path))
+	log, err := x.opts.Logger.AddTask(task.Repository.SlugForPath(task.Path))
 	if err != nil {
 		err = errors.Wrap(err, "creating log file")
 		return
@@ -189,24 +163,24 @@ func (x *executor) do(ctx context.Context, task *Task) (err error) {
 	}()
 
 	// Now checkout the archive
-	task.Archive = x.fetcher.Checkout(task.Repository, task.ArchivePathToFetch())
+	task.Archive = x.opts.Fetcher.Checkout(task.Repository, task.ArchivePathToFetch())
 
 	// Set up our timeout.
-	runCtx, cancel := context.WithTimeout(ctx, x.timeout)
+	runCtx, cancel := context.WithTimeout(ctx, x.opts.Timeout)
 	defer cancel()
 
 	// Actually execute the steps.
 	opts := &executionOpts{
 		archive:               task.Archive,
-		wc:                    x.creator,
+		wc:                    x.opts.Creator,
 		batchChangeAttributes: task.BatchChangeAttributes,
 		repo:                  task.Repository,
 		path:                  task.Path,
 		steps:                 task.Steps,
 		logger:                log,
-		tempDir:               x.tempDir,
+		tempDir:               x.opts.TempDir,
 		reportProgress: func(currentlyExecuting string) {
-			x.status.Update(task, func(status *TaskStatus) {
+			x.opts.Status.Update(task, func(status *TaskStatus) {
 				status.CurrentlyExecuting = currentlyExecuting
 			})
 		},
@@ -215,7 +189,7 @@ func (x *executor) do(ctx context.Context, task *Task) (err error) {
 	result, err := runSteps(runCtx, opts)
 	if err != nil {
 		if reachedTimeout(runCtx, err) {
-			err = &errTimeoutReached{timeout: x.timeout}
+			err = &errTimeoutReached{timeout: x.opts.Timeout}
 		}
 		return
 	}
@@ -225,7 +199,7 @@ func (x *executor) do(ctx context.Context, task *Task) (err error) {
 
 	// Add to the cache. We don't use runCtx here because we want to write to
 	// the cache even if we've now reached the timeout.
-	if err = x.cache.Set(ctx, cacheKey, result); err != nil {
+	if err = x.opts.Cache.Set(ctx, cacheKey, result); err != nil {
 		err = errors.Wrapf(err, "caching result for %q", task.Repository.Name)
 	}
 
@@ -236,12 +210,12 @@ func (x *executor) do(ctx context.Context, task *Task) (err error) {
 	}
 
 	// Build the changeset specs.
-	specs, err := createChangesetSpecs(task, result, x.autoAuthorDetails)
+	specs, err := createChangesetSpecs(task, result, x.opts.AutoAuthorDetails)
 	if err != nil {
 		return err
 	}
 
-	x.status.Update(task, func(status *TaskStatus) {
+	x.opts.Status.Update(task, func(status *TaskStatus) {
 		status.ChangesetSpecs = specs
 	})
 

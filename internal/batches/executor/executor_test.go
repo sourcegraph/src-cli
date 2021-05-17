@@ -467,11 +467,11 @@ output4=integration-test-batch-change`,
 			defer os.Remove(testTempDir)
 
 			cache := newInMemoryExecutionCache()
-			creator := workspace.NewCreator(context.Background(), "bind", testTempDir, testTempDir, []batches.Step{})
-			opts := NewExecutorOpts{
+
+			opts := newExecutorOpts{
 				Status:  NewTaskStatusCollection([]*Task{}),
 				Cache:   cache,
-				Creator: creator,
+				Creator: workspace.NewCreator(context.Background(), "bind", testTempDir, testTempDir, []batches.Step{}),
 				Fetcher: batches.NewRepoFetcher(client, testTempDir, false),
 				Logger:  log.NewManager(testTempDir, false),
 
@@ -488,7 +488,7 @@ output4=integration-test-batch-change`,
 			// executor. We'll run this multiple times to cover both the cache
 			// and non-cache code paths.
 			execute := func(t *testing.T) {
-				executor := New(opts)
+				executor := newExecutor(opts)
 
 				for i := range tc.steps {
 					tc.steps[i].SetImage(&mock.Image{

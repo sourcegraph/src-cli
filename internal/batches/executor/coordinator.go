@@ -118,7 +118,10 @@ func (c *Coordinator) checkCacheForTask(ctx context.Context, task *Task) (specs 
 
 type executionProgressPrinter func([]*TaskStatus)
 
-func (c *Coordinator) ExecuteTasks(ctx context.Context, tasks []*Task, spec *batches.BatchSpec, printer executionProgressPrinter) ([]*batches.ChangesetSpec, []string, error) {
+// Execute executes the given Tasks and the importChangeset statements in the
+// given spec. It regularily calls the executionProgressPrinter with the
+// current TaskStatuses.
+func (c *Coordinator) Execute(ctx context.Context, tasks []*Task, spec *batches.BatchSpec, printer executionProgressPrinter) ([]*batches.ChangesetSpec, []string, error) {
 	var errs *multierror.Error
 
 	// Start the goroutine that updates the UI
@@ -146,15 +149,13 @@ func (c *Coordinator) ExecuteTasks(ctx context.Context, tasks []*Task, spec *bat
 
 	// Setup executor
 
-	exec := New(NewExecutorOpts{
-		// Dependencies
+	exec := newExecutor(newExecutorOpts{
 		Status:  status,
 		Cache:   c.cache,
 		Fetcher: batches.NewRepoFetcher(c.opts.Client, c.opts.CacheDir, c.opts.CleanArchives),
 		Creator: c.opts.Creator,
 		Logger:  log.NewManager(c.opts.TempDir, c.opts.KeepLogs),
 
-		// Options
 		AutoAuthorDetails: c.opts.AutoAuthorDetails,
 		Parallelism:       c.opts.Parallelism,
 		Timeout:           c.opts.Timeout,
