@@ -42,11 +42,7 @@ func TestCoordinator_Execute(t *testing.T) {
 		DefaultBranch: &graphql.Branch{Name: "main", Target: graphql.Target{OID: "d34db33f"}},
 	}
 
-	srcCLITask := &Task{
-		Repository:            srcCLIRepo,
-		BatchChangeAttributes: batchChangeAttrs,
-		Template:              template,
-	}
+	srcCLITask := &Task{Repository: srcCLIRepo}
 
 	sourcegraphRepo := &graphql.Repository{
 		ID:   "sourcegraph",
@@ -57,11 +53,7 @@ func TestCoordinator_Execute(t *testing.T) {
 		},
 	}
 
-	sourcegraphTask := &Task{
-		Repository:            sourcegraphRepo,
-		BatchChangeAttributes: batchChangeAttrs,
-		Template:              template,
-	}
+	sourcegraphTask := &Task{Repository: sourcegraphRepo}
 
 	tests := []struct {
 		name string
@@ -80,11 +72,9 @@ func TestCoordinator_Execute(t *testing.T) {
 			tasks: []*Task{srcCLITask, sourcegraphTask},
 
 			batchSpec: &batches.BatchSpec{
-				Name:        "my-batch-change",
-				Description: "the description",
-				ChangesetTemplate: &batches.ChangesetTemplate{
-					Branch: "test-branch",
-				},
+				Name:              "my-batch-change",
+				Description:       "the description",
+				ChangesetTemplate: template,
 			},
 
 			executor: &dummyExecutor{
@@ -143,9 +133,9 @@ func TestCoordinator_Execute(t *testing.T) {
 
 			batchSpec: &batches.BatchSpec{
 				ChangesetTemplate: &batches.ChangesetTemplate{
-					Title: "output1=${{ outputs.output1}}",
+					Title: `output1=${{ outputs.output1}}`,
 					Body: `output1=${{ outputs.output1}}
-		output2=${{ outputs.output2.thisStepStdout }}
+		output2=${{ outputs.output2.subField }}
 
 		modified_files=${{ steps.modified_files }}
 		added_files=${{ steps.added_files }}
@@ -157,12 +147,12 @@ func TestCoordinator_Execute(t *testing.T) {
 		batch_change_name=${{ batch_change.name }}
 		batch_change_description=${{ batch_change.description }}
 		`,
-					Branch: "templated-branch-${{ outputs.myOutputName3 }}",
+					Branch: "templated-branch-${{ outputs.output1 }}",
 					Commit: batches.ExpandedGitCommitDescription{
-						Message: "myOutputName1=${{ outputs.myOutputName1}},output2=${{ outputs.output2.subField }}",
+						Message: "output1=${{ outputs.output1}},output2=${{ outputs.output2.subField }}",
 						Author: &batches.GitCommitAuthor{
-							Name:  "myOutputName1=${{ outputs.myOutputName1}}",
-							Email: "myOutputName1=${{ outputs.myOutputName1}}",
+							Name:  "output1=${{ outputs.output1}}",
+							Email: "output1=${{ outputs.output1}}",
 						},
 					},
 				},
@@ -194,9 +184,32 @@ func TestCoordinator_Execute(t *testing.T) {
 				{
 					BaseRepository: srcCLIRepo.ID,
 					CreatedChangeset: &batches.CreatedChangeset{
+						BaseRef:        srcCLIRepo.BaseRef(),
+						BaseRev:        srcCLIRepo.Rev(),
+						HeadRepository: srcCLIRepo.ID,
+						HeadRef:        "refs/heads/templated-branch-myOutputValue1",
+						Title:          "output1=myOutputValue1",
+						Body: `output1=myOutputValue1
+		output2=subFieldValue
+
+		modified_files=[modified.txt]
+		added_files=[added.txt]
+		deleted_files=[deleted.txt]
+		renamed_files=[renamed.txt]
+
+		repository_name=github.com/sourcegraph/src-cli
+
+		batch_change_name=test-name
+		batch_change_description=test description`,
 						Commits: []batches.GitCommitDescription{
-							{Diff: `dummydiff1`},
+							{
+								Message:     "output1=myOutputValue1,output2=subFieldValue",
+								AuthorName:  "output1=myOutputValue1",
+								AuthorEmail: "output1=myOutputValue1",
+								Diff:        `dummydiff1`,
+							},
 						},
+						Published: false,
 					},
 				},
 			},
@@ -206,6 +219,12 @@ func TestCoordinator_Execute(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := context.Background()
+
+			// Copy over the template to the task, which would be done by the TaskBuilder
+			for _, t := range tc.tasks {
+				t.Template = tc.batchSpec.ChangesetTemplate
+				t.BatchChangeAttributes = batchChangeAttrs
+			}
 
 			testTempDir, err := ioutil.TempDir("", "executor-integration-test-*")
 			if err != nil {
