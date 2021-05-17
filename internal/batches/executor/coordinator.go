@@ -15,14 +15,20 @@ import (
 	"github.com/sourcegraph/src-cli/internal/batches/workspace"
 )
 
-// Coordinates coordinates the execution of Tasks. It makes use of an Executor,
+type taskExecutor interface {
+	Start(context.Context, []*Task, taskStatusHandler)
+	Wait(context.Context) ([]taskResult, error)
+}
+
+// Coordinates coordinates the execution of Tasks. It makes use of an executor,
 // checks the ExecutionCache whether execution is necessary, builds
 // batches.ChangesetSpecs out of the executionResults.
 type Coordinator struct {
 	opts NewCoordinatorOpts
 
-	cache ExecutionCache
-	exec  *executor
+	cache      ExecutionCache
+	exec       taskExecutor
+	logManager *log.Manager
 }
 
 type repoNameResolver func(ctx context.Context, name string) (*graphql.Repository, error)
@@ -53,12 +59,12 @@ type NewCoordinatorOpts struct {
 
 func NewCoordinator(opts NewCoordinatorOpts) *Coordinator {
 	cache := NewCache(opts.CacheDir)
+	logManager := log.NewManager(opts.TempDir, opts.KeepLogs)
 
 	exec := newExecutor(newExecutorOpts{
-		Cache:   cache,
 		Fetcher: batches.NewRepoFetcher(opts.Client, opts.CacheDir, opts.CleanArchives),
 		Creator: opts.Creator,
-		Logger:  log.NewManager(opts.TempDir, opts.KeepLogs),
+		Logger:  logManager,
 
 		AutoAuthorDetails: opts.AutoAuthorDetails,
 		Parallelism:       opts.Parallelism,
@@ -69,8 +75,9 @@ func NewCoordinator(opts NewCoordinatorOpts) *Coordinator {
 	return &Coordinator{
 		opts: opts,
 
-		cache: cache,
-		exec:  exec,
+		cache:      cache,
+		exec:       exec,
+		logManager: logManager,
 	}
 }
 
@@ -132,13 +139,45 @@ func (c *Coordinator) checkCacheForTask(ctx context.Context, task *Task) (specs 
 	return specs, true, nil
 }
 
+func (c *Coordinator) writeToCache(ctx context.Context, taskResult taskResult, status taskStatusHandler) ([]*batches.ChangesetSpec, error) {
+	// Add to the cache, even if no diff was produced.
+	cacheKey := taskResult.task.cacheKey()
+	if err := c.cache.Set(ctx, cacheKey, taskResult.result); err != nil {
+		return nil, errors.Wrapf(err, "caching result for %q", taskResult.task.Repository.Name)
+	}
+
+	// If the steps didn't result in any diff, we don't need to create a
+	// changeset spec that's displayed to the user and send to the server.
+	if taskResult.result.Diff == "" {
+		return nil, nil
+	}
+
+	// Build the changeset specs.
+	specs, err := createChangesetSpecs(taskResult.task, taskResult.result, c.opts.AutoAuthorDetails)
+	if err != nil {
+		return specs, err
+	}
+
+	// Update the status of Task
+	status.Update(taskResult.task, func(status *TaskStatus) {
+		status.ChangesetSpecs = specs
+		// TODO(mrnugget): Ideally we'd get rid of this dependency on the task
+		// status handler here.
+	})
+
+	return specs, nil
+}
+
 type executionProgressPrinter func([]*TaskStatus)
 
 // Execute executes the given Tasks and the importChangeset statements in the
 // given spec. It regularily calls the executionProgressPrinter with the
 // current TaskStatuses.
 func (c *Coordinator) Execute(ctx context.Context, tasks []*Task, spec *batches.BatchSpec, printer executionProgressPrinter) ([]*batches.ChangesetSpec, []string, error) {
-	var errs *multierror.Error
+	var (
+		specs []*batches.ChangesetSpec
+		errs  *multierror.Error
+	)
 
 	// Start the goroutine that updates the UI
 	status := NewTaskStatusCollection(tasks)
@@ -163,11 +202,9 @@ func (c *Coordinator) Execute(ctx context.Context, tasks []*Task, spec *batches.
 		}()
 	}
 
-	// Setup executor
-
 	// Run executor
 	c.exec.Start(ctx, tasks, status)
-	specs, err := c.exec.Wait(ctx)
+	results, err := c.exec.Wait(ctx)
 	if printer != nil {
 		status.CopyStatuses(printer)
 		done <- struct{}{}
@@ -178,6 +215,16 @@ func (c *Coordinator) Execute(ctx context.Context, tasks []*Task, spec *batches.
 		} else {
 			return nil, nil, err
 		}
+	}
+
+	// Write results to cache, build ChangesetSpecs if possible and add to list.
+	for _, taskResult := range results {
+		taskSpecs, err := c.writeToCache(ctx, taskResult, status)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		specs = append(specs, taskSpecs...)
 	}
 
 	// Add external changeset specs.
@@ -218,5 +265,5 @@ func (c *Coordinator) Execute(ctx context.Context, tasks []*Task, spec *batches.
 		}
 	}
 
-	return specs, c.exec.LogFiles(), errs.ErrorOrNil()
+	return specs, c.logManager.LogFiles(), errs.ErrorOrNil()
 }

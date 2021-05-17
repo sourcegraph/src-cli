@@ -40,9 +40,14 @@ func (e TaskExecutionErr) StatusText() string {
 	return e.Err.Error()
 }
 
+// taskResult is a combination of a Task and the result of its execution.
+type taskResult struct {
+	task   *Task
+	result executionResult
+}
+
 type newExecutorOpts struct {
 	// Dependencies
-	Cache   ExecutionCache
 	Creator workspace.Creator
 	Fetcher batches.RepoFetcher
 	Logger  *log.Manager
@@ -60,8 +65,8 @@ type executor struct {
 	par           *parallel.Run
 	doneEnqueuing chan struct{}
 
-	specs   []*batches.ChangesetSpec
-	specsMu sync.Mutex
+	results   []taskResult
+	resultsMu sync.Mutex
 }
 
 func newExecutor(opts newExecutorOpts) *executor {
@@ -71,10 +76,6 @@ func newExecutor(opts newExecutorOpts) *executor {
 		doneEnqueuing: make(chan struct{}),
 		par:           parallel.NewRun(opts.Parallelism),
 	}
-}
-
-func (x *executor) LogFiles() []string {
-	return x.opts.Logger.LogFiles()
 }
 
 type taskStatusHandler interface {
@@ -112,7 +113,7 @@ func (x *executor) Start(ctx context.Context, tasks []*Task, status taskStatusHa
 }
 
 // Wait blocks until all Tasks enqueued with Start have been executed.
-func (x *executor) Wait(ctx context.Context) ([]*batches.ChangesetSpec, error) {
+func (x *executor) Wait(ctx context.Context) ([]taskResult, error) {
 	<-x.doneEnqueuing
 
 	result := make(chan error, 1)
@@ -131,7 +132,7 @@ func (x *executor) Wait(ctx context.Context) ([]*batches.ChangesetSpec, error) {
 		}
 	}
 
-	return x.specs, nil
+	return x.results, nil
 }
 
 func (x *executor) do(ctx context.Context, task *Task, status taskStatusHandler) (err error) {
@@ -149,12 +150,10 @@ func (x *executor) do(ctx context.Context, task *Task, status taskStatusHandler)
 		status.StartedAt = time.Now()
 	})
 
-	// It isn't, so let's get ready to run the task. First, let's set up our
-	// logging.
+	// Let's set up our logging.
 	log, err := x.opts.Logger.AddTask(task.Repository.SlugForPath(task.Path))
 	if err != nil {
-		err = errors.Wrap(err, "creating log file")
-		return
+		return errors.Wrap(err, "creating log file")
 	}
 	defer func() {
 		if err != nil {
@@ -178,11 +177,11 @@ func (x *executor) do(ctx context.Context, task *Task, status taskStatusHandler)
 	// Actually execute the steps.
 	opts := &executionOpts{
 		archive:               task.Archive,
-		wc:                    x.opts.Creator,
 		batchChangeAttributes: task.BatchChangeAttributes,
 		repo:                  task.Repository,
 		path:                  task.Path,
 		steps:                 task.Steps,
+		wc:                    x.opts.Creator,
 		logger:                log,
 		tempDir:               x.opts.TempDir,
 		reportProgress: func(currentlyExecuting string) {
@@ -197,47 +196,22 @@ func (x *executor) do(ctx context.Context, task *Task, status taskStatusHandler)
 		if reachedTimeout(runCtx, err) {
 			err = &errTimeoutReached{timeout: x.opts.Timeout}
 		}
-		return
-	}
-
-	// Check if the task is cached.
-	cacheKey := task.cacheKey()
-
-	// Add to the cache. We don't use runCtx here because we want to write to
-	// the cache even if we've now reached the timeout.
-	if err = x.opts.Cache.Set(ctx, cacheKey, result); err != nil {
-		err = errors.Wrapf(err, "caching result for %q", task.Repository.Name)
-	}
-
-	// If the steps didn't result in any diff, we don't need to add it to the
-	// list of specs that are displayed to the user and send to the server.
-	if result.Diff == "" {
-		return
-	}
-
-	// Build the changeset specs.
-	specs, err := createChangesetSpecs(task, result, x.opts.AutoAuthorDetails)
-	if err != nil {
 		return err
 	}
 
-	status.Update(task, func(status *TaskStatus) {
-		status.ChangesetSpecs = specs
-	})
+	x.addResult(task, result)
 
-	if err := x.addCompletedSpecs(specs); err != nil {
-		return err
-	}
-
-	return
+	return nil
 }
 
-func (x *executor) addCompletedSpecs(specs []*batches.ChangesetSpec) error {
-	x.specsMu.Lock()
-	defer x.specsMu.Unlock()
+func (x *executor) addResult(task *Task, result executionResult) {
+	x.resultsMu.Lock()
+	defer x.resultsMu.Unlock()
 
-	x.specs = append(x.specs, specs...)
-	return nil
+	x.results = append(x.results, taskResult{
+		task:   task,
+		result: result,
+	})
 }
 
 type errTimeoutReached struct{ timeout time.Duration }
