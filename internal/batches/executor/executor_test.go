@@ -468,7 +468,7 @@ output4=integration-test-batch-change`,
 			cache := newInMemoryExecutionCache()
 			creator := workspace.NewCreator(context.Background(), "bind", testTempDir, testTempDir, []batches.Step{})
 			opts := NewExecutorOpts{
-				StatusThing: NewStatusHubThing(),
+				Status:      NewTaskStatusCollection([]*Task{}),
 				Cache:       cache,
 				Creator:     creator,
 				Client:      client,

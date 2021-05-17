@@ -24,10 +24,6 @@ type Service struct {
 	client           api.Client
 	features         batches.FeatureFlags
 	imageCache       *docker.ImageCache
-
-	// TODO(mrnugget): I don't like this state here, ugh.
-	cache  executor.ExecutionCache
-	status *executor.TaskStatusHubThing
 }
 
 type Opts struct {

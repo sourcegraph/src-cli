@@ -8,46 +8,49 @@ import (
 	"github.com/sourcegraph/src-cli/internal/batches"
 )
 
-func NewStatusHubThing() *TaskStatusHubThing {
-	return &TaskStatusHubThing{
-		statuses: make(map[*Task]*TaskStatus),
-	}
-}
-
-type TaskStatusHubThing struct {
+// TaskStatusCollection is a collection of TaskStatuses that provides
+// concurrency-safe access to the statuses by locking access and providing
+// copies of the TaskStatuses.
+type TaskStatusCollection struct {
 	statuses   map[*Task]*TaskStatus
 	statusesMu sync.RWMutex
 }
 
-func (hub *TaskStatusHubThing) AddTasks(tasks []*Task) {
-	hub.statusesMu.Lock()
-	defer hub.statusesMu.Unlock()
+func NewTaskStatusCollection(tasks []*Task) *TaskStatusCollection {
+	tsc := &TaskStatusCollection{
+		statuses: make(map[*Task]*TaskStatus),
+	}
 
 	for _, t := range tasks {
-		hub.statuses[t] = &TaskStatus{
-			RepoName:   t.Repository.Name,
-			Path:       t.Path,
-			EnqueuedAt: time.Now(),
+		tsc.statuses[t] = &TaskStatus{
+			RepoName: t.Repository.Name,
+			Path:     t.Path,
 		}
 	}
+
+	return tsc
 }
 
-func (hub *TaskStatusHubThing) UpdateTaskStatus(task *Task, update func(status *TaskStatus)) {
-	hub.statusesMu.Lock()
-	defer hub.statusesMu.Unlock()
+// Update updates the TaskStatus for the given Task by calling the provided
+// update callback with the TaskStatus.
+func (tsc *TaskStatusCollection) Update(task *Task, update func(status *TaskStatus)) {
+	tsc.statusesMu.Lock()
+	defer tsc.statusesMu.Unlock()
 
-	status, ok := hub.statuses[task]
+	status, ok := tsc.statuses[task]
 	if ok {
 		update(status)
 	}
 }
 
-func (hub *TaskStatusHubThing) LockedTaskStatuses(callback func([]*TaskStatus)) {
-	hub.statusesMu.RLock()
-	defer hub.statusesMu.RUnlock()
+// CopyStatuses creates a copy of all TaskStatuses and calls the provided
+// callback with list.
+func (tsc *TaskStatusCollection) CopyStatuses(callback func([]*TaskStatus)) {
+	tsc.statusesMu.RLock()
+	defer tsc.statusesMu.RUnlock()
 
 	var s []*TaskStatus
-	for _, status := range hub.statuses {
+	for _, status := range tsc.statuses {
 		s = append(s, status)
 	}
 
@@ -58,14 +61,9 @@ type TaskStatus struct {
 	RepoName string
 	Path     string
 
-	Cached bool
-
-	LogFile    string
-	EnqueuedAt time.Time
-	StartedAt  time.Time
-	FinishedAt time.Time
-
-	// TODO: add current step and progress fields.
+	LogFile            string
+	StartedAt          time.Time
+	FinishedAt         time.Time
 	CurrentlyExecuting string
 
 	// ChangesetSpecs are the specs produced by executing the Task in a

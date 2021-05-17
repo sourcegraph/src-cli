@@ -51,9 +51,7 @@ type NewExecutorOpts struct {
 	Cache   ExecutionCache
 	Client  api.Client
 	Creator workspace.Creator
-
-	// TODO?
-	StatusThing *TaskStatusHubThing
+	Status  *TaskStatusCollection
 
 	CleanArchives     bool
 	AutoAuthorDetails bool
@@ -68,7 +66,7 @@ type NewExecutorOpts struct {
 }
 
 type executor struct {
-	status *TaskStatusHubThing
+	status *TaskStatusCollection
 
 	cache ExecutionCache
 
@@ -78,9 +76,7 @@ type executor struct {
 	creator workspace.Creator
 	fetcher batches.RepoFetcher
 
-	tasks      []*Task
-	statuses   map[*Task]*TaskStatus
-	statusesMu sync.RWMutex
+	tasks []*Task
 
 	tempDir string
 	timeout time.Duration
@@ -94,7 +90,7 @@ type executor struct {
 
 func New(opts NewExecutorOpts) *executor {
 	return &executor{
-		status: opts.StatusThing,
+		status: opts.Status,
 
 		cache:             opts.Cache,
 		autoAuthorDetails: opts.AutoAuthorDetails,
@@ -109,7 +105,6 @@ func New(opts NewExecutorOpts) *executor {
 
 		doneEnqueuing: make(chan struct{}),
 		par:           parallel.NewRun(opts.Parallelism),
-		statuses:      map[*Task]*TaskStatus{},
 	}
 }
 
@@ -170,7 +165,7 @@ func (x *executor) Wait(ctx context.Context) ([]*batches.ChangesetSpec, error) {
 func (x *executor) do(ctx context.Context, task *Task) (err error) {
 	// Ensure that the status is updated when we're done.
 	defer func() {
-		x.status.UpdateTaskStatus(task, func(status *TaskStatus) {
+		x.status.Update(task, func(status *TaskStatus) {
 			status.FinishedAt = time.Now()
 			status.CurrentlyExecuting = ""
 			status.Err = err
@@ -178,7 +173,7 @@ func (x *executor) do(ctx context.Context, task *Task) (err error) {
 	}()
 
 	// We're away!
-	x.status.UpdateTaskStatus(task, func(status *TaskStatus) {
+	x.status.Update(task, func(status *TaskStatus) {
 		status.StartedAt = time.Now()
 	})
 
@@ -219,7 +214,7 @@ func (x *executor) do(ctx context.Context, task *Task) (err error) {
 		logger:                log,
 		tempDir:               x.tempDir,
 		reportProgress: func(currentlyExecuting string) {
-			x.status.UpdateTaskStatus(task, func(status *TaskStatus) {
+			x.status.Update(task, func(status *TaskStatus) {
 				status.CurrentlyExecuting = currentlyExecuting
 			})
 		},
@@ -254,7 +249,7 @@ func (x *executor) do(ctx context.Context, task *Task) (err error) {
 		return err
 	}
 
-	x.status.UpdateTaskStatus(task, func(status *TaskStatus) {
+	x.status.Update(task, func(status *TaskStatus) {
 		status.ChangesetSpecs = specs
 	})
 

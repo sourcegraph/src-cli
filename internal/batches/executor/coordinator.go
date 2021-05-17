@@ -121,13 +121,12 @@ func (c *Coordinator) ExecuteTasks(ctx context.Context, tasks []*Task, spec *bat
 	var errs *multierror.Error
 
 	// Start the goroutine that updates the UI
-	status := NewStatusHubThing()
-	status.AddTasks(tasks)
+	status := NewTaskStatusCollection(tasks)
 
 	done := make(chan struct{})
 	if printer != nil {
 		go func() {
-			status.LockedTaskStatuses(printer)
+			status.CopyStatuses(printer)
 
 			ticker := time.NewTicker(1 * time.Second)
 			defer ticker.Stop()
@@ -135,7 +134,7 @@ func (c *Coordinator) ExecuteTasks(ctx context.Context, tasks []*Task, spec *bat
 			for {
 				select {
 				case <-ticker.C:
-					status.LockedTaskStatuses(printer)
+					status.CopyStatuses(printer)
 
 				case <-done:
 					return
@@ -147,7 +146,7 @@ func (c *Coordinator) ExecuteTasks(ctx context.Context, tasks []*Task, spec *bat
 	// Setup executor
 
 	exec := New(NewExecutorOpts{
-		StatusThing: status,
+		Status: status,
 
 		Cache: c.cache,
 
@@ -167,7 +166,7 @@ func (c *Coordinator) ExecuteTasks(ctx context.Context, tasks []*Task, spec *bat
 	exec.Start(ctx, tasks)
 	specs, err := exec.Wait(ctx)
 	if printer != nil {
-		status.LockedTaskStatuses(printer)
+		status.CopyStatuses(printer)
 		done <- struct{}{}
 	}
 	if err != nil {
