@@ -325,7 +325,7 @@ func executeBatchSpec(ctx context.Context, opts executeBatchSpecOpts) error {
 	}
 
 	p := newBatchProgressPrinter(opts.out, *verbose, opts.flags.parallelism)
-	freshSpecs, logFiles, err := coord.ExecuteTasks(ctx, uncachedTasks, batchSpec, p.PrintStatuses)
+	freshSpecs, logFiles, err := coord.Execute(ctx, uncachedTasks, batchSpec, p.PrintStatuses)
 	if err != nil && !opts.flags.skipErrors {
 		return err
 	}
