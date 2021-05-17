@@ -104,6 +104,28 @@ func TestExecutor_Integration(t *testing.T) {
 			},
 		},
 		{
+			name: "empty",
+			archives: []mock.RepoArchive{
+				{Repo: srcCLIRepo, Files: map[string]string{
+					"README.md": "# Welcome to the README\n",
+					"main.go":   "package main\n\nfunc main() {\n\tfmt.Println(     \"Hello World\")\n}\n",
+				}},
+			},
+			steps: []batches.Step{
+				{Run: "true"},
+			},
+
+			tasks: []*Task{
+				{Repository: srcCLIRepo},
+			},
+			// No diff should be generated.
+			wantFilesChanged: filesByRepository{
+				srcCLIRepo.ID: filesByPath{
+					rootPath: []string{},
+				},
+			},
+		},
+		{
 			name: "timeout",
 			archives: []mock.RepoArchive{
 				{Repo: srcCLIRepo, Files: map[string]string{"README.md": "line 1"}},
@@ -123,7 +145,7 @@ func TestExecutor_Integration(t *testing.T) {
 			wantErrInclude:  "execution in github.com/sourcegraph/src-cli failed: Timeout reached. Execution took longer than 100ms.",
 		},
 		{
-			name: "templated step run",
+			name: "templated steps",
 			archives: []mock.RepoArchive{
 				{Repo: srcCLIRepo, Files: map[string]string{
 					"README.md": "# Welcome to the README\n",
@@ -134,90 +156,28 @@ func TestExecutor_Integration(t *testing.T) {
 				{Run: `go fmt main.go`},
 				{Run: `touch modified-${{ join previous_step.modified_files " " }}.md`},
 				{Run: `touch added-${{ join previous_step.added_files " " }}`},
-			},
-
-			tasks: []*Task{
-				{Repository: srcCLIRepo},
-			},
-			wantFilesChanged: filesByRepository{
-				srcCLIRepo.ID: filesByPath{
-					rootPath: []string{"main.go", "modified-main.go.md", "added-modified-main.go.md"},
+				{
+					Run: `echo "hello.txt"`,
+					Outputs: batches.Outputs{
+						"myOutput": batches.Output{
+							Value: "${{ step.stdout }}",
+						},
+					},
 				},
-			},
-		},
-		// {
-		// 	name: "transform group",
-		// 	archives: []mock.RepoArchive{
-		// 		{Repo: srcCLIRepo, Files: map[string]string{
-		// 			"README.md":  "# Welcome to the README\n",
-		// 			"a/a.go":     "package a",
-		// 			"a/b/b.go":   "package b",
-		// 			"a/b/c/c.go": "package c",
-		// 		}},
-		// 		{Repo: sourcegraphRepo, Files: map[string]string{
-		// 			"README.md":  "# Welcome to the README\n",
-		// 			"a/a.go":     "package a",
-		// 			"a/b/b.go":   "package b",
-		// 			"a/b/c/c.go": "package c",
-		// 		}},
-		// 	},
-		//
-		// 	tasks: []*Task{
-		// 		{Repository: srcCLIRepo},
-		// 		{Repository: sourcegraphRepo},
-		// 	},
-		// 	steps: []batches.Step{
-		// 		{Run: `echo 'var a = 1' >> a/a.go`},
-		// 		{Run: `echo 'var b = 2' >> a/b/b.go`},
-		// 		{Run: `echo 'var c = 3' >> a/b/c/c.go`},
-		// 	},
-		// 	transform: &batches.TransformChanges{
-		// 		Group: []batches.Group{
-		// 			{Directory: "a/b/c", Branch: "in-directory-c"},
-		// 			{Directory: "a/b", Branch: "in-directory-b", Repository: sourcegraphRepo.Name},
-		// 		},
-		// 	},
-		//
-		// 	wantFilesChanged: filesByRepository{
-		// 		srcCLIRepo.ID: filesByBranch{
-		// 			changesetTemplateBranch: []string{
-		// 				"a/a.go",
-		// 				"a/b/b.go",
-		// 			},
-		// 			"in-directory-c": []string{
-		// 				"a/b/c/c.go",
-		// 			},
-		// 		},
-		// 		sourcegraphRepo.ID: filesByBranch{
-		// 			changesetTemplateBranch: []string{
-		// 				"a/a.go",
-		// 			},
-		// 			"in-directory-b": []string{
-		// 				"a/b/b.go",
-		// 				"a/b/c/c.go",
-		// 			},
-		// 		},
-		// 	},
-		// },
-		{
-			name: "empty",
-			archives: []mock.RepoArchive{
-				{Repo: srcCLIRepo, Files: map[string]string{
-					"README.md": "# Welcome to the README\n",
-					"main.go":   "package main\n\nfunc main() {\n\tfmt.Println(     \"Hello World\")\n}\n",
-				}},
-			},
-			steps: []batches.Step{
-				{Run: "true"},
+				{Run: `touch output-${{ outputs.myOutput }}`},
 			},
 
 			tasks: []*Task{
 				{Repository: srcCLIRepo},
 			},
-			// No changesets should be generated.
 			wantFilesChanged: filesByRepository{
 				srcCLIRepo.ID: filesByPath{
-					rootPath: []string{},
+					rootPath: []string{
+						"main.go",
+						"modified-main.go.md",
+						"added-modified-main.go.md",
+						"output-hello.txt",
+					},
 				},
 			},
 		},

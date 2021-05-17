@@ -211,6 +211,60 @@ func TestCoordinator_Execute(t *testing.T) {
 				},
 			},
 		},
+		// {
+		// 	name: "transform group",
+		// 	archives: []mock.RepoArchive{
+		// 		{Repo: srcCLIRepo, Files: map[string]string{
+		// 			"README.md":  "# Welcome to the README\n",
+		// 			"a/a.go":     "package a",
+		// 			"a/b/b.go":   "package b",
+		// 			"a/b/c/c.go": "package c",
+		// 		}},
+		// 		{Repo: sourcegraphRepo, Files: map[string]string{
+		// 			"README.md":  "# Welcome to the README\n",
+		// 			"a/a.go":     "package a",
+		// 			"a/b/b.go":   "package b",
+		// 			"a/b/c/c.go": "package c",
+		// 		}},
+		// 	},
+		//
+		// 	tasks: []*Task{
+		// 		{Repository: srcCLIRepo},
+		// 		{Repository: sourcegraphRepo},
+		// 	},
+		// 	steps: []batches.Step{
+		// 		{Run: `echo 'var a = 1' >> a/a.go`},
+		// 		{Run: `echo 'var b = 2' >> a/b/b.go`},
+		// 		{Run: `echo 'var c = 3' >> a/b/c/c.go`},
+		// 	},
+		// 	transform: &batches.TransformChanges{
+		// 		Group: []batches.Group{
+		// 			{Directory: "a/b/c", Branch: "in-directory-c"},
+		// 			{Directory: "a/b", Branch: "in-directory-b", Repository: sourcegraphRepo.Name},
+		// 		},
+		// 	},
+		//
+		// 	wantFilesChanged: filesByRepository{
+		// 		srcCLIRepo.ID: filesByBranch{
+		// 			changesetTemplateBranch: []string{
+		// 				"a/a.go",
+		// 				"a/b/b.go",
+		// 			},
+		// 			"in-directory-c": []string{
+		// 				"a/b/c/c.go",
+		// 			},
+		// 		},
+		// 		sourcegraphRepo.ID: filesByBranch{
+		// 			changesetTemplateBranch: []string{
+		// 				"a/a.go",
+		// 			},
+		// 			"in-directory-b": []string{
+		// 				"a/b/b.go",
+		// 				"a/b/c/c.go",
+		// 			},
+		// 		},
+		// 	},
+		// },
 	}
 
 	for _, tc := range tests {
