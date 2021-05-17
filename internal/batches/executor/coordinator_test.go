@@ -211,60 +211,73 @@ func TestCoordinator_Execute(t *testing.T) {
 				},
 			},
 		},
-		// {
-		// 	name: "transform group",
-		// 	archives: []mock.RepoArchive{
-		// 		{Repo: srcCLIRepo, Files: map[string]string{
-		// 			"README.md":  "# Welcome to the README\n",
-		// 			"a/a.go":     "package a",
-		// 			"a/b/b.go":   "package b",
-		// 			"a/b/c/c.go": "package c",
-		// 		}},
-		// 		{Repo: sourcegraphRepo, Files: map[string]string{
-		// 			"README.md":  "# Welcome to the README\n",
-		// 			"a/a.go":     "package a",
-		// 			"a/b/b.go":   "package b",
-		// 			"a/b/c/c.go": "package c",
-		// 		}},
-		// 	},
-		//
-		// 	tasks: []*Task{
-		// 		{Repository: srcCLIRepo},
-		// 		{Repository: sourcegraphRepo},
-		// 	},
-		// 	steps: []batches.Step{
-		// 		{Run: `echo 'var a = 1' >> a/a.go`},
-		// 		{Run: `echo 'var b = 2' >> a/b/b.go`},
-		// 		{Run: `echo 'var c = 3' >> a/b/c/c.go`},
-		// 	},
-		// 	transform: &batches.TransformChanges{
-		// 		Group: []batches.Group{
-		// 			{Directory: "a/b/c", Branch: "in-directory-c"},
-		// 			{Directory: "a/b", Branch: "in-directory-b", Repository: sourcegraphRepo.Name},
-		// 		},
-		// 	},
-		//
-		// 	wantFilesChanged: filesByRepository{
-		// 		srcCLIRepo.ID: filesByBranch{
-		// 			changesetTemplateBranch: []string{
-		// 				"a/a.go",
-		// 				"a/b/b.go",
-		// 			},
-		// 			"in-directory-c": []string{
-		// 				"a/b/c/c.go",
-		// 			},
-		// 		},
-		// 		sourcegraphRepo.ID: filesByBranch{
-		// 			changesetTemplateBranch: []string{
-		// 				"a/a.go",
-		// 			},
-		// 			"in-directory-b": []string{
-		// 				"a/b/b.go",
-		// 				"a/b/c/c.go",
-		// 			},
-		// 		},
-		// 	},
-		// },
+		{
+			name: "transform group",
+
+			tasks: []*Task{srcCLITask, sourcegraphTask},
+
+			batchSpec: &batches.BatchSpec{
+				ChangesetTemplate: template,
+				TransformChanges: &batches.TransformChanges{
+					Group: []batches.Group{
+						{Directory: "a/b/c", Branch: "in-directory-c"},
+						{Directory: "a/b", Branch: "in-directory-b", Repository: sourcegraphRepo.Name},
+					},
+				},
+			},
+
+			executor: &dummyExecutor{
+				results: []taskResult{
+					{task: srcCLITask, result: executionResult{Diff: nestedChangesDiff}},
+					{task: sourcegraphTask, result: executionResult{Diff: nestedChangesDiff}},
+				},
+			},
+
+			// TODO: WHY IS THIS TEST GREEEEEEN???
+			//
+			wantSpecs: []*batches.ChangesetSpec{
+				{
+					BaseRepository: srcCLIRepo.ID,
+					CreatedChangeset: &batches.CreatedChangeset{
+						BaseRef:        srcCLIRepo.BaseRef(),
+						BaseRev:        srcCLIRepo.Rev(),
+						HeadRepository: srcCLIRepo.ID,
+						HeadRef:        "refs/heads/" + template.Branch,
+						Title:          template.Title,
+						Body:           template.Body,
+						Commits: []batches.GitCommitDescription{
+							{
+								Message:     template.Commit.Message,
+								AuthorName:  template.Commit.Author.Name,
+								AuthorEmail: template.Commit.Author.Email,
+								Diff:        nestedChangesDiff,
+							},
+						},
+						Published: false,
+					},
+				},
+				{
+					BaseRepository: sourcegraphRepo.ID,
+					CreatedChangeset: &batches.CreatedChangeset{
+						BaseRef:        sourcegraphRepo.BaseRef(),
+						BaseRev:        sourcegraphRepo.Rev(),
+						HeadRepository: sourcegraphRepo.ID,
+						HeadRef:        "refs/heads/" + template.Branch,
+						Title:          template.Title,
+						Body:           template.Body,
+						Commits: []batches.GitCommitDescription{
+							{
+								Message:     template.Commit.Message,
+								AuthorName:  template.Commit.Author.Name,
+								AuthorEmail: template.Commit.Author.Email,
+								Diff:        nestedChangesDiff,
+							},
+						},
+						Published: false,
+					},
+				},
+			},
+		},
 	}
 
 	for _, tc := range tests {
@@ -434,3 +447,29 @@ func (c *inMemoryExecutionCache) Clear(ctx context.Context, key ExecutionCacheKe
 	delete(c.cache, k)
 	return nil
 }
+
+const nestedChangesDiff = `diff --git a/a/a.go b/a/a.go
+index 2a93cde..a83f668 100644
+--- a/a/a.go
++++ b/a/a.go
+@@ -1 +1,3 @@
+ package a
++
++var a = 1
+diff --git a/a/b/b.go b/a/b/b.go
+index e0836a8..c977beb 100644
+--- a/a/b/b.go
++++ b/a/b/b.go
+@@ -1 +1,3 @@
+ package b
++
++var b = 2
+diff --git a/a/b/c/b.go b/a/b/c/b.go
+index 7f96c22..43df362 100644
+--- a/a/b/c/b.go
++++ b/a/b/c/b.go
+@@ -1 +1,3 @@
+ package c
++
++var c = 3
+`
