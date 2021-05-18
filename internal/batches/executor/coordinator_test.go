@@ -50,6 +50,32 @@ func TestCoordinator_Execute(t *testing.T) {
 
 	sourcegraphTask := &Task{Repository: sourcegraphRepo}
 
+	buildSpecFor := func(repo *graphql.Repository, modify func(*batches.ChangesetSpec)) *batches.ChangesetSpec {
+		spec := &batches.ChangesetSpec{
+			BaseRepository: repo.ID,
+			CreatedChangeset: &batches.CreatedChangeset{
+				BaseRef:        repo.BaseRef(),
+				BaseRev:        repo.Rev(),
+				HeadRepository: repo.ID,
+				HeadRef:        "refs/heads/" + template.Branch,
+				Title:          template.Title,
+				Body:           template.Body,
+				Commits: []batches.GitCommitDescription{
+					{
+						Message:     template.Commit.Message,
+						AuthorName:  template.Commit.Author.Name,
+						AuthorEmail: template.Commit.Author.Email,
+						Diff:        `dummydiff1`,
+					},
+				},
+				Published: false,
+			},
+		}
+
+		modify(spec)
+		return spec
+	}
+
 	tests := []struct {
 		name string
 
@@ -82,46 +108,12 @@ func TestCoordinator_Execute(t *testing.T) {
 
 			wantCacheEntries: 2,
 			wantSpecs: []*batches.ChangesetSpec{
-				{
-					BaseRepository: srcCLIRepo.ID,
-					CreatedChangeset: &batches.CreatedChangeset{
-						BaseRef:        srcCLIRepo.BaseRef(),
-						BaseRev:        srcCLIRepo.Rev(),
-						HeadRepository: srcCLIRepo.ID,
-						HeadRef:        "refs/heads/" + template.Branch,
-						Title:          template.Title,
-						Body:           template.Body,
-						Commits: []batches.GitCommitDescription{
-							{
-								Message:     template.Commit.Message,
-								AuthorName:  template.Commit.Author.Name,
-								AuthorEmail: template.Commit.Author.Email,
-								Diff:        `dummydiff1`,
-							},
-						},
-						Published: false,
-					},
-				},
-				{
-					BaseRepository: sourcegraphRepo.ID,
-					CreatedChangeset: &batches.CreatedChangeset{
-						BaseRef:        sourcegraphRepo.BaseRef(),
-						BaseRev:        sourcegraphRepo.Rev(),
-						HeadRepository: sourcegraphRepo.ID,
-						HeadRef:        "refs/heads/" + template.Branch,
-						Title:          template.Title,
-						Body:           template.Body,
-						Commits: []batches.GitCommitDescription{
-							{
-								Message:     template.Commit.Message,
-								AuthorName:  template.Commit.Author.Name,
-								AuthorEmail: template.Commit.Author.Email,
-								Diff:        `dummydiff2`,
-							},
-						},
-						Published: false,
-					},
-				},
+				buildSpecFor(srcCLIRepo, func(spec *batches.ChangesetSpec) {
+					spec.CreatedChangeset.Commits[0].Diff = `dummydiff1`
+				}),
+				buildSpecFor(sourcegraphRepo, func(spec *batches.ChangesetSpec) {
+					spec.CreatedChangeset.Commits[0].Diff = `dummydiff2`
+				}),
 			},
 		},
 		{
@@ -182,15 +174,10 @@ func TestCoordinator_Execute(t *testing.T) {
 
 			wantCacheEntries: 1,
 			wantSpecs: []*batches.ChangesetSpec{
-				{
-					BaseRepository: srcCLIRepo.ID,
-					CreatedChangeset: &batches.CreatedChangeset{
-						BaseRef:        srcCLIRepo.BaseRef(),
-						BaseRev:        srcCLIRepo.Rev(),
-						HeadRepository: srcCLIRepo.ID,
-						HeadRef:        "refs/heads/templated-branch-myOutputValue1",
-						Title:          "output1=myOutputValue1",
-						Body: `output1=myOutputValue1
+				buildSpecFor(srcCLIRepo, func(spec *batches.ChangesetSpec) {
+					spec.CreatedChangeset.HeadRef = "refs/heads/templated-branch-myOutputValue1"
+					spec.CreatedChangeset.Title = "output1=myOutputValue1"
+					spec.CreatedChangeset.Body = `output1=myOutputValue1
 		output2=subFieldValue
 
 		modified_files=[modified.txt]
@@ -201,18 +188,16 @@ func TestCoordinator_Execute(t *testing.T) {
 		repository_name=github.com/sourcegraph/src-cli
 
 		batch_change_name=my-batch-change
-		batch_change_description=the description`,
-						Commits: []batches.GitCommitDescription{
-							{
-								Message:     "output1=myOutputValue1,output2=subFieldValue",
-								AuthorName:  "output1=myOutputValue1",
-								AuthorEmail: "output1=myOutputValue1",
-								Diff:        `dummydiff1`,
-							},
+		batch_change_description=the description`
+					spec.CreatedChangeset.Commits = []batches.GitCommitDescription{
+						{
+							Message:     "output1=myOutputValue1,output2=subFieldValue",
+							AuthorName:  "output1=myOutputValue1",
+							AuthorEmail: "output1=myOutputValue1",
+							Diff:        `dummydiff1`,
 						},
-						Published: false,
-					},
-				},
+					}
+				}),
 			},
 		},
 		{
@@ -241,86 +226,22 @@ func TestCoordinator_Execute(t *testing.T) {
 			// since we cache per Task, not per resulting changeset spec.
 			wantCacheEntries: 2,
 			wantSpecs: []*batches.ChangesetSpec{
-				{
-					BaseRepository: srcCLIRepo.ID,
-					CreatedChangeset: &batches.CreatedChangeset{
-						BaseRef:        srcCLIRepo.BaseRef(),
-						BaseRev:        srcCLIRepo.Rev(),
-						HeadRepository: srcCLIRepo.ID,
-						HeadRef:        "refs/heads/" + template.Branch,
-						Title:          template.Title,
-						Body:           template.Body,
-						Commits: []batches.GitCommitDescription{
-							{
-								Message:     template.Commit.Message,
-								AuthorName:  template.Commit.Author.Name,
-								AuthorEmail: template.Commit.Author.Email,
-								Diff:        nestedChangesDiffSubdirA + nestedChangesDiffSubdirB,
-							},
-						},
-						Published: false,
-					},
-				},
-				{
-					BaseRepository: sourcegraphRepo.ID,
-					CreatedChangeset: &batches.CreatedChangeset{
-						BaseRef:        sourcegraphRepo.BaseRef(),
-						BaseRev:        sourcegraphRepo.Rev(),
-						HeadRepository: sourcegraphRepo.ID,
-						HeadRef:        "refs/heads/in-directory-b",
-						Title:          template.Title,
-						Body:           template.Body,
-						Commits: []batches.GitCommitDescription{
-							{
-								Message:     template.Commit.Message,
-								AuthorName:  template.Commit.Author.Name,
-								AuthorEmail: template.Commit.Author.Email,
-								Diff:        nestedChangesDiffSubdirB + nestedChangesDiffSubdirC,
-							},
-						},
-						Published: false,
-					},
-				},
-				{
-					BaseRepository: srcCLIRepo.ID,
-					CreatedChangeset: &batches.CreatedChangeset{
-						BaseRef:        srcCLIRepo.BaseRef(),
-						BaseRev:        srcCLIRepo.Rev(),
-						HeadRepository: srcCLIRepo.ID,
-						HeadRef:        "refs/heads/in-directory-c",
-						Title:          template.Title,
-						Body:           template.Body,
-						Commits: []batches.GitCommitDescription{
-							{
-								Message:     template.Commit.Message,
-								AuthorName:  template.Commit.Author.Name,
-								AuthorEmail: template.Commit.Author.Email,
-								Diff:        nestedChangesDiffSubdirC,
-							},
-						},
-						Published: false,
-					},
-				},
-				{
-					BaseRepository: sourcegraphRepo.ID,
-					CreatedChangeset: &batches.CreatedChangeset{
-						BaseRef:        sourcegraphRepo.BaseRef(),
-						BaseRev:        sourcegraphRepo.Rev(),
-						HeadRepository: sourcegraphRepo.ID,
-						HeadRef:        "refs/heads/" + template.Branch,
-						Title:          template.Title,
-						Body:           template.Body,
-						Commits: []batches.GitCommitDescription{
-							{
-								Message:     template.Commit.Message,
-								AuthorName:  template.Commit.Author.Name,
-								AuthorEmail: template.Commit.Author.Email,
-								Diff:        nestedChangesDiffSubdirA,
-							},
-						},
-						Published: false,
-					},
-				},
+				buildSpecFor(srcCLIRepo, func(spec *batches.ChangesetSpec) {
+					spec.CreatedChangeset.HeadRef = "refs/heads/" + template.Branch
+					spec.CreatedChangeset.Commits[0].Diff = nestedChangesDiffSubdirA + nestedChangesDiffSubdirB
+				}),
+				buildSpecFor(sourcegraphRepo, func(spec *batches.ChangesetSpec) {
+					spec.CreatedChangeset.HeadRef = "refs/heads/in-directory-b"
+					spec.CreatedChangeset.Commits[0].Diff = nestedChangesDiffSubdirB + nestedChangesDiffSubdirC
+				}),
+				buildSpecFor(srcCLIRepo, func(spec *batches.ChangesetSpec) {
+					spec.CreatedChangeset.HeadRef = "refs/heads/in-directory-c"
+					spec.CreatedChangeset.Commits[0].Diff = nestedChangesDiffSubdirC
+				}),
+				buildSpecFor(sourcegraphRepo, func(spec *batches.ChangesetSpec) {
+					spec.CreatedChangeset.HeadRef = "refs/heads/" + template.Branch
+					spec.CreatedChangeset.Commits[0].Diff = nestedChangesDiffSubdirA
+				}),
 			},
 		},
 	}
