@@ -58,8 +58,9 @@ func TestCoordinator_Execute(t *testing.T) {
 		tasks     []*Task
 		batchSpec *batches.BatchSpec
 
-		wantSpecs      []*batches.ChangesetSpec
-		wantErrInclude string
+		wantCacheEntries int
+		wantSpecs        []*batches.ChangesetSpec
+		wantErrInclude   string
 	}{
 		{
 			name: "success",
@@ -79,27 +80,8 @@ func TestCoordinator_Execute(t *testing.T) {
 				},
 			},
 
+			wantCacheEntries: 2,
 			wantSpecs: []*batches.ChangesetSpec{
-				{
-					BaseRepository: sourcegraphRepo.ID,
-					CreatedChangeset: &batches.CreatedChangeset{
-						BaseRef:        sourcegraphRepo.BaseRef(),
-						BaseRev:        sourcegraphRepo.Rev(),
-						HeadRepository: sourcegraphRepo.ID,
-						HeadRef:        "refs/heads/" + template.Branch,
-						Title:          template.Title,
-						Body:           template.Body,
-						Commits: []batches.GitCommitDescription{
-							{
-								Message:     template.Commit.Message,
-								AuthorName:  template.Commit.Author.Name,
-								AuthorEmail: template.Commit.Author.Email,
-								Diff:        `dummydiff2`,
-							},
-						},
-						Published: false,
-					},
-				},
 				{
 					BaseRepository: srcCLIRepo.ID,
 					CreatedChangeset: &batches.CreatedChangeset{
@@ -115,6 +97,26 @@ func TestCoordinator_Execute(t *testing.T) {
 								AuthorName:  template.Commit.Author.Name,
 								AuthorEmail: template.Commit.Author.Email,
 								Diff:        `dummydiff1`,
+							},
+						},
+						Published: false,
+					},
+				},
+				{
+					BaseRepository: sourcegraphRepo.ID,
+					CreatedChangeset: &batches.CreatedChangeset{
+						BaseRef:        sourcegraphRepo.BaseRef(),
+						BaseRev:        sourcegraphRepo.Rev(),
+						HeadRepository: sourcegraphRepo.ID,
+						HeadRef:        "refs/heads/" + template.Branch,
+						Title:          template.Title,
+						Body:           template.Body,
+						Commits: []batches.GitCommitDescription{
+							{
+								Message:     template.Commit.Message,
+								AuthorName:  template.Commit.Author.Name,
+								AuthorEmail: template.Commit.Author.Email,
+								Diff:        `dummydiff2`,
 							},
 						},
 						Published: false,
@@ -177,6 +179,8 @@ func TestCoordinator_Execute(t *testing.T) {
 					},
 				},
 			},
+
+			wantCacheEntries: 1,
 			wantSpecs: []*batches.ChangesetSpec{
 				{
 					BaseRepository: srcCLIRepo.ID,
@@ -233,8 +237,9 @@ func TestCoordinator_Execute(t *testing.T) {
 				},
 			},
 
-			// TODO: WHY IS THIS TEST GREEEEEEN???
-			//
+			// We have 4 ChangesetSpecs, but we only want 2 cache entries,
+			// since we cache per Task, not per resulting changeset spec.
+			wantCacheEntries: 2,
 			wantSpecs: []*batches.ChangesetSpec{
 				{
 					BaseRepository: srcCLIRepo.ID,
@@ -250,7 +255,47 @@ func TestCoordinator_Execute(t *testing.T) {
 								Message:     template.Commit.Message,
 								AuthorName:  template.Commit.Author.Name,
 								AuthorEmail: template.Commit.Author.Email,
-								Diff:        nestedChangesDiff,
+								Diff:        nestedChangesDiffSubdirA + nestedChangesDiffSubdirB,
+							},
+						},
+						Published: false,
+					},
+				},
+				{
+					BaseRepository: sourcegraphRepo.ID,
+					CreatedChangeset: &batches.CreatedChangeset{
+						BaseRef:        sourcegraphRepo.BaseRef(),
+						BaseRev:        sourcegraphRepo.Rev(),
+						HeadRepository: sourcegraphRepo.ID,
+						HeadRef:        "refs/heads/in-directory-b",
+						Title:          template.Title,
+						Body:           template.Body,
+						Commits: []batches.GitCommitDescription{
+							{
+								Message:     template.Commit.Message,
+								AuthorName:  template.Commit.Author.Name,
+								AuthorEmail: template.Commit.Author.Email,
+								Diff:        nestedChangesDiffSubdirB + nestedChangesDiffSubdirC,
+							},
+						},
+						Published: false,
+					},
+				},
+				{
+					BaseRepository: srcCLIRepo.ID,
+					CreatedChangeset: &batches.CreatedChangeset{
+						BaseRef:        srcCLIRepo.BaseRef(),
+						BaseRev:        srcCLIRepo.Rev(),
+						HeadRepository: srcCLIRepo.ID,
+						HeadRef:        "refs/heads/in-directory-c",
+						Title:          template.Title,
+						Body:           template.Body,
+						Commits: []batches.GitCommitDescription{
+							{
+								Message:     template.Commit.Message,
+								AuthorName:  template.Commit.Author.Name,
+								AuthorEmail: template.Commit.Author.Email,
+								Diff:        nestedChangesDiffSubdirC,
 							},
 						},
 						Published: false,
@@ -270,7 +315,7 @@ func TestCoordinator_Execute(t *testing.T) {
 								Message:     template.Commit.Message,
 								AuthorName:  template.Commit.Author.Name,
 								AuthorEmail: template.Commit.Author.Email,
-								Diff:        nestedChangesDiff,
+								Diff:        nestedChangesDiffSubdirA,
 							},
 						},
 						Published: false,
@@ -286,6 +331,7 @@ func TestCoordinator_Execute(t *testing.T) {
 
 			// Set attributes on Task which would be set by the TaskBuilder
 			for _, t := range tc.tasks {
+				t.TransformChanges = tc.batchSpec.TransformChanges
 				t.Template = tc.batchSpec.ChangesetTemplate
 				t.BatchChangeAttributes = &BatchChangeAttributes{
 					Name:        tc.batchSpec.Name,
@@ -335,7 +381,12 @@ func TestCoordinator_Execute(t *testing.T) {
 
 				opts := []cmp.Option{
 					cmpopts.EquateEmpty(),
-					cmpopts.SortSlices(func(a, b *batches.ChangesetSpec) bool { return a.BaseRepository < b.BaseRepository }),
+					cmpopts.SortSlices(func(a, b *batches.ChangesetSpec) bool {
+						if a.BaseRepository == b.BaseRepository && a.CreatedChangeset != nil && b.CreatedChangeset != nil {
+							return a.CreatedChangeset.HeadRef < b.CreatedChangeset.HeadRef
+						}
+						return a.BaseRepository < b.BaseRepository
+					}),
 				}
 				if !cmp.Equal(tc.wantSpecs, specs, opts...) {
 					t.Errorf("wrong ChangesetSpecs (-want +got):\n%s", cmp.Diff(tc.wantSpecs, specs, opts...))
@@ -343,7 +394,7 @@ func TestCoordinator_Execute(t *testing.T) {
 			}
 
 			verifyCache := func(t *testing.T) {
-				want := len(tc.wantSpecs)
+				want := tc.wantCacheEntries
 				if tc.wantErrInclude != "" {
 					want = 0
 				}
@@ -448,28 +499,34 @@ func (c *inMemoryExecutionCache) Clear(ctx context.Context, key ExecutionCacheKe
 	return nil
 }
 
-const nestedChangesDiff = `diff --git a/a/a.go b/a/a.go
+const nestedChangesDiffSubdirA = `diff --git a/a/a.go b/a/a.go
 index 2a93cde..a83f668 100644
 --- a/a/a.go
 +++ b/a/a.go
-@@ -1 +1,3 @@
+@@ -1,1 +1,3 @@
  package a
 +
 +var a = 1
-diff --git a/a/b/b.go b/a/b/b.go
+`
+
+const nestedChangesDiffSubdirB = `diff --git a/a/b/b.go b/a/b/b.go
 index e0836a8..c977beb 100644
 --- a/a/b/b.go
 +++ b/a/b/b.go
-@@ -1 +1,3 @@
+@@ -1,1 +1,3 @@
  package b
 +
 +var b = 2
-diff --git a/a/b/c/b.go b/a/b/c/b.go
+`
+
+const nestedChangesDiffSubdirC = `diff --git a/a/b/c/b.go b/a/b/c/b.go
 index 7f96c22..43df362 100644
 --- a/a/b/c/b.go
 +++ b/a/b/c/b.go
-@@ -1 +1,3 @@
+@@ -1,1 +1,3 @@
  package c
 +
 +var c = 3
 `
+
+const nestedChangesDiff = nestedChangesDiffSubdirA + nestedChangesDiffSubdirB + nestedChangesDiffSubdirC

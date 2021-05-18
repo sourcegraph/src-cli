@@ -139,7 +139,7 @@ func (c *Coordinator) checkCacheForTask(ctx context.Context, task *Task) (specs 
 	return specs, true, nil
 }
 
-func (c *Coordinator) writeToCache(ctx context.Context, taskResult taskResult, status taskStatusHandler) ([]*batches.ChangesetSpec, error) {
+func (c *Coordinator) cacheAndBuildSpec(ctx context.Context, taskResult taskResult, status taskStatusHandler) ([]*batches.ChangesetSpec, error) {
 	// Add to the cache, even if no diff was produced.
 	cacheKey := taskResult.task.cacheKey()
 	if err := c.cache.Set(ctx, cacheKey, taskResult.result); err != nil {
@@ -219,7 +219,7 @@ func (c *Coordinator) Execute(ctx context.Context, tasks []*Task, spec *batches.
 
 	// Write results to cache, build ChangesetSpecs if possible and add to list.
 	for _, taskResult := range results {
-		taskSpecs, err := c.writeToCache(ctx, taskResult, status)
+		taskSpecs, err := c.cacheAndBuildSpec(ctx, taskResult, status)
 		if err != nil {
 			return nil, nil, err
 		}
