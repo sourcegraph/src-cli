@@ -6,6 +6,8 @@ import (
 	"strconv"
 	"time"
 
+	logger "log"
+
 	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
 	"github.com/sourcegraph/src-cli/internal/api"
@@ -146,6 +148,24 @@ func (c *Coordinator) cacheAndBuildSpec(ctx context.Context, taskResult taskResu
 		return nil, errors.Wrapf(err, "caching result for %q", taskResult.task.Repository.Name)
 	}
 
+	// ----------------------------------------------------------------------------
+	// EXPERIMENT STARTS HERE
+	// vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+	if stepCache, ok := c.cache.(StepWiseExecutionCache); ok {
+		for _, stepResult := range taskResult.stepResults {
+			key := taskResult.task.cacheKeyForSteps(stepResult.Step)
+
+			logger.Printf("caching diff. step=%d, len(diff)=%d, len(outputs)=%d\n", stepResult.Step, len(stepResult.Diff), len(stepResult.Outputs))
+
+			if err := stepCache.SetStepResult(ctx, key, stepResult); err != nil {
+				return nil, errors.Wrapf(err, "caching result for %q", taskResult.task.Repository.Name)
+			}
+		}
+	}
+	// ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+	// EXPERIMENT ENDS HERE
+	// ----------------------------------------------------------------------------
+
 	// If the steps didn't result in any diff, we don't need to create a
 	// changeset spec that's displayed to the user and send to the server.
 	if taskResult.result.Diff == "" {
@@ -174,6 +194,7 @@ type executionProgressPrinter func([]*TaskStatus)
 // given spec. It regularly calls the executionProgressPrinter with the
 // current TaskStatuses.
 func (c *Coordinator) Execute(ctx context.Context, tasks []*Task, spec *batches.BatchSpec, printer executionProgressPrinter) ([]*batches.ChangesetSpec, []string, error) {
+	logger.Printf("------- executing batch spec ------------")
 	var (
 		specs []*batches.ChangesetSpec
 		errs  *multierror.Error
@@ -201,6 +222,38 @@ func (c *Coordinator) Execute(ctx context.Context, tasks []*Task, spec *batches.
 			}
 		}()
 	}
+	// ----------------------------------------------------------------------------
+	// EXPERIMENT STARTS HERE
+	// vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+	// If we are here, that means we didn't find anything in the cache for the
+	// complete task. So, what if we have cached results for the steps?
+	if stepCache, ok := c.cache.(StepWiseExecutionCache); ok {
+		if len(tasks) > 0 {
+			logger.Printf("need to execute %d tasks. checking cache for per-step caches", len(tasks))
+		}
+		for _, t := range tasks {
+			// We start at the back, because the steps depend on each other
+			for i := len(t.Steps) - 1; i > 0; i-- {
+				key := t.cacheKeyForSteps(i)
+
+				result, found, err := stepCache.GetStepResult(ctx, key, i)
+				if err != nil {
+					return nil, nil, errors.Wrapf(err, "checking for cached diff for step %d", i)
+				}
+
+				if found {
+					logger.Printf("found a cached diff we can start from. step=%d, len(result.diff)=%d, len(result.outputs)=%d", i, len(result.Diff), len(result.Outputs))
+
+					t.CachedResultFound = true
+					t.CachedResult = result
+					break
+				}
+			}
+		}
+	}
+	// ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+	// EXPERIMENT ENDS HERE
+	// ----------------------------------------------------------------------------
 
 	// Run executor
 	c.exec.Start(ctx, tasks, status)

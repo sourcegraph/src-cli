@@ -21,7 +21,17 @@ import (
 	"github.com/sourcegraph/src-cli/internal/batches/workspace"
 
 	yamlv3 "gopkg.in/yaml.v3"
+
+	logger "log"
 )
+
+type cachedStepResult struct {
+	Step    int                    `json:"step"`
+	Diff    string                 `json:"diff"`
+	Outputs map[string]interface{} `json:"outputs"`
+
+	PreviousStepResult StepResult `json:"previousStepResult"`
+}
 
 type executionResult struct {
 	// Diff is the produced by executing all steps.
@@ -53,20 +63,23 @@ type executionOpts struct {
 
 	logger         *log.TaskLogger
 	reportProgress func(string)
+
+	cachedResultFound bool
+	cachedResult      cachedStepResult
 }
 
-func runSteps(ctx context.Context, opts *executionOpts) (result executionResult, err error) {
+func runSteps(ctx context.Context, opts *executionOpts) (result executionResult, perStepResults []cachedStepResult, err error) {
 	opts.reportProgress("Downloading archive")
 	err = opts.archive.Fetch(ctx)
 	if err != nil {
-		return executionResult{}, errors.Wrap(err, "fetching repo")
+		return executionResult{}, nil, errors.Wrap(err, "fetching repo")
 	}
 	defer opts.archive.Close()
 
 	opts.reportProgress("Initializing workspace")
 	workspace, err := opts.wc.Create(ctx, opts.repo, opts.steps, opts.archive)
 	if err != nil {
-		return executionResult{}, errors.Wrap(err, "creating workspace")
+		return executionResult{}, nil, errors.Wrap(err, "creating workspace")
 	}
 	defer workspace.Close(ctx)
 
@@ -76,7 +89,27 @@ func runSteps(ctx context.Context, opts *executionOpts) (result executionResult,
 	}
 	results := make([]StepResult, len(opts.steps))
 
-	for i, step := range opts.steps {
+	var startStep int
+	if opts.cachedResultFound {
+		// Set the Outputs to the cached outputs
+		execResult.Outputs = opts.cachedResult.Outputs
+
+		startStep = opts.cachedResult.Step + 1
+
+		switch startStep {
+		case 1:
+			opts.reportProgress("Skipping step 1. Found cached result.")
+		default:
+			opts.reportProgress(fmt.Sprintf("Skipping steps 1 to %d. Found cached results.", startStep))
+		}
+	} else {
+		startStep = 0
+	}
+
+	logger.Printf("running steps. startStep=%d, opts.cachedDiffFound=%t", startStep, opts.cachedResultFound)
+	for i := startStep; i < len(opts.steps); i++ {
+		step := opts.steps[i]
+
 		stepContext := StepContext{
 			BatchChange: *opts.batchChangeAttributes,
 			Repository:  *opts.repo,
@@ -85,6 +118,18 @@ func runSteps(ctx context.Context, opts *executionOpts) (result executionResult,
 				Path: execResult.Path,
 			},
 		}
+
+		if opts.cachedResultFound && i == startStep {
+			logger.Printf("applying diff. step=%d, len(result.diff)=%d\n", i, len(opts.cachedResult.Diff))
+
+			if err := workspace.ApplyDiff(ctx, []byte(opts.cachedResult.Diff)); err != nil {
+				return execResult, nil, errors.Wrap(err, "getting changed files in step")
+			}
+
+			results[i-1] = opts.cachedResult.PreviousStepResult
+			stepContext.Outputs = opts.cachedResult.Outputs
+		}
+
 		if i > 0 {
 			stepContext.PreviousStep = results[i-1]
 			stepContext.Steps.Changes = results[i-1].files
@@ -92,7 +137,7 @@ func runSteps(ctx context.Context, opts *executionOpts) (result executionResult,
 
 		cond, err := evalStepCondition(step.IfCondition(), &stepContext)
 		if err != nil {
-			return execResult, errors.Wrap(err, "evaluating step condition")
+			return execResult, nil, errors.Wrap(err, "evaluating step condition")
 		}
 		if !cond {
 			opts.reportProgress(fmt.Sprintf("Skipping step %d", i+1))
@@ -106,7 +151,7 @@ func runSteps(ctx context.Context, opts *executionOpts) (result executionResult,
 		// container on a successful run, rather than leaving it dangling.
 		cidFile, err := ioutil.TempFile(opts.tempDir, opts.repo.Slug()+"-container-id")
 		if err != nil {
-			return execResult, errors.Wrap(err, "Creating a CID file failed")
+			return execResult, nil, errors.Wrap(err, "Creating a CID file failed")
 		}
 
 		// However, Docker will fail if the cidfile actually exists, so we need
@@ -114,7 +159,7 @@ func runSteps(ctx context.Context, opts *executionOpts) (result executionResult,
 		// close it, even though that's unnecessary elsewhere.
 		cidFile.Close()
 		if err = os.Remove(cidFile.Name()); err != nil {
-			return execResult, errors.Wrap(err, "removing cidfile")
+			return execResult, nil, errors.Wrap(err, "removing cidfile")
 		}
 
 		// Since we went to all that effort, we can now defer a function that
@@ -132,20 +177,20 @@ func runSteps(ctx context.Context, opts *executionOpts) (result executionResult,
 		// We need to grab the digest for the exact image we're using.
 		digest, err := step.ImageDigest(ctx)
 		if err != nil {
-			return execResult, errors.Wrapf(err, "getting digest for %v", step.DockerImage())
+			return execResult, nil, errors.Wrapf(err, "getting digest for %v", step.DockerImage())
 		}
 
 		// For now, we only support shell scripts provided via the Run field.
 		shell, containerTemp, err := probeImageForShell(ctx, digest)
 		if err != nil {
-			return execResult, errors.Wrapf(err, "probing image %q for shell", step.DockerImage())
+			return execResult, nil, errors.Wrapf(err, "probing image %q for shell", step.DockerImage())
 		}
 
 		// Set up a temporary file on the host filesystem to contain the
 		// script.
 		runScriptFile, err := ioutil.TempFile(opts.tempDir, "")
 		if err != nil {
-			return execResult, errors.Wrap(err, "creating temporary file")
+			return execResult, nil, errors.Wrap(err, "creating temporary file")
 		}
 		defer os.Remove(runScriptFile.Name())
 
@@ -154,11 +199,11 @@ func runSteps(ctx context.Context, opts *executionOpts) (result executionResult,
 		var runScript bytes.Buffer
 		out := io.MultiWriter(&runScript, runScriptFile)
 		if err := renderStepTemplate("step-run", step.Run, out, &stepContext); err != nil {
-			return execResult, errors.Wrap(err, "parsing step run")
+			return execResult, nil, errors.Wrap(err, "parsing step run")
 		}
 
 		if err := runScriptFile.Close(); err != nil {
-			return execResult, errors.Wrap(err, "closing temporary file")
+			return execResult, nil, errors.Wrap(err, "closing temporary file")
 		}
 
 		// This file needs to be readable within the container regardless of the
@@ -171,13 +216,13 @@ func runSteps(ctx context.Context, opts *executionOpts) (result executionResult,
 		// conditionally compiled files here, instead we'll just wait until the
 		// file is closed to twiddle the permission bits. Which is now!
 		if err := os.Chmod(runScriptFile.Name(), 0644); err != nil {
-			return execResult, errors.Wrap(err, "setting permissions on the temporary file")
+			return execResult, nil, errors.Wrap(err, "setting permissions on the temporary file")
 		}
 
 		// Parse and render the step.Files.
 		files, err := renderStepMap(step.Files, &stepContext)
 		if err != nil {
-			return execResult, errors.Wrap(err, "parsing step files")
+			return execResult, nil, errors.Wrap(err, "parsing step files")
 		}
 
 		// Create temp files with the rendered content of step.Files so that we
@@ -186,16 +231,16 @@ func runSteps(ctx context.Context, opts *executionOpts) (result executionResult,
 		for name, content := range files {
 			fp, err := ioutil.TempFile(opts.tempDir, "")
 			if err != nil {
-				return execResult, errors.Wrap(err, "creating temporary file")
+				return execResult, nil, errors.Wrap(err, "creating temporary file")
 			}
 			defer os.Remove(fp.Name())
 
 			if _, err := fp.WriteString(content); err != nil {
-				return execResult, errors.Wrap(err, "writing to temporary file")
+				return execResult, nil, errors.Wrap(err, "writing to temporary file")
 			}
 
 			if err := fp.Close(); err != nil {
-				return execResult, errors.Wrap(err, "closing temporary file")
+				return execResult, nil, errors.Wrap(err, "closing temporary file")
 			}
 
 			filesToMount[name] = fp
@@ -204,20 +249,20 @@ func runSteps(ctx context.Context, opts *executionOpts) (result executionResult,
 		// Resolve step.Env given the current environment.
 		stepEnv, err := step.Env.Resolve(os.Environ())
 		if err != nil {
-			return execResult, errors.Wrap(err, "resolving step environment")
+			return execResult, nil, errors.Wrap(err, "resolving step environment")
 		}
 
 		// Render the step.Env variables as templates.
 		env, err := renderStepMap(stepEnv, &stepContext)
 		if err != nil {
-			return execResult, errors.Wrap(err, "parsing step environment")
+			return execResult, nil, errors.Wrap(err, "parsing step environment")
 		}
 
 		opts.reportProgress(runScript.String())
 		const workDir = "/work"
 		workspaceOpts, err := workspace.DockerRunOpts(ctx, workDir)
 		if err != nil {
-			return execResult, errors.Wrap(err, "getting Docker options for workspace")
+			return execResult, nil, errors.Wrap(err, "getting Docker options for workspace")
 		}
 
 		// Where should we execute the steps.run script?
@@ -263,7 +308,7 @@ func runSteps(ctx context.Context, opts *executionOpts) (result executionResult,
 		if err != nil {
 			opts.logger.Logf("[Step %d] took %s; error running Docker container: %+v", i+1, elapsed, err)
 
-			return execResult, stepFailedErr{
+			return execResult, nil, stepFailedErr{
 				Err:         err,
 				Args:        cmd.Args,
 				Run:         runScript.String(),
@@ -278,7 +323,7 @@ func runSteps(ctx context.Context, opts *executionOpts) (result executionResult,
 
 		changes, err := workspace.Changes(ctx)
 		if err != nil {
-			return execResult, errors.Wrap(err, "getting changed files in step")
+			return execResult, nil, errors.Wrap(err, "getting changed files in step")
 		}
 
 		result := StepResult{files: changes, Stdout: &stdoutBuffer, Stderr: &stderrBuffer}
@@ -286,15 +331,37 @@ func runSteps(ctx context.Context, opts *executionOpts) (result executionResult,
 		results[i] = result
 
 		if err := setOutputs(step.Outputs, execResult.Outputs, &stepContext); err != nil {
-			return execResult, errors.Wrap(err, "setting step outputs")
+			return execResult, nil, errors.Wrap(err, "setting step outputs")
 		}
 
+		// ----------------------------------------------------------------------------
+		// EXPERIMENT STARTS HERE
+		// vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+		sd, err := workspace.Diff(ctx)
+		if err != nil {
+			return execResult, nil, errors.Wrap(err, "getting diff produced by step")
+		}
+		cachedResult := cachedStepResult{
+			Step:    i,
+			Diff:    string(sd),
+			Outputs: make(map[string]interface{}),
+		}
+		if i > 0 {
+			cachedResult.PreviousStepResult = results[i-1]
+		}
+		for k, v := range execResult.Outputs {
+			cachedResult.Outputs[k] = v
+		}
+		perStepResults = append(perStepResults, cachedResult)
+		// ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+		// EXPERIMENT ENDS HERE
+		// ----------------------------------------------------------------------------
 	}
 
 	opts.reportProgress("Calculating diff")
 	diffOut, err := workspace.Diff(ctx)
 	if err != nil {
-		return execResult, errors.Wrap(err, "git diff failed")
+		return execResult, nil, errors.Wrap(err, "git diff failed")
 	}
 
 	execResult.Diff = string(diffOut)
@@ -302,7 +369,7 @@ func runSteps(ctx context.Context, opts *executionOpts) (result executionResult,
 		execResult.ChangedFiles = results[len(results)-1].files
 	}
 
-	return execResult, err
+	return execResult, perStepResults, err
 }
 
 func setOutputs(stepOutputs batches.Outputs, global map[string]interface{}, stepCtx *StepContext) error {

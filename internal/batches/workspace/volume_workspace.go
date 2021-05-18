@@ -263,6 +263,24 @@ exec git diff --cached --no-prefix --binary
 	return out, nil
 }
 
+func (w *dockerVolumeWorkspace) ApplyDiff(ctx context.Context, diff []byte) error {
+	script := fmt.Sprintf(`#!/bin/sh
+
+cat << EOF | exec git apply -p0 -
+%s
+EOF
+
+git add --all > /dev/null
+`, string(diff))
+
+	out, err := w.runScript(ctx, "/work", script)
+	if err != nil {
+		return errors.Wrapf(err, "git apply diff:\n\n%s", string(out))
+	}
+
+	return nil
+}
+
 // DockerVolumeWorkspaceImage is the Docker image we'll run our unzip and git
 // commands in. This needs to match the name defined in
 // .github/workflows/docker.yml.

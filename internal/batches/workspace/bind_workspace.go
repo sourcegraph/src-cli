@@ -150,6 +150,10 @@ func (w *dockerBindWorkspace) Diff(ctx context.Context) ([]byte, error) {
 	return runGitCmd(ctx, w.dir, "diff", "--cached", "--no-prefix", "--binary")
 }
 
+func (w *dockerBindWorkspace) ApplyDiff(ctx context.Context, diff []byte) error {
+	return fmt.Errorf("TODO")
+}
+
 func fileExists(path string) (bool, error) {
 	_, err := os.Stat(path)
 	if err != nil {

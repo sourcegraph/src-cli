@@ -35,7 +35,16 @@ func TestExecutionCacheKey(t *testing.T) {
 	}
 
 	// And now we can set up a key to work with.
-	key := ExecutionCacheKey{&Task{Steps: steps}}
+	key := ExecutionCacheKey{&Task{
+		Repository: &graphql.Repository{
+			ID:   "repo-1",
+			Name: "github.com/sourcegraph/src-cli",
+			DefaultBranch: &graphql.Branch{
+				Target: graphql.Target{OID: "d34db33f"},
+			},
+		},
+		Steps: steps,
+	}}
 
 	// All righty. Let's get ourselves a baseline cache key here.
 	initial, err := key.Key()
@@ -120,14 +129,26 @@ func TestExecutionDiskCache(t *testing.T) {
 	}
 
 	cacheKey1 := ExecutionCacheKey{Task: &Task{
-		Repository: &graphql.Repository{Name: "src-cli"},
+		Repository: &graphql.Repository{
+			ID:   "repo-1",
+			Name: "github.com/sourcegraph/src-cli",
+			DefaultBranch: &graphql.Branch{
+				Target: graphql.Target{OID: "d34db33f"},
+			},
+		},
 		Steps: []batches.Step{
 			{Run: "echo 'Hello World'", Container: "alpine:3"},
 		},
 	}}
 
 	cacheKey2 := ExecutionCacheKey{Task: &Task{
-		Repository: &graphql.Repository{Name: "documentation"},
+		Repository: &graphql.Repository{
+			ID:   "repo-2",
+			Name: "github.com/sourcegraph/docs",
+			DefaultBranch: &graphql.Branch{
+				Target: graphql.Target{OID: "d34db33f"},
+			},
+		},
 		Steps: []batches.Step{
 			{Run: "echo 'Hello World'", Container: "alpine:3"},
 		},

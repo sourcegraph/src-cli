@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -61,6 +62,8 @@ func (key ExecutionCacheKey) Key() (string, error) {
 	return base64.RawURLEncoding.EncodeToString(hash[:16]), nil
 }
 
+func (key ExecutionCacheKey) RepoSlug() string { return key.Repository.Slug() }
+
 type ExecutionCache interface {
 	Get(ctx context.Context, key ExecutionCacheKey) (result executionResult, found bool, err error)
 	Set(ctx context.Context, key ExecutionCacheKey, result executionResult) error
@@ -87,7 +90,7 @@ func (c ExecutionDiskCache) cacheFilePath(key ExecutionCacheKey) (string, error)
 		return "", errors.Wrap(err, "calculating execution cache key")
 	}
 
-	return filepath.Join(c.Dir, keyString+cacheFileExt), nil
+	return filepath.Join(c.Dir, key.RepoSlug(), keyString+cacheFileExt), nil
 }
 
 func (c ExecutionDiskCache) Get(ctx context.Context, key ExecutionCacheKey) (executionResult, bool, error) {
@@ -180,4 +183,74 @@ func (ExecutionNoOpCache) Set(ctx context.Context, key ExecutionCacheKey, result
 
 func (ExecutionNoOpCache) Clear(ctx context.Context, key ExecutionCacheKey) error {
 	return nil
+}
+
+// ----------------------------------------------------------------------------
+// EXPERIMENT STARTS HERE
+// ----------------------------------------------------------------------------
+
+// TODO: The key should probably be something different
+
+type StepWiseExecutionCache interface {
+	ExecutionCache
+
+	// TODO: This should only take a key
+	GetStepResult(ctx context.Context, key ExecutionCacheKey, stepidx int) (result cachedStepResult, found bool, err error)
+	SetStepResult(ctx context.Context, key ExecutionCacheKey, result cachedStepResult) error
+}
+
+var _ StepWiseExecutionCache = ExecutionDiskCache{}
+
+func (c ExecutionDiskCache) cachedStepResultFilePath(key ExecutionCacheKey, stepidx int) (string, error) {
+	keyString, err := key.Key()
+	if err != nil {
+		return "", errors.Wrap(err, "calculating execution cache key")
+	}
+
+	return filepath.Join(c.Dir, key.RepoSlug(), fmt.Sprintf("step-%d-%s.json", stepidx, keyString)), nil
+}
+
+func (c ExecutionDiskCache) GetStepResult(ctx context.Context, key ExecutionCacheKey, stepidx int) (cachedStepResult, bool, error) {
+	var result cachedStepResult
+	path, err := c.cachedStepResultFilePath(key, stepidx)
+	if err != nil {
+		return result, false, err
+	}
+
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		return result, false, nil
+	}
+
+	raw, err := ioutil.ReadFile(path)
+	if err != nil {
+		return result, false, err
+	}
+
+	if err := json.Unmarshal(raw, &result); err != nil {
+		// Delete the invalid data to avoid causing an error for next time.
+		if err := os.Remove(path); err != nil {
+			return result, false, errors.Wrap(err, "while deleting cache file with invalid JSON")
+		}
+		return result, false, errors.Wrapf(err, "reading cache file %s", path)
+	}
+
+	return result, true, nil
+}
+
+func (c ExecutionDiskCache) SetStepResult(ctx context.Context, key ExecutionCacheKey, result cachedStepResult) error {
+	path, err := c.cachedStepResultFilePath(key, result.Step)
+	if err != nil {
+		return err
+	}
+
+	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+		return err
+	}
+
+	raw, err := json.Marshal(result)
+	if err != nil {
+		return errors.Wrap(err, "serializing execution result to JSON")
+	}
+
+	return ioutil.WriteFile(path, raw, 0600)
 }
