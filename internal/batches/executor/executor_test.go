@@ -379,7 +379,6 @@ func TestExecutor_Integration(t *testing.T) {
 						}
 					}
 				}
-				return
 			}
 
 			wantResults := 0
@@ -397,23 +396,6 @@ func TestExecutor_Integration(t *testing.T) {
 			}
 
 			for _, taskResult := range results {
-				// if have, want := len(spec.Commits), 1; have != want {
-				// 	t.Fatalf("wrong number of commits. want=%d, have=%d", want, have)
-				// }
-				//
-				// attrs := []struct{ name, want, have string }{
-				// 	{name: "title", want: tc.wantTitle, have: spec.Title},
-				// 	{name: "body", want: tc.wantBody, have: spec.Body},
-				// 	{name: "commit.Message", want: tc.wantCommitMessage, have: spec.Commits[0].Message},
-				// 	{name: "commit.AuthorEmail", want: tc.wantAuthorEmail, have: spec.Commits[0].AuthorEmail},
-				// 	{name: "commit.AuthorName", want: tc.wantAuthorName, have: spec.Commits[0].AuthorName},
-				// }
-				// for _, attr := range attrs {
-				// 	if attr.want != "" && attr.have != attr.want {
-				// 		t.Errorf("wrong %q attribute. want=%q, have=%q", attr.name, attr.want, attr.have)
-				// 	}
-				// }
-
 				repoID := taskResult.task.Repository.ID
 				path := taskResult.task.Path
 
@@ -422,7 +404,6 @@ func TestExecutor_Integration(t *testing.T) {
 					t.Fatalf("unexpected file changes in repo %s", repoID)
 				}
 
-				// TODO: This should be replaced with `path`
 				resultsFound[repoID][path] = true
 
 				wantFilesInPath, ok := wantFiles[path]
@@ -437,9 +418,6 @@ func TestExecutor_Integration(t *testing.T) {
 
 				if have, want := len(fileDiffs), len(wantFilesInPath); have != want {
 					t.Fatalf("repo %s: wrong number of fileDiffs. want=%d, have=%d", repoID, want, have)
-				}
-				if tc.wantCacheHits != 0 {
-					want = tc.wantCacheHits
 				}
 
 				diffsByName := map[string]*diff.FileDiff{}

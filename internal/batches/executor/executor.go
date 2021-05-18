@@ -124,11 +124,11 @@ func (x *executor) Wait(ctx context.Context) ([]taskResult, error) {
 
 	select {
 	case <-ctx.Done():
-		return nil, ctx.Err()
+		return x.results, ctx.Err()
 	case err := <-result:
 		close(result)
 		if err != nil {
-			return x.specs, err
+			return x.results, err
 		}
 	}
 

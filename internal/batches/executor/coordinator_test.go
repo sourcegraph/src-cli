@@ -2,6 +2,7 @@ package executor
 
 import (
 	"context"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"strings"
@@ -80,6 +81,7 @@ func TestCoordinator_Execute(t *testing.T) {
 		name string
 
 		executor *dummyExecutor
+		opts     NewCoordinatorOpts
 
 		tasks     []*Task
 		batchSpec *batches.BatchSpec
@@ -244,6 +246,41 @@ func TestCoordinator_Execute(t *testing.T) {
 				}),
 			},
 		},
+		{
+			name: "skip errors",
+			opts: NewCoordinatorOpts{SkipErrors: true},
+
+			tasks: []*Task{srcCLITask, sourcegraphTask},
+
+			batchSpec: &batches.BatchSpec{
+				Name:              "my-batch-change",
+				Description:       "the description",
+				ChangesetTemplate: template,
+			},
+
+			// Execution succeeded in srcCLIRepo, but fails in sourcegraphRepo
+			executor: &dummyExecutor{
+				results: []taskResult{
+					{task: srcCLITask, result: executionResult{Diff: `dummydiff1`}},
+				},
+				waitErr: stepFailedErr{
+					Err:         fmt.Errorf("something went wrong"),
+					Run:         "broken command",
+					Container:   "alpine:3",
+					TmpFilename: "/tmp/foobar",
+					Stderr:      "unknown command: broken",
+				},
+			},
+
+			wantErrInclude: "run: broken command",
+			// We want 1 cache entry and 1 spec
+			wantCacheEntries: 1,
+			wantSpecs: []*batches.ChangesetSpec{
+				buildSpecFor(srcCLIRepo, func(spec *batches.ChangesetSpec) {
+					spec.CreatedChangeset.Commits[0].Diff = `dummydiff1`
+				}),
+			},
+		},
 	}
 
 	for _, tc := range tests {
@@ -274,6 +311,7 @@ func TestCoordinator_Execute(t *testing.T) {
 				cache:      cache,
 				exec:       tc.executor,
 				logManager: logManager,
+				opts:       tc.opts,
 			}
 
 			// execute contains the actual logic for executing the tasks and
@@ -293,7 +331,6 @@ func TestCoordinator_Execute(t *testing.T) {
 							t.Errorf("wrong error. have=%q want included=%q", err, tc.wantErrInclude)
 						}
 					}
-					return
 				}
 
 				if have, want := len(specs), len(tc.wantSpecs); have != want {
@@ -315,13 +352,8 @@ func TestCoordinator_Execute(t *testing.T) {
 			}
 
 			verifyCache := func(t *testing.T) {
-				want := tc.wantCacheEntries
-				if tc.wantErrInclude != "" {
-					want = 0
-				}
-
 				// Verify that there is a cache entry for each repo.
-				if have := cache.size(); have != want {
+				if have, want := cache.size(), tc.wantCacheEntries; have != want {
 					t.Errorf("unexpected number of cache entries: have=%d want=%d cache=%+v", have, want, cache)
 				}
 			}
