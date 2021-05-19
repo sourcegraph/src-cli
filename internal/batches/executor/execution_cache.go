@@ -9,8 +9,6 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"sort"
-	"strings"
 
 	"github.com/pkg/errors"
 )
@@ -62,12 +60,17 @@ func (key ExecutionCacheKey) Key() (string, error) {
 	return base64.RawURLEncoding.EncodeToString(hash[:16]), nil
 }
 
-func (key ExecutionCacheKey) RepoSlug() string { return key.Repository.Slug() }
+func (key ExecutionCacheKey) Slug() string { return key.Repository.Slug() }
+
+type CacheKeyer interface {
+	Key() (string, error)
+	Slug() string
+}
 
 type ExecutionCache interface {
-	Get(ctx context.Context, key ExecutionCacheKey) (result executionResult, found bool, err error)
-	Set(ctx context.Context, key ExecutionCacheKey, result executionResult) error
-	Clear(ctx context.Context, key ExecutionCacheKey) error
+	Get(ctx context.Context, key CacheKeyer) (result executionResult, found bool, err error)
+	Set(ctx context.Context, key CacheKeyer, result executionResult) error
+	Clear(ctx context.Context, key CacheKeyer) error
 }
 
 func NewCache(dir string) ExecutionCache {
@@ -82,18 +85,18 @@ type ExecutionDiskCache struct {
 	Dir string
 }
 
-const cacheFileExt = ".v3.json"
+const cacheFileExt = ".json"
 
-func (c ExecutionDiskCache) cacheFilePath(key ExecutionCacheKey) (string, error) {
+func (c ExecutionDiskCache) cacheFilePath(key CacheKeyer) (string, error) {
 	keyString, err := key.Key()
 	if err != nil {
 		return "", errors.Wrap(err, "calculating execution cache key")
 	}
 
-	return filepath.Join(c.Dir, key.RepoSlug(), keyString+cacheFileExt), nil
+	return filepath.Join(c.Dir, key.Slug(), keyString+cacheFileExt), nil
 }
 
-func (c ExecutionDiskCache) Get(ctx context.Context, key ExecutionCacheKey) (executionResult, bool, error) {
+func (c ExecutionDiskCache) Get(ctx context.Context, key CacheKeyer) (executionResult, bool, error) {
 	var result executionResult
 
 	path, err := c.cacheFilePath(key)
@@ -112,16 +115,6 @@ func (c ExecutionDiskCache) Get(ctx context.Context, key ExecutionCacheKey) (exe
 	return result, true, nil
 }
 
-// sortCacheFiles sorts cache file paths by their "version", so that files
-// ending in `cacheFileExt` are first.
-func sortCacheFiles(paths []string) {
-	sort.Slice(paths, func(i, j int) bool {
-		return !isOldCacheFile(paths[i]) && isOldCacheFile(paths[j])
-	})
-}
-
-func isOldCacheFile(path string) bool { return !strings.HasSuffix(path, cacheFileExt) }
-
 func (c ExecutionDiskCache) readCacheFile(path string, result *executionResult) error {
 	data, err := ioutil.ReadFile(path)
 	if err != nil {
@@ -138,7 +131,7 @@ func (c ExecutionDiskCache) readCacheFile(path string, result *executionResult) 
 	return nil
 }
 
-func (c ExecutionDiskCache) Set(ctx context.Context, key ExecutionCacheKey, result executionResult) error {
+func (c ExecutionDiskCache) Set(ctx context.Context, key CacheKeyer, result executionResult) error {
 	path, err := c.cacheFilePath(key)
 	if err != nil {
 		return err
@@ -156,7 +149,7 @@ func (c ExecutionDiskCache) Set(ctx context.Context, key ExecutionCacheKey, resu
 	return ioutil.WriteFile(path, raw, 0600)
 }
 
-func (c ExecutionDiskCache) Clear(ctx context.Context, key ExecutionCacheKey) error {
+func (c ExecutionDiskCache) Clear(ctx context.Context, key CacheKeyer) error {
 	path, err := c.cacheFilePath(key)
 	if err != nil {
 		return err
@@ -173,15 +166,15 @@ func (c ExecutionDiskCache) Clear(ctx context.Context, key ExecutionCacheKey) er
 // retrieve cache entries.
 type ExecutionNoOpCache struct{}
 
-func (ExecutionNoOpCache) Get(ctx context.Context, key ExecutionCacheKey) (result executionResult, found bool, err error) {
+func (ExecutionNoOpCache) Get(ctx context.Context, key CacheKeyer) (result executionResult, found bool, err error) {
 	return executionResult{}, false, nil
 }
 
-func (ExecutionNoOpCache) Set(ctx context.Context, key ExecutionCacheKey, result executionResult) error {
+func (ExecutionNoOpCache) Set(ctx context.Context, key CacheKeyer, result executionResult) error {
 	return nil
 }
 
-func (ExecutionNoOpCache) Clear(ctx context.Context, key ExecutionCacheKey) error {
+func (ExecutionNoOpCache) Clear(ctx context.Context, key CacheKeyer) error {
 	return nil
 }
 
@@ -195,22 +188,22 @@ type StepWiseExecutionCache interface {
 	ExecutionCache
 
 	// TODO: This should only take a key
-	GetStepResult(ctx context.Context, key ExecutionCacheKey, stepidx int) (result stepExecutionResult, found bool, err error)
-	SetStepResult(ctx context.Context, key ExecutionCacheKey, result stepExecutionResult) error
+	GetStepResult(ctx context.Context, key CacheKeyer, stepidx int) (result stepExecutionResult, found bool, err error)
+	SetStepResult(ctx context.Context, key CacheKeyer, result stepExecutionResult) error
 }
 
 var _ StepWiseExecutionCache = ExecutionDiskCache{}
 
-func (c ExecutionDiskCache) cachedStepResultFilePath(key ExecutionCacheKey, stepidx int) (string, error) {
+func (c ExecutionDiskCache) cachedStepResultFilePath(key CacheKeyer, stepidx int) (string, error) {
 	keyString, err := key.Key()
 	if err != nil {
 		return "", errors.Wrap(err, "calculating execution cache key")
 	}
 
-	return filepath.Join(c.Dir, key.RepoSlug(), fmt.Sprintf("step-%d-%s.json", stepidx, keyString)), nil
+	return filepath.Join(c.Dir, key.Slug(), fmt.Sprintf("step-%d-%s.json", stepidx, keyString)), nil
 }
 
-func (c ExecutionDiskCache) GetStepResult(ctx context.Context, key ExecutionCacheKey, stepidx int) (stepExecutionResult, bool, error) {
+func (c ExecutionDiskCache) GetStepResult(ctx context.Context, key CacheKeyer, stepidx int) (stepExecutionResult, bool, error) {
 	var result stepExecutionResult
 	path, err := c.cachedStepResultFilePath(key, stepidx)
 	if err != nil {
@@ -237,7 +230,7 @@ func (c ExecutionDiskCache) GetStepResult(ctx context.Context, key ExecutionCach
 	return result, true, nil
 }
 
-func (c ExecutionDiskCache) SetStepResult(ctx context.Context, key ExecutionCacheKey, result stepExecutionResult) error {
+func (c ExecutionDiskCache) SetStepResult(ctx context.Context, key CacheKeyer, result stepExecutionResult) error {
 	path, err := c.cachedStepResultFilePath(key, result.Step)
 	if err != nil {
 		return err

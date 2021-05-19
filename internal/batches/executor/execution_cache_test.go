@@ -188,37 +188,6 @@ func TestExecutionDiskCache(t *testing.T) {
 	})
 }
 
-func TestSortCacheFiles(t *testing.T) {
-	tests := []struct {
-		paths []string
-		want  []string
-	}{
-		{
-			paths: []string{"file.v3.json", "file.diff", "file.json"},
-			want:  []string{"file.v3.json", "file.diff", "file.json"},
-		},
-		{
-			paths: []string{"file.json", "file.diff", "file.v3.json"},
-			want:  []string{"file.v3.json", "file.json", "file.diff"},
-		},
-		{
-			paths: []string{"file.diff", "file.v3.json"},
-			want:  []string{"file.v3.json", "file.diff"},
-		},
-		{
-			paths: []string{"file1.v3.json", "file2.v3.json"},
-			want:  []string{"file1.v3.json", "file2.v3.json"},
-		},
-	}
-
-	for _, tt := range tests {
-		sortCacheFiles(tt.paths)
-		if diff := cmp.Diff(tt.paths, tt.want); diff != "" {
-			t.Errorf("wrong cached result (-have +want):\n\n%s", diff)
-		}
-	}
-}
-
 func assertFileDeleted(t *testing.T, path string) {
 	t.Helper()
 	if _, err := os.Stat(path); err == nil {

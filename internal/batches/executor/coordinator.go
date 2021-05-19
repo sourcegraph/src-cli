@@ -146,9 +146,7 @@ func (c *Coordinator) cacheAndBuildSpec(ctx context.Context, taskResult taskResu
 		return nil, errors.Wrapf(err, "caching result for %q", taskResult.task.Repository.Name)
 	}
 
-	// ----------------------------------------------------------------------------
-	// EXPERIMENT STARTS HERE
-	// vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+	// Save the per-step results
 	if stepCache, ok := c.cache.(StepWiseExecutionCache); ok {
 		for _, stepResult := range taskResult.stepResults {
 			key := taskResult.task.cacheKeyForSteps(stepResult.Step)
@@ -158,9 +156,6 @@ func (c *Coordinator) cacheAndBuildSpec(ctx context.Context, taskResult taskResu
 			}
 		}
 	}
-	// ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-	// EXPERIMENT ENDS HERE
-	// ----------------------------------------------------------------------------
 
 	// If the steps didn't result in any diff, we don't need to create a
 	// changeset spec that's displayed to the user and send to the server.

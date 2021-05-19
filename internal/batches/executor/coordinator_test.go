@@ -411,7 +411,7 @@ func (c *inMemoryExecutionCache) size() int {
 	return len(c.cache)
 }
 
-func (c *inMemoryExecutionCache) Get(ctx context.Context, key ExecutionCacheKey) (executionResult, bool, error) {
+func (c *inMemoryExecutionCache) Get(ctx context.Context, key CacheKeyer) (executionResult, bool, error) {
 	k, err := key.Key()
 	if err != nil {
 		return executionResult{}, false, err
@@ -426,7 +426,7 @@ func (c *inMemoryExecutionCache) Get(ctx context.Context, key ExecutionCacheKey)
 	return executionResult{}, false, nil
 }
 
-func (c *inMemoryExecutionCache) Set(ctx context.Context, key ExecutionCacheKey, result executionResult) error {
+func (c *inMemoryExecutionCache) Set(ctx context.Context, key CacheKeyer, result executionResult) error {
 	k, err := key.Key()
 	if err != nil {
 		return err
@@ -439,7 +439,7 @@ func (c *inMemoryExecutionCache) Set(ctx context.Context, key ExecutionCacheKey,
 	return nil
 }
 
-func (c *inMemoryExecutionCache) Clear(ctx context.Context, key ExecutionCacheKey) error {
+func (c *inMemoryExecutionCache) Clear(ctx context.Context, key CacheKeyer) error {
 	k, err := key.Key()
 	if err != nil {
 		return err
