@@ -44,7 +44,7 @@ func (e TaskExecutionErr) StatusText() string {
 type taskResult struct {
 	task        *Task
 	result      executionResult
-	stepResults []cachedStepResult
+	stepResults []stepExecutionResult
 }
 
 type newExecutorOpts struct {
@@ -208,7 +208,7 @@ func (x *executor) do(ctx context.Context, task *Task, status taskStatusHandler)
 	return nil
 }
 
-func (x *executor) addResult(task *Task, result executionResult, stepResults []cachedStepResult) {
+func (x *executor) addResult(task *Task, result executionResult, stepResults []stepExecutionResult) {
 	x.resultsMu.Lock()
 	defer x.resultsMu.Unlock()
 

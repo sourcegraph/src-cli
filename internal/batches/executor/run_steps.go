@@ -21,15 +21,21 @@ import (
 	"github.com/sourcegraph/src-cli/internal/batches/workspace"
 
 	yamlv3 "gopkg.in/yaml.v3"
-
-	logger "log"
 )
 
-type cachedStepResult struct {
-	Step    int                    `json:"step"`
-	Diff    string                 `json:"diff"`
+// stepExecutionResult is the executionResult after executing the step with the
+// given index in task.Steps.
+// TODO: The naming here kinda clashes with StepResult, which is used for
+// templating.
+type stepExecutionResult struct {
+	// Step is the index of the step in task.Steps
+	Step int `json:"step"`
+	// Diff is the cumulative `git diff` after executing the Step.
+	Diff []byte `json:"diff"`
+	// Outputs is a copy of the Outputs after executing the Step.
 	Outputs map[string]interface{} `json:"outputs"`
-
+	// PreviousStepResult is the StepResult of the step before Step, if Step !=
+	// 0.
 	PreviousStepResult StepResult `json:"previousStepResult"`
 }
 
@@ -64,11 +70,13 @@ type executionOpts struct {
 	logger         *log.TaskLogger
 	reportProgress func(string)
 
+	// cachedResultFound determines whether all steps are executed or only
+	// steps >= cachedResult.Step.
 	cachedResultFound bool
-	cachedResult      cachedStepResult
+	cachedResult      stepExecutionResult
 }
 
-func runSteps(ctx context.Context, opts *executionOpts) (result executionResult, perStepResults []cachedStepResult, err error) {
+func runSteps(ctx context.Context, opts *executionOpts) (result executionResult, stepResults []stepExecutionResult, err error) {
 	opts.reportProgress("Downloading archive")
 	err = opts.archive.Fetch(ctx)
 	if err != nil {
@@ -106,7 +114,6 @@ func runSteps(ctx context.Context, opts *executionOpts) (result executionResult,
 		startStep = 0
 	}
 
-	logger.Printf("running steps. startStep=%d, opts.cachedDiffFound=%t", startStep, opts.cachedResultFound)
 	for i := startStep; i < len(opts.steps); i++ {
 		step := opts.steps[i]
 
@@ -120,8 +127,6 @@ func runSteps(ctx context.Context, opts *executionOpts) (result executionResult,
 		}
 
 		if opts.cachedResultFound && i == startStep {
-			logger.Printf("applying diff. step=%d, len(result.diff)=%d\n", i, len(opts.cachedResult.Diff))
-
 			if err := workspace.ApplyDiff(ctx, []byte(opts.cachedResult.Diff)); err != nil {
 				return execResult, nil, errors.Wrap(err, "getting changed files in step")
 			}
@@ -327,35 +332,30 @@ func runSteps(ctx context.Context, opts *executionOpts) (result executionResult,
 		}
 
 		result := StepResult{files: changes, Stdout: &stdoutBuffer, Stderr: &stderrBuffer}
-		stepContext.Step = result
 		results[i] = result
 
+		// Set stepContext.Step to current step's results before rendering outputs
+		stepContext.Step = result
+		// Render and evaluate outputs
 		if err := setOutputs(step.Outputs, execResult.Outputs, &stepContext); err != nil {
 			return execResult, nil, errors.Wrap(err, "setting step outputs")
 		}
 
-		// ----------------------------------------------------------------------------
-		// EXPERIMENT STARTS HERE
-		// vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-		sd, err := workspace.Diff(ctx)
+		// Get the current diff and store that away as the per-step result.
+		stepDiff, err := workspace.Diff(ctx)
 		if err != nil {
 			return execResult, nil, errors.Wrap(err, "getting diff produced by step")
 		}
-		cachedResult := cachedStepResult{
-			Step:    i,
-			Diff:    string(sd),
-			Outputs: make(map[string]interface{}),
-		}
-		if i > 0 {
-			cachedResult.PreviousStepResult = results[i-1]
+		stepResult := stepExecutionResult{
+			Step:               i,
+			Diff:               stepDiff,
+			Outputs:            make(map[string]interface{}),
+			PreviousStepResult: stepContext.PreviousStep,
 		}
 		for k, v := range execResult.Outputs {
-			cachedResult.Outputs[k] = v
+			stepResult.Outputs[k] = v
 		}
-		perStepResults = append(perStepResults, cachedResult)
-		// ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-		// EXPERIMENT ENDS HERE
-		// ----------------------------------------------------------------------------
+		stepResults = append(stepResults, stepResult)
 	}
 
 	opts.reportProgress("Calculating diff")
@@ -369,7 +369,7 @@ func runSteps(ctx context.Context, opts *executionOpts) (result executionResult,
 		execResult.ChangedFiles = results[len(results)-1].files
 	}
 
-	return execResult, perStepResults, err
+	return execResult, stepResults, err
 }
 
 func setOutputs(stepOutputs batches.Outputs, global map[string]interface{}, stepCtx *StepContext) error {

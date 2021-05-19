@@ -30,8 +30,8 @@ type Task struct {
 	// ----------------------------------------------------------------------------
 	// EXPERIMENT STARTS HERE
 	// vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-	CachedResultFound bool             `json:"-"`
-	CachedResult      cachedStepResult `json:"-"`
+	CachedResultFound bool                `json:"-"`
+	CachedResult      stepExecutionResult `json:"-"`
 }
 
 func (t *Task) ArchivePathToFetch() string {

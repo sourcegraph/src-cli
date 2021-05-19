@@ -195,8 +195,8 @@ type StepWiseExecutionCache interface {
 	ExecutionCache
 
 	// TODO: This should only take a key
-	GetStepResult(ctx context.Context, key ExecutionCacheKey, stepidx int) (result cachedStepResult, found bool, err error)
-	SetStepResult(ctx context.Context, key ExecutionCacheKey, result cachedStepResult) error
+	GetStepResult(ctx context.Context, key ExecutionCacheKey, stepidx int) (result stepExecutionResult, found bool, err error)
+	SetStepResult(ctx context.Context, key ExecutionCacheKey, result stepExecutionResult) error
 }
 
 var _ StepWiseExecutionCache = ExecutionDiskCache{}
@@ -210,8 +210,8 @@ func (c ExecutionDiskCache) cachedStepResultFilePath(key ExecutionCacheKey, step
 	return filepath.Join(c.Dir, key.RepoSlug(), fmt.Sprintf("step-%d-%s.json", stepidx, keyString)), nil
 }
 
-func (c ExecutionDiskCache) GetStepResult(ctx context.Context, key ExecutionCacheKey, stepidx int) (cachedStepResult, bool, error) {
-	var result cachedStepResult
+func (c ExecutionDiskCache) GetStepResult(ctx context.Context, key ExecutionCacheKey, stepidx int) (stepExecutionResult, bool, error) {
+	var result stepExecutionResult
 	path, err := c.cachedStepResultFilePath(key, stepidx)
 	if err != nil {
 		return result, false, err
@@ -237,7 +237,7 @@ func (c ExecutionDiskCache) GetStepResult(ctx context.Context, key ExecutionCach
 	return result, true, nil
 }
 
-func (c ExecutionDiskCache) SetStepResult(ctx context.Context, key ExecutionCacheKey, result cachedStepResult) error {
+func (c ExecutionDiskCache) SetStepResult(ctx context.Context, key ExecutionCacheKey, result stepExecutionResult) error {
 	path, err := c.cachedStepResultFilePath(key, result.Step)
 	if err != nil {
 		return err
