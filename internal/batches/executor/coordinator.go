@@ -171,7 +171,7 @@ func (c *Coordinator) cacheAndBuildSpec(ctx context.Context, taskResult taskResu
 type executionProgressPrinter func([]*TaskStatus)
 
 // Execute executes the given Tasks and the importChangeset statements in the
-// given spec. It regularily calls the executionProgressPrinter with the
+// given spec. It regularly calls the executionProgressPrinter with the
 // current TaskStatuses.
 func (c *Coordinator) Execute(ctx context.Context, tasks []*Task, spec *batches.BatchSpec, printer executionProgressPrinter) ([]*batches.ChangesetSpec, []string, error) {
 	var (
