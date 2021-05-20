@@ -21,7 +21,7 @@ require (
 	github.com/sourcegraph/batch-change-utils v0.0.0-20210309183117-206c057cc03e
 	github.com/sourcegraph/go-diff v0.6.1
 	github.com/sourcegraph/jsonx v0.0.0-20200629203448-1a936bd500cf
-	github.com/sourcegraph/sourcegraph/lib v0.0.0-20210425142047-b8f4790093e5
+	github.com/sourcegraph/sourcegraph/lib v0.0.0-20210520231824-520a2ae26af0
 	github.com/ssor/bom v0.0.0-20170718123548-6386211fdfcf // indirect
 	github.com/xeipuuv/gojsonpointer v0.0.0-20190905194746-02993c407bfb // indirect
 	golang.org/x/net v0.0.0-20201021035429-f5854403a974
@@ -35,5 +35,3 @@ replace github.com/gosuri/uilive v0.0.4 => github.com/mrnugget/uilive v0.0.4-fix
 
 // See: https://github.com/ghodss/yaml/pull/65
 replace github.com/ghodss/yaml => github.com/sourcegraph/yaml v1.0.1-0.20200714132230-56936252f152
-
-replace github.com/sourcegraph/sourcegraph/lib => ../sourcegraph/lib
