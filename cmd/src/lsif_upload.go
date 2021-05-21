@@ -61,14 +61,12 @@ func handleLSIFUpload(args []string) error {
 		}
 	}
 	if err != nil {
-		// note: exits the process
-		handleLSIFUploadError(nil, err)
+		return handleLSIFUploadError(nil, err)
 	}
 
 	uploadID, err := upload.UploadIndex(lsifUploadFlags.file, lsifUploadOptions(out))
 	if err != nil {
-		// note: exits the process
-		handleLSIFUploadError(out, err)
+		return handleLSIFUploadError(out, err)
 	}
 
 	uploadURL, err := makeLSIFUploadURL(uploadID)
@@ -210,25 +208,22 @@ var errUnauthorizedHint = strings.Join([]string{
 	"See https://docs.sourcegraph.com/cli/references/lsif/upload.",
 }, "\n")
 
-// handleLSIFUploadError writes the given error to the given output and then
-// exits the process. If the given output object is nil then the error will
-// be written to standard out.
-func handleLSIFUploadError(out *output.Output, err error) {
-	if out == nil {
-		out = emergencyOutput()
-	}
-
+// handleLSIFUploadError writes the given error to the given output. If the
+// given output object is nil then the error will be written to standard out.
+//
+// This method returns the error that should be passed back up to the runner.
+func handleLSIFUploadError(out *output.Output, err error) error {
 	if err == upload.ErrUnauthorized {
 		err = errorWithHint{err: err, hint: errUnauthorizedHint}
 	}
-	out.WriteLine(output.Linef(output.EmojiFailure, output.StyleWarning, "error: %s", err))
 
-	if !lsifUploadFlags.ignoreUploadFailures {
+	if lsifUploadFlags.ignoreUploadFailures {
 		// Report but don't return the error
-		os.Exit(0)
+		fmt.Println(err.Error())
+		return nil
 	}
 
-	os.Exit(1)
+	return err
 }
 
 // emergencyOutput creates a default Output object writing to standard out.
