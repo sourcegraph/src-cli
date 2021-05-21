@@ -2,10 +2,8 @@ package executor
 
 import (
 	"context"
-	"encoding/json"
 	"io/ioutil"
 	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -162,30 +160,28 @@ func TestExecutionDiskCache(t *testing.T) {
 		Outputs: map[string]interface{}{},
 	}
 
-	t.Run("cache contains v3 cache file", func(t *testing.T) {
-		cache := ExecutionDiskCache{Dir: cacheTmpDir(t)}
+	cache := ExecutionDiskCache{Dir: cacheTmpDir(t)}
 
-		// Empty cache, no hits
-		assertCacheMiss(t, cache, cacheKey1)
-		assertCacheMiss(t, cache, cacheKey2)
+	// Empty cache, no hits
+	assertCacheMiss(t, cache, cacheKey1)
+	assertCacheMiss(t, cache, cacheKey2)
 
-		// Set the cache
-		if err := cache.Set(ctx, cacheKey1, value); err != nil {
-			t.Fatalf("cache.Set returned unexpected error: %s", err)
-		}
+	// Set the cache
+	if err := cache.Set(ctx, cacheKey1, value); err != nil {
+		t.Fatalf("cache.Set returned unexpected error: %s", err)
+	}
 
-		// Cache hit
-		assertCacheHit(t, cache, cacheKey1, value)
+	// Cache hit
+	assertCacheHit(t, cache, cacheKey1, value)
 
-		// Cache miss due to different key
-		assertCacheMiss(t, cache, cacheKey2)
+	// Cache miss due to different key
+	assertCacheMiss(t, cache, cacheKey2)
 
-		// Cache miss due to cleared cache
-		if err := cache.Clear(ctx, cacheKey1); err != nil {
-			t.Fatalf("cache.Get returned unexpected error: %s", err)
-		}
-		assertCacheMiss(t, cache, cacheKey1)
-	})
+	// Cache miss due to cleared cache
+	if err := cache.Clear(ctx, cacheKey1); err != nil {
+		t.Fatalf("cache.Get returned unexpected error: %s", err)
+	}
+	assertCacheMiss(t, cache, cacheKey1)
 }
 
 func assertFileDeleted(t *testing.T, path string) {
@@ -197,54 +193,6 @@ func assertFileDeleted(t *testing.T, path string) {
 	} else {
 		t.Fatalf("could not determine whether file exists: %s", err)
 	}
-}
-
-func writeV1CacheFile(t *testing.T, c ExecutionDiskCache, k ExecutionCacheKey, diff string) (path string) {
-	t.Helper()
-
-	hashedKey, err := k.Key()
-	if err != nil {
-		t.Fatalf("failed to hash cacheKey: %s", err)
-	}
-	// The v1 file format ended in .json
-	path = filepath.Join(c.Dir, hashedKey+".json")
-
-	// v1 contained a fully serialized ChangesetSpec
-	spec := batches.ChangesetSpec{CreatedChangeset: &batches.CreatedChangeset{
-		Commits: []batches.GitCommitDescription{
-			{Diff: testDiff},
-		},
-	}}
-
-	raw, err := json.Marshal(&spec)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if err := ioutil.WriteFile(path, raw, 0600); err != nil {
-		t.Fatalf("writing the cache file failed: %s", err)
-	}
-
-	return path
-}
-
-func writeV2CacheFile(t *testing.T, c ExecutionDiskCache, k ExecutionCacheKey, diff string) (path string) {
-	t.Helper()
-
-	hashedKey, err := k.Key()
-	if err != nil {
-		t.Fatalf("failed to hash cacheKey: %s", err)
-	}
-
-	// The v2 file format ended in .json
-	path = filepath.Join(c.Dir, hashedKey+".diff")
-
-	// v2 contained only a diff
-	if err := ioutil.WriteFile(path, []byte(diff), 0600); err != nil {
-		t.Fatalf("writing the cache file failed: %s", err)
-	}
-
-	return path
 }
 
 func assertCacheHit(t *testing.T, c ExecutionDiskCache, k ExecutionCacheKey, want executionResult) {
