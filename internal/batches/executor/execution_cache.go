@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 
 	"github.com/pkg/errors"
+	"github.com/sourcegraph/src-cli/internal/batches"
 )
 
 func UserCacheDir() (string, error) {
@@ -21,13 +22,12 @@ func UserCacheDir() (string, error) {
 	return filepath.Join(userCacheDir, "sourcegraph-src"), nil
 }
 
-type ExecutionCacheKey struct {
-	*Task
+type CacheKeyer interface {
+	Key() (string, error)
+	Slug() string
 }
 
-// Key converts the key into a string form that can be used to uniquely identify
-// the cache key in a more concise form than the entire Task.
-func (key ExecutionCacheKey) Key() (string, error) {
+func resolveStepsEnvironment(steps []batches.Step) ([]map[string]string, error) {
 	// We have to resolve the step environments and include them in the cache
 	// key to ensure that the cache is properly invalidated when an environment
 	// variable changes.
@@ -36,13 +36,85 @@ func (key ExecutionCacheKey) Key() (string, error) {
 	// if an unrelated environment variable changes, that's fine. We're only
 	// interested in the ones that actually make it into the step container.
 	global := os.Environ()
-	envs := make([]map[string]string, len(key.Task.Steps))
-	for i, step := range key.Task.Steps {
+	envs := make([]map[string]string, len(steps))
+	for i, step := range steps {
 		env, err := step.Env.Resolve(global)
 		if err != nil {
-			return "", errors.Wrapf(err, "resolving environment for step %d", i)
+			return nil, errors.Wrapf(err, "resolving environment for step %d", i)
 		}
 		envs[i] = env
+	}
+	return envs, nil
+}
+
+func marshalHash(t *Task, envs []map[string]string) (string, error) {
+	raw, err := json.Marshal(struct {
+		*Task
+		Environments []map[string]string
+	}{
+		Task:         t,
+		Environments: envs,
+	})
+	if err != nil {
+		return "", err
+	}
+
+	hash := sha256.Sum256(raw)
+	return base64.RawURLEncoding.EncodeToString(hash[:16]), nil
+}
+
+// StepsCachekey implements the CacheKeyer interface for a Task and a *subset*
+// of its Steps, up to and including the step with index StepIndex in
+// Task.Steps.
+type StepsCacheKey struct {
+	*Task
+	StepIndex int
+}
+
+// Key converts the key into a string form that can be used to uniquely identify
+// the cache key in a more concise form than the entire Task.
+func (key StepsCacheKey) Key() (string, error) {
+	// Setup a copy of the Task that only includes the Steps up to and
+	// including key.StepIndex.
+	taskCopy := &Task{
+		Repository:            key.Task.Repository,
+		Path:                  key.Task.Path,
+		OnlyFetchWorkspace:    key.Task.OnlyFetchWorkspace,
+		BatchChangeAttributes: key.Task.BatchChangeAttributes,
+		Template:              key.Task.Template,
+		TransformChanges:      key.Task.TransformChanges,
+		Archive:               key.Task.Archive,
+	}
+
+	taskCopy.Steps = key.Task.Steps[0 : key.StepIndex+1]
+
+	// Resolve environment only for the subset of Steps
+	envs, err := resolveStepsEnvironment(taskCopy.Steps)
+	if err != nil {
+		return "", err
+	}
+
+	hash, err := marshalHash(taskCopy, envs)
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%s-step-%d", hash, key.StepIndex), err
+}
+
+func (key StepsCacheKey) Slug() string { return key.Repository.Slug() }
+
+// TaskCacheKey implements the CacheKeyer interface for a Task and all its
+// Steps.
+type TaskCacheKey struct {
+	*Task
+}
+
+// Key converts the key into a string form that can be used to uniquely identify
+// the cache key in a more concise form than the entire Task.
+func (key TaskCacheKey) Key() (string, error) {
+	envs, err := resolveStepsEnvironment(key.Task.Steps)
+	if err != nil {
+		return "", err
 	}
 
 	raw, err := json.Marshal(struct {
@@ -60,16 +132,15 @@ func (key ExecutionCacheKey) Key() (string, error) {
 	return base64.RawURLEncoding.EncodeToString(hash[:16]), nil
 }
 
-func (key ExecutionCacheKey) Slug() string { return key.Repository.Slug() }
-
-type CacheKeyer interface {
-	Key() (string, error)
-	Slug() string
-}
+func (key TaskCacheKey) Slug() string { return key.Repository.Slug() }
 
 type ExecutionCache interface {
 	Get(ctx context.Context, key CacheKeyer) (result executionResult, found bool, err error)
 	Set(ctx context.Context, key CacheKeyer, result executionResult) error
+
+	GetStepResult(ctx context.Context, key CacheKeyer) (result stepExecutionResult, found bool, err error)
+	SetStepResult(ctx context.Context, key CacheKeyer, result stepExecutionResult) error
+
 	Clear(ctx context.Context, key CacheKeyer) error
 }
 
@@ -181,34 +252,27 @@ func (ExecutionNoOpCache) Clear(ctx context.Context, key CacheKeyer) error {
 	return nil
 }
 
+func (ExecutionNoOpCache) SetStepResult(ctx context.Context, key CacheKeyer, result stepExecutionResult) error {
+	return nil
+}
+
+func (ExecutionNoOpCache) GetStepResult(ctx context.Context, key CacheKeyer) (stepExecutionResult, bool, error) {
+	return stepExecutionResult{}, false, nil
+}
+
 // ----------------------------------------------------------------------------
 // EXPERIMENT STARTS HERE
 // ----------------------------------------------------------------------------
 
-// TODO: The key should probably be something different
-
 type StepWiseExecutionCache interface {
 	ExecutionCache
-
-	// TODO: This should only take a key
-	GetStepResult(ctx context.Context, key CacheKeyer, stepidx int) (result stepExecutionResult, found bool, err error)
-	SetStepResult(ctx context.Context, key CacheKeyer, result stepExecutionResult) error
 }
 
 var _ StepWiseExecutionCache = ExecutionDiskCache{}
 
-func (c ExecutionDiskCache) cachedStepResultFilePath(key CacheKeyer, stepidx int) (string, error) {
-	keyString, err := key.Key()
-	if err != nil {
-		return "", errors.Wrap(err, "calculating execution cache key")
-	}
-
-	return filepath.Join(c.Dir, key.Slug(), fmt.Sprintf("step-%d-%s.json", stepidx, keyString)), nil
-}
-
-func (c ExecutionDiskCache) GetStepResult(ctx context.Context, key CacheKeyer, stepidx int) (stepExecutionResult, bool, error) {
+func (c ExecutionDiskCache) GetStepResult(ctx context.Context, key CacheKeyer) (stepExecutionResult, bool, error) {
 	var result stepExecutionResult
-	path, err := c.cachedStepResultFilePath(key, stepidx)
+	path, err := c.cacheFilePath(key)
 	if err != nil {
 		return result, false, err
 	}
@@ -219,7 +283,7 @@ func (c ExecutionDiskCache) GetStepResult(ctx context.Context, key CacheKeyer, s
 }
 
 func (c ExecutionDiskCache) SetStepResult(ctx context.Context, key CacheKeyer, result stepExecutionResult) error {
-	path, err := c.cachedStepResultFilePath(key, result.Step)
+	path, err := c.cacheFilePath(key)
 	if err != nil {
 		return err
 	}

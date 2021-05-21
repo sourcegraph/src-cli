@@ -9,13 +9,12 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/sourcegraph/src-cli/internal/batches"
 	"github.com/sourcegraph/src-cli/internal/batches/git"
-	"github.com/sourcegraph/src-cli/internal/batches/graphql"
 	"gopkg.in/yaml.v3"
 )
 
 const testExecutionCacheKeyEnv = "TEST_EXECUTION_CACHE_KEY_ENV"
 
-func TestExecutionCacheKey(t *testing.T) {
+func TestTaskCacheKey(t *testing.T) {
 	// Let's set up an array of steps that we can test with. One step will
 	// depend on an environment variable outside the spec.
 	var steps []batches.Step
@@ -33,15 +32,9 @@ func TestExecutionCacheKey(t *testing.T) {
 	}
 
 	// And now we can set up a key to work with.
-	key := ExecutionCacheKey{&Task{
-		Repository: &graphql.Repository{
-			ID:   "repo-1",
-			Name: "github.com/sourcegraph/src-cli",
-			DefaultBranch: &graphql.Branch{
-				Target: graphql.Target{OID: "d34db33f"},
-			},
-		},
-		Steps: steps,
+	key := TaskCacheKey{&Task{
+		Repository: testRepo1,
+		Steps:      steps,
 	}}
 
 	// All righty. Let's get ourselves a baseline cache key here.
@@ -113,7 +106,7 @@ index 0000000..3363c39
 +This is the readme
 `
 
-func TestExecutionDiskCache(t *testing.T) {
+func TestExecutionDiskCache_GetSet(t *testing.T) {
 	ctx := context.Background()
 
 	cacheTmpDir := func(t *testing.T) string {
@@ -126,27 +119,15 @@ func TestExecutionDiskCache(t *testing.T) {
 		return testTempDir
 	}
 
-	cacheKey1 := ExecutionCacheKey{Task: &Task{
-		Repository: &graphql.Repository{
-			ID:   "repo-1",
-			Name: "github.com/sourcegraph/src-cli",
-			DefaultBranch: &graphql.Branch{
-				Target: graphql.Target{OID: "d34db33f"},
-			},
-		},
+	cacheKey1 := TaskCacheKey{Task: &Task{
+		Repository: testRepo1,
 		Steps: []batches.Step{
 			{Run: "echo 'Hello World'", Container: "alpine:3"},
 		},
 	}}
 
-	cacheKey2 := ExecutionCacheKey{Task: &Task{
-		Repository: &graphql.Repository{
-			ID:   "repo-2",
-			Name: "github.com/sourcegraph/docs",
-			DefaultBranch: &graphql.Branch{
-				Target: graphql.Target{OID: "d34db33f"},
-			},
-		},
+	cacheKey2 := TaskCacheKey{Task: &Task{
+		Repository: testRepo2,
 		Steps: []batches.Step{
 			{Run: "echo 'Hello World'", Container: "alpine:3"},
 		},
@@ -195,7 +176,7 @@ func assertFileDeleted(t *testing.T, path string) {
 	}
 }
 
-func assertCacheHit(t *testing.T, c ExecutionDiskCache, k ExecutionCacheKey, want executionResult) {
+func assertCacheHit(t *testing.T, c ExecutionDiskCache, k TaskCacheKey, want executionResult) {
 	t.Helper()
 
 	have, found, err := c.Get(context.Background(), k)
@@ -211,7 +192,7 @@ func assertCacheHit(t *testing.T, c ExecutionDiskCache, k ExecutionCacheKey, wan
 	}
 }
 
-func assertCacheMiss(t *testing.T, c ExecutionDiskCache, k ExecutionCacheKey) {
+func assertCacheMiss(t *testing.T, c ExecutionDiskCache, k TaskCacheKey) {
 	t.Helper()
 
 	_, found, err := c.Get(context.Background(), k)

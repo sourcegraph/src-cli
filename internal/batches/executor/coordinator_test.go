@@ -18,38 +18,8 @@ import (
 )
 
 func TestCoordinator_Execute(t *testing.T) {
-	template := &batches.ChangesetTemplate{
-		Title:  "commit title",
-		Body:   "commit body",
-		Branch: "commit-branch",
-		Commit: batches.ExpandedGitCommitDescription{
-			Message: "commit msg",
-			Author: &batches.GitCommitAuthor{
-				Name:  "Tester",
-				Email: "tester@example.com",
-			},
-		},
-		Published: parsePublishedFieldString(t, "false"),
-	}
-
-	srcCLIRepo := &graphql.Repository{
-		ID:            "src-cli",
-		Name:          "github.com/sourcegraph/src-cli",
-		DefaultBranch: &graphql.Branch{Name: "main", Target: graphql.Target{OID: "d34db33f"}},
-	}
-
-	srcCLITask := &Task{Repository: srcCLIRepo}
-
-	sourcegraphRepo := &graphql.Repository{
-		ID:   "sourcegraph",
-		Name: "github.com/sourcegraph/sourcegraph",
-		DefaultBranch: &graphql.Branch{
-			Name:   "main",
-			Target: graphql.Target{OID: "f00b4r3r"},
-		},
-	}
-
-	sourcegraphTask := &Task{Repository: sourcegraphRepo}
+	srcCLITask := &Task{Repository: testRepo1}
+	sourcegraphTask := &Task{Repository: testRepo2}
 
 	buildSpecFor := func(repo *graphql.Repository, modify func(*batches.ChangesetSpec)) *batches.ChangesetSpec {
 		spec := &batches.ChangesetSpec{
@@ -58,14 +28,14 @@ func TestCoordinator_Execute(t *testing.T) {
 				BaseRef:        repo.BaseRef(),
 				BaseRev:        repo.Rev(),
 				HeadRepository: repo.ID,
-				HeadRef:        "refs/heads/" + template.Branch,
-				Title:          template.Title,
-				Body:           template.Body,
+				HeadRef:        "refs/heads/" + testChangesetTemplate.Branch,
+				Title:          testChangesetTemplate.Title,
+				Body:           testChangesetTemplate.Body,
 				Commits: []batches.GitCommitDescription{
 					{
-						Message:     template.Commit.Message,
-						AuthorName:  template.Commit.Author.Name,
-						AuthorEmail: template.Commit.Author.Email,
+						Message:     testChangesetTemplate.Commit.Message,
+						AuthorName:  testChangesetTemplate.Commit.Author.Name,
+						AuthorEmail: testChangesetTemplate.Commit.Author.Email,
 						Diff:        `dummydiff1`,
 					},
 				},
@@ -98,7 +68,7 @@ func TestCoordinator_Execute(t *testing.T) {
 			batchSpec: &batches.BatchSpec{
 				Name:              "my-batch-change",
 				Description:       "the description",
-				ChangesetTemplate: template,
+				ChangesetTemplate: testChangesetTemplate,
 			},
 
 			executor: &dummyExecutor{
@@ -110,10 +80,10 @@ func TestCoordinator_Execute(t *testing.T) {
 
 			wantCacheEntries: 2,
 			wantSpecs: []*batches.ChangesetSpec{
-				buildSpecFor(srcCLIRepo, func(spec *batches.ChangesetSpec) {
+				buildSpecFor(testRepo1, func(spec *batches.ChangesetSpec) {
 					spec.CreatedChangeset.Commits[0].Diff = `dummydiff1`
 				}),
-				buildSpecFor(sourcegraphRepo, func(spec *batches.ChangesetSpec) {
+				buildSpecFor(testRepo2, func(spec *batches.ChangesetSpec) {
 					spec.CreatedChangeset.Commits[0].Diff = `dummydiff2`
 				}),
 			},
@@ -176,7 +146,7 @@ func TestCoordinator_Execute(t *testing.T) {
 
 			wantCacheEntries: 1,
 			wantSpecs: []*batches.ChangesetSpec{
-				buildSpecFor(srcCLIRepo, func(spec *batches.ChangesetSpec) {
+				buildSpecFor(testRepo1, func(spec *batches.ChangesetSpec) {
 					spec.CreatedChangeset.HeadRef = "refs/heads/templated-branch-myOutputValue1"
 					spec.CreatedChangeset.Title = "output1=myOutputValue1"
 					spec.CreatedChangeset.Body = `output1=myOutputValue1
@@ -208,11 +178,11 @@ func TestCoordinator_Execute(t *testing.T) {
 			tasks: []*Task{srcCLITask, sourcegraphTask},
 
 			batchSpec: &batches.BatchSpec{
-				ChangesetTemplate: template,
+				ChangesetTemplate: testChangesetTemplate,
 				TransformChanges: &batches.TransformChanges{
 					Group: []batches.Group{
 						{Directory: "a/b/c", Branch: "in-directory-c"},
-						{Directory: "a/b", Branch: "in-directory-b", Repository: sourcegraphRepo.Name},
+						{Directory: "a/b", Branch: "in-directory-b", Repository: testRepo2.Name},
 					},
 				},
 			},
@@ -228,20 +198,20 @@ func TestCoordinator_Execute(t *testing.T) {
 			// since we cache per Task, not per resulting changeset spec.
 			wantCacheEntries: 2,
 			wantSpecs: []*batches.ChangesetSpec{
-				buildSpecFor(srcCLIRepo, func(spec *batches.ChangesetSpec) {
-					spec.CreatedChangeset.HeadRef = "refs/heads/" + template.Branch
+				buildSpecFor(testRepo1, func(spec *batches.ChangesetSpec) {
+					spec.CreatedChangeset.HeadRef = "refs/heads/" + testChangesetTemplate.Branch
 					spec.CreatedChangeset.Commits[0].Diff = nestedChangesDiffSubdirA + nestedChangesDiffSubdirB
 				}),
-				buildSpecFor(sourcegraphRepo, func(spec *batches.ChangesetSpec) {
+				buildSpecFor(testRepo2, func(spec *batches.ChangesetSpec) {
 					spec.CreatedChangeset.HeadRef = "refs/heads/in-directory-b"
 					spec.CreatedChangeset.Commits[0].Diff = nestedChangesDiffSubdirB + nestedChangesDiffSubdirC
 				}),
-				buildSpecFor(srcCLIRepo, func(spec *batches.ChangesetSpec) {
+				buildSpecFor(testRepo1, func(spec *batches.ChangesetSpec) {
 					spec.CreatedChangeset.HeadRef = "refs/heads/in-directory-c"
 					spec.CreatedChangeset.Commits[0].Diff = nestedChangesDiffSubdirC
 				}),
-				buildSpecFor(sourcegraphRepo, func(spec *batches.ChangesetSpec) {
-					spec.CreatedChangeset.HeadRef = "refs/heads/" + template.Branch
+				buildSpecFor(testRepo2, func(spec *batches.ChangesetSpec) {
+					spec.CreatedChangeset.HeadRef = "refs/heads/" + testChangesetTemplate.Branch
 					spec.CreatedChangeset.Commits[0].Diff = nestedChangesDiffSubdirA
 				}),
 			},
@@ -255,7 +225,7 @@ func TestCoordinator_Execute(t *testing.T) {
 			batchSpec: &batches.BatchSpec{
 				Name:              "my-batch-change",
 				Description:       "the description",
-				ChangesetTemplate: template,
+				ChangesetTemplate: testChangesetTemplate,
 			},
 
 			// Execution succeeded in srcCLIRepo, but fails in sourcegraphRepo
@@ -276,7 +246,7 @@ func TestCoordinator_Execute(t *testing.T) {
 			// We want 1 cache entry and 1 spec
 			wantCacheEntries: 1,
 			wantSpecs: []*batches.ChangesetSpec{
-				buildSpecFor(srcCLIRepo, func(spec *batches.ChangesetSpec) {
+				buildSpecFor(testRepo1, func(spec *batches.ChangesetSpec) {
 					spec.CreatedChangeset.Commits[0].Diff = `dummydiff1`
 				}),
 			},
@@ -378,13 +348,67 @@ func TestCoordinator_Execute(t *testing.T) {
 		})
 	}
 }
+func TestCoordinator_Execute_StepCaching(t *testing.T) {
+	ctx := context.Background()
+
+	// Dummy BatchSpec
+	batchSpec := &batches.BatchSpec{ChangesetTemplate: testChangesetTemplate}
+	// Dummy dependencies
+	logManager := log.NewManager(createTestTempDir(t), false)
+	cache := newInMemoryExecutionCache()
+	noopPrinter := func([]*TaskStatus) {}
+
+	task := &Task{
+		Repository:            testRepo1,
+		BatchChangeAttributes: &BatchChangeAttributes{},
+		Steps: []batches.Step{
+			{Run: `echo "one"`},
+			{Run: `echo "two"`},
+		},
+	}
+
+	executor := &dummyExecutor{
+		results: []taskResult{
+			{task: task, result: executionResult{Diff: `dummydiff1`}},
+		},
+	}
+
+	coord := Coordinator{
+		cache:      cache,
+		exec:       executor,
+		logManager: logManager,
+		opts:       NewCoordinatorOpts{},
+	}
+
+	executor.startCallback = func(c context.Context, tasks []*Task, tsh taskStatusHandler) {
+		for _, task := range tasks {
+			if task.CachedResultFound {
+				t.Fatalf("cachedresultfound")
+			}
+		}
+	}
+
+	specs, _, err := coord.Execute(ctx, []*Task{task}, batchSpec, noopPrinter)
+	if err != nil {
+		t.Fatalf("execution failed: %s", err)
+	}
+
+	if len(specs) != 1 {
+		t.Fatalf("something's wrong")
+	}
+}
 
 type dummyExecutor struct {
+	startCallback func(context.Context, []*Task, taskStatusHandler)
+
 	results []taskResult
 	waitErr error
 }
 
-func (d *dummyExecutor) Start(context.Context, []*Task, taskStatusHandler) {
+func (d *dummyExecutor) Start(ctx context.Context, ts []*Task, status taskStatusHandler) {
+	if d.startCallback != nil {
+		d.startCallback(ctx, ts, status)
+	}
 	// "noop noop noop", the crowd screams
 }
 
@@ -394,13 +418,13 @@ func (d *dummyExecutor) Wait(context.Context) ([]taskResult, error) {
 
 // inMemoryExecutionCache provides an in-memory cache for testing purposes.
 type inMemoryExecutionCache struct {
-	cache map[string]executionResult
+	cache map[string]interface{}
 	mu    sync.RWMutex
 }
 
 func newInMemoryExecutionCache() *inMemoryExecutionCache {
 	return &inMemoryExecutionCache{
-		cache: make(map[string]executionResult),
+		cache: make(map[string]interface{}),
 	}
 }
 
@@ -411,7 +435,7 @@ func (c *inMemoryExecutionCache) size() int {
 	return len(c.cache)
 }
 
-func (c *inMemoryExecutionCache) Get(ctx context.Context, key CacheKeyer) (executionResult, bool, error) {
+func (c *inMemoryExecutionCache) getCacheItem(key CacheKeyer) (interface{}, bool, error) {
 	k, err := key.Key()
 	if err != nil {
 		return executionResult{}, false, err
@@ -420,13 +444,44 @@ func (c *inMemoryExecutionCache) Get(ctx context.Context, key CacheKeyer) (execu
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
-	if res, ok := c.cache[k]; ok {
-		return res, true, nil
+	res, ok := c.cache[k]
+	return res, ok, nil
+}
+
+func (c *inMemoryExecutionCache) Get(ctx context.Context, key CacheKeyer) (executionResult, bool, error) {
+	res, ok, err := c.getCacheItem(key)
+	if err != nil || !ok {
+		return executionResult{}, ok, err
 	}
-	return executionResult{}, false, nil
+
+	execResult, ok := res.(executionResult)
+	return execResult, ok, nil
 }
 
 func (c *inMemoryExecutionCache) Set(ctx context.Context, key CacheKeyer, result executionResult) error {
+	k, err := key.Key()
+	if err != nil {
+		return err
+	}
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.cache[k] = result
+	return nil
+}
+
+func (c *inMemoryExecutionCache) GetStepResult(ctx context.Context, key CacheKeyer) (stepExecutionResult, bool, error) {
+	res, ok, err := c.getCacheItem(key)
+	if err != nil || !ok {
+		return stepExecutionResult{}, ok, err
+	}
+
+	execResult, ok := res.(stepExecutionResult)
+	return execResult, ok, nil
+}
+
+func (c *inMemoryExecutionCache) SetStepResult(ctx context.Context, key CacheKeyer, result stepExecutionResult) error {
 	k, err := key.Key()
 	if err != nil {
 		return err
@@ -483,3 +538,13 @@ index 7f96c22..43df362 100644
 `
 
 const nestedChangesDiff = nestedChangesDiffSubdirA + nestedChangesDiffSubdirB + nestedChangesDiffSubdirC
+
+func createTestTempDir(t *testing.T) string {
+	testTempDir, err := ioutil.TempDir("", "executor-test-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.Remove(testTempDir) })
+
+	return testTempDir
+}

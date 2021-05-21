@@ -41,23 +41,6 @@ func (t *Task) ArchivePathToFetch() string {
 	return ""
 }
 
-func (t *Task) cacheKey() ExecutionCacheKey {
-	return ExecutionCacheKey{t}
-}
-
-// TODO: This is hacky, because we only do this to get an ExecutionCacheKey
-func (t *Task) cacheKeyForSteps(i int) ExecutionCacheKey {
-	taskCopy := &Task{
-		Repository:            t.Repository,
-		Path:                  t.Path,
-		OnlyFetchWorkspace:    t.OnlyFetchWorkspace,
-		BatchChangeAttributes: t.BatchChangeAttributes,
-		Template:              t.Template,
-		TransformChanges:      t.TransformChanges,
-		Archive:               t.Archive,
-	}
-
-	taskCopy.Steps = t.Steps[0 : i+1]
-
-	return ExecutionCacheKey{taskCopy}
+func (t *Task) cacheKey() TaskCacheKey {
+	return TaskCacheKey{t}
 }

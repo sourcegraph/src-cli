@@ -149,8 +149,7 @@ func (c *Coordinator) cacheAndBuildSpec(ctx context.Context, taskResult taskResu
 	// Save the per-step results
 	if stepCache, ok := c.cache.(StepWiseExecutionCache); ok {
 		for _, stepResult := range taskResult.stepResults {
-			key := taskResult.task.cacheKeyForSteps(stepResult.Step)
-
+			key := StepsCacheKey{Task: taskResult.task, StepIndex: stepResult.Step}
 			if err := stepCache.SetStepResult(ctx, key, stepResult); err != nil {
 				return nil, errors.Wrapf(err, "caching result for %q", taskResult.task.Repository.Name)
 			}
@@ -212,18 +211,15 @@ func (c *Coordinator) Execute(ctx context.Context, tasks []*Task, spec *batches.
 			}
 		}()
 	}
-	// ----------------------------------------------------------------------------
-	// EXPERIMENT STARTS HERE
-	// vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+
 	// If we are here, that means we didn't find anything in the cache for the
 	// complete task. So, what if we have cached results for the steps?
 	if stepCache, ok := c.cache.(StepWiseExecutionCache); ok {
 		for _, t := range tasks {
 			// We start at the back, because the steps depend on each other
 			for i := len(t.Steps) - 1; i > 0; i-- {
-				key := t.cacheKeyForSteps(i)
-
-				result, found, err := stepCache.GetStepResult(ctx, key, i)
+				key := StepsCacheKey{Task: t, StepIndex: i}
+				result, found, err := stepCache.GetStepResult(ctx, key)
 				if err != nil {
 					return nil, nil, errors.Wrapf(err, "checking for cached diff for step %d", i)
 				}
@@ -236,9 +232,6 @@ func (c *Coordinator) Execute(ctx context.Context, tasks []*Task, spec *batches.
 			}
 		}
 	}
-	// ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-	// EXPERIMENT ENDS HERE
-	// ----------------------------------------------------------------------------
 
 	// Run executor
 	c.exec.Start(ctx, tasks, status)
