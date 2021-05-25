@@ -236,7 +236,28 @@ func (c ExecutionDiskCache) Clear(ctx context.Context, key CacheKeyer) error {
 	return os.Remove(path)
 }
 
-// ExecutionNoOpCache is an implementation of actionExecutionCache that does not store or
+func (c ExecutionDiskCache) GetStepResult(ctx context.Context, key CacheKeyer) (stepExecutionResult, bool, error) {
+	var result stepExecutionResult
+	path, err := c.cacheFilePath(key)
+	if err != nil {
+		return result, false, err
+	}
+
+	found, err := c.readCacheFile(path, &result)
+
+	return result, found, nil
+}
+
+func (c ExecutionDiskCache) SetStepResult(ctx context.Context, key CacheKeyer, result stepExecutionResult) error {
+	path, err := c.cacheFilePath(key)
+	if err != nil {
+		return err
+	}
+
+	return c.writeCacheFile(path, &result)
+}
+
+// ExecutionNoOpCache is an implementation of ExecutionCache that does not store or
 // retrieve cache entries.
 type ExecutionNoOpCache struct{}
 
@@ -258,35 +279,4 @@ func (ExecutionNoOpCache) SetStepResult(ctx context.Context, key CacheKeyer, res
 
 func (ExecutionNoOpCache) GetStepResult(ctx context.Context, key CacheKeyer) (stepExecutionResult, bool, error) {
 	return stepExecutionResult{}, false, nil
-}
-
-// ----------------------------------------------------------------------------
-// EXPERIMENT STARTS HERE
-// ----------------------------------------------------------------------------
-
-type StepWiseExecutionCache interface {
-	ExecutionCache
-}
-
-var _ StepWiseExecutionCache = ExecutionDiskCache{}
-
-func (c ExecutionDiskCache) GetStepResult(ctx context.Context, key CacheKeyer) (stepExecutionResult, bool, error) {
-	var result stepExecutionResult
-	path, err := c.cacheFilePath(key)
-	if err != nil {
-		return result, false, err
-	}
-
-	found, err := c.readCacheFile(path, &result)
-
-	return result, found, nil
-}
-
-func (c ExecutionDiskCache) SetStepResult(ctx context.Context, key CacheKeyer, result stepExecutionResult) error {
-	path, err := c.cacheFilePath(key)
-	if err != nil {
-		return err
-	}
-
-	return c.writeCacheFile(path, &result)
 }
