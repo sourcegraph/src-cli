@@ -28,7 +28,7 @@ type Coordinator struct {
 
 	cache      ExecutionCache
 	exec       taskExecutor
-	logManager *log.Manager
+	logManager log.LogManager
 }
 
 type repoNameResolver func(ctx context.Context, name string) (*graphql.Repository, error)
@@ -217,8 +217,9 @@ func (c *Coordinator) Execute(ctx context.Context, tasks []*Task, spec *batches.
 	if stepCache, ok := c.cache.(StepWiseExecutionCache); ok {
 		for _, t := range tasks {
 			// We start at the back, because the steps depend on each other
-			for i := len(t.Steps) - 1; i > 0; i-- {
+			for i := len(t.Steps) - 1; i > -1; i-- {
 				key := StepsCacheKey{Task: t, StepIndex: i}
+
 				result, found, err := stepCache.GetStepResult(ctx, key)
 				if err != nil {
 					return nil, nil, errors.Wrapf(err, "checking for cached diff for step %d", i)

@@ -3,8 +3,6 @@ package executor
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
-	"os"
 	"strings"
 	"sync"
 	"testing"
@@ -14,7 +12,7 @@ import (
 	"github.com/sourcegraph/src-cli/internal/batches"
 	"github.com/sourcegraph/src-cli/internal/batches/git"
 	"github.com/sourcegraph/src-cli/internal/batches/graphql"
-	"github.com/sourcegraph/src-cli/internal/batches/log"
+	"github.com/sourcegraph/src-cli/internal/batches/mock"
 )
 
 func TestCoordinator_Execute(t *testing.T) {
@@ -267,13 +265,7 @@ func TestCoordinator_Execute(t *testing.T) {
 				}
 			}
 
-			testTempDir, err := ioutil.TempDir("", "executor-integration-test-*")
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer os.Remove(testTempDir)
-
-			logManager := log.NewManager(testTempDir, false)
+			logManager := mock.NoopLogManager{}
 
 			cache := newInMemoryExecutionCache()
 			noopPrinter := func([]*TaskStatus) {}
@@ -349,65 +341,149 @@ func TestCoordinator_Execute(t *testing.T) {
 	}
 }
 func TestCoordinator_Execute_StepCaching(t *testing.T) {
-	ctx := context.Background()
-
-	// Dummy BatchSpec
-	batchSpec := &batches.BatchSpec{ChangesetTemplate: testChangesetTemplate}
-	// Dummy dependencies
-	logManager := log.NewManager(createTestTempDir(t), false)
 	cache := newInMemoryExecutionCache()
-	noopPrinter := func([]*TaskStatus) {}
 
 	task := &Task{
-		Repository:            testRepo1,
-		BatchChangeAttributes: &BatchChangeAttributes{},
 		Steps: []batches.Step{
 			{Run: `echo "one"`},
 			{Run: `echo "two"`},
+			{Run: `echo "three"`},
 		},
+		Repository:            testRepo1,
+		BatchChangeAttributes: &BatchChangeAttributes{},
 	}
 
-	executor := &dummyExecutor{
-		results: []taskResult{
-			{task: task, result: executionResult{Diff: `dummydiff1`}},
+	executor := &dummyExecutor{}
+
+	executor.results = []taskResult{{
+		task: task,
+		result: executionResult{
+			Diff:         "dummydiff",
+			ChangedFiles: &git.Changes{},
+			Outputs:      map[string]interface{}{},
+			Path:         "",
 		},
-	}
+		stepResults: []stepExecutionResult{
+			{Step: 0, Diff: []byte(`step-0-diff`)},
+			{Step: 1, Diff: []byte(`step-1-diff`)},
+			{Step: 2, Diff: []byte(`step-2-diff`)},
+		},
+	}}
 
-	coord := Coordinator{
-		cache:      cache,
-		exec:       executor,
-		logManager: logManager,
-		opts:       NewCoordinatorOpts{},
-	}
+	// First execution. Make sure that the Task executes all steps.
+	execAndEnsure(t, cache, executor, task, assertNoCachedResult(t))
+	// We now expect the cache to have 1+N entries: 1 for the complete task, N
+	// for the steps.
+	assertCacheSize(t, cache, len(task.Steps)+1)
 
-	executor.startCallback = func(c context.Context, tasks []*Task, tsh taskStatusHandler) {
-		for _, task := range tasks {
-			if task.CachedResultFound {
-				t.Fatalf("cachedresultfound")
-			}
-		}
-	}
+	// Change the 2nd step's definition:
+	task.Steps[1].Run = `echo "two modified"`
+	// Re-execution should start with steps[0] in as start diff
+	execAndEnsure(t, cache, executor, task, assertCachedResultForStep(t, 0))
+	// Cache now contains old entries, plus another "complete task" entry and
+	// entries for newly executed steps
+	assertCacheSize(t, cache, (len(task.Steps) + 1 + 1 + 2))
 
-	specs, _, err := coord.Execute(ctx, []*Task{task}, batchSpec, noopPrinter)
+	// Change the 3rd step's definition:
+	task.Steps[2].Run = `echo "three modified"`
+	// Re-execution should start with steps[1] in as start diff
+	execAndEnsure(t, cache, executor, task, assertCachedResultForStep(t, 1))
+	// Cache now contains old entries, plus another "complete task" entry and
+	// a single new step entry
+	assertCacheSize(t, cache, (len(task.Steps) + 1 + 1 + 2 + 1 + 1))
+}
+
+// execAndEnsure executes the given Task with the given cache and dummyExecutor
+// in a new Coordinator, setting cb as the startCallback on the executor.
+func execAndEnsure(t *testing.T, cache ExecutionCache, exec *dummyExecutor, task *Task, cb startCallback) {
+	t.Helper()
+
+	// Setup dependencies
+	batchSpec := &batches.BatchSpec{ChangesetTemplate: testChangesetTemplate}
+	logManager := mock.NoopLogManager{}
+	noopPrinter := func([]*TaskStatus) {}
+
+	// Build Coordinator
+	coord := &Coordinator{cache: cache, exec: exec, logManager: logManager}
+
+	// Set the ChangesetTemplate on Task
+	task.Template = batchSpec.ChangesetTemplate
+
+	// Setup the callback
+	exec.startCb = cb
+
+	// Execute
+	specs, _, err := coord.Execute(context.Background(), []*Task{task}, batchSpec, noopPrinter)
 	if err != nil {
-		t.Fatalf("execution failed: %s", err)
+		t.Fatalf("execution of task failed: %s", err)
 	}
 
-	if len(specs) != 1 {
-		t.Fatalf("something's wrong")
+	// Sanity check, because we're not interesting in the specs
+	if have, want := len(specs), 1; have != want {
+		t.Fatalf("Wrong number of specs. want=%d, have=%d", want, have)
+	}
+
+	// Ensure callback was called
+	if !exec.startCbCalled {
+		t.Fatalf("expected the startCallback to be called, but was not")
+	}
+	exec.startCbCalled = false
+}
+
+// assertCacheSize asserts the cache's size.
+func assertCacheSize(t *testing.T, cache *inMemoryExecutionCache, want int) {
+	t.Helper()
+
+	if have := cache.size(); have != want {
+		t.Fatalf("wrong cache size. have=%d, want=%d", have, want)
 	}
 }
 
+// assertCachedResultForStep returns a function that can be used as a
+// startCallback on dummyExecutor to assert that the first Task has a cached
+// result for the given step.
+func assertCachedResultForStep(t *testing.T, step int) func(context.Context, []*Task, taskStatusHandler) {
+	return func(c context.Context, tasks []*Task, tsh taskStatusHandler) {
+		t.Helper()
+
+		task := tasks[0]
+		if !task.CachedResultFound {
+			t.Fatalf("CachedResultFound not set")
+		}
+
+		if have, want := task.CachedResult.Step, step; have != want {
+			t.Fatalf("CachedResult.Step wrong. have=%d, want=%d", have, want)
+		}
+	}
+}
+
+// expectCachedResultForStep returns a function that can be used as a
+// startCallback on dummyExecutor to assert that the first Task has no cached results.
+func assertNoCachedResult(t *testing.T) func(context.Context, []*Task, taskStatusHandler) {
+	return func(c context.Context, tasks []*Task, tsh taskStatusHandler) {
+		t.Helper()
+
+		task := tasks[0]
+		if task.CachedResultFound {
+			t.Fatalf("CachedResultFound but not expected")
+		}
+	}
+}
+
+type startCallback func(context.Context, []*Task, taskStatusHandler)
+
 type dummyExecutor struct {
-	startCallback func(context.Context, []*Task, taskStatusHandler)
+	startCb       startCallback
+	startCbCalled bool
 
 	results []taskResult
 	waitErr error
 }
 
 func (d *dummyExecutor) Start(ctx context.Context, ts []*Task, status taskStatusHandler) {
-	if d.startCallback != nil {
-		d.startCallback(ctx, ts, status)
+	if d.startCb != nil {
+		d.startCb(ctx, ts, status)
+		d.startCbCalled = true
 	}
 	// "noop noop noop", the crowd screams
 }
@@ -538,13 +614,3 @@ index 7f96c22..43df362 100644
 `
 
 const nestedChangesDiff = nestedChangesDiffSubdirA + nestedChangesDiffSubdirB + nestedChangesDiffSubdirC
-
-func createTestTempDir(t *testing.T) string {
-	testTempDir, err := ioutil.TempDir("", "executor-test-*")
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { os.Remove(testTempDir) })
-
-	return testTempDir
-}

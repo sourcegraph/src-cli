@@ -51,7 +51,7 @@ type newExecutorOpts struct {
 	// Dependencies
 	Creator workspace.Creator
 	Fetcher batches.RepoFetcher
-	Logger  *log.Manager
+	Logger  log.LogManager
 
 	// Config
 	AutoAuthorDetails bool

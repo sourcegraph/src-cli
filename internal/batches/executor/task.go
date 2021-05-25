@@ -27,9 +27,6 @@ type Task struct {
 
 	Archive batches.RepoZip `json:"-"`
 
-	// ----------------------------------------------------------------------------
-	// EXPERIMENT STARTS HERE
-	// vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 	CachedResultFound bool                `json:"-"`
 	CachedResult      stepExecutionResult `json:"-"`
 }

@@ -17,7 +17,6 @@ import (
 	"github.com/sourcegraph/go-diff/diff"
 	"github.com/sourcegraph/src-cli/internal/api"
 	"github.com/sourcegraph/src-cli/internal/batches"
-	"github.com/sourcegraph/src-cli/internal/batches/log"
 	"github.com/sourcegraph/src-cli/internal/batches/mock"
 	"github.com/sourcegraph/src-cli/internal/batches/workspace"
 )
@@ -328,7 +327,7 @@ func TestExecutor_Integration(t *testing.T) {
 			opts := newExecutorOpts{
 				Creator: workspace.NewCreator(context.Background(), "bind", testTempDir, testTempDir, []batches.Step{}),
 				Fetcher: batches.NewRepoFetcher(client, testTempDir, false),
-				Logger:  log.NewManager(testTempDir, false),
+				Logger:  mock.NoopLogManager{},
 
 				TempDir:     testTempDir,
 				Parallelism: runtime.GOMAXPROCS(0),

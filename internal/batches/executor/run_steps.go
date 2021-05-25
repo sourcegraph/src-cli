@@ -67,7 +67,7 @@ type executionOpts struct {
 
 	tempDir string
 
-	logger         *log.TaskLogger
+	logger         log.TaskLogger
 	reportProgress func(string)
 
 	// cachedResultFound determines whether all steps are executed or only
