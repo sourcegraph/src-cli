@@ -250,6 +250,9 @@ func (w *dockerVolumeWorkspace) Diff(ctx context.Context) ([]byte, error) {
 	// See: https://github.com/sourcegraph/sourcegraph/blob/82d5e7e1562fef6be5c0b17f18631040fd330835/enterprise/internal/campaigns/service.go#L324-L329
 	//
 	// Also, we need to add --binary so binary file changes are inlined in the patch.
+	//
+	// ATTENTION: When you change the options here, be sure to also update the
+	// ApplyDiff method accordingly.
 	script := `#!/bin/sh
 	
 exec git diff --cached --no-prefix --binary
