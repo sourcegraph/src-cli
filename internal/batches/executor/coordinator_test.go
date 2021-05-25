@@ -340,6 +340,7 @@ func TestCoordinator_Execute(t *testing.T) {
 		})
 	}
 }
+
 func TestCoordinator_Execute_StepCaching(t *testing.T) {
 	cache := newInMemoryExecutionCache()
 
@@ -354,7 +355,6 @@ func TestCoordinator_Execute_StepCaching(t *testing.T) {
 	}
 
 	executor := &dummyExecutor{}
-
 	executor.results = []taskResult{{
 		task: task,
 		result: executionResult{
