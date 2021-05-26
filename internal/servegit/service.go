@@ -1,6 +1,7 @@
 package servegit
 
 import (
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -96,7 +97,9 @@ func (s *gitServiceHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	cmd.Stdout = w
 	cmd.Stdin = body
 	if err := cmd.Run(); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		msg := fmt.Sprintf("error running git service command args=%q: %s", args, err.Error())
+		s.Debug.Println(msg)
+		_, _ = w.Write([]byte("\n" + msg + "\n"))
 	}
 }
 
