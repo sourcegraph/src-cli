@@ -148,9 +148,9 @@ func (c *Coordinator) cacheAndBuildSpec(ctx context.Context, taskResult taskResu
 
 	// Save the per-step results
 	for _, stepResult := range taskResult.stepResults {
-		key := StepsCacheKey{Task: taskResult.task, StepIndex: stepResult.Step}
+		key := StepsCacheKey{Task: taskResult.task, StepIndex: stepResult.StepIndex}
 		if err := c.cache.SetStepResult(ctx, key, stepResult); err != nil {
-			return nil, errors.Wrapf(err, "caching result for step %d in %q", stepResult.Step, taskResult.task.Repository.Name)
+			return nil, errors.Wrapf(err, "caching result for step %d in %q", stepResult.StepIndex, taskResult.task.Repository.Name)
 		}
 	}
 

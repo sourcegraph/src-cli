@@ -63,7 +63,7 @@ func marshalHash(t *Task, envs []map[string]string) (string, error) {
 	return base64.RawURLEncoding.EncodeToString(hash[:16]), nil
 }
 
-// StepsCachekey implements the CacheKeyer interface for a Task and a *subset*
+// StepsCacheKey implements the CacheKeyer interface for a Task and a *subset*
 // of its Steps, up to and including the step with index StepIndex in
 // Task.Steps.
 type StepsCacheKey struct {

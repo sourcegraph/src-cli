@@ -7,28 +7,28 @@ import (
 	"github.com/sourcegraph/src-cli/internal/batches/log"
 )
 
-var _ log.TaskLogger = NoopTaskLogger{}
+var _ log.TaskLogger = TaskNoOpLogger{}
 
-type NoopTaskLogger struct{}
+type TaskNoOpLogger struct{}
 
-func (tl NoopTaskLogger) Close() error                         { return nil }
-func (tl NoopTaskLogger) Log(string)                           {}
-func (tl NoopTaskLogger) Logf(string, ...interface{})          {}
-func (tl NoopTaskLogger) MarkErrored()                         {}
-func (tl NoopTaskLogger) Path() string                         { return "" }
-func (tl NoopTaskLogger) PrefixWriter(prefix string) io.Writer { return &bytes.Buffer{} }
+func (tl TaskNoOpLogger) Close() error                         { return nil }
+func (tl TaskNoOpLogger) Log(string)                           {}
+func (tl TaskNoOpLogger) Logf(string, ...interface{})          {}
+func (tl TaskNoOpLogger) MarkErrored()                         {}
+func (tl TaskNoOpLogger) Path() string                         { return "" }
+func (tl TaskNoOpLogger) PrefixWriter(prefix string) io.Writer { return &bytes.Buffer{} }
 
-var _ log.LogManager = NoopLogManager{}
+var _ log.LogManager = LogNoOpManager{}
 
-type NoopLogManager struct{}
+type LogNoOpManager struct{}
 
-func (lm NoopLogManager) AddTask(string) (log.TaskLogger, error) {
-	return NoopTaskLogger{}, nil
+func (lm LogNoOpManager) AddTask(string) (log.TaskLogger, error) {
+	return TaskNoOpLogger{}, nil
 }
 
-func (lm NoopLogManager) Close() error {
+func (lm LogNoOpManager) Close() error {
 	return nil
 }
-func (lm NoopLogManager) LogFiles() []string {
+func (lm LogNoOpManager) LogFiles() []string {
 	return []string{"noop"}
 }

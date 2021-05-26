@@ -327,7 +327,7 @@ func TestExecutor_Integration(t *testing.T) {
 			opts := newExecutorOpts{
 				Creator: workspace.NewCreator(context.Background(), "bind", testTempDir, testTempDir, []batches.Step{}),
 				Fetcher: batches.NewRepoFetcher(client, testTempDir, false),
-				Logger:  mock.NoopLogManager{},
+				Logger:  mock.LogNoOpManager{},
 
 				TempDir:     testTempDir,
 				Parallelism: runtime.GOMAXPROCS(0),

@@ -25,11 +25,9 @@ import (
 
 // stepExecutionResult is the executionResult after executing the step with the
 // given index in task.Steps.
-// TODO: The naming here kinda clashes with StepResult, which is used for
-// templating.
 type stepExecutionResult struct {
-	// Step is the index of the step in task.Steps
-	Step int `json:"step"`
+	// StepIndex is the index of the step in task.Steps
+	StepIndex int `json:"stepIndex"`
 	// Diff is the cumulative `git diff` after executing the Step.
 	Diff []byte `json:"diff"`
 	// Outputs is a copy of the Outputs after executing the Step.
@@ -102,7 +100,7 @@ func runSteps(ctx context.Context, opts *executionOpts) (result executionResult,
 		// Set the Outputs to the cached outputs
 		execResult.Outputs = opts.cachedResult.Outputs
 
-		startStep = opts.cachedResult.Step + 1
+		startStep = opts.cachedResult.StepIndex + 1
 
 		switch startStep {
 		case 1:
@@ -347,7 +345,7 @@ func runSteps(ctx context.Context, opts *executionOpts) (result executionResult,
 			return execResult, nil, errors.Wrap(err, "getting diff produced by step")
 		}
 		stepResult := stepExecutionResult{
-			Step:               i,
+			StepIndex:          i,
 			Diff:               stepDiff,
 			Outputs:            make(map[string]interface{}),
 			PreviousStepResult: stepContext.PreviousStep,

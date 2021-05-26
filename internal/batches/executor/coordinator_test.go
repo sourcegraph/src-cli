@@ -265,7 +265,7 @@ func TestCoordinator_Execute(t *testing.T) {
 				}
 			}
 
-			logManager := mock.NoopLogManager{}
+			logManager := mock.LogNoOpManager{}
 
 			cache := newInMemoryExecutionCache()
 			noopPrinter := func([]*TaskStatus) {}
@@ -364,9 +364,9 @@ func TestCoordinator_Execute_StepCaching(t *testing.T) {
 			Path:         "",
 		},
 		stepResults: []stepExecutionResult{
-			{Step: 0, Diff: []byte(`step-0-diff`)},
-			{Step: 1, Diff: []byte(`step-1-diff`)},
-			{Step: 2, Diff: []byte(`step-2-diff`)},
+			{StepIndex: 0, Diff: []byte(`step-0-diff`)},
+			{StepIndex: 1, Diff: []byte(`step-1-diff`)},
+			{StepIndex: 2, Diff: []byte(`step-2-diff`)},
 		},
 	}}
 
@@ -404,7 +404,7 @@ func execAndEnsure(t *testing.T, cache ExecutionCache, exec *dummyExecutor, task
 
 	// Setup dependencies
 	batchSpec := &batches.BatchSpec{ChangesetTemplate: testChangesetTemplate}
-	logManager := mock.NoopLogManager{}
+	logManager := mock.LogNoOpManager{}
 	noopPrinter := func([]*TaskStatus) {}
 
 	// Build Coordinator
@@ -455,7 +455,7 @@ func assertCachedResultForStep(t *testing.T, step int) func(context.Context, []*
 			t.Fatalf("CachedResultFound not set")
 		}
 
-		if have, want := task.CachedResult.Step, step; have != want {
+		if have, want := task.CachedResult.StepIndex, step; have != want {
 			t.Fatalf("CachedResult.Step wrong. have=%d, want=%d", have, want)
 		}
 	}
