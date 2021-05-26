@@ -374,23 +374,27 @@ func TestCoordinator_Execute_StepCaching(t *testing.T) {
 	execAndEnsure(t, cache, executor, task, assertNoCachedResult(t))
 	// We now expect the cache to have 1+N entries: 1 for the complete task, N
 	// for the steps.
-	assertCacheSize(t, cache, len(task.Steps)+1)
+	wantCacheSize := len(task.Steps) + 1
+	assertCacheSize(t, cache, wantCacheSize)
 
 	// Change the 2nd step's definition:
 	task.Steps[1].Run = `echo "two modified"`
-	// Re-execution should start with steps[0] in as start diff
+	// Re-execution should start with the diff produced by steps[0] as the
+	// start state from which steps[1] is then re-executed.
 	execAndEnsure(t, cache, executor, task, assertCachedResultForStep(t, 0))
 	// Cache now contains old entries, plus another "complete task" entry and
-	// entries for newly executed steps
-	assertCacheSize(t, cache, (len(task.Steps) + 1 + 1 + 2))
+	// two entries for newly executed steps.
+	wantCacheSize += 1 + 2
+	assertCacheSize(t, cache, wantCacheSize)
 
 	// Change the 3rd step's definition:
 	task.Steps[2].Run = `echo "three modified"`
-	// Re-execution should start with steps[1] in as start diff
+	// Re-execution should use the diff from steps[1] as start state
 	execAndEnsure(t, cache, executor, task, assertCachedResultForStep(t, 1))
 	// Cache now contains old entries, plus another "complete task" entry and
 	// a single new step entry
-	assertCacheSize(t, cache, (len(task.Steps) + 1 + 1 + 2 + 1 + 1))
+	wantCacheSize += 1 + 1
+	assertCacheSize(t, cache, wantCacheSize)
 }
 
 // execAndEnsure executes the given Task with the given cache and dummyExecutor

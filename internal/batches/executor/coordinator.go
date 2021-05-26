@@ -150,7 +150,7 @@ func (c *Coordinator) cacheAndBuildSpec(ctx context.Context, taskResult taskResu
 	for _, stepResult := range taskResult.stepResults {
 		key := StepsCacheKey{Task: taskResult.task, StepIndex: stepResult.Step}
 		if err := c.cache.SetStepResult(ctx, key, stepResult); err != nil {
-			return nil, errors.Wrapf(err, "caching result for %q", taskResult.task.Repository.Name)
+			return nil, errors.Wrapf(err, "caching result for step %d in %q", stepResult.Step, taskResult.task.Repository.Name)
 		}
 	}
 
@@ -213,7 +213,8 @@ func (c *Coordinator) Execute(ctx context.Context, tasks []*Task, spec *batches.
 	// If we are here, that means we didn't find anything in the cache for the
 	// complete task. So, what if we have cached results for the steps?
 	for _, t := range tasks {
-		// We start at the back, because the steps depend on each other
+		// We start at the back so that we can find the _last_ cached step,
+		// then restart execution on the following step.
 		for i := len(t.Steps) - 1; i > -1; i-- {
 			key := StepsCacheKey{Task: t, StepIndex: i}
 
