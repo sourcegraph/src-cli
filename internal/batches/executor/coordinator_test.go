@@ -422,7 +422,7 @@ func execAndEnsure(t *testing.T, cache ExecutionCache, exec *dummyExecutor, task
 		t.Fatalf("execution of task failed: %s", err)
 	}
 
-	// Sanity check, because we're not interesting in the specs
+	// Sanity check, because we're not interested in the specs
 	if have, want := len(specs), 1; have != want {
 		t.Fatalf("Wrong number of specs. want=%d, have=%d", want, have)
 	}
