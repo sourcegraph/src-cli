@@ -26,7 +26,7 @@ go run ./cmd/src
 
 Since `src batch apply` and `src batch preview` start up a TUI that gets updated repeatedly it's nearly impossible to do printf-debugging by printing debug information - the TUI would hide those or overwrite them.
 
-To help with that you can compile your src binary (or run the tests) with the `debug` build flag:
+To help with that, you can compile your src binary (or run the tests) with the `debug` build flag:
 
 ```
 go build -tags debug -o ~/src ./cmd/src
