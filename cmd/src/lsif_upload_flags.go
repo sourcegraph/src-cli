@@ -88,12 +88,12 @@ func parseAndValidateLSIFUploadFlags(args []string) error {
 	}
 
 	// parse the api client flags separately and then populate the lsifUploadFlags struct with the result
-	if err := apiClientFlagSet.Parse(insecureSkipVerifyFlag); err != nil {
-		return err
-	}
 	// we could just use insecureSkipVerify but I'm including everything here because it costs nothing
 	// and maybe we'll use some in the future
 	lsifUploadFlags.apiFlags = api.NewFlags(apiClientFlagSet)
+	if err := apiClientFlagSet.Parse(insecureSkipVerifyFlag); err != nil {
+		return err
+	}
 
 	if inferenceErrors := inferMissingLSIFUploadFlags(); len(inferenceErrors) > 0 {
 		return errorWithHint{

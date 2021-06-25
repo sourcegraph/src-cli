@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"net/url"
 	"os"
 	"strings"
@@ -66,6 +67,7 @@ func handleLSIFUpload(args []string) error {
 	}
 
 	client := api.NewClient(api.ClientOpts{
+		Out:   io.Discard,
 		Flags: lsifUploadFlags.apiFlags,
 	})
 
