@@ -14,6 +14,7 @@ import (
 
 	"github.com/sourcegraph/sourcegraph/lib/codeintel/upload"
 	"github.com/sourcegraph/sourcegraph/lib/output"
+	"github.com/sourcegraph/src-cli/internal/api"
 )
 
 func init() {
@@ -64,7 +65,11 @@ func handleLSIFUpload(args []string) error {
 		return handleLSIFUploadError(nil, err)
 	}
 
-	uploadID, err := upload.UploadIndex(lsifUploadFlags.file, lsifUploadOptions(out))
+	client := api.NewClient(api.ClientOpts{
+		Flags: lsifUploadFlags.apiFlags,
+	})
+
+	uploadID, err := upload.UploadIndex(lsifUploadFlags.file, client, lsifUploadOptions(out))
 	if err != nil {
 		return handleLSIFUploadError(out, err)
 	}
@@ -163,7 +168,7 @@ func lsifUploadOptions(out *output.Output) upload.UploadOptions {
 	}
 }
 
-//printInferredArguments prints a block showing the effective values of flags that are
+// printInferredArguments prints a block showing the effective values of flags that are
 // inferrably defined. This function is called on all paths except for -json uploads. This
 // function no-ops if the given output object is nil.
 func printInferredArguments(out *output.Output) {
