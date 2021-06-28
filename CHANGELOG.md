@@ -17,7 +17,7 @@ All notable changes to `src-cli` are documented in this file.
 
 ### Fixed
 
-- Various terminal handling fixes, especially for Batch Changes users with regards to resizing terminals and Windows support. []()
+- Various terminal handling fixes, especially for Batch Changes users with regards to resizing terminals and Windows support. [#560](https://github.com/sourcegraph/src-cli/pull/560)
 
 ### Removed
 
