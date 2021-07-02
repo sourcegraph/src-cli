@@ -3,6 +3,8 @@ package main
 import (
 	"flag"
 	"fmt"
+
+	"github.com/sourcegraph/src-cli/internal/exec"
 )
 
 func init() {
@@ -16,8 +18,19 @@ USAGE
 	}
 
 	handler := func(args []string) error {
-		return flagSet.Parse(args)
+		err := flagSet.Parse(args)
+		if err != nil {
+			return err
+		}
+		cmd := exec.Command("kubectl", "get", "events")
+		stdout, err := cmd.Output()
+		if err != nil {
+			return err
+		}
+		fmt.Print(string(stdout))
+		return nil
 	}
+
 	// Register the command.
 	commands = append(commands, &command{
 		aliases:   []string{"debug-dump"},
