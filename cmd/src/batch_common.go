@@ -448,26 +448,23 @@ func textOnlyExecuteBatchSpec(ctx context.Context, opts executeBatchSpecOpts) er
 	if err != nil {
 		return err
 	}
-	fmt.Println("Parsing batch spec")
+	fmt.Println("Parsing batch spec DONE")
 
 	fmt.Println("Resolving namespace")
 	namespace, err := svc.ResolveNamespace(ctx, opts.flags.namespace)
 	if err != nil {
 		return err
 	}
-	fmt.Println("Resolving namespace")
+	fmt.Println("Resolving namespace DONE")
 
-	imageProgress := opts.out.Progress([]output.ProgressBar{{
-		Label: "Preparing container images",
-		Max:   1.0,
-	}}, nil)
+	fmt.Println("Preparing Docker images")
 	err = svc.SetDockerImages(ctx, batchSpec, func(perc float64) {
-		imageProgress.SetValue(0, perc)
+		fmt.Printf("Preparing Docker images: %f\n", perc)
 	})
 	if err != nil {
 		return err
 	}
-	imageProgress.Complete()
+	fmt.Println("Preparing Docker images DONE")
 
 	fmt.Println("Determining workspace type")
 	workspaceCreator := workspace.NewCreator(ctx, opts.flags.workspace, opts.flags.cacheDir, opts.flags.tempDir, batchSpec.Steps)
@@ -478,7 +475,7 @@ func textOnlyExecuteBatchSpec(ctx context.Context, opts executeBatchSpecOpts) er
 		}
 	}
 
-	fmt.Println("Set workspace type")
+	fmt.Println("Determined workspace type")
 
 	fmt.Println("Resolving repositories")
 	repos, err := svc.ResolveRepositories(ctx, batchSpec)
@@ -546,26 +543,24 @@ func textOnlyExecuteBatchSpec(ctx context.Context, opts executeBatchSpecOpts) er
 		fmt.Println(fmt.Sprintf("%s; %d tasks need to be executed", specsFoundMessage, len(uncachedTasks)))
 	}
 
-	p := newBatchProgressPrinter(opts.out, *verbose, opts.flags.parallelism)
-	freshSpecs, logFiles, err := coord.Execute(ctx, uncachedTasks, batchSpec, p.PrintStatuses)
+	// p := newBatchProgressPrinter(opts.out, *verbose, opts.flags.parallelism)
+	fmt.Println("Executing tasks")
+	freshSpecs, logFiles, err := coord.Execute(ctx, uncachedTasks, batchSpec, func(ts []*executor.TaskStatus) {
+		fmt.Printf("number of task statuses: %d\n", len(ts))
+	})
 	if err != nil && !opts.flags.skipErrors {
 		return err
 	}
-	p.Complete()
+	fmt.Println("Executing tasks DONE")
 	if err != nil && opts.flags.skipErrors {
-		printExecutionError(opts.out, err)
-		opts.out.WriteLine(output.Line(output.EmojiWarning, output.StyleWarning, "Skipping errors because -skip-errors was used."))
+		fmt.Printf("execution error: %s\n", err)
+		fmt.Println("Skipping errors because -skip-errors was used.")
 	}
 
 	if len(logFiles) > 0 && opts.flags.keepLogs {
-		func() {
-			block := opts.out.Block(output.Line("", batchSuccessColor, "Preserving log files:"))
-			defer block.Close()
-
-			for _, file := range logFiles {
-				block.Write(file)
-			}
-		}()
+		for _, file := range logFiles {
+			fmt.Printf("log file: %s\n", file)
+		}
 	}
 
 	specs := append(cachedSpecs, freshSpecs...)
@@ -585,9 +580,7 @@ func textOnlyExecuteBatchSpec(ctx context.Context, opts executeBatchSpecOpts) er
 			label = fmt.Sprintf("Sending %d changeset specs", len(specs))
 		}
 
-		progress := opts.out.Progress([]output.ProgressBar{
-			{Label: label, Max: float64(len(specs))},
-		}, nil)
+		fmt.Println(label)
 
 		for i, spec := range specs {
 			id, err := svc.CreateChangesetSpec(ctx, spec)
@@ -595,12 +588,12 @@ func textOnlyExecuteBatchSpec(ctx context.Context, opts executeBatchSpecOpts) er
 				return err
 			}
 			ids[i] = id
-			progress.SetValue(0, float64(i+1))
+			fmt.Printf("done: %d/%d\n", i+1, len(specs))
 		}
-		progress.Complete()
+		fmt.Printf("%s DONE\n", label)
 	} else {
 		if len(repos) == 0 {
-			opts.out.WriteLine(output.Linef(output.EmojiWarning, output.StyleWarning, `No changeset specs created`))
+			fmt.Println("No changeset specs created")
 		}
 	}
 
@@ -619,19 +612,15 @@ func textOnlyExecuteBatchSpec(ctx context.Context, opts executeBatchSpecOpts) er
 		}
 		fmt.Println("Applying batch spec")
 
-		opts.out.Write("")
-		block := opts.out.Block(output.Line(batchSuccessEmoji, batchSuccessColor, "Batch change applied!"))
-		defer block.Close()
+		fmt.Println("Batch change applied!")
 
-		block.Write("To view the batch change, go to:")
-		block.Writef("%s%s", cfg.Endpoint, batch.URL)
+		fmt.Println("To view the batch change, go to:")
+		fmt.Printf("%s%s\n", cfg.Endpoint, batch.URL)
 
 	} else {
 		opts.out.Write("")
-		block := opts.out.Block(output.Line(batchSuccessEmoji, batchSuccessColor, "To preview or apply the batch spec, go to:"))
-		defer block.Close()
-
-		block.Writef("%s%s", cfg.Endpoint, url)
+		fmt.Println("To preview or apply the batch spec, go to:")
+		fmt.Printf("%s%s\n", cfg.Endpoint, url)
 	}
 
 	return nil
