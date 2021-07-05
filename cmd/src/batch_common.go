@@ -443,30 +443,30 @@ func textOnlyExecuteBatchSpec(ctx context.Context, opts executeBatchSpecOpts) er
 	}
 
 	// Parse flags and build up our service and executor options.
-	fmt.Println("Parsing batch spec")
+	logOperationStart("PARSING_BATCH_SPEC", "")
 	batchSpec, rawSpec, err := batchParseSpec(opts.out, &opts.flags.file, svc)
 	if err != nil {
 		return err
 	}
-	fmt.Println("Parsing batch spec DONE")
+	logOperationSuccess("PARSING_BATCH_SPEC", "")
 
-	fmt.Println("Resolving namespace")
+	logOperationStart("RESOLVING_NAMESPACE", "")
 	namespace, err := svc.ResolveNamespace(ctx, opts.flags.namespace)
 	if err != nil {
 		return err
 	}
-	fmt.Println("Resolving namespace DONE")
+	logOperationSuccess("RESOLVING_NAMESPACE", fmt.Sprintf("Namespace: %s", namespace))
 
-	fmt.Println("Preparing Docker images")
+	logOperationStart("PREPARING_DOCKER_IMAGES", "")
 	err = svc.SetDockerImages(ctx, batchSpec, func(perc float64) {
-		fmt.Printf("Preparing Docker images: %f\n", perc)
+		logOperationProgress("PREPARING_DOCKER_IMAGES", fmt.Sprintf("%d%% done", int(perc*100)))
 	})
 	if err != nil {
 		return err
 	}
-	fmt.Println("Preparing Docker images DONE")
+	logOperationSuccess("PREPARING_DOCKER_IMAGES", "")
 
-	fmt.Println("Determining workspace type")
+	logOperationStart("DETERMINING_WORKSPACE_TYPE", "")
 	workspaceCreator := workspace.NewCreator(ctx, opts.flags.workspace, opts.flags.cacheDir, opts.flags.tempDir, batchSpec.Steps)
 	if workspaceCreator.Type() == workspace.CreatorTypeVolume {
 		_, err = svc.EnsureImage(ctx, workspace.DockerVolumeWorkspaceImage)
@@ -474,10 +474,14 @@ func textOnlyExecuteBatchSpec(ctx context.Context, opts executeBatchSpecOpts) er
 			return err
 		}
 	}
+	switch workspaceCreator.Type() {
+	case workspace.CreatorTypeVolume:
+		logOperationSuccess("DETERMINING_WORKSPACE_TYPE", "VOLUME")
+	case workspace.CreatorTypeBind:
+		logOperationSuccess("DETERMINING_WORKSPACE_TYPE", "BIND")
+	}
 
-	fmt.Println("Determined workspace type")
-
-	fmt.Println("Resolving repositories")
+	logOperationStart("RESOLVING_REPOSITORIES", "")
 	repos, err := svc.ResolveRepositories(ctx, batchSpec)
 	if err != nil {
 		if repoSet, ok := err.(batches.UnsupportedRepoSet); ok {
@@ -500,15 +504,15 @@ func textOnlyExecuteBatchSpec(ctx context.Context, opts executeBatchSpecOpts) er
 			return errors.Wrap(err, "resolving repositories")
 		}
 	} else {
-		fmt.Println(fmt.Sprintf("Resolved %d repositories", len(repos)))
+		logOperationSuccess("RESOLVING_REPOSITORIES", fmt.Sprintf("Resolved %d repositories", len(repos)))
 	}
 
-	fmt.Println("Determining workspaces")
+	logOperationStart("DETERMINING_WORKSPACES", "")
 	tasks, err := svc.BuildTasks(ctx, repos, batchSpec)
 	if err != nil {
 		return err
 	}
-	fmt.Println(fmt.Sprintf("Found %d workspaces with steps to execute", len(tasks)))
+	logOperationSuccess("DETERMINING_WORKSPACES", fmt.Sprintf("Found %d workspaces with steps to execute", len(tasks)))
 
 	// EXECUTION OF TASKS
 	coord := svc.NewCoordinator(executor.NewCoordinatorOpts{
@@ -523,7 +527,7 @@ func textOnlyExecuteBatchSpec(ctx context.Context, opts executeBatchSpecOpts) er
 		TempDir:       opts.flags.tempDir,
 	})
 
-	fmt.Println("Checking cache for changeset specs")
+	logOperationStart("CHECKING_CACHE", "")
 	uncachedTasks, cachedSpecs, err := coord.CheckCache(ctx, tasks)
 	if err != nil {
 		return err
@@ -536,30 +540,54 @@ func textOnlyExecuteBatchSpec(ctx context.Context, opts executeBatchSpecOpts) er
 	}
 	switch len(uncachedTasks) {
 	case 0:
-		fmt.Println(fmt.Sprintf("%s; no tasks need to be executed", specsFoundMessage))
+		logOperationSuccess("CHECKING_CACHE", fmt.Sprintf("%s; no tasks need to be executed", specsFoundMessage))
 	case 1:
-		fmt.Println(fmt.Sprintf("%s; %d task needs to be executed", specsFoundMessage, len(uncachedTasks)))
+		logOperationSuccess("CHECKING_CACHE", fmt.Sprintf("%s; %d task needs to be executed", specsFoundMessage, len(uncachedTasks)))
 	default:
-		fmt.Println(fmt.Sprintf("%s; %d tasks need to be executed", specsFoundMessage, len(uncachedTasks)))
+		logOperationSuccess("CHECKING_CACHE", fmt.Sprintf("%s; %d tasks need to be executed", specsFoundMessage, len(uncachedTasks)))
 	}
 
-	// p := newBatchProgressPrinter(opts.out, *verbose, opts.flags.parallelism)
-	fmt.Println("Executing tasks")
-	freshSpecs, logFiles, err := coord.Execute(ctx, uncachedTasks, batchSpec, func(ts []*executor.TaskStatus) {
-		fmt.Printf("number of task statuses: %d\n", len(ts))
+	logOperationStart("EXECUTING_TASKS", "")
+	freshSpecs, logFiles, err := coord.Execute(ctx, uncachedTasks, batchSpec, func(statuses []*executor.TaskStatus) {
+
+		finishedExecution := 0
+		finishedBuilding := 0
+		currentlyRunning := 0
+		errored := 0
+
+		for _, ts := range statuses {
+			if ts.FinishedExecution() {
+				if ts.Err != nil {
+					errored += 1
+				}
+
+				finishedExecution += 1
+			}
+
+			if ts.FinishedBuildingSpecs() {
+				finishedBuilding += 1
+			}
+
+			if ts.IsRunning() {
+				currentlyRunning += 1
+			}
+		}
+
+		logOperationProgress("EXECUTING_TASKS", fmt.Sprintf("running: %d, executed: %d, built: %d, errored: %d", currentlyRunning, finishedExecution, finishedBuilding, errored))
 	})
+
 	if err != nil && !opts.flags.skipErrors {
 		return err
 	}
-	fmt.Println("Executing tasks DONE")
 	if err != nil && opts.flags.skipErrors {
-		fmt.Printf("execution error: %s\n", err)
-		fmt.Println("Skipping errors because -skip-errors was used.")
+		logOperationFailure("EXECUTING_TASKS", fmt.Sprintf("Error: %s. Skipping errors because -skip-errors was used.", err))
+	} else {
+		logOperationSuccess("EXECUTING_TASKS", "")
 	}
 
 	if len(logFiles) > 0 && opts.flags.keepLogs {
 		for _, file := range logFiles {
-			fmt.Printf("log file: %s\n", file)
+			logOperationSuccess("LOG_FILE_KEPT", file)
 		}
 	}
 
@@ -580,7 +608,7 @@ func textOnlyExecuteBatchSpec(ctx context.Context, opts executeBatchSpecOpts) er
 			label = fmt.Sprintf("Sending %d changeset specs", len(specs))
 		}
 
-		fmt.Println(label)
+		logOperationStart("UPLOADING_CHANGESET_SPECS", label)
 
 		for i, spec := range specs {
 			id, err := svc.CreateChangesetSpec(ctx, spec)
@@ -588,39 +616,32 @@ func textOnlyExecuteBatchSpec(ctx context.Context, opts executeBatchSpecOpts) er
 				return err
 			}
 			ids[i] = id
-			fmt.Printf("done: %d/%d\n", i+1, len(specs))
+			logOperationProgress("UPLOADING_CHANGESET_SPECS", fmt.Sprintf("Uploaded %d out of %d", i+1, len(specs)))
+
 		}
-		fmt.Printf("%s DONE\n", label)
+		logOperationSuccess("UPLOADING_CHANGESET_SPECS", "")
 	} else {
 		if len(repos) == 0 {
 			fmt.Println("No changeset specs created")
 		}
 	}
 
-	fmt.Println("Creating batch spec on Sourcegraph")
+	logOperationStart("CREATING_BATCH_SPEC", "")
 	id, url, err := svc.CreateBatchSpec(ctx, namespace, rawSpec, ids)
-	fmt.Println("Creating batch spec on Sourcegraph")
 	if err != nil {
 		return prettyPrintBatchUnlicensedError(opts.out, err)
+	} else {
+		logOperationSuccess("CREATING_BATCH_SPEC", fmt.Sprintf("%s%s", cfg.Endpoint, url))
 	}
 
 	if opts.applyBatchSpec {
-		fmt.Println("Applying batch spec")
+		logOperationStart("APPLYING_BATCH_SPEC", "")
 		batch, err := svc.ApplyBatchChange(ctx, id)
 		if err != nil {
 			return err
 		}
-		fmt.Println("Applying batch spec")
 
-		fmt.Println("Batch change applied!")
-
-		fmt.Println("To view the batch change, go to:")
-		fmt.Printf("%s%s\n", cfg.Endpoint, batch.URL)
-
-	} else {
-		opts.out.Write("")
-		fmt.Println("To preview or apply the batch spec, go to:")
-		fmt.Printf("%s%s\n", cfg.Endpoint, url)
+		logOperationSuccess("APPLYING_BATCH_SPEC", fmt.Sprintf("%s%s", cfg.Endpoint, batch.URL))
 	}
 
 	return nil
