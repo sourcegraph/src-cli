@@ -485,21 +485,9 @@ func textOnlyExecuteBatchSpec(ctx context.Context, opts executeBatchSpecOpts) er
 	repos, err := svc.ResolveRepositories(ctx, batchSpec)
 	if err != nil {
 		if repoSet, ok := err.(batches.UnsupportedRepoSet); ok {
-			fmt.Println("Resolved repositories")
-
-			block := opts.out.Block(output.Line(" ", output.StyleWarning, "Some repositories are hosted on unsupported code hosts and will be skipped. Use the -allow-unsupported flag to avoid skipping them."))
-			for repo := range repoSet {
-				block.Write(repo.Name)
-			}
-			block.Close()
+			logOperationSuccess("RESOLVING_REPOSITORIES", fmt.Sprintf("%d unsupported repositories", len(repoSet)))
 		} else if repoSet, ok := err.(batches.IgnoredRepoSet); ok {
-			fmt.Println("Resolved repositories")
-
-			block := opts.out.Block(output.Line(" ", output.StyleWarning, "The repositories listed below contain .batchignore files and will be skipped. Use the -force-override-ignore flag to avoid skipping them."))
-			for repo := range repoSet {
-				block.Write(repo.Name)
-			}
-			block.Close()
+			logOperationSuccess("RESOLVING_REPOSITORIES", fmt.Sprintf("%d ignored repositories", len(repoSet)))
 		} else {
 			return errors.Wrap(err, "resolving repositories")
 		}
