@@ -59,7 +59,7 @@ func newBatchExecuteFlags(flagSet *flag.FlagSet, cacheDir, tempDir string) *batc
 
 	flagSet.BoolVar(
 		&caf.textOnly, "text-only", false,
-		"No TUI, only print text",
+		"INTERNAL USE ONLY. EXPERIMENTAL. Switches off the TUI to only print JSON lines.",
 	)
 	flagSet.BoolVar(
 		&caf.allowUnsupported, "allow-unsupported", false,
