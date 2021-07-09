@@ -39,11 +39,12 @@ USAGE
 			return fmt.Errorf("failed to open file: %w", err)
 		}
 
+
 		defer out.Close()
 		zw := zip.NewWriter(out)
 		defer zw.Close()
 
-		k8sEvents, err := zw.Create("k8s-events.txt")
+		k8sEvents, err := zw.Create("src-debug/kubectl/events.txt")
 		if err != nil {
 			return fmt.Errorf("failed to create k8s-events.txt: %w", err)
 		}
