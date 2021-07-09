@@ -34,7 +34,7 @@ USAGE
 			return fmt.Errorf("empty -out flag")
 		}
 
-		out, err := os.OpenFile(*outFile, os.O_CREATE|os.O_RDWR, 0666)
+		out, err := os.OpenFile(*outFile, os.O_CREATE|os.O_RDWR|os.O_EXCL, 0666)
 		if err != nil {
 			return fmt.Errorf("failed to open file: %w", err)
 		}
