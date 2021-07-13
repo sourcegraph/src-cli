@@ -23,6 +23,7 @@ The commands are:
 	get        gets a repository
 	list       lists repositories
 	delete 	   deletes repositories
+	tags       commands to manage repository tags
 
 Use "src repos [command] -h" for more information about a command.
 `
