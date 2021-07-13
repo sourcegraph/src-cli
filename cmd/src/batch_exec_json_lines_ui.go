@@ -64,7 +64,14 @@ func (ui *batchExecJSONLinesUI) ResolvingRepositoriesDone(repos []*graphql.Repos
 	} else if ignored != nil && len(ignored) != 0 {
 		logOperationSuccess("RESOLVING_REPOSITORIES", fmt.Sprintf("%d ignored repositories", len(ignored)))
 	} else {
-		logOperationSuccess("RESOLVING_REPOSITORIES", fmt.Sprintf("Resolved %d repositories", len(repos)))
+		switch len(repos) {
+		case 0:
+			logOperationSuccess("RESOLVING_REPOSITORIES", "No repositories resolved")
+		case 1:
+			logOperationSuccess("RESOLVING_REPOSITORIES", "Resolved 1 repository")
+		default:
+			logOperationSuccess("RESOLVING_REPOSITORIES", fmt.Sprintf("Resolved %d repositories", len(repos)))
+		}
 	}
 }
 
@@ -73,7 +80,14 @@ func (ui *batchExecJSONLinesUI) DeterminingWorkspaces() {
 }
 
 func (ui *batchExecJSONLinesUI) DeterminingWorkspacesSuccess(num int) {
-	logOperationSuccess("DETERMINING_WORKSPACES", fmt.Sprintf("Found %d workspaces with steps to execute", num))
+	switch num {
+	case 0:
+		logOperationSuccess("DETERMINING_WORKSPACES", "No workspace found")
+	case 1:
+		logOperationSuccess("DETERMINING_WORKSPACES", "Found a single workspace with steps to execute")
+	default:
+		logOperationSuccess("DETERMINING_WORKSPACES", fmt.Sprintf("Found %d workspaces with steps to execute", num))
+	}
 }
 
 func (ui *batchExecJSONLinesUI) CheckingCache() {
@@ -149,7 +163,7 @@ func (ui *batchExecJSONLinesUI) NoChangesetSpecs() {
 func (ui *batchExecJSONLinesUI) UploadingChangesetSpecs(num int) {
 	var label string
 	if num == 1 {
-		label = "Sending changeset spec"
+		label = "Sending 1 changeset spec"
 	} else {
 		label = fmt.Sprintf("Sending %d changeset specs", num)
 	}
