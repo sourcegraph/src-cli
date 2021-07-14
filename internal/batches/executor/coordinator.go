@@ -6,6 +6,8 @@ import (
 	"strconv"
 	"time"
 
+	stdlog "log"
+
 	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
 	"github.com/sourcegraph/src-cli/internal/api"
@@ -85,12 +87,14 @@ func NewCoordinator(opts NewCoordinatorOpts) *Coordinator {
 // ChangesetSpecs for the given Tasks. If cached ChangesetSpecs exist, those
 // are returned, otherwise the Task, to be executed later.
 func (c *Coordinator) CheckCache(ctx context.Context, tasks []*Task) (uncached []*Task, specs []*batches.ChangesetSpec, err error) {
+	stdlog.Printf("len(tasks)=%d", len(tasks))
 	for _, t := range tasks {
 		cachedSpecs, found, err := c.checkCacheForTask(ctx, t)
 		if err != nil {
 			return nil, nil, err
 		}
 
+		stdlog.Printf("found=%t, len(cachedSpecs)=%d", found, len(cachedSpecs))
 		if !found {
 			uncached = append(uncached, t)
 			continue
@@ -123,11 +127,14 @@ func (c *Coordinator) checkCacheForTask(ctx context.Context, task *Task) (specs 
 		return specs, false, nil
 	}
 
+	k, _ := cacheKey.Key()
+	stdlog.Printf("cacheKey=%s", k)
 	// If the cached result resulted in an empty diff, we don't need to
 	// add it to the list of specs that are displayed to the user and
 	// send to the server. Instead, we can just report that the task is
 	// complete and move on.
 	if result.Diff == "" {
+		stdlog.Printf("maybe here?")
 		return specs, true, nil
 	}
 
@@ -136,6 +143,7 @@ func (c *Coordinator) checkCacheForTask(ctx context.Context, task *Task) (specs 
 		return specs, false, err
 	}
 
+	stdlog.Printf("are we here?")
 	return specs, true, nil
 }
 
@@ -152,11 +160,13 @@ func (c *Coordinator) setCachedStepResults(ctx context.Context, task *Task) erro
 				return errors.Wrapf(err, "clearing cache for step %d in %q", i, task.Repository.Name)
 			}
 		} else {
+			stdlog.Printf("checking for step %d", i)
 			result, found, err := c.cache.GetStepResult(ctx, key)
 			if err != nil {
 				return errors.Wrapf(err, "checking for cached diff for step %d", i)
 			}
 
+			stdlog.Printf("step %d. found=%t, result=%+v", i, found, result)
 			// Found a cached result, we're done
 			if found {
 				task.CachedResultFound = true
