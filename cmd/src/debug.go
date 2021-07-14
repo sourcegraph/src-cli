@@ -39,7 +39,6 @@ USAGE
 			return fmt.Errorf("failed to open file: %w", err)
 		}
 
-
 		defer out.Close()
 		zw := zip.NewWriter(out)
 		defer zw.Close()
@@ -49,7 +48,7 @@ USAGE
 			return fmt.Errorf("failed to create k8s-events.txt: %w", err)
 		}
 
-		cmd := exec.Command("kubectl", "get", "events")
+		cmd := exec.Command("kubectl", "get", "events", "--all-namespaces")
 		cmd.Stdout = k8sEvents
 		cmd.Stderr = os.Stderr
 
