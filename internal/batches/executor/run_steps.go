@@ -90,6 +90,9 @@ func runSteps(ctx context.Context, opts *executionOpts) (result executionResult,
 		execResult.Outputs = opts.task.CachedResult.Outputs
 
 		startStep = opts.task.CachedResult.StepIndex + 1
+		if startStep == len(opts.task.Steps) {
+			startStep -= 1
+		}
 
 		switch startStep {
 		case 1:
@@ -118,7 +121,9 @@ func runSteps(ctx context.Context, opts *executionOpts) (result executionResult,
 				return execResult, nil, errors.Wrap(err, "getting changed files in step")
 			}
 
-			results[i-1] = opts.task.CachedResult.PreviousStepResult
+			if i != 0 {
+				results[i-1] = opts.task.CachedResult.PreviousStepResult
+			}
 			stepContext.Outputs = opts.task.CachedResult.Outputs
 		}
 

@@ -281,6 +281,41 @@ func TestExecutor_Integration(t *testing.T) {
 			},
 			wantErrInclude: "execution in github.com/sourcegraph/sourcegraph failed: run: exit 1",
 		},
+		{
+			name: "cached result for step 0",
+			archives: []mock.RepoArchive{
+				{Repo: testRepo1, Files: map[string]string{
+					"README.md": "# Welcome to the README\n",
+				}},
+			},
+			steps: []batches.Step{
+				{Run: `echo -e "foobar\n" >> README.md`},
+			},
+			tasks: []*Task{
+				{
+					CachedResultFound: true,
+					CachedResult: stepExecutionResult{
+						StepIndex: 0,
+						Diff: []byte(`diff --git README.md README.md
+index 02a19af..c9644dd 100644
+--- README.md
++++ README.md
+@@ -1 +1,2 @@
+ # Welcome to the README
++foobar
+`),
+						Outputs:            map[string]interface{}{},
+						PreviousStepResult: StepResult{},
+					},
+					Repository: testRepo1,
+				},
+			},
+			wantFilesChanged: filesByRepository{
+				testRepo1.ID: filesByPath{
+					rootPath: []string{"README.md"},
+				},
+			},
+		},
 	}
 
 	for _, tc := range tests {
