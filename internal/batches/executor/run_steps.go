@@ -120,6 +120,9 @@ func runSteps(ctx context.Context, opts *executionOpts) (result executionResult,
 
 		if opts.task.CachedResultFound && i == startStep {
 			previousStepResult = opts.task.CachedResult.PreviousStepResult
+
+			stepContext.PreviousStep = previousStepResult
+			stepContext.Steps.Changes = previousStepResult.Files
 			stepContext.Outputs = opts.task.CachedResult.Outputs
 
 			if err := workspace.ApplyDiff(ctx, []byte(opts.task.CachedResult.Diff)); err != nil {
