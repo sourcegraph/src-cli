@@ -283,112 +283,6 @@ func TestExecutor_Integration(t *testing.T) {
 			},
 			wantErrInclude: "execution in github.com/sourcegraph/sourcegraph failed: run: exit 1",
 		},
-		{
-			name: "cached result for step 3 of 5",
-			archives: []mock.RepoArchive{
-				{Repo: testRepo1, Files: map[string]string{
-					"README.md": `# automation-testing
-This repository is used to test opening and closing pull request with Automation
-
-(c) Copyright Sourcegraph 2013-2020.
-(c) Copyright Sourcegraph 2013-2020.
-(c) Copyright Sourcegraph 2013-2020.`,
-				}},
-			},
-			steps: []batches.Step{
-				{Run: `echo "this is step 1" >> README.txt`},
-				{Run: `echo "this is step 2" >> README.md`},
-				{Run: `echo "this is step 3" >> README.md`, Outputs: batches.Outputs{
-					"myOutput": batches.Output{
-						Value: "my-output.txt",
-					},
-				}},
-				{Run: `echo "this is step 4" >> README.md
-echo "previous_step.modified_files=${{ previous_step.modified_files }}" >> README.md
-`},
-				{Run: `echo "this is step 5" >> ${{ outputs.myOutput }}`},
-			},
-			tasks: []*Task{
-				{
-					CachedResultFound: true,
-					CachedResult: stepExecutionResult{
-						StepIndex: 2,
-						Diff: []byte(`diff --git README.md README.md
-index 1914491..cd2ccbf 100644
---- README.md
-+++ README.md
-@@ -3,4 +3,5 @@ This repository is used to test opening and closing pull request with Automation
-
- (c) Copyright Sourcegraph 2013-2020.
- (c) Copyright Sourcegraph 2013-2020.
--(c) Copyright Sourcegraph 2013-2020.
-\ No newline at end of file
-+(c) Copyright Sourcegraph 2013-2020.this is step 2
-+this is step 3
-diff --git README.txt README.txt
-new file mode 100644
-index 0000000..888e1ec
---- /dev/null
-+++ README.txt
-@@ -0,0 +1 @@
-+this is step 1
-`),
-						Outputs: map[string]interface{}{
-							"myOutput": "my-output.txt",
-						},
-						PreviousStepResult: StepResult{
-							Files: &git.Changes{
-								Modified: []string{"README.md"},
-								Added:    []string{"README.txt"},
-							},
-							Stdout: nil,
-							Stderr: nil,
-						},
-					},
-					Repository: testRepo1,
-				},
-			},
-			wantFilesChanged: filesByRepository{
-				testRepo1.ID: filesByPath{
-					rootPath: []string{"README.md", "README.txt", "my-output.txt"},
-				},
-			},
-		},
-		{
-			name: "cached result for step 0",
-			archives: []mock.RepoArchive{
-				{Repo: testRepo1, Files: map[string]string{
-					"README.md": "# Welcome to the README\n",
-				}},
-			},
-			steps: []batches.Step{
-				{Run: `echo -e "foobar\n" >> README.md`},
-			},
-			tasks: []*Task{
-				{
-					CachedResultFound: true,
-					CachedResult: stepExecutionResult{
-						StepIndex: 0,
-						Diff: []byte(`diff --git README.md README.md
-index 02a19af..c9644dd 100644
---- README.md
-+++ README.md
-@@ -1 +1,2 @@
- # Welcome to the README
-+foobar
-`),
-						Outputs:            map[string]interface{}{},
-						PreviousStepResult: StepResult{},
-					},
-					Repository: testRepo1,
-				},
-			},
-			wantFilesChanged: filesByRepository{
-				testRepo1.ID: filesByPath{
-					rootPath: []string{"README.md"},
-				},
-			},
-		},
 	}
 
 	for _, tc := range tests {
@@ -575,36 +469,15 @@ func featuresAllEnabled() batches.FeatureFlags {
 	}
 }
 
-func TestExecutor_CachedStepResult_SingleStepCached(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("Test doesn't work on Windows because dummydocker is written in bash")
-	}
+func TestExecutor_CachedStepResults(t *testing.T) {
+	t.Run("single step cached", func(t *testing.T) {
+		archive := mock.RepoArchive{
+			Repo: testRepo1, Files: map[string]string{
+				"README.md": "# Welcome to the README\n",
+			},
+		}
 
-	// Temp dir for log files and downloaded archives
-	testTempDir, err := ioutil.TempDir("", "executor-integration-test-*")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.Remove(testTempDir)
-
-	// Setup dummydocker
-	addToPath(t, "testdata/dummydocker")
-
-	// Setup mock test server & client
-	archive := mock.RepoArchive{
-		Repo: testRepo1, Files: map[string]string{
-			"README.md": "# Welcome to the README\n",
-		},
-	}
-	mux := mock.NewZipArchivesMux(t, nil, archive)
-	ts := httptest.NewServer(mux)
-	defer ts.Close()
-
-	var clientBuffer bytes.Buffer
-	client := api.NewClient(api.ClientOpts{Endpoint: ts.URL, Out: &clientBuffer})
-
-	// Setup Task with CachedResults
-	cachedDiff := []byte(`diff --git README.md README.md
+		cachedDiff := []byte(`diff --git README.md README.md
 index 02a19af..c9644dd 100644
 --- README.md
 +++ README.md
@@ -613,25 +486,208 @@ index 02a19af..c9644dd 100644
 +foobar
 `)
 
-	task := &Task{
-		BatchChangeAttributes: &BatchChangeAttributes{},
-		Steps: []batches.Step{
-			{Run: `echo -e "foobar\n" >> README.md`},
-		},
-		CachedResultFound: true,
-		CachedResult: stepExecutionResult{
-			StepIndex:          0,
-			Diff:               cachedDiff,
-			Outputs:            map[string]interface{}{},
-			PreviousStepResult: StepResult{},
-		},
-		Repository: testRepo1,
+		task := &Task{
+			BatchChangeAttributes: &BatchChangeAttributes{},
+			Steps: []batches.Step{
+				{Run: `echo -e "foobar\n" >> README.md`},
+			},
+			CachedResultFound: true,
+			CachedResult: stepExecutionResult{
+				StepIndex:          0,
+				Diff:               cachedDiff,
+				Outputs:            map[string]interface{}{},
+				PreviousStepResult: StepResult{},
+			},
+			Repository: testRepo1,
+		}
+
+		results, err := testExecuteTasks(t, []*Task{task}, archive)
+		if err != nil {
+			t.Fatalf("execution failed: %s", err)
+		}
+
+		if have, want := len(results), 1; have != want {
+			t.Fatalf("wrong number of execution results. want=%d, have=%d", want, have)
+		}
+
+		// We want the diff to be the same as the cached one, since we only had to
+		// execute a single step
+		executionResult := results[0].result
+		if diff := cmp.Diff(executionResult.Diff, string(cachedDiff)); diff != "" {
+			t.Fatalf("wrong diff: %s", diff)
+		}
+
+		if have, want := len(results[0].stepResults), 1; have != want {
+			t.Fatalf("wrong length of step results. have=%d, want=%d", have, want)
+		}
+
+		stepResult := results[0].stepResults[0]
+		if diff := cmp.Diff(stepResult, task.CachedResult); diff != "" {
+			t.Fatalf("wrong stepResult: %s", diff)
+		}
+	})
+
+	t.Run("one of multiple steps cached", func(t *testing.T) {
+		archive := mock.RepoArchive{
+			Repo: testRepo1,
+			Files: map[string]string{
+				"README.md": `# automation-testing
+This repository is used to test opening and closing pull request with Automation
+
+(c) Copyright Sourcegraph 2013-2020.
+(c) Copyright Sourcegraph 2013-2020.
+(c) Copyright Sourcegraph 2013-2020.`,
+			},
+		}
+
+		cachedDiff := []byte(`diff --git README.md README.md
+index 1914491..cd2ccbf 100644
+--- README.md
++++ README.md
+@@ -3,4 +3,5 @@ This repository is used to test opening and closing pull request with Automation
+
+ (c) Copyright Sourcegraph 2013-2020.
+ (c) Copyright Sourcegraph 2013-2020.
+-(c) Copyright Sourcegraph 2013-2020.
+\ No newline at end of file
++(c) Copyright Sourcegraph 2013-2020.this is step 2
++this is step 3
+diff --git README.txt README.txt
+new file mode 100644
+index 0000000..888e1ec
+--- /dev/null
++++ README.txt
+@@ -0,0 +1 @@
++this is step 1
+`)
+
+		wantFinalDiff := `diff --git README.md README.md
+index 1914491..d6782d3 100644
+--- README.md
++++ README.md
+@@ -3,4 +3,7 @@ This repository is used to test opening and closing pull request with Automation
+ 
+ (c) Copyright Sourcegraph 2013-2020.
+ (c) Copyright Sourcegraph 2013-2020.
+-(c) Copyright Sourcegraph 2013-2020.
+\ No newline at end of file
++(c) Copyright Sourcegraph 2013-2020.this is step 2
++this is step 3
++this is step 4
++previous_step.modified_files=[README.md]
+diff --git README.txt README.txt
+new file mode 100644
+index 0000000..888e1ec
+--- /dev/null
++++ README.txt
+@@ -0,0 +1 @@
++this is step 1
+diff --git my-output.txt my-output.txt
+new file mode 100644
+index 0000000..257ae8e
+--- /dev/null
++++ my-output.txt
+@@ -0,0 +1 @@
++this is step 5
+`
+
+		task := &Task{
+			Repository:            testRepo1,
+			BatchChangeAttributes: &BatchChangeAttributes{},
+			Steps: []batches.Step{
+				{Run: `echo "this is step 1" >> README.txt`},
+				{Run: `echo "this is step 2" >> README.md`},
+				{Run: `echo "this is step 3" >> README.md`, Outputs: batches.Outputs{
+					"myOutput": batches.Output{
+						Value: "my-output.txt",
+					},
+				}},
+				{Run: `echo "this is step 4" >> README.md
+echo "previous_step.modified_files=${{ previous_step.modified_files }}" >> README.md
+`},
+				{Run: `echo "this is step 5" >> ${{ outputs.myOutput }}`},
+			},
+			CachedResultFound: true,
+			CachedResult: stepExecutionResult{
+				StepIndex: 2,
+				Diff:      cachedDiff,
+				Outputs: map[string]interface{}{
+					"myOutput": "my-output.txt",
+				},
+				PreviousStepResult: StepResult{
+					Files: &git.Changes{
+						Modified: []string{"README.md"},
+						Added:    []string{"README.txt"},
+					},
+					Stdout: nil,
+					Stderr: nil,
+				},
+			},
+		}
+
+		results, err := testExecuteTasks(t, []*Task{task}, archive)
+		if err != nil {
+			t.Fatalf("execution failed: %s", err)
+		}
+
+		if have, want := len(results), 1; have != want {
+			t.Fatalf("wrong number of execution results. want=%d, have=%d", want, have)
+		}
+
+		executionResult := results[0].result
+		if diff := cmp.Diff(executionResult.Diff, wantFinalDiff); diff != "" {
+			t.Fatalf("wrong diff: %s", diff)
+		}
+
+		if diff := cmp.Diff(executionResult.Outputs, task.CachedResult.Outputs); diff != "" {
+			t.Fatalf("wrong execution result outputs: %s", diff)
+		}
+
+		// Only two steps should've been executed
+		if have, want := len(results[0].stepResults), 2; have != want {
+			t.Fatalf("wrong length of step results. have=%d, want=%d", have, want)
+		}
+
+		lastStepResult := results[0].stepResults[1]
+		if have, want := lastStepResult.StepIndex, 4; have != want {
+			t.Fatalf("wrong stepIndex. have=%d, want=%d", have, want)
+		}
+
+		if diff := cmp.Diff(lastStepResult.Outputs, task.CachedResult.Outputs); diff != "" {
+			t.Fatalf("wrong step result outputs: %s", diff)
+		}
+	})
+}
+
+func testExecuteTasks(t *testing.T, tasks []*Task, archives ...mock.RepoArchive) ([]taskResult, error) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Test doesn't work on Windows because dummydocker is written in bash")
 	}
 
-	for i := range task.Steps {
-		task.Steps[i].SetImage(&mock.Image{
-			RawDigest: task.Steps[i].Container,
-		})
+	testTempDir, err := ioutil.TempDir("", "executor-integration-test-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.Remove(testTempDir) })
+
+	// Setup dummydocker
+	addToPath(t, "testdata/dummydocker")
+
+	// Setup mock test server & client
+	mux := mock.NewZipArchivesMux(t, nil, archives...)
+	ts := httptest.NewServer(mux)
+	t.Cleanup(ts.Close)
+
+	var clientBuffer bytes.Buffer
+	client := api.NewClient(api.ClientOpts{Endpoint: ts.URL, Out: &clientBuffer})
+
+	// Prepare tasks
+	for _, t := range tasks {
+		for i := range t.Steps {
+			t.Steps[i].SetImage(&mock.Image{
+				RawDigest: t.Steps[i].Container,
+			})
+		}
 	}
 
 	// Setup executor
@@ -645,32 +701,6 @@ index 02a19af..c9644dd 100644
 		Timeout:     30 * time.Second,
 	})
 
-	statusHandler := NewTaskStatusCollection([]*Task{task})
-
-	// Run executor
-	executor.Start(context.Background(), []*Task{task}, statusHandler)
-	results, err := executor.Wait(context.Background())
-	if err != nil {
-		t.Fatalf("execution failed: %s", err)
-	}
-
-	if have, want := len(results), 1; have != want {
-		t.Fatalf("wrong number of execution results. want=%d, have=%d", want, have)
-	}
-
-	// We want the diff to be the same as the cached one, since we only had to
-	// execute a single step
-	executionResult := results[0].result
-	if diff := cmp.Diff(executionResult.Diff, string(cachedDiff)); diff != "" {
-		t.Fatalf("wrong diff: %s", diff)
-	}
-
-	if have, want := len(results[0].stepResults), 1; have != want {
-		t.Fatalf("wrong length of step results. have=%d, want=%d", have, want)
-	}
-
-	stepResult := results[0].stepResults[0]
-	if diff := cmp.Diff(stepResult, task.CachedResult); diff != "" {
-		t.Fatalf("wrong stepResult: %s", diff)
-	}
+	executor.Start(context.Background(), tasks, NewTaskStatusCollection(tasks))
+	return executor.Wait(context.Background())
 }
