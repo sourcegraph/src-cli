@@ -17,6 +17,7 @@ import (
 	"github.com/sourcegraph/go-diff/diff"
 	"github.com/sourcegraph/src-cli/internal/api"
 	"github.com/sourcegraph/src-cli/internal/batches"
+	"github.com/sourcegraph/src-cli/internal/batches/git"
 	"github.com/sourcegraph/src-cli/internal/batches/mock"
 	"github.com/sourcegraph/src-cli/internal/batches/workspace"
 )
@@ -280,6 +281,77 @@ func TestExecutor_Integration(t *testing.T) {
 				testRepo2.ID: {},
 			},
 			wantErrInclude: "execution in github.com/sourcegraph/sourcegraph failed: run: exit 1",
+		},
+		{
+			name: "cached result for step 3 of 5",
+			archives: []mock.RepoArchive{
+				{Repo: testRepo1, Files: map[string]string{
+					"README.md": `# automation-testing
+This repository is used to test opening and closing pull request with Automation
+
+(c) Copyright Sourcegraph 2013-2020.
+(c) Copyright Sourcegraph 2013-2020.
+(c) Copyright Sourcegraph 2013-2020.`,
+				}},
+			},
+			steps: []batches.Step{
+				{Run: `echo "this is step 1" >> README.txt`},
+				{Run: `echo "this is step 2" >> README.md`},
+				{Run: `echo "this is step 3" >> README.md`, Outputs: batches.Outputs{
+					"myOutput": batches.Output{
+						Value: "my-output.txt",
+					},
+				}},
+				{Run: `echo "this is step 4" >> README.md
+echo "previous_step.modified_files=${{ previous_step.modified_files }}" >> README.md
+`},
+				{Run: `echo "this is step 5" >> ${{ outputs.myOutput }}`},
+			},
+			tasks: []*Task{
+				{
+					CachedResultFound: true,
+					CachedResult: stepExecutionResult{
+						StepIndex: 2,
+						Diff: []byte(`diff --git README.md README.md
+index 1914491..cd2ccbf 100644
+--- README.md
++++ README.md
+@@ -3,4 +3,5 @@ This repository is used to test opening and closing pull request with Automation
+
+ (c) Copyright Sourcegraph 2013-2020.
+ (c) Copyright Sourcegraph 2013-2020.
+-(c) Copyright Sourcegraph 2013-2020.
+\ No newline at end of file
++(c) Copyright Sourcegraph 2013-2020.this is step 2
++this is step 3
+diff --git README.txt README.txt
+new file mode 100644
+index 0000000..888e1ec
+--- /dev/null
++++ README.txt
+@@ -0,0 +1 @@
++this is step 1
+`),
+						Outputs: map[string]interface{}{
+							"myOutput": "my-output.txt",
+						},
+						PreviousStepResult: StepResult{
+							Files: &git.Changes{
+								Modified: []string{"README.md"},
+								Added:    []string{"README.txt"},
+							},
+							Stdout: nil,
+							Stderr: nil,
+						},
+					},
+					Repository: testRepo1,
+				},
+			},
+			wantFilesChanged: filesByRepository{
+				testRepo1.ID: filesByPath{
+					rootPath: []string{"README.md", "README.txt", "my-output.txt"},
+				},
+			},
 		},
 		{
 			name: "cached result for step 0",

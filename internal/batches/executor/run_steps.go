@@ -129,7 +129,7 @@ func runSteps(ctx context.Context, opts *executionOpts) (result executionResult,
 
 		if i > 0 {
 			stepContext.PreviousStep = results[i-1]
-			stepContext.Steps.Changes = results[i-1].files
+			stepContext.Steps.Changes = results[i-1].Files
 		}
 
 		cond, err := evalStepCondition(step.IfCondition(), &stepContext)
@@ -323,7 +323,7 @@ func runSteps(ctx context.Context, opts *executionOpts) (result executionResult,
 			return execResult, nil, errors.Wrap(err, "getting changed files in step")
 		}
 
-		result := StepResult{files: changes, Stdout: &stdoutBuffer, Stderr: &stderrBuffer}
+		result := StepResult{Files: changes, Stdout: &stdoutBuffer, Stderr: &stderrBuffer}
 		results[i] = result
 
 		// Set stepContext.Step to current step's results before rendering outputs
@@ -357,8 +357,8 @@ func runSteps(ctx context.Context, opts *executionOpts) (result executionResult,
 	}
 
 	execResult.Diff = string(diffOut)
-	if len(results) > 0 && results[len(results)-1].files != nil {
-		execResult.ChangedFiles = results[len(results)-1].files
+	if len(results) > 0 && results[len(results)-1].Files != nil {
+		execResult.ChangedFiles = results[len(results)-1].Files
 	}
 
 	return execResult, stepResults, err
