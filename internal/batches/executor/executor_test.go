@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/sourcegraph/go-diff/diff"
 	"github.com/sourcegraph/src-cli/internal/api"
 	"github.com/sourcegraph/src-cli/internal/batches"
@@ -571,5 +572,105 @@ func featuresAllEnabled() batches.FeatureFlags {
 		AllowWorkspaces:          true,
 		AllowConditionalExec:     true,
 		AllowOptionalPublished:   true,
+	}
+}
+
+func TestExecutor_CachedStepResult_SingleStepCached(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Test doesn't work on Windows because dummydocker is written in bash")
+	}
+
+	// Temp dir for log files and downloaded archives
+	testTempDir, err := ioutil.TempDir("", "executor-integration-test-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(testTempDir)
+
+	// Setup dummydocker
+	addToPath(t, "testdata/dummydocker")
+
+	// Setup mock test server & client
+	archive := mock.RepoArchive{
+		Repo: testRepo1, Files: map[string]string{
+			"README.md": "# Welcome to the README\n",
+		},
+	}
+	mux := mock.NewZipArchivesMux(t, nil, archive)
+	ts := httptest.NewServer(mux)
+	defer ts.Close()
+
+	var clientBuffer bytes.Buffer
+	client := api.NewClient(api.ClientOpts{Endpoint: ts.URL, Out: &clientBuffer})
+
+	// Setup Task with CachedResults
+	cachedDiff := []byte(`diff --git README.md README.md
+index 02a19af..c9644dd 100644
+--- README.md
++++ README.md
+@@ -1 +1,2 @@
+ # Welcome to the README
++foobar
+`)
+
+	task := &Task{
+		BatchChangeAttributes: &BatchChangeAttributes{},
+		Steps: []batches.Step{
+			{Run: `echo -e "foobar\n" >> README.md`},
+		},
+		CachedResultFound: true,
+		CachedResult: stepExecutionResult{
+			StepIndex:          0,
+			Diff:               cachedDiff,
+			Outputs:            map[string]interface{}{},
+			PreviousStepResult: StepResult{},
+		},
+		Repository: testRepo1,
+	}
+
+	for i := range task.Steps {
+		task.Steps[i].SetImage(&mock.Image{
+			RawDigest: task.Steps[i].Container,
+		})
+	}
+
+	// Setup executor
+	executor := newExecutor(newExecutorOpts{
+		Creator: workspace.NewCreator(context.Background(), "bind", testTempDir, testTempDir, []batches.Step{}),
+		Fetcher: batches.NewRepoFetcher(client, testTempDir, false),
+		Logger:  mock.LogNoOpManager{},
+
+		TempDir:     testTempDir,
+		Parallelism: runtime.GOMAXPROCS(0),
+		Timeout:     30 * time.Second,
+	})
+
+	statusHandler := NewTaskStatusCollection([]*Task{task})
+
+	// Run executor
+	executor.Start(context.Background(), []*Task{task}, statusHandler)
+	results, err := executor.Wait(context.Background())
+	if err != nil {
+		t.Fatalf("execution failed: %s", err)
+	}
+
+	if have, want := len(results), 1; have != want {
+		t.Fatalf("wrong number of execution results. want=%d, have=%d", want, have)
+	}
+
+	// We want the diff to be the same as the cached one, since we only had to
+	// execute a single step
+	executionResult := results[0].result
+	if diff := cmp.Diff(executionResult.Diff, string(cachedDiff)); diff != "" {
+		t.Fatalf("wrong diff: %s", diff)
+	}
+
+	if have, want := len(results[0].stepResults), 1; have != want {
+		t.Fatalf("wrong length of step results. have=%d, want=%d", have, want)
+	}
+
+	stepResult := results[0].stepResults[0]
+	if diff := cmp.Diff(stepResult, task.CachedResult); diff != "" {
+		t.Fatalf("wrong stepResult: %s", diff)
 	}
 }

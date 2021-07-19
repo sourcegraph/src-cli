@@ -80,8 +80,10 @@ func runSteps(ctx context.Context, opts *executionOpts) (result executionResult,
 
 	var (
 		execResult = executionResult{
-			Outputs: make(map[string]interface{}),
-			Path:    opts.task.Path,
+			Diff:         "",
+			ChangedFiles: &git.Changes{},
+			Outputs:      make(map[string]interface{}),
+			Path:         opts.task.Path,
 		}
 		previousStepResult StepResult
 		startStep          int
@@ -92,8 +94,20 @@ func runSteps(ctx context.Context, opts *executionOpts) (result executionResult,
 		execResult.Outputs = opts.task.CachedResult.Outputs
 
 		startStep = opts.task.CachedResult.StepIndex + 1
+
+		// If we have cached results and don't need to execute any more steps,
+		// we can quit
 		if startStep == len(opts.task.Steps) {
-			startStep -= 1
+			changes, err := git.ChangesInDiff(opts.task.CachedResult.Diff)
+			if err != nil {
+				return execResult, nil, errors.Wrap(err, "parsing cached step diff")
+			}
+
+			execResult.Diff = string(opts.task.CachedResult.Diff)
+			execResult.ChangedFiles = &changes
+			stepResults = append(stepResults, opts.task.CachedResult)
+
+			return execResult, stepResults, nil
 		}
 
 		switch startStep {
