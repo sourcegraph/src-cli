@@ -145,9 +145,6 @@ func (ui *TUI) ExecutingTasks(verbose bool, parallelism int) executor.TaskExecut
 	return ui.progressPrinter
 }
 
-func (ui *TUI) ExecutingTasksSuccess() {
-	ui.progressPrinter.Complete()
-}
 func (ui *TUI) ExecutingTasksSkippingErrors(err error) {
 	printExecutionError(ui.Out, err)
 	ui.Out.WriteLine(output.Line(output.EmojiWarning, output.StyleWarning, "Skipping errors because -skip-errors was used."))

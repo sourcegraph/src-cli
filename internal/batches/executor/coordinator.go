@@ -203,6 +203,7 @@ func (c *Coordinator) cacheAndBuildSpec(ctx context.Context, taskResult taskResu
 
 type TaskExecutionUI interface {
 	Start([]*Task)
+	Success()
 
 	TaskStarted(*Task)
 	TaskFinished(*Task, error)

@@ -111,15 +111,11 @@ func (ui *JSONLines) CheckingCacheSuccess(cachedSpecsFound int, tasksToExecute i
 }
 
 func (ui *JSONLines) ExecutingTasks(verbose bool, parallelism int) executor.TaskExecutionUI {
-	return &taskExecutionJSONLinesUI{verbose: verbose, parallelism: parallelism}
+	return &taskExecutionJSONLines{verbose: verbose, parallelism: parallelism}
 }
 
 func (ui *JSONLines) ExecutingTasksSkippingErrors(err error) {
 	logOperationSuccess("EXECUTING_TASKS", fmt.Sprintf("Error: %s. Skipping errors because -skip-errors was used.", err))
-}
-func (ui *JSONLines) ExecutingTasksSuccess() {
-
-	logOperationSuccess("EXECUTING_TASKS", "")
 }
 
 func (ui *JSONLines) LogFilesKept(files []string) {
@@ -182,8 +178,9 @@ type batchesLogEvent struct {
 
 	Timestamp time.Time `json:"timestamp"`
 
-	Status  string `json:"status"`            // "STARTED", "PROGRESS", "SUCCESS", "FAILURE"
-	Message string `json:"message,omitempty"` // "70% done"
+	Status   string      `json:"status"`            // "STARTED", "PROGRESS", "SUCCESS", "FAILURE"
+	Message  string      `json:"message,omitempty"` // "70% done"
+	Metadata interface{} `json:"metadata,omitempty"`
 }
 
 func logOperationStart(op, msg string) {
@@ -207,22 +204,93 @@ func logEvent(e batchesLogEvent) {
 	json.NewEncoder(os.Stdout).Encode(e)
 }
 
-type taskExecutionJSONLinesUI struct {
+// TODO: Until we've figured out what exactly we want to expose, we create
+// these smaller UI-specific structs.
+type jsonLinesTask struct {
+	Repository             string
+	Workspace              string
+	Steps                  []batches.Step
+	CachedStepResultsFound bool
+	StartStep              int
+}
+
+type taskExecutionJSONLines struct {
 	verbose     bool
 	parallelism int
+
+	linesTasks map[*executor.Task]jsonLinesTask
 }
 
-func (ui *taskExecutionJSONLinesUI) Start([]*executor.Task) {
+func (ui *taskExecutionJSONLines) Start(tasks []*executor.Task) {
+	ui.linesTasks = make(map[*executor.Task]jsonLinesTask, len(tasks))
+	for _, t := range tasks {
+		ui.linesTasks[t] = jsonLinesTask{
+			Repository:             t.Repository.Name,
+			Workspace:              t.Path,
+			Steps:                  t.Steps,
+			CachedStepResultsFound: t.CachedResultFound,
+			StartStep:              t.CachedResult.StepIndex,
+		}
+	}
+
+	logEvent(batchesLogEvent{Operation: "EXECUTING_TASKS", Status: "STARTED", Metadata: map[string]interface{}{
+		"tasks": ui.linesTasks,
+	}})
 }
 
-func (ui *taskExecutionJSONLinesUI) TaskStarted(*executor.Task) {
+func (ui *taskExecutionJSONLines) Success() {
+	logEvent(batchesLogEvent{Operation: "EXECUTING_TASKS", Status: "SUCCESS"})
 }
 
-func (ui *taskExecutionJSONLinesUI) TaskFinished(*executor.Task, error) {
+func (ui *taskExecutionJSONLines) TaskStarted(task *executor.Task) {
+	lt, ok := ui.linesTasks[task]
+	if !ok {
+		panic("unknown task started")
+	}
+	logEvent(batchesLogEvent{Operation: "EXECUTING_TASK", Status: "STARTED", Metadata: map[string]interface{}{
+		"task": lt,
+	}})
 }
 
-func (ui *taskExecutionJSONLinesUI) TaskChangesetSpecsBuilt(*executor.Task, []*batches.ChangesetSpec) {
+func (ui *taskExecutionJSONLines) TaskFinished(task *executor.Task, err error) {
+	lt, ok := ui.linesTasks[task]
+	if !ok {
+		panic("unknown task started")
+	}
+	if err != nil {
+		logEvent(batchesLogEvent{Operation: "EXECUTING_TASK", Status: "FAILURE", Metadata: map[string]interface{}{
+			"task":  lt,
+			"error": err,
+		}})
+		return
+	}
+
+	logEvent(batchesLogEvent{Operation: "EXECUTING_TASK", Status: "SUCCESS", Metadata: map[string]interface{}{
+		"task": lt,
+	}})
 }
 
-func (ui *taskExecutionJSONLinesUI) TaskCurrentlyExecuting(*executor.Task, string) {
+func (ui *taskExecutionJSONLines) TaskChangesetSpecsBuilt(task *executor.Task, specs []*batches.ChangesetSpec) {
+	lt, ok := ui.linesTasks[task]
+	if !ok {
+		panic("unknown task started")
+	}
+	logEvent(batchesLogEvent{Operation: "BUILDING_TASK_CHANGESET_SPECS", Status: "SUCCESS", Metadata: map[string]interface{}{
+		"task": lt,
+	}})
+}
+
+func (ui *taskExecutionJSONLines) TaskCurrentlyExecuting(task *executor.Task, message string) {
+	lt, ok := ui.linesTasks[task]
+	if !ok {
+		panic("unknown task started")
+	}
+	logEvent(batchesLogEvent{
+		Operation: "EXECUTING_TASK",
+		Status:    "PROGRESS",
+		Message:   message,
+		Metadata: map[string]interface{}{
+			"task": lt,
+		},
+	})
 }

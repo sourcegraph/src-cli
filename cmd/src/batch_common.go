@@ -299,12 +299,12 @@ func executeBatchSpec(ctx context.Context, opts executeBatchSpecOpts) (err error
 	}
 	opts.ui.CheckingCacheSuccess(len(cachedSpecs), len(uncachedTasks))
 
-	printer := opts.ui.ExecutingTasks(*verbose, opts.flags.parallelism)
-	freshSpecs, logFiles, err := coord.Execute(ctx, uncachedTasks, batchSpec, printer)
+	taskExecUI := opts.ui.ExecutingTasks(*verbose, opts.flags.parallelism)
+	freshSpecs, logFiles, err := coord.Execute(ctx, uncachedTasks, batchSpec, taskExecUI)
 	if err != nil && !opts.flags.skipErrors {
 		return err
 	}
-	opts.ui.ExecutingTasksSuccess()
+	taskExecUI.Success()
 	if err != nil && opts.flags.skipErrors {
 		opts.ui.ExecutingTasksSkippingErrors(err)
 	}

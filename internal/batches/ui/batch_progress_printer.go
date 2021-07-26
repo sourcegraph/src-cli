@@ -66,6 +66,10 @@ func (ui *batchProgressPrinter) Start([]*executor.Task) {
 	// TODO: Implement me
 }
 
+func (ui *batchProgressPrinter) Success() {
+	// TODO: Implement me
+}
+
 func (ui *batchProgressPrinter) TaskStarted(*executor.Task) {
 	// TODO: Implement me
 }

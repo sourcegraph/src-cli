@@ -33,7 +33,6 @@ type ExecUI interface {
 
 	ExecutingTasks(verbose bool, parallelism int) executor.TaskExecutionUI
 	ExecutingTasksSkippingErrors(err error)
-	ExecutingTasksSuccess()
 
 	LogFilesKept(files []string)
 
