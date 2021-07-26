@@ -31,7 +31,7 @@ type TUI struct {
 	pending  output.Pending
 	progress output.Progress
 
-	progressPrinter *batchProgressPrinter
+	progressPrinter *taskExecTUI
 }
 
 func (ui *TUI) ParsingBatchSpec() {
@@ -141,7 +141,7 @@ func (ui *TUI) CheckingCacheSuccess(cachedSpecsFound int, uncachedTasks int) {
 }
 
 func (ui *TUI) ExecutingTasks(verbose bool, parallelism int) executor.TaskExecutionUI {
-	ui.progressPrinter = newBatchProgressPrinter(ui.Out, verbose, parallelism)
+	ui.progressPrinter = newTaskExecTUI(ui.Out, verbose, parallelism)
 	return ui.progressPrinter
 }
 
