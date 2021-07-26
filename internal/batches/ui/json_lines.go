@@ -1,4 +1,4 @@
-package main
+package ui
 
 import (
 	"encoding/json"
@@ -12,41 +12,40 @@ import (
 	"github.com/sourcegraph/src-cli/internal/batches/workspace"
 )
 
-var _ batchExecUI = &batchExecJSONLinesUI{}
+var _ ExecUI = &JSONLines{}
 
-type batchExecJSONLinesUI struct {
-}
+type JSONLines struct{}
 
-func (ui *batchExecJSONLinesUI) ParsingBatchSpec() {
+func (ui *JSONLines) ParsingBatchSpec() {
 	logOperationStart("PARSING_BATCH_SPEC", "")
 }
-func (ui *batchExecJSONLinesUI) ParsingBatchSpecSuccess() {
+func (ui *JSONLines) ParsingBatchSpecSuccess() {
 	logOperationSuccess("PARSING_BATCH_SPEC", "")
 }
 
-func (ui *batchExecJSONLinesUI) ParsingBatchSpecFailure(err error) {
+func (ui *JSONLines) ParsingBatchSpecFailure(err error) {
 	logOperationFailure("PARSING_BATCH_SPEC", err.Error())
 }
 
-func (ui *batchExecJSONLinesUI) ResolvingNamespace() {
+func (ui *JSONLines) ResolvingNamespace() {
 	logOperationStart("RESOLVING_NAMESPACE", "")
 }
-func (ui *batchExecJSONLinesUI) ResolvingNamespaceSuccess(namespace string) {
+func (ui *JSONLines) ResolvingNamespaceSuccess(namespace string) {
 	logOperationSuccess("RESOLVING_NAMESPACE", fmt.Sprintf("Namespace: %s", namespace))
 }
-func (ui *batchExecJSONLinesUI) PreparingContainerImages() {
+func (ui *JSONLines) PreparingContainerImages() {
 	logOperationStart("PREPARING_DOCKER_IMAGES", "")
 }
-func (ui *batchExecJSONLinesUI) PreparingContainerImagesProgress(percent float64) {
+func (ui *JSONLines) PreparingContainerImagesProgress(percent float64) {
 	logOperationProgress("PREPARING_DOCKER_IMAGES", fmt.Sprintf("%d%% done", int(percent*100)))
 }
-func (ui *batchExecJSONLinesUI) PreparingContainerImagesSuccess() {
+func (ui *JSONLines) PreparingContainerImagesSuccess() {
 	logOperationSuccess("PREPARING_DOCKER_IMAGES", "")
 }
-func (ui *batchExecJSONLinesUI) DeterminingWorkspaceCreatorType() {
+func (ui *JSONLines) DeterminingWorkspaceCreatorType() {
 	logOperationStart("DETERMINING_WORKSPACE_TYPE", "")
 }
-func (ui *batchExecJSONLinesUI) DeterminingWorkspaceCreatorTypeSuccess(wt workspace.CreatorType) {
+func (ui *JSONLines) DeterminingWorkspaceCreatorTypeSuccess(wt workspace.CreatorType) {
 	switch wt {
 	case workspace.CreatorTypeVolume:
 		logOperationSuccess("DETERMINING_WORKSPACE_TYPE", "VOLUME")
@@ -54,11 +53,11 @@ func (ui *batchExecJSONLinesUI) DeterminingWorkspaceCreatorTypeSuccess(wt worksp
 		logOperationSuccess("DETERMINING_WORKSPACE_TYPE", "BIND")
 	}
 }
-func (ui *batchExecJSONLinesUI) ResolvingRepositories() {
+func (ui *JSONLines) ResolvingRepositories() {
 	logOperationStart("RESOLVING_REPOSITORIES", "")
 }
 
-func (ui *batchExecJSONLinesUI) ResolvingRepositoriesDone(repos []*graphql.Repository, unsupported batches.UnsupportedRepoSet, ignored batches.IgnoredRepoSet) {
+func (ui *JSONLines) ResolvingRepositoriesDone(repos []*graphql.Repository, unsupported batches.UnsupportedRepoSet, ignored batches.IgnoredRepoSet) {
 	if unsupported != nil && len(unsupported) != 0 {
 		logOperationSuccess("RESOLVING_REPOSITORIES", fmt.Sprintf("%d unsupported repositories", len(unsupported)))
 	} else if ignored != nil && len(ignored) != 0 {
@@ -75,11 +74,11 @@ func (ui *batchExecJSONLinesUI) ResolvingRepositoriesDone(repos []*graphql.Repos
 	}
 }
 
-func (ui *batchExecJSONLinesUI) DeterminingWorkspaces() {
+func (ui *JSONLines) DeterminingWorkspaces() {
 	logOperationStart("DETERMINING_WORKSPACES", "")
 }
 
-func (ui *batchExecJSONLinesUI) DeterminingWorkspacesSuccess(num int) {
+func (ui *JSONLines) DeterminingWorkspacesSuccess(num int) {
 	switch num {
 	case 0:
 		logOperationSuccess("DETERMINING_WORKSPACES", "No workspace found")
@@ -90,11 +89,11 @@ func (ui *batchExecJSONLinesUI) DeterminingWorkspacesSuccess(num int) {
 	}
 }
 
-func (ui *batchExecJSONLinesUI) CheckingCache() {
+func (ui *JSONLines) CheckingCache() {
 	logOperationStart("CHECKING_CACHE", "")
 }
 
-func (ui *batchExecJSONLinesUI) CheckingCacheSuccess(cachedSpecsFound int, tasksToExecute int) {
+func (ui *JSONLines) CheckingCacheSuccess(cachedSpecsFound int, tasksToExecute int) {
 	var specsFoundMessage string
 	if cachedSpecsFound == 1 {
 		specsFoundMessage = "Found 1 cached changeset spec"
@@ -111,29 +110,29 @@ func (ui *batchExecJSONLinesUI) CheckingCacheSuccess(cachedSpecsFound int, tasks
 	}
 }
 
-func (ui *batchExecJSONLinesUI) ExecutingTasks(verbose bool, parallelism int) executor.TaskExecutionUI {
+func (ui *JSONLines) ExecutingTasks(verbose bool, parallelism int) executor.TaskExecutionUI {
 	return &taskExecutionJSONLinesUI{verbose: verbose, parallelism: parallelism}
 }
 
-func (ui *batchExecJSONLinesUI) ExecutingTasksSkippingErrors(err error) {
+func (ui *JSONLines) ExecutingTasksSkippingErrors(err error) {
 	logOperationSuccess("EXECUTING_TASKS", fmt.Sprintf("Error: %s. Skipping errors because -skip-errors was used.", err))
 }
-func (ui *batchExecJSONLinesUI) ExecutingTasksSuccess() {
+func (ui *JSONLines) ExecutingTasksSuccess() {
 
 	logOperationSuccess("EXECUTING_TASKS", "")
 }
 
-func (ui *batchExecJSONLinesUI) LogFilesKept(files []string) {
+func (ui *JSONLines) LogFilesKept(files []string) {
 	for _, file := range files {
 		logOperationSuccess("LOG_FILE_KEPT", file)
 	}
 }
 
-func (ui *batchExecJSONLinesUI) NoChangesetSpecs() {
+func (ui *JSONLines) NoChangesetSpecs() {
 	logOperationSuccess("UPLOADING_CHANGESET_SPECS", "No changeset specs created")
 }
 
-func (ui *batchExecJSONLinesUI) UploadingChangesetSpecs(num int) {
+func (ui *JSONLines) UploadingChangesetSpecs(num int) {
 	var label string
 	if num == 1 {
 		label = "Sending 1 changeset spec"
@@ -144,37 +143,37 @@ func (ui *batchExecJSONLinesUI) UploadingChangesetSpecs(num int) {
 	logOperationStart("UPLOADING_CHANGESET_SPECS", label)
 }
 
-func (ui *batchExecJSONLinesUI) UploadingChangesetSpecsProgress(done, total int) {
+func (ui *JSONLines) UploadingChangesetSpecsProgress(done, total int) {
 	logOperationProgress("UPLOADING_CHANGESET_SPECS", fmt.Sprintf("Uploaded %d out of %d", done, total))
 }
-func (ui *batchExecJSONLinesUI) UploadingChangesetSpecsSuccess() {
+func (ui *JSONLines) UploadingChangesetSpecsSuccess() {
 	logOperationSuccess("UPLOADING_CHANGESET_SPECS", "")
 }
 
-func (ui *batchExecJSONLinesUI) CreatingBatchSpec() {
+func (ui *JSONLines) CreatingBatchSpec() {
 	logOperationStart("CREATING_BATCH_SPEC", "")
 }
 
-func (ui *batchExecJSONLinesUI) CreatingBatchSpecSuccess() {
+func (ui *JSONLines) CreatingBatchSpecSuccess() {
 }
 
-func (ui *batchExecJSONLinesUI) CreatingBatchSpecError(err error) error {
+func (ui *JSONLines) CreatingBatchSpecError(err error) error {
 	return err
 }
 
-func (ui *batchExecJSONLinesUI) PreviewBatchSpec(batchSpecURL string) {
+func (ui *JSONLines) PreviewBatchSpec(batchSpecURL string) {
 	logOperationSuccess("CREATING_BATCH_SPEC", batchSpecURL)
 }
 
-func (ui *batchExecJSONLinesUI) ApplyingBatchSpec() {
+func (ui *JSONLines) ApplyingBatchSpec() {
 	logOperationStart("APPLYING_BATCH_SPEC", "")
 }
 
-func (ui *batchExecJSONLinesUI) ApplyingBatchSpecSuccess(batchChangeURL string) {
+func (ui *JSONLines) ApplyingBatchSpecSuccess(batchChangeURL string) {
 	logOperationSuccess("APPLYING_BATCH_SPEC", batchChangeURL)
 }
 
-func (ui *batchExecJSONLinesUI) ExecutionError(err error) {
+func (ui *JSONLines) ExecutionError(err error) {
 	logOperationFailure("BATCH_SPEC_EXECUTION", err.Error())
 }
 

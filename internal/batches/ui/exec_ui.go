@@ -1,4 +1,4 @@
-package main
+package ui
 
 import (
 	"github.com/sourcegraph/src-cli/internal/batches"
@@ -7,7 +7,7 @@ import (
 	"github.com/sourcegraph/src-cli/internal/batches/workspace"
 )
 
-type batchExecUI interface {
+type ExecUI interface {
 	ParsingBatchSpec()
 	ParsingBatchSpecSuccess()
 	ParsingBatchSpecFailure(error)

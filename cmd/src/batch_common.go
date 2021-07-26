@@ -15,19 +15,14 @@ import (
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
-	"github.com/sourcegraph/sourcegraph/lib/output"
 	"github.com/sourcegraph/src-cli/internal/api"
 	"github.com/sourcegraph/src-cli/internal/batches"
 	"github.com/sourcegraph/src-cli/internal/batches/executor"
 	"github.com/sourcegraph/src-cli/internal/batches/graphql"
 	"github.com/sourcegraph/src-cli/internal/batches/service"
+	"github.com/sourcegraph/src-cli/internal/batches/ui"
 	"github.com/sourcegraph/src-cli/internal/batches/workspace"
-)
-
-var (
-	batchPendingColor = output.StylePending
-	batchSuccessColor = output.StyleSuccess
-	batchSuccessEmoji = output.EmojiSuccess
+	"github.com/sourcegraph/src-cli/internal/cmderrors"
 )
 
 type batchExecuteFlags struct {
@@ -125,14 +120,6 @@ func newBatchExecuteFlags(flagSet *flag.FlagSet, cacheDir, tempDir string) *batc
 	return caf
 }
 
-func batchCreatePending(out *output.Output, message string) output.Pending {
-	return out.Pending(output.Line("", batchPendingColor, message))
-}
-
-func batchCompletePending(p output.Pending, message string) {
-	p.Complete(output.Line(batchSuccessEmoji, batchSuccessColor, message))
-}
-
 func batchDefaultCacheDir() string {
 	uc, err := os.UserCacheDir()
 	if err != nil {
@@ -199,7 +186,7 @@ type executeBatchSpecOpts struct {
 
 	applyBatchSpec bool
 
-	ui batchExecUI
+	ui ui.ExecUI
 
 	client api.Client
 }
@@ -238,10 +225,7 @@ func executeBatchSpec(ctx context.Context, opts executeBatchSpecOpts) (err error
 	if err != nil {
 		if merr, ok := err.(*multierror.Error); ok {
 			opts.ui.ParsingBatchSpecFailure(merr)
-			return &exitCodeError{
-				error:    nil,
-				exitCode: 2,
-			}
+			return cmderrors.ExitCode(2, nil)
 		} else {
 			// This shouldn't happen; let's just punt and let the normal
 			// rendering occur.
