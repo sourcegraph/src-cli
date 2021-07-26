@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/sourcegraph/go-diff/diff"
 	"github.com/sourcegraph/sourcegraph/lib/output"
@@ -11,6 +13,83 @@ import (
 	"github.com/sourcegraph/src-cli/internal/batches/executor"
 	"golang.org/x/sync/semaphore"
 )
+
+type TaskStatus struct {
+	RepoName string
+	Path     string
+
+	LogFile            string
+	StartedAt          time.Time
+	FinishedAt         time.Time
+	CurrentlyExecuting string
+
+	// ChangesetSpecs are the specs produced by executing the Task in a
+	// repository. One Task can produce multiple ChangesetSpecs (see
+	// createChangesetSpec).
+	// Only check this field once ChangesetSpecsDone is set.
+	ChangesetSpecs []*batches.ChangesetSpec
+	// ChangesetSpecsDone is set after the Coordinator attempted to build the
+	// ChangesetSpecs of a task.
+	ChangesetSpecsDone bool
+
+	// Err is set if executing the Task lead to an error.
+	Err error
+
+	fileDiffs     []*diff.FileDiff
+	fileDiffsErr  error
+	fileDiffsOnce sync.Once
+}
+
+func (ts *TaskStatus) DisplayName() string {
+	if ts.Path != "" {
+		return ts.RepoName + ":" + ts.Path
+	}
+	return ts.RepoName
+}
+
+func (ts *TaskStatus) IsRunning() bool {
+	return !ts.StartedAt.IsZero() && ts.FinishedAt.IsZero()
+}
+
+func (ts *TaskStatus) FinishedExecution() bool {
+	return !ts.StartedAt.IsZero() && !ts.FinishedAt.IsZero()
+}
+
+func (ts *TaskStatus) FinishedBuildingSpecs() bool {
+	return ts.ChangesetSpecsDone
+}
+
+func (ts *TaskStatus) ExecutionTime() time.Duration {
+	return ts.FinishedAt.Sub(ts.StartedAt).Truncate(time.Millisecond)
+}
+
+// FileDiffs returns the file diffs produced by the Task in the given
+// repository.
+// If no file diffs were produced, the task resulted in an error, or the task
+// hasn't finished execution yet, the second return value is false.
+func (ts *TaskStatus) FileDiffs() ([]*diff.FileDiff, bool, error) {
+	if !ts.FinishedBuildingSpecs() || len(ts.ChangesetSpecs) == 0 || ts.Err != nil {
+		return nil, false, nil
+	}
+
+	ts.fileDiffsOnce.Do(func() {
+		var all []*diff.FileDiff
+
+		for _, spec := range ts.ChangesetSpecs {
+			fd, err := diff.ParseMultiFileDiff([]byte(spec.Commits[0].Diff))
+			if err != nil {
+				ts.fileDiffsErr = err
+				return
+			}
+
+			all = append(all, fd...)
+		}
+
+		ts.fileDiffs = all
+	})
+
+	return ts.fileDiffs, len(ts.fileDiffs) != 0, ts.fileDiffsErr
+}
 
 func newBatchProgressPrinter(out *output.Output, verbose bool, numParallelism int) *batchProgressPrinter {
 	return &batchProgressPrinter{
@@ -23,7 +102,7 @@ func newBatchProgressPrinter(out *output.Output, verbose bool, numParallelism in
 		numParallelism: numParallelism,
 
 		executedTasks:  map[string]bool{},
-		runningTasks:   map[string]*executor.TaskStatus{},
+		runningTasks:   map[string]*TaskStatus{},
 		completedTasks: map[string]bool{},
 
 		repoStatusBar: map[string]int{},
@@ -48,7 +127,7 @@ type batchProgressPrinter struct {
 	numParallelism int
 
 	// runningTasks are the tasks that are currently executing.
-	runningTasks map[string]*executor.TaskStatus
+	runningTasks map[string]*TaskStatus
 	// executedTasks are the tasks that finished execution but where the
 	// changesetSpec hasn't been built.
 	executedTasks map[string]bool
@@ -86,7 +165,7 @@ func (ui *batchProgressPrinter) TaskCurrentlyExecuting(*executor.Task, string) {
 	// TODO: Implement me
 }
 
-func (p *batchProgressPrinter) initProgressBar(statuses []*executor.TaskStatus) int {
+func (p *batchProgressPrinter) initProgressBar(statuses []*TaskStatus) int {
 	numStatusBars := p.numParallelism
 	if len(statuses) < numStatusBars {
 		numStatusBars = len(statuses)
@@ -127,7 +206,7 @@ func (p *batchProgressPrinter) updateProgressBar(completed, errored, total int) 
 	p.progress.SetLabelAndRecalc(0, label)
 }
 
-func (p *batchProgressPrinter) PrintStatuses(statuses []*executor.TaskStatus) {
+func (p *batchProgressPrinter) PrintStatuses(statuses []*TaskStatus) {
 	if len(statuses) == 0 {
 		return
 	}
@@ -143,9 +222,9 @@ func (p *batchProgressPrinter) PrintStatuses(statuses []*executor.TaskStatus) {
 		p.numStatusBars = p.initProgressBar(statuses)
 	}
 
-	newlyFinishedExecution := []*executor.TaskStatus{}
-	newlyFinishedBuilding := []*executor.TaskStatus{}
-	currentlyRunning := []*executor.TaskStatus{}
+	newlyFinishedExecution := []*TaskStatus{}
+	newlyFinishedBuilding := []*TaskStatus{}
+	currentlyRunning := []*TaskStatus{}
 	errored := 0
 
 	for _, ts := range statuses {
@@ -187,7 +266,7 @@ func (p *batchProgressPrinter) PrintStatuses(statuses []*executor.TaskStatus) {
 
 	p.updateProgressBar(len(p.executedTasks), errored, len(statuses))
 
-	newlyStarted := map[string]*executor.TaskStatus{}
+	newlyStarted := map[string]*TaskStatus{}
 	statusBarIndex := 0
 	for _, ts := range currentlyRunning {
 		if _, ok := p.runningTasks[ts.DisplayName()]; ok {
@@ -296,7 +375,7 @@ type statusTexter interface {
 	StatusText() string
 }
 
-func taskStatusBarText(ts *executor.TaskStatus) (string, error) {
+func taskStatusBarText(ts *TaskStatus) (string, error) {
 	var statusText string
 
 	if ts.FinishedExecution() {

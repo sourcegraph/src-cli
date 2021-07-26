@@ -9,7 +9,6 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/sourcegraph/sourcegraph/lib/output"
 	"github.com/sourcegraph/src-cli/internal/batches"
-	"github.com/sourcegraph/src-cli/internal/batches/executor"
 )
 
 const progressPrinterDiff = `diff --git README.md README.md
@@ -53,7 +52,7 @@ func TestBatchProgressPrinterIntegration(t *testing.T) {
 	})
 
 	now := time.Now()
-	statuses := []*executor.TaskStatus{
+	statuses := []*TaskStatus{
 		{
 			RepoName:           "github.com/sourcegraph/sourcegraph",
 			StartedAt:          now,
@@ -90,7 +89,7 @@ func TestBatchProgressPrinterIntegration(t *testing.T) {
 	}
 
 	// Now mark the last task as finished-execution
-	statuses[len(statuses)-1] = &executor.TaskStatus{
+	statuses[len(statuses)-1] = &TaskStatus{
 		RepoName:           "github.com/sourcegraph/automation-testing",
 		StartedAt:          now.Add(time.Duration(-5) * time.Second),
 		FinishedAt:         now.Add(time.Duration(5) * time.Second),
@@ -120,7 +119,7 @@ func TestBatchProgressPrinterIntegration(t *testing.T) {
 	}
 
 	// Mark the last task as finished-building-specs
-	statuses[len(statuses)-1] = &executor.TaskStatus{
+	statuses[len(statuses)-1] = &TaskStatus{
 		RepoName:           "github.com/sourcegraph/automation-testing",
 		StartedAt:          now.Add(time.Duration(-5) * time.Second),
 		FinishedAt:         now.Add(time.Duration(5) * time.Second),
