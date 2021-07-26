@@ -31,7 +31,7 @@ type batchExecUI interface {
 	CheckingCache()
 	CheckingCacheSuccess(cachedSpecsFound int, tasksToExecute int)
 
-	ExecutingTasks(verbose bool, parallelism int) func(ts []*executor.TaskStatus)
+	ExecutingTasks(verbose bool, parallelism int) executor.TaskExecutionUI
 	ExecutingTasksSkippingErrors(err error)
 	ExecutingTasksSuccess()
 

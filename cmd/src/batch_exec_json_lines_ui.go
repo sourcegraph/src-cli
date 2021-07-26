@@ -111,35 +111,8 @@ func (ui *batchExecJSONLinesUI) CheckingCacheSuccess(cachedSpecsFound int, tasks
 	}
 }
 
-func (ui *batchExecJSONLinesUI) ExecutingTasks(verbose bool, parallelism int) func(ts []*executor.TaskStatus) {
-	logOperationStart("EXECUTING_TASKS", "")
-
-	return func(statuses []*executor.TaskStatus) {
-		finishedExecution := 0
-		finishedBuilding := 0
-		currentlyRunning := 0
-		errored := 0
-
-		for _, ts := range statuses {
-			if ts.FinishedExecution() {
-				if ts.Err != nil {
-					errored += 1
-				}
-
-				finishedExecution += 1
-			}
-
-			if ts.FinishedBuildingSpecs() {
-				finishedBuilding += 1
-			}
-
-			if ts.IsRunning() {
-				currentlyRunning += 1
-			}
-		}
-
-		logOperationProgress("EXECUTING_TASKS", fmt.Sprintf("running: %d, executed: %d, built: %d, errored: %d", currentlyRunning, finishedExecution, finishedBuilding, errored))
-	}
+func (ui *batchExecJSONLinesUI) ExecutingTasks(verbose bool, parallelism int) executor.TaskExecutionUI {
+	return &taskExecutionJSONLinesUI{verbose: verbose, parallelism: parallelism}
 }
 
 func (ui *batchExecJSONLinesUI) ExecutingTasksSkippingErrors(err error) {
@@ -233,4 +206,24 @@ func logOperationProgress(op, msg string) {
 func logEvent(e batchesLogEvent) {
 	e.Timestamp = time.Now().UTC().Truncate(time.Millisecond)
 	json.NewEncoder(os.Stdout).Encode(e)
+}
+
+type taskExecutionJSONLinesUI struct {
+	verbose     bool
+	parallelism int
+}
+
+func (ui *taskExecutionJSONLinesUI) Start([]*executor.Task) {
+}
+
+func (ui *taskExecutionJSONLinesUI) TaskStarted(*executor.Task) {
+}
+
+func (ui *taskExecutionJSONLinesUI) TaskFinished(*executor.Task, error) {
+}
+
+func (ui *taskExecutionJSONLinesUI) TaskChangesetSpecsBuilt(*executor.Task, []*batches.ChangesetSpec) {
+}
+
+func (ui *taskExecutionJSONLinesUI) TaskCurrentlyExecuting(*executor.Task, string) {
 }

@@ -340,12 +340,11 @@ func TestExecutor_Integration(t *testing.T) {
 				opts.Timeout = 30 * time.Second
 			}
 
+			dummyUI := newDummyTaskExecutionUI()
 			executor := newExecutor(opts)
 
-			statusHandler := NewTaskStatusCollection(tc.tasks)
-
 			// Run executor
-			executor.Start(context.Background(), tc.tasks, statusHandler)
+			executor.Start(context.Background(), tc.tasks, dummyUI)
 
 			results, err := executor.Wait(context.Background())
 			if tc.wantErrInclude == "" {
@@ -429,20 +428,10 @@ func TestExecutor_Integration(t *testing.T) {
 				}
 			}
 
-			// Make sure that all the TaskStatus have been updated correctly
-			statusHandler.CopyStatuses(func(statuses []*TaskStatus) {
-				for i, status := range statuses {
-					if status.StartedAt.IsZero() {
-						t.Fatalf("status %d: StartedAt is zero", i)
-					}
-					if status.FinishedAt.IsZero() {
-						t.Fatalf("status %d: FinishedAt is zero", i)
-					}
-					if status.CurrentlyExecuting != "" {
-						t.Fatalf("status %d: CurrentlyExecuting not reset", i)
-					}
-				}
-			})
+			// Make sure that all the Tasks have been updated correctly
+			if have, want := len(dummyUI.finished), len(tc.tasks); have != want {
+				t.Fatalf("wrong number of finished tasks. want=%d, have=%d", want, have)
+			}
 		})
 	}
 }
@@ -701,6 +690,6 @@ func testExecuteTasks(t *testing.T, tasks []*Task, archives ...mock.RepoArchive)
 		Timeout:     30 * time.Second,
 	})
 
-	executor.Start(context.Background(), tasks, NewTaskStatusCollection(tasks))
+	executor.Start(context.Background(), tasks, newDummyTaskExecutionUI())
 	return executor.Wait(context.Background())
 }

@@ -133,9 +133,9 @@ func (ui *batchExecTUI) CheckingCacheSuccess(cachedSpecsFound int, uncachedTasks
 	}
 }
 
-func (ui *batchExecTUI) ExecutingTasks(verbose bool, parallelism int) func(ts []*executor.TaskStatus) {
+func (ui *batchExecTUI) ExecutingTasks(verbose bool, parallelism int) executor.TaskExecutionUI {
 	ui.progressPrinter = newBatchProgressPrinter(ui.out, verbose, parallelism)
-	return ui.progressPrinter.PrintStatuses
+	return ui.progressPrinter
 }
 
 func (ui *batchExecTUI) ExecutingTasksSuccess() {

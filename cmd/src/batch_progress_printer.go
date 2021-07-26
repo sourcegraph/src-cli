@@ -7,6 +7,7 @@ import (
 
 	"github.com/sourcegraph/go-diff/diff"
 	"github.com/sourcegraph/sourcegraph/lib/output"
+	"github.com/sourcegraph/src-cli/internal/batches"
 	"github.com/sourcegraph/src-cli/internal/batches/executor"
 	"golang.org/x/sync/semaphore"
 )
@@ -57,6 +58,28 @@ type batchProgressPrinter struct {
 
 	repoStatusBar map[string]int
 	statusBarRepo map[int]string
+}
+
+var _ executor.TaskExecutionUI = &batchProgressPrinter{}
+
+func (ui *batchProgressPrinter) Start([]*executor.Task) {
+	// TODO: Implement me
+}
+
+func (ui *batchProgressPrinter) TaskStarted(*executor.Task) {
+	// TODO: Implement me
+}
+
+func (ui *batchProgressPrinter) TaskFinished(*executor.Task, error) {
+	// TODO: Implement me
+}
+
+func (ui *batchProgressPrinter) TaskChangesetSpecsBuilt(*executor.Task, []*batches.ChangesetSpec) {
+	// TODO: Implement me
+}
+
+func (ui *batchProgressPrinter) TaskCurrentlyExecuting(*executor.Task, string) {
+	// TODO: Implement me
 }
 
 func (p *batchProgressPrinter) initProgressBar(statuses []*executor.TaskStatus) int {
