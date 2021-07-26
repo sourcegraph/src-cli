@@ -509,6 +509,8 @@ func newDummyTaskExecutionUI() *dummyTaskExecutionUI {
 }
 
 type dummyTaskExecutionUI struct {
+	mu sync.Mutex
+
 	started         map[*Task]struct{}
 	finished        map[*Task]struct{}
 	finishedWithErr map[*Task]struct{}
@@ -516,10 +518,17 @@ type dummyTaskExecutionUI struct {
 }
 
 func (d *dummyTaskExecutionUI) Start([]*Task) {}
+func (d *dummyTaskExecutionUI) Success()      {}
 func (d *dummyTaskExecutionUI) TaskStarted(t *Task) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
 	d.started[t] = struct{}{}
 }
 func (d *dummyTaskExecutionUI) TaskFinished(t *Task, err error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
 	if _, ok := d.started[t]; ok {
 		delete(d.started, t)
 	}
@@ -530,8 +539,12 @@ func (d *dummyTaskExecutionUI) TaskFinished(t *Task, err error) {
 	}
 }
 func (d *dummyTaskExecutionUI) TaskChangesetSpecsBuilt(t *Task, specs []*batches.ChangesetSpec) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
 	d.specs[t] = specs
 }
+
 func (d *dummyTaskExecutionUI) TaskCurrentlyExecuting(*Task, string) {}
 
 var _ taskExecutor = &dummyExecutor{}
