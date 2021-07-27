@@ -169,9 +169,7 @@ func (c *Coordinator) setCachedStepResults(ctx context.Context, task *Task) erro
 	return nil
 }
 
-func (c *Coordinator) cacheAndBuildSpec(ctx context.Context, taskResult taskResult, ui TaskExecutionUI) (specs []*batches.ChangesetSpec, err error) {
-	defer ui.TaskChangesetSpecsBuilt(taskResult.task, specs)
-
+func (c *Coordinator) cacheAndBuildSpec(ctx context.Context, taskResult taskResult, ui TaskExecutionUI) ([]*batches.ChangesetSpec, error) {
 	// Add to the cache, even if no diff was produced.
 	cacheKey := taskResult.task.cacheKey()
 	if err := c.cache.Set(ctx, cacheKey, taskResult.result); err != nil {
@@ -193,11 +191,12 @@ func (c *Coordinator) cacheAndBuildSpec(ctx context.Context, taskResult taskResu
 	}
 
 	// Build the changeset specs.
-	specs, err = createChangesetSpecs(taskResult.task, taskResult.result, c.opts.Features)
+	specs, err := createChangesetSpecs(taskResult.task, taskResult.result, c.opts.Features)
 	if err != nil {
-		return specs, err
+		return nil, err
 	}
 
+	ui.TaskChangesetSpecsBuilt(taskResult.task, specs)
 	return specs, nil
 }
 
