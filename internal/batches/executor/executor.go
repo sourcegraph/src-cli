@@ -134,7 +134,9 @@ func (x *executor) Wait(ctx context.Context) ([]taskResult, error) {
 
 func (x *executor) do(ctx context.Context, task *Task, ui TaskExecutionUI) (err error) {
 	// Ensure that the status is updated when we're done.
-	defer ui.TaskFinished(task, err)
+	defer func() {
+		ui.TaskFinished(task, err)
+	}()
 
 	// We're away!
 	ui.TaskStarted(task)
