@@ -146,10 +146,10 @@ func (ui *taskExecTUI) Success() {
 	ui.progress.Complete()
 }
 
-func (p *taskExecTUI) useFreeStatusBar(ts *taskStatus) (bar int, found bool) {
-	for i := 0; i < p.numStatusBars; i++ {
-		if _, ok := p.statusBars[i]; !ok {
-			p.statusBars[i] = ts
+func (ui *taskExecTUI) useFreeStatusBar(ts *taskStatus) (bar int, found bool) {
+	for i := 0; i < ui.numStatusBars; i++ {
+		if _, ok := ui.statusBars[i]; !ok {
+			ui.statusBars[i] = ts
 			bar = i
 			found = true
 			return bar, found
@@ -158,9 +158,9 @@ func (p *taskExecTUI) useFreeStatusBar(ts *taskStatus) (bar int, found bool) {
 	return bar, found
 }
 
-func (p *taskExecTUI) findStatusBar(ts *taskStatus) (bar int, found bool) {
-	for i := 0; i < p.numStatusBars; i++ {
-		if status, ok := p.statusBars[i]; ok {
+func (ui *taskExecTUI) findStatusBar(ts *taskStatus) (bar int, found bool) {
+	for i := 0; i < ui.numStatusBars; i++ {
+		if status, ok := ui.statusBars[i]; ok {
 			if ts == status {
 				bar = i
 				found = true
@@ -172,43 +172,47 @@ func (p *taskExecTUI) findStatusBar(ts *taskStatus) (bar int, found bool) {
 	return bar, found
 }
 
-func (p *taskExecTUI) TaskStarted(task *executor.Task) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
+func (ui *taskExecTUI) TaskStarted(task *executor.Task) {
+	ui.mu.Lock()
+	defer ui.mu.Unlock()
 
-	ts, ok := p.statuses[task]
+	ts, ok := ui.statuses[task]
 	if !ok {
-		panic("unknown task")
+		ui.out.Verbose("warning: task not found in internal 'statuses'")
+		return
 	}
 
-	ts.startedAt = p.clock()
+	ts.startedAt = ui.clock()
 
 	// Find free slot
-	bar, found := p.useFreeStatusBar(ts)
+	bar, found := ui.useFreeStatusBar(ts)
 	if !found {
-		panic("no available status bar found")
+		ui.out.Verbose("warning: no free status bar found to display task status")
+		return
 	}
 
-	p.progress.StatusBarResetf(bar, ts.displayName, ts.String())
+	ui.progress.StatusBarResetf(bar, ts.displayName, ts.String())
 }
 
-func (p *taskExecTUI) TaskCurrentlyExecuting(task *executor.Task, message string) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
+func (ui *taskExecTUI) TaskCurrentlyExecuting(task *executor.Task, message string) {
+	ui.mu.Lock()
+	defer ui.mu.Unlock()
 
-	ts, ok := p.statuses[task]
+	ts, ok := ui.statuses[task]
 	if !ok {
-		panic("unknown task")
+		ui.out.Verbose("warning: task not found in internal 'statuses'")
+		return
 	}
 
 	ts.currentlyExecuting = message
 
-	bar, found := p.findStatusBar(ts)
+	bar, found := ui.findStatusBar(ts)
 	if !found {
-		panic("no available status bar found")
+		ui.out.Verbose("warning: no free status bar found to display task status")
+		return
 	}
 
-	p.progress.StatusBarUpdatef(bar, ts.String())
+	ui.progress.StatusBarUpdatef(bar, ts.String())
 }
 
 func (ui *taskExecTUI) TaskFinished(task *executor.Task, err error) {
@@ -217,7 +221,8 @@ func (ui *taskExecTUI) TaskFinished(task *executor.Task, err error) {
 
 	ts, ok := ui.statuses[task]
 	if !ok {
-		panic("unknown task")
+		ui.out.Verbose("warning: task not found in internal 'statuses'")
+		return
 	}
 
 	ts.finishedAt = ui.clock()
@@ -231,7 +236,8 @@ func (ui *taskExecTUI) TaskFinished(task *executor.Task, err error) {
 
 	bar, found := ui.findStatusBar(ts)
 	if !found {
-		panic("no available status bar found")
+		ui.out.Verbose("warning: no free status bar found to display task status")
+		return
 	}
 
 	if ts.err != nil {
@@ -253,7 +259,8 @@ func (ui *taskExecTUI) TaskChangesetSpecsBuilt(task *executor.Task, specs []*bat
 
 	ts, ok := ui.statuses[task]
 	if !ok {
-		panic("unknown task")
+		ui.out.Verbose("warning: task not found in internal 'statuses'")
+		return
 	}
 
 	var fileDiffs []*diff.FileDiff
@@ -289,11 +296,11 @@ func (ui *taskExecTUI) TaskChangesetSpecsBuilt(task *executor.Task, specs []*bat
 	ui.progress.Verbose("")
 }
 
-func (p *taskExecTUI) updateProgressBar(completed, errored, total int) {
-	p.progress.SetValue(0, float64(completed))
+func (ui *taskExecTUI) updateProgressBar(completed, errored, total int) {
+	ui.progress.SetValue(0, float64(completed))
 
 	label := fmt.Sprintf("Executing... (%d/%d, %d errored)", completed, total, errored)
-	p.progress.SetLabelAndRecalc(0, label)
+	ui.progress.SetLabelAndRecalc(0, label)
 }
 
 type statusTexter interface {
