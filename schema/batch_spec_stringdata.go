@@ -117,6 +117,11 @@ const BatchSpecJSON = `{
             "description": "The Docker image used to launch the Docker container in which the shell command is run.",
             "examples": ["alpine:3"]
           },
+          "allow_network": {
+            "type": "boolean",
+            "description": "Allow the container to access network.",
+            "default": false
+          },
           "outputs": {
             "type": "object",
             "description": "Output variables of this step that can be referenced in the changesetTemplate or other steps via outputs.<name-of-output>",

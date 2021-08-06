@@ -93,6 +93,7 @@ type Step struct {
 	Env       env.Environment   `json:"env,omitempty" yaml:"env"`
 	Files     map[string]string `json:"files,omitempty" yaml:"files,omitempty"`
 	Outputs   Outputs           `json:"outputs,omitempty" yaml:"outputs,omitempty"`
+	AllowNetwork bool           `json:"allow_network,omitempty" yaml:"allow_network,omitempty"`
 
 	If interface{} `json:"if,omitempty" yaml:"if,omitempty"`
 

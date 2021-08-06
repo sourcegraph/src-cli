@@ -292,6 +292,10 @@ func executeSingleStep(
 		args = append(args, "-e", k+"="+v)
 	}
 
+	if !step.AllowNetwork {
+		args = append(args, "--network", "none")
+	}
+
 	args = append(args, "--entrypoint", shell)
 
 	cmd := exec.CommandContext(ctx, "docker", args...)
