@@ -133,13 +133,26 @@ func textDecoder(query string, t *template.Template, w io.Writer) streaming.Deco
 		OnMatches: func(matches []streaming.EventMatch) {
 			for _, match := range matches {
 				switch match := match.(type) {
-				case *streaming.EventFileMatch:
-					err := t.ExecuteTemplate(w, "file", struct {
+				case *streaming.EventContentMatch:
+					err := t.ExecuteTemplate(w, "content", struct {
 						Query string
-						*streaming.EventFileMatch
+						*streaming.EventContentMatch
+					}{
+						Query:             query,
+						EventContentMatch: match,
+					},
+					)
+					if err != nil {
+						logError(fmt.Sprintf("error when executing template: %s\n", err))
+						return
+					}
+				case *streaming.EventPathMatch:
+					err := t.ExecuteTemplate(w, "path", struct {
+						Query string
+						*streaming.EventPathMatch
 					}{
 						Query:          query,
-						EventFileMatch: match,
+						EventPathMatch: match,
 					},
 					)
 					if err != nil {
@@ -201,7 +214,18 @@ func isLimitHit(progress *streaming.Progress) bool {
 }
 
 const streamingTemplate = `
-{{define "file"}}
+{{define "path"}}
+	{{- /* Repository and file name */ -}}
+	{{- color "search-repository"}}{{.Repository}}{{color "nc" -}}
+	{{- " › " -}}
+	{{- color "search-filename"}}{{.Path}}{{color "nc" -}}
+	{{- color "success"}}{{matchOrMatches 0}}{{color "nc" -}}
+	{{- "\n" -}}
+	{{- color "search-border"}}{{"--------------------------------------------------------------------------------\n"}}{{color "nc"}}
+	{{- "\n" -}}
+{{- end -}}
+
+{{define "content"}}
 	{{- /* Repository and file name */ -}}
 	{{- color "search-repository"}}{{.Repository}}{{color "nc" -}}
 	{{- " › " -}}

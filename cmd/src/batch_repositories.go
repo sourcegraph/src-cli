@@ -10,6 +10,7 @@ import (
 	"github.com/sourcegraph/src-cli/internal/api"
 	"github.com/sourcegraph/src-cli/internal/batches/graphql"
 	"github.com/sourcegraph/src-cli/internal/batches/service"
+	"github.com/sourcegraph/src-cli/internal/batches/ui"
 )
 
 func init() {
@@ -49,8 +50,10 @@ Examples:
 		}
 
 		out := output.NewOutput(flagSet.Output(), output.OutputOpts{Verbose: *verbose})
-		spec, _, err := batchParseSpec(out, fileFlag, svc)
+		spec, _, err := batchParseSpec(fileFlag, svc)
 		if err != nil {
+			ui := &ui.TUI{Out: out}
+			ui.ParsingBatchSpecFailure(err)
 			return err
 		}
 

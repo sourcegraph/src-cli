@@ -13,11 +13,54 @@ All notable changes to `src-cli` are documented in this file.
 
 ### Added
 
-- Starting with Sourcegraph 3.30.0, the `published` field is optional in batch specs. If omitted, the publication state will be controlled through the Batch Changes UI. [#538](https://github.com/sourcegraph/src-cli/pull/538)
-
 ### Changed
 
 ### Fixed
+
+### Removed
+
+## 3.30.4
+
+### Added
+
+- Releases are now built for `arm64` architectures too.
+
+## 3.30.3
+
+### Fixed
+
+- For internal use only: `-text-only` silently ignored an error when trying to print log messages and did not print a `EXECUTING_TASKS` message.
+
+## 3.30.2
+
+### Changed
+
+- For internal use only: `-text-only` now contains detailed information about task execution. [#571](https://github.com/sourcegraph/src-cli/pull/571)
+- As part of the above: the TUI of `src batch [preview|apply]` has been reworked and should now feel snappier.
+
+## 3.30.1
+
+### Fixed
+
+- The per-step caching of batch spec execution results was broken when re-execution could use the cached results of a step and that step was the only one left to execute. That resulted in empty diffs being uploaded. This is now fixed. [#567](https://github.com/sourcegraph/src-cli/pull/567)
+
+## 3.30.0
+
+Re-release of 3.29.3 for Sourcegraph 3.30.
+
+## 3.29.3
+
+### Fixed
+
+- `count:all` was not supported in repository search queries for batch changes. This is now fixed. [#566](https://github.com/sourcegraph/src-cli/pull/566)
+- For internal use only: `-text-only` received a few tiny fixes for pluralisation and missing log messages. [#565](https://github.com/sourcegraph/src-cli/pull/565)
+
+## 3.29.2
+
+### Added
+
+- Starting with Sourcegraph 3.30.0, the `published` field is optional in batch specs. If omitted, the publication state will be controlled through the Batch Changes UI. [#538](https://github.com/sourcegraph/src-cli/pull/538)
+- For internal use only: `-text-only` flag added to `src batch [apply|preview]`. [#562](https://github.com/sourcegraph/src-cli/pull/562)
 
 ## 3.29.1
 
@@ -25,13 +68,9 @@ All notable changes to `src-cli` are documented in this file.
 
 - LSIF uploads now respect the `-insecure-skip-verify` flag to insecurely (surprise!) skip TLS certificate validation when communicating with Sourcegraph. [#559](https://github.com/sourcegraph/src-cli/pull/559)
 
-### Changed
-
 ### Fixed
 
 - Various terminal handling fixes, especially for Batch Changes users with regards to resizing terminals and Windows support. [#560](https://github.com/sourcegraph/src-cli/pull/560)
-
-### Removed
 
 ## 3.29.0
 
