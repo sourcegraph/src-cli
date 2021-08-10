@@ -2,6 +2,7 @@ package main
 
 import (
 	"archive/zip"
+	"bytes"
 	"flag"
 	"fmt"
 	"os"
@@ -48,7 +49,7 @@ USAGE
 		zw := zip.NewWriter(out)
 		defer zw.Close()
 
-		// TODO: make outFile the input from `-out=` flag stored in `outFile`
+		// TODO: make outFile the input from `-out=` flag stored in `outFile` but without the .zip
 		k8sEvents, err := zw.Create("outFile/kubectl/events.txt")
 		if err != nil {
 			return fmt.Errorf("failed to create k8s-events.txt: %w", err)
@@ -63,17 +64,19 @@ USAGE
 		}
 
 		// Store logs output in zip
-		k8sPods, err := zw.Create("outFile/kubectl/pods.txt")
-		if err != nil {
-			return fmt.Errorf("failed to create pods.txt: %w", err)
-		}
+		//k8sPods, err := zw.Create("outFile/kubectl/pods.txt")
+		//if err != nil {
+		//	return fmt.Errorf("failed to create pods.txt: %w", err)
+		//}
+
+		var k8sPods bytes.Buffer
 
 		// TODO process pods output into array of strings to run in loop as argument for writing as .txt in archive
 		// Get all pod names
-		zmd := exec.Command("kubectl", "get", "pods")
-		zmd.Stdout = k8sPods
+		zmd := exec.Command("kubectl", "get", "pods", "-o=json")
+		zmd.Stdout = &k8sPods
 		zmd.Stderr = os.Stderr
-		fmt.Println(k8sPods)
+		// fmt.Printf("%T \n", k8sPods)
 
 		if err := zmd.Run(); err != nil {
 			return fmt.Errorf("running kubectl get pods failed: %w", err)
@@ -81,6 +84,7 @@ USAGE
 
 		// Sanity Check
 		fmt.Println("runnnnnnnnn")
+		fmt.Printf("%s \n", k8sPods.String())
 
 		return nil
 	}
