@@ -93,7 +93,7 @@ USAGE
 		// exec kubectl get logs and write to archive
 		for i := range podList {
 			fmt.Println(podList[i])
-			podLogs, err := zw.Create("outFile/logs/" + podList[i])
+			podLogs, err := zw.Create("outFile/logs/" + podList[i] + ".txt")
 			if err != nil {
 				return fmt.Errorf("failed to create podLogs.txt: %w", err)
 			}
@@ -103,6 +103,7 @@ USAGE
 			getLogs.Stderr = os.Stderr
 
 			if err := getLogs.Run(); err != nil {
+
 				return fmt.Errorf("running kubectl get logs failed: %w", err)
 			}
 		}
