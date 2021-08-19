@@ -11,6 +11,7 @@ import (
 	"github.com/sourcegraph/src-cli/internal/exec"
 )
 
+// Init debug flag on src build
 func init() {
 	flagSet := flag.NewFlagSet("debug", flag.ExitOnError)
 
@@ -22,6 +23,7 @@ USAGE
 `)
 	}
 
+	// store value passed to out flag
 	var (
 		outFile = flagSet.String("out", "debug.zip", "The name of the output zip archive")
 	)
@@ -35,11 +37,6 @@ USAGE
 		if *outFile == "" {
 			return fmt.Errorf("empty -out flag")
 		}
-
-		// TODO: ensures outFile ends in .zip
-		// if *outFile == !strings.HasSuffix(".zip") {
-		//		return fmt.Errorf("-out flg must end in .zip")
-		// }
 
 		out, err := os.OpenFile(*outFile, os.O_CREATE|os.O_RDWR|os.O_EXCL, 0666)
 		if err != nil {
@@ -115,7 +112,7 @@ func savek8sLogs(zw *zip.Writer) error {
 
 	// exec kubectl get logs and write to archive, accounts for containers in pod
 	for _, pod := range podList.Items {
-		fmt.Printf("%+v\n", pod)
+		fmt.Println(pod.Metadata.Name, "containers:", pod.Spec.Containers)
 		for _, container := range pod.Spec.Containers {
 			logs, err := zw.Create("outFile/kubectl/logs/" + pod.Metadata.Name + "/" + container.Name + ".txt")
 			if err != nil {
@@ -128,6 +125,28 @@ func savek8sLogs(zw *zip.Writer) error {
 
 			if err := getLogs.Run(); err != nil {
 				return fmt.Errorf("running kubectl get logs failed: %w", err)
+			}
+		}
+	}
+
+	// TODO: dont write a prev-container.txt if kubectl logs --previous returns no prev pod
+	for _, pod := range podList.Items {
+		fmt.Println(pod.Metadata.Name, "containers:", pod.Spec.Containers)
+		for _, container := range pod.Spec.Containers {
+			prevLogs, err := zw.Create("outFile/kubectl/logs/" + pod.Metadata.Name + "/" + "prev-" + container.Name + ".txt")
+			if err != nil {
+				return fmt.Errorf("failed to create podLogs.txt: %w", err)
+			}
+
+			getPrevLogs := exec.Command("kubectl", "logs", "--previous", pod.Metadata.Name, "-c", container.Name)
+			getPrevLogs.Stderr = os.Stderr
+			getPrevLogs.Stdout = prevLogs
+
+			if err := getPrevLogs.Run(); err != nil {
+				fmt.Errorf("running kubectl get logs failed: %w", err)
+				// continue
+			} else {
+				fmt.Println("\nTHERE WAS A PREV!!!!")
 			}
 		}
 	}
