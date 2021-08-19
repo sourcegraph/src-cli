@@ -18,6 +18,7 @@ import (
 	"github.com/sourcegraph/go-diff/diff"
 	"github.com/sourcegraph/src-cli/internal/api"
 	"github.com/sourcegraph/src-cli/internal/batches"
+	"github.com/sourcegraph/src-cli/internal/batches/docker"
 	"github.com/sourcegraph/src-cli/internal/batches/git"
 	"github.com/sourcegraph/src-cli/internal/batches/mock"
 	"github.com/sourcegraph/src-cli/internal/batches/workspace"
@@ -338,7 +339,7 @@ func TestExecutor_Integration(t *testing.T) {
 
 			// Setup executor
 			opts := newExecutorOpts{
-				Creator: workspace.NewCreator(context.Background(), "bind", testTempDir, testTempDir, []batches.Step{}),
+				Creator: workspace.NewCreator(context.Background(), "bind", testTempDir, testTempDir, []docker.Image{}),
 				Fetcher: batches.NewRepoFetcher(client, testTempDir, false),
 				Logger:  mock.LogNoOpManager{},
 
@@ -691,7 +692,7 @@ func testExecuteTasks(t *testing.T, tasks []*Task, archives ...mock.RepoArchive)
 
 	// Setup executor
 	executor := newExecutor(newExecutorOpts{
-		Creator: workspace.NewCreator(context.Background(), "bind", testTempDir, testTempDir, []batches.Step{}),
+		Creator: workspace.NewCreator(context.Background(), "bind", testTempDir, testTempDir, []docker.Image{}),
 		Fetcher: batches.NewRepoFetcher(client, testTempDir, false),
 		Logger:  mock.LogNoOpManager{},
 

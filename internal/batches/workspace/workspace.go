@@ -5,6 +5,7 @@ import (
 	"runtime"
 
 	"github.com/sourcegraph/src-cli/internal/batches"
+	"github.com/sourcegraph/src-cli/internal/batches/docker"
 	"github.com/sourcegraph/src-cli/internal/batches/git"
 	"github.com/sourcegraph/src-cli/internal/batches/graphql"
 )
@@ -57,14 +58,14 @@ const (
 	CreatorTypeVolume
 )
 
-func NewCreator(ctx context.Context, preference, cacheDir, tempDir string, steps []batches.Step) Creator {
+func NewCreator(ctx context.Context, preference, cacheDir, tempDir string, images []docker.Image) Creator {
 	var workspaceType CreatorType
 	if preference == "volume" {
 		workspaceType = CreatorTypeVolume
 	} else if preference == "bind" {
 		workspaceType = CreatorTypeBind
 	} else {
-		workspaceType = BestCreatorType(ctx, steps)
+		workspaceType = BestCreatorType(ctx, images)
 	}
 
 	if workspaceType == CreatorTypeVolume {
@@ -75,7 +76,7 @@ func NewCreator(ctx context.Context, preference, cacheDir, tempDir string, steps
 
 // BestCreatorType determines the correct workspace creator type to use based
 // on the environment and batch change to be executed.
-func BestCreatorType(ctx context.Context, steps []batches.Step) CreatorType {
+func BestCreatorType(ctx context.Context, images []docker.Image) CreatorType {
 	// The basic theory here is that we have two options: bind and volume. Bind
 	// is battle tested and always safe, but can be slow on non-Linux platforms
 	// because bind mounts are slow. Volume is faster on those platforms, but
@@ -90,10 +91,10 @@ func BestCreatorType(ctx context.Context, steps []batches.Step) CreatorType {
 		return CreatorTypeBind
 	}
 
-	return detectBestCreatorType(ctx, steps)
+	return detectBestCreatorType(ctx, images)
 }
 
-func detectBestCreatorType(ctx context.Context, steps []batches.Step) CreatorType {
+func detectBestCreatorType(ctx context.Context, images []docker.Image) CreatorType {
 	// OK, so we're interested in volume mode, but we need to take its
 	// shortcomings around mixed user environments into account.
 	//
@@ -112,8 +113,8 @@ func detectBestCreatorType(ctx context.Context, steps []batches.Step) CreatorTyp
 	// but let's keep it simple for now.
 	var uid *int
 
-	for _, step := range steps {
-		ug, err := step.ImageUIDGID(ctx)
+	for _, image := range images {
+		ug, err := image.UIDGID(ctx)
 		if err != nil {
 			// An error here likely indicates that `id` isn't available on the
 			// path. That's OK: let's not make any assumptions at this point
