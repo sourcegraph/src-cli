@@ -4,6 +4,7 @@ import (
 	"context"
 	"runtime"
 
+	"github.com/pkg/errors"
 	"github.com/sourcegraph/src-cli/internal/batches"
 	"github.com/sourcegraph/src-cli/internal/batches/docker"
 	"github.com/sourcegraph/src-cli/internal/batches/git"
@@ -58,7 +59,7 @@ const (
 	CreatorTypeVolume
 )
 
-func NewCreator(ctx context.Context, preference, cacheDir, tempDir string, images []docker.Image) Creator {
+func NewCreator(ctx context.Context, preference, cacheDir, tempDir string, images map[string]docker.Image) Creator {
 	var workspaceType CreatorType
 	if preference == "volume" {
 		workspaceType = CreatorTypeVolume
@@ -68,15 +69,22 @@ func NewCreator(ctx context.Context, preference, cacheDir, tempDir string, image
 		workspaceType = BestCreatorType(ctx, images)
 	}
 
+	ensureImage := func(_ context.Context, container string) (docker.Image, error) {
+		img, ok := images[container]
+		if !ok {
+			return nil, errors.Errorf("image %q not found", container)
+		}
+		return img, nil
+	}
 	if workspaceType == CreatorTypeVolume {
-		return &dockerVolumeWorkspaceCreator{tempDir: tempDir}
+		return &dockerVolumeWorkspaceCreator{tempDir: tempDir, EnsureImage: ensureImage}
 	}
 	return &dockerBindWorkspaceCreator{Dir: cacheDir}
 }
 
 // BestCreatorType determines the correct workspace creator type to use based
 // on the environment and batch change to be executed.
-func BestCreatorType(ctx context.Context, images []docker.Image) CreatorType {
+func BestCreatorType(ctx context.Context, images map[string]docker.Image) CreatorType {
 	// The basic theory here is that we have two options: bind and volume. Bind
 	// is battle tested and always safe, but can be slow on non-Linux platforms
 	// because bind mounts are slow. Volume is faster on those platforms, but
@@ -94,7 +102,7 @@ func BestCreatorType(ctx context.Context, images []docker.Image) CreatorType {
 	return detectBestCreatorType(ctx, images)
 }
 
-func detectBestCreatorType(ctx context.Context, images []docker.Image) CreatorType {
+func detectBestCreatorType(ctx context.Context, images map[string]docker.Image) CreatorType {
 	// OK, so we're interested in volume mode, but we need to take its
 	// shortcomings around mixed user environments into account.
 	//

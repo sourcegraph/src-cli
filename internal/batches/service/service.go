@@ -150,19 +150,19 @@ func (svc *Service) CreateChangesetSpec(ctx context.Context, spec *batches.Chang
 //
 // Progress information is reported back to the given progress function: perc
 // will be a value between 0.0 and 1.0, inclusive.
-func (svc *Service) SetDockerImages(ctx context.Context, spec *batches.BatchSpec, progress func(perc float64)) ([]docker.Image, error) {
+func (svc *Service) SetDockerImages(ctx context.Context, spec *batches.BatchSpec, progress func(perc float64)) (map[string]docker.Image, error) {
 	total := len(spec.Steps) + 1
 	progress(0)
 
 	// TODO: this _really_ should be parallelised, since the image cache takes
 	// care to only pull the same image once.
-	images := make([]docker.Image, 0, len(spec.Steps))
+	images := make(map[string]docker.Image)
 	for i := range spec.Steps {
 		img, err := svc.EnsureImage(ctx, spec.Steps[i].Container)
 		if err != nil {
 			return nil, err
 		}
-		images = append(images, img)
+		images[spec.Steps[i].Container] = img
 
 		progress(float64(i) / float64(total))
 	}
@@ -189,6 +189,7 @@ func (svc *Service) NewCoordinator(opts executor.NewCoordinatorOpts) *executor.C
 	opts.ResolveRepoName = svc.resolveRepositoryName
 	opts.Client = svc.client
 	opts.Features = svc.features
+	opts.EnsureImage = svc.EnsureImage
 
 	return executor.NewCoordinator(opts)
 }
