@@ -224,21 +224,19 @@ func executeSingleStep(
 	defer cleanup()
 
 	// We need to grab the digest for the exact image we're using.
-	digest, err := step.ImageDigest(ctx)
-	if err != nil {
-		return bytes.Buffer{}, bytes.Buffer{}, errors.Wrapf(err, "getting digest for %v", step.DockerImage())
-	}
+	digest := step.GetImageDigest()
 
 	// For now, we only support shell scripts provided via the Run field.
 	shell, containerTemp, err := probeImageForShell(ctx, digest)
 	if err != nil {
-		return bytes.Buffer{}, bytes.Buffer{}, errors.Wrapf(err, "probing image %q for shell", step.DockerImage())
+		return bytes.Buffer{}, bytes.Buffer{}, errors.Wrapf(err, "probing image %q for shell", step.Container)
 	}
 
 	runScriptFile, runScript, cleanup, err := createRunScriptFile(ctx, opts.tempDir, step.Run, stepContext)
 	if err != nil {
 		return bytes.Buffer{}, bytes.Buffer{}, err
 	}
+	defer cleanup()
 
 	// Parse and render the step.Files.
 	filesToMount, cleanup, err := createFilesToMount(opts.tempDir, step, stepContext)

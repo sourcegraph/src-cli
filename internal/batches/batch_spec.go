@@ -9,7 +9,6 @@ import (
 	"github.com/sourcegraph/batch-change-utils/env"
 	"github.com/sourcegraph/batch-change-utils/overridable"
 	"github.com/sourcegraph/batch-change-utils/yaml"
-	"github.com/sourcegraph/src-cli/internal/batches/docker"
 	"github.com/sourcegraph/src-cli/schema"
 )
 
@@ -83,8 +82,6 @@ type Step struct {
 	Outputs   Outputs           `json:"outputs,omitempty" yaml:"outputs,omitempty"`
 
 	If interface{} `json:"if,omitempty" yaml:"if,omitempty"`
-
-	image docker.Image
 }
 
 func (s *Step) IfCondition() string {
@@ -99,14 +96,6 @@ func (s *Step) IfCondition() string {
 	default:
 		return ""
 	}
-}
-
-func (s *Step) SetImage(image docker.Image) {
-	s.image = image
-}
-
-func (s *Step) GetImage() docker.Image {
-	return s.image
 }
 
 type Outputs map[string]Output

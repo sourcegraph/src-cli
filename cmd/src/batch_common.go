@@ -243,14 +243,14 @@ func executeBatchSpec(ctx context.Context, opts executeBatchSpecOpts) (err error
 	opts.ui.ResolvingNamespaceSuccess(namespace)
 
 	opts.ui.PreparingContainerImages()
-	err = svc.SetDockerImages(ctx, batchSpec, opts.ui.PreparingContainerImagesProgress)
+	images, err := svc.SetDockerImages(ctx, batchSpec, opts.ui.PreparingContainerImagesProgress)
 	if err != nil {
 		return err
 	}
 	opts.ui.PreparingContainerImagesSuccess()
 
 	opts.ui.DeterminingWorkspaceCreatorType()
-	workspaceCreator := workspace.NewCreator(ctx, opts.flags.workspace, opts.flags.cacheDir, opts.flags.tempDir, batchSpec.Steps)
+	workspaceCreator := workspace.NewCreator(ctx, opts.flags.workspace, opts.flags.cacheDir, opts.flags.tempDir, images)
 	if workspaceCreator.Type() == workspace.CreatorTypeVolume {
 		_, err = svc.EnsureImage(ctx, workspace.DockerVolumeWorkspaceImage)
 		if err != nil {

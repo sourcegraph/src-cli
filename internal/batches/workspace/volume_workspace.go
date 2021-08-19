@@ -37,7 +37,7 @@ func (wc *dockerVolumeWorkspaceCreator) Create(ctx context.Context, repo *graphq
 	ug := docker.UIDGID{}
 	if len(steps) > 0 {
 		var err error
-		if ug, err = steps[0].ImageUIDGID(ctx); err != nil {
+		if ug, err = steps[0].GetImage().UIDGID(ctx); err != nil {
 			return nil, errors.Wrap(err, "getting container UID and GID")
 		}
 	}
