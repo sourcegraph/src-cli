@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/gobwas/glob"
 	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
 	"github.com/sourcegraph/batch-change-utils/env"
@@ -69,16 +68,6 @@ type WorkspaceConfiguration struct {
 	RootAtLocationOf   string `json:"rootAtLocationOf,omitempty" yaml:"rootAtLocationOf"`
 	In                 string `json:"in,omitempty" yaml:"in"`
 	OnlyFetchWorkspace bool   `json:"onlyFetchWorkspace,omitempty" yaml:"onlyFetchWorkspace"`
-
-	glob glob.Glob
-}
-
-func (wc *WorkspaceConfiguration) SetGlob(g glob.Glob) {
-	wc.glob = g
-}
-
-func (wc *WorkspaceConfiguration) Matches(repoName string) bool {
-	return wc.glob.Match(repoName)
 }
 
 type OnQueryOrRepository struct {
@@ -151,9 +140,19 @@ type Group struct {
 	Repository string `json:"repository,omitempty" yaml:"repository"`
 }
 
-func ParseBatchSpec(data []byte, features FeatureFlags) (*BatchSpec, error) {
+type ParseBatchSpecOptions struct {
+	AllowArrayEnvironments bool
+	AllowTransformChanges  bool
+	AllowConditionalExec   bool
+}
+
+func ParseBatchSpec(data []byte, opts ParseBatchSpecOptions) (*BatchSpec, error) {
+	return parseBatchSpec(schema.BatchSpecJSON, data, opts)
+}
+
+func parseBatchSpec(schema string, data []byte, opts ParseBatchSpecOptions) (*BatchSpec, error) {
 	var spec BatchSpec
-	if err := yaml.UnmarshalValidate(schema.BatchSpecJSON, data, &spec); err != nil {
+	if err := yaml.UnmarshalValidate(schema, data, &spec); err != nil {
 		if multiErr, ok := err.(*multierror.Error); ok {
 			var newMultiError *multierror.Error
 
@@ -174,7 +173,7 @@ func ParseBatchSpec(data []byte, features FeatureFlags) (*BatchSpec, error) {
 
 	var errs *multierror.Error
 
-	if !features.AllowArrayEnvironments {
+	if !opts.AllowArrayEnvironments {
 		for i, step := range spec.Steps {
 			if !step.Env.IsStatic() {
 				errs = multierror.Append(errs, errors.Errorf("step %d includes one or more dynamic environment variables, which are unsupported in this Sourcegraph version", i+1))
@@ -186,15 +185,15 @@ func ParseBatchSpec(data []byte, features FeatureFlags) (*BatchSpec, error) {
 		errs = multierror.Append(errs, errors.New("batch spec includes steps but no changesetTemplate"))
 	}
 
-	if spec.TransformChanges != nil && !features.AllowTransformChanges {
+	if spec.TransformChanges != nil && !opts.AllowTransformChanges {
 		errs = multierror.Append(errs, errors.New("batch spec includes transformChanges, which is not supported in this Sourcegraph version"))
 	}
 
-	if len(spec.Workspaces) != 0 && !features.AllowTransformChanges {
+	if len(spec.Workspaces) != 0 && !opts.AllowTransformChanges {
 		errs = multierror.Append(errs, errors.New("batch spec includes workspaces, which is not supported in this Sourcegraph version"))
 	}
 
-	if !features.AllowConditionalExec {
+	if !opts.AllowConditionalExec {
 		for i, step := range spec.Steps {
 			if step.IfCondition() != "" {
 				errs = multierror.Append(errs, fmt.Errorf(

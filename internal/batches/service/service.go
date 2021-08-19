@@ -5,8 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"html/template"
-	"io"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path"
@@ -183,12 +181,7 @@ func (svc *Service) EnsureImage(ctx context.Context, name string) (docker.Image,
 }
 
 func (svc *Service) BuildTasks(ctx context.Context, repos []*graphql.Repository, spec *batches.BatchSpec) ([]*executor.Task, error) {
-	builder, err := executor.NewTaskBuilder(spec, svc)
-	if err != nil {
-		return nil, err
-	}
-
-	return builder.BuildAll(ctx, repos)
+	return executor.BuildTasks(ctx, spec, svc, repos)
 }
 
 func (svc *Service) NewCoordinator(opts executor.NewCoordinatorOpts) *executor.Coordinator {
@@ -263,17 +256,16 @@ func (e *duplicateBranchesErr) Error() string {
 	return out.String()
 }
 
-func (svc *Service) ParseBatchSpec(in io.Reader) (*batches.BatchSpec, string, error) {
-	data, err := ioutil.ReadAll(in)
+func (svc *Service) ParseBatchSpec(data []byte) (*batches.BatchSpec, error) {
+	spec, err := batches.ParseBatchSpec(data, batches.ParseBatchSpecOptions{
+		AllowArrayEnvironments: svc.features.AllowArrayEnvironments,
+		AllowTransformChanges:  svc.features.AllowTransformChanges,
+		AllowConditionalExec:   svc.features.AllowConditionalExec,
+	})
 	if err != nil {
-		return nil, "", errors.Wrap(err, "reading batch spec")
+		return nil, errors.Wrap(err, "parsing batch spec")
 	}
-
-	spec, err := batches.ParseBatchSpec(data, svc.features)
-	if err != nil {
-		return nil, "", errors.Wrap(err, "parsing batch spec")
-	}
-	return spec, string(data), nil
+	return spec, nil
 }
 
 const exampleSpecTmpl = `name: NAME-OF-YOUR-BATCH-CHANGE

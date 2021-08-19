@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -221,7 +222,7 @@ func executeBatchSpec(ctx context.Context, opts executeBatchSpecOpts) (err error
 
 	// Parse flags and build up our service and executor options.
 	opts.ui.ParsingBatchSpec()
-	batchSpec, rawSpec, err := batchParseSpec(&opts.flags.file, svc)
+	batchSpec, rawSpec, err := parseBatchSpec(&opts.flags.file, svc)
 	if err != nil {
 		if merr, ok := err.(*multierror.Error); ok {
 			opts.ui.ParsingBatchSpecFailure(merr)
@@ -363,16 +364,22 @@ func executeBatchSpec(ctx context.Context, opts executeBatchSpecOpts) (err error
 	return nil
 }
 
-// batchParseSpec parses and validates the given batch spec. If the spec has
+// parseBatchSpec parses and validates the given batch spec. If the spec has
 // validation errors, they are returned.
-func batchParseSpec(file *string, svc *service.Service) (*batches.BatchSpec, string, error) {
+func parseBatchSpec(file *string, svc *service.Service) (*batches.BatchSpec, string, error) {
 	f, err := batchOpenFileFlag(file)
 	if err != nil {
 		return nil, "", err
 	}
 	defer f.Close()
 
-	return svc.ParseBatchSpec(f)
+	data, err := ioutil.ReadAll(f)
+	if err != nil {
+		return nil, "", errors.Wrap(err, "reading batch spec")
+	}
+
+	spec, err := svc.ParseBatchSpec(data)
+	return spec, string(data), err
 }
 
 func checkExecutable(cmd string, args ...string) error {
