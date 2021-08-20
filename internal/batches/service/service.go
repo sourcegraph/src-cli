@@ -144,13 +144,13 @@ func (svc *Service) CreateChangesetSpec(ctx context.Context, spec *batches.Chang
 	return graphql.ChangesetSpecID(result.CreateChangesetSpec.ID), nil
 }
 
-// SetDockerImages updates the steps within the batch spec to include the exact
-// content digest to be used when running each step, and ensures that all Docker
-// images are available, including any required by the service itself.
+// EnsureDockerImages iterates over the steps within the batch spec to ensure the
+// images exist and to determine the exact content digest to be used when running
+// each step, including any required by the service itself.
 //
 // Progress information is reported back to the given progress function: perc
 // will be a value between 0.0 and 1.0, inclusive.
-func (svc *Service) SetDockerImages(ctx context.Context, spec *batches.BatchSpec, progress func(perc float64)) (map[string]docker.Image, error) {
+func (svc *Service) EnsureDockerImages(ctx context.Context, spec *batches.BatchSpec, progress func(perc float64)) (map[string]docker.Image, error) {
 	total := len(spec.Steps) + 1
 	progress(0)
 

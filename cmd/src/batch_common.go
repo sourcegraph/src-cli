@@ -243,7 +243,7 @@ func executeBatchSpec(ctx context.Context, opts executeBatchSpecOpts) (err error
 	opts.ui.ResolvingNamespaceSuccess(namespace)
 
 	opts.ui.PreparingContainerImages()
-	images, err := svc.SetDockerImages(ctx, batchSpec, opts.ui.PreparingContainerImagesProgress)
+	images, err := svc.EnsureDockerImages(ctx, batchSpec, opts.ui.PreparingContainerImagesProgress)
 	if err != nil {
 		return err
 	}

@@ -49,13 +49,12 @@ type image struct {
 	uidGidOnce sync.Once
 }
 
-// Digest gets and returns the content digest for the image. Note that this is
-// different from the "distribution digest" (which is what you can use to
-// specify an image to `docker run`, as in `my/image@sha256:xxx`). We need to
-// use the content digest because the distribution digest is only computed for
-// images that have been pulled from or pushed to a registry. See
-// https://windsock.io/explaining-docker-image-ids/ under "A Final Twist" for a
-// good explanation.
+// Digest returns the content digest for the image. Note that this is different
+// from the "distribution digest" (which is what you can use to specify an image
+// to `docker run`, as in `my/image@sha256:xxx`). We need to use the content digest
+// because the distribution digest is only computed for images that have been pulled
+// from or pushed to a registry. See https://windsock.io/explaining-docker-image-ids/
+// under "A Final Twist" for a good explanation.
 func (image *image) Digest(ctx context.Context) (string, error) {
 	ensureErr := image.Ensure(ctx)
 	return image.digest, ensureErr
