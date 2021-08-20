@@ -294,7 +294,7 @@ func inspectSuccess(name, digest string) *expect.Expectation {
 		expect.Behaviour{Stdout: []byte(digest + "\n")},
 		// Note the awkward escaping because these arguments are
 		// matched by glob.
-		"docker", "image", "inspect", "--format", `'\{\{ .Id }}'`, name,
+		"docker", "image", "inspect", "--format", `\{\{ .Id }}`, name,
 	)
 }
 
@@ -302,7 +302,7 @@ func inspectFailure(name string) *expect.Expectation {
 	return expect.NewGlob(
 		// docker image inspect returns 1 for non-existent images.
 		expect.Behaviour{ExitCode: 1},
-		"docker", "image", "inspect", "--format", `'\{\{ .Id }}'`, name,
+		"docker", "image", "inspect", "--format", `\{\{ .Id }}`, name,
 	)
 }
 

@@ -71,7 +71,7 @@ func (image *image) Ensure(ctx context.Context) error {
 				// the digest. but the digest is not calculated for all images
 				// (unless they are pulled/pushed from/to a registry), see
 				// https://github.com/moby/moby/issues/32016.
-				out, err := exec.CommandContext(ctx, "docker", "image", "inspect", "--format", "'{{ .Id }}'", image.name).CombinedOutput()
+				out, err := exec.CommandContext(ctx, "docker", "image", "inspect", "--format", "{{ .Id }}", image.name).CombinedOutput()
 				id := string(bytes.TrimSpace(out))
 				return id, err
 			}
