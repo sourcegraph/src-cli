@@ -110,9 +110,9 @@ func savek8sLogs(zw *zip.Writer) error {
 		return fmt.Errorf("failed to unmarshall pods json: %w", err)
 	}
 
-	// exec kubectl get logs and write to archive, accounts for containers in pod
+	// run kubectl logs and write to archive, accounts for containers in pod
 	for _, pod := range podList.Items {
-		fmt.Println(pod.Metadata.Name, "containers:", pod.Spec.Containers)
+		fmt.Println("Archiving logs: ", pod.Metadata.Name, "Containers:", pod.Spec.Containers)
 		for _, container := range pod.Spec.Containers {
 			logs, err := zw.Create("outFile/kubectl/logs/" + pod.Metadata.Name + "/" + container.Name + ".txt")
 			if err != nil {
@@ -129,24 +129,17 @@ func savek8sLogs(zw *zip.Writer) error {
 		}
 	}
 
-	// TODO: dont write a prev-container.txt if kubectl logs --previous returns no prev pod
+	// run kubectl logs --previous and write to archive if return not err
 	for _, pod := range podList.Items {
-		fmt.Println(pod.Metadata.Name, "containers:", pod.Spec.Containers)
 		for _, container := range pod.Spec.Containers {
-			prevLogs, err := zw.Create("outFile/kubectl/logs/" + pod.Metadata.Name + "/" + "prev-" + container.Name + ".txt")
-			if err != nil {
-				return fmt.Errorf("failed to create podLogs.txt: %w", err)
-			}
-
 			getPrevLogs := exec.Command("kubectl", "logs", "--previous", pod.Metadata.Name, "-c", container.Name)
-			getPrevLogs.Stderr = os.Stderr
-			getPrevLogs.Stdout = prevLogs
-
-			if err := getPrevLogs.Run(); err != nil {
-				fmt.Errorf("running kubectl get logs failed: %w", err)
-				// continue
-			} else {
-				fmt.Println("\nTHERE WAS A PREV!!!!")
+			if err := getPrevLogs.Run(); err == nil {
+				fmt.Println("Archiving previous logs: ", pod.Metadata.Name, "Containers: ", pod.Spec.Containers)
+				prev, err := zw.Create("outFile/kubectl/logs/" + pod.Metadata.Name + "/" + "prev-" + container.Name + ".txt")
+				getPrevLogs.Stdout = prev
+				if err != nil {
+					return fmt.Errorf("failed to create podLogs.txt: %w", err)
+				}
 			}
 		}
 	}
