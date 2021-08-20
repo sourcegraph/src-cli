@@ -19,7 +19,7 @@ func TestBestWorkspaceCreator(t *testing.T) {
 	}
 
 	for name, tc := range map[string]struct {
-		images []docker.Image
+		images map[string]docker.Image
 		want   CreatorType
 	}{
 		"nil steps": {
@@ -27,32 +27,32 @@ func TestBestWorkspaceCreator(t *testing.T) {
 			want:   CreatorTypeVolume,
 		},
 		"no steps": {
-			images: []docker.Image{},
+			images: map[string]docker.Image{},
 			want:   CreatorTypeVolume,
 		},
 		"root": {
-			images: []docker.Image{
-				&mock.Image{UidGid: uidGid(0, 0)},
+			images: map[string]docker.Image{
+				"image1": &mock.Image{UidGid: uidGid(0, 0)},
 			},
 			want: CreatorTypeVolume,
 		},
 		"same user": {
-			images: []docker.Image{
-				&mock.Image{UidGid: uidGid(1000, 1000)},
-				&mock.Image{UidGid: uidGid(1000, 1000)},
+			images: map[string]docker.Image{
+				"image1": &mock.Image{UidGid: uidGid(1000, 1000)},
+				"image2": &mock.Image{UidGid: uidGid(1000, 1000)},
 			},
 			want: CreatorTypeVolume,
 		},
 		"different user": {
-			images: []docker.Image{
-				&mock.Image{UidGid: uidGid(1000, 1000)},
-				&mock.Image{UidGid: uidGid(0, 0)},
+			images: map[string]docker.Image{
+				"image1": &mock.Image{UidGid: uidGid(1000, 1000)},
+				"image2": &mock.Image{UidGid: uidGid(0, 0)},
 			},
 			want: CreatorTypeBind,
 		},
 		"id error": {
-			images: []docker.Image{
-				&mock.Image{UidGidErr: errors.New("foo")},
+			images: map[string]docker.Image{
+				"image1": &mock.Image{UidGidErr: errors.New("foo")},
 			},
 			want: CreatorTypeBind,
 		},

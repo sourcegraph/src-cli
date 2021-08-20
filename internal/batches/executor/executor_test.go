@@ -300,12 +300,10 @@ func TestExecutor_Integration(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Make sure that the steps and tasks are setup properly
-			for i := range tc.steps {
-				tc.steps[i].SetImage(&mock.Image{
-					RawDigest: tc.steps[i].Container,
-				})
+			images := make(map[string]docker.Image)
+			for _, step := range tc.steps {
+				images[step.Container] = &mock.Image{RawDigest: step.Container}
 			}
-
 			for _, task := range tc.tasks {
 				task.BatchChangeAttributes = defaultBatchChangeAttributes
 				task.Steps = tc.steps
@@ -339,7 +337,7 @@ func TestExecutor_Integration(t *testing.T) {
 
 			// Setup executor
 			opts := newExecutorOpts{
-				Creator: workspace.NewCreator(context.Background(), "bind", testTempDir, testTempDir, []docker.Image{}),
+				Creator: workspace.NewCreator(context.Background(), "bind", testTempDir, testTempDir, images),
 				Fetcher: batches.NewRepoFetcher(client, testTempDir, false),
 				Logger:  mock.LogNoOpManager{},
 
@@ -681,18 +679,18 @@ func testExecuteTasks(t *testing.T, tasks []*Task, archives ...mock.RepoArchive)
 	var clientBuffer bytes.Buffer
 	client := api.NewClient(api.ClientOpts{Endpoint: ts.URL, Out: &clientBuffer})
 
-	// Prepare tasks
+	// Prepare images
+	//
+	images := make(map[string]docker.Image)
 	for _, t := range tasks {
-		for i := range t.Steps {
-			t.Steps[i].SetImage(&mock.Image{
-				RawDigest: t.Steps[i].Container,
-			})
+		for _, step := range t.Steps {
+			images[step.Container] = &mock.Image{RawDigest: step.Container}
 		}
 	}
 
 	// Setup executor
 	executor := newExecutor(newExecutorOpts{
-		Creator: workspace.NewCreator(context.Background(), "bind", testTempDir, testTempDir, []docker.Image{}),
+		Creator: workspace.NewCreator(context.Background(), "bind", testTempDir, testTempDir, images),
 		Fetcher: batches.NewRepoFetcher(client, testTempDir, false),
 		Logger:  mock.LogNoOpManager{},
 
