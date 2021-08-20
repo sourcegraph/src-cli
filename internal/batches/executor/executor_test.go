@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/pkg/errors"
 	"github.com/sourcegraph/go-diff/diff"
 	"github.com/sourcegraph/src-cli/internal/api"
 	"github.com/sourcegraph/src-cli/internal/batches"
@@ -340,6 +341,7 @@ func TestExecutor_Integration(t *testing.T) {
 				Creator: workspace.NewCreator(context.Background(), "bind", testTempDir, testTempDir, images),
 				Fetcher: batches.NewRepoFetcher(client, testTempDir, false),
 				Logger:  mock.LogNoOpManager{},
+				EnsureImage: imageMapEnsurer(images),
 
 				TempDir:     testTempDir,
 				Parallelism: runtime.GOMAXPROCS(0),
@@ -690,9 +692,10 @@ func testExecuteTasks(t *testing.T, tasks []*Task, archives ...mock.RepoArchive)
 
 	// Setup executor
 	executor := newExecutor(newExecutorOpts{
-		Creator: workspace.NewCreator(context.Background(), "bind", testTempDir, testTempDir, images),
-		Fetcher: batches.NewRepoFetcher(client, testTempDir, false),
-		Logger:  mock.LogNoOpManager{},
+		Creator:     workspace.NewCreator(context.Background(), "bind", testTempDir, testTempDir, images),
+		Fetcher:     batches.NewRepoFetcher(client, testTempDir, false),
+		Logger:      mock.LogNoOpManager{},
+		EnsureImage: imageMapEnsurer(images),
 
 		TempDir:     testTempDir,
 		Parallelism: runtime.GOMAXPROCS(0),
@@ -701,4 +704,13 @@ func testExecuteTasks(t *testing.T, tasks []*Task, archives ...mock.RepoArchive)
 
 	executor.Start(context.Background(), tasks, newDummyTaskExecutionUI())
 	return executor.Wait(context.Background())
+}
+
+func imageMapEnsurer(m map[string]docker.Image) imageEnsurer {
+	return func(_ context.Context, container string) (docker.Image, error) {
+		if i, ok := m[container]; ok {
+			return i, nil
+		}
+		return nil, errors.New(fmt.Sprintf("image for %s not found", container))
+	}
 }
