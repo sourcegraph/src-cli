@@ -338,9 +338,9 @@ func TestExecutor_Integration(t *testing.T) {
 
 			// Setup executor
 			opts := newExecutorOpts{
-				Creator: workspace.NewCreator(context.Background(), "bind", testTempDir, testTempDir, images),
-				Fetcher: batches.NewRepoFetcher(client, testTempDir, false),
-				Logger:  mock.LogNoOpManager{},
+				Creator:     workspace.NewCreator(context.Background(), "bind", testTempDir, testTempDir, images),
+				Fetcher:     batches.NewRepoFetcher(client, testTempDir, false),
+				Logger:      mock.LogNoOpManager{},
 				EnsureImage: imageMapEnsurer(images),
 
 				TempDir:     testTempDir,
