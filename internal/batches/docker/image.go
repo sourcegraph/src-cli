@@ -73,9 +73,6 @@ func (image *image) Ensure(ctx context.Context) error {
 				// https://github.com/moby/moby/issues/32016.
 				out, err := exec.CommandContext(ctx, "docker", "image", "inspect", "--format", "'{{ .Id }}'", image.name).CombinedOutput()
 				id := string(bytes.TrimSpace(out))
-				if id == "" {
-					return "", errors.Errorf("unexpected empty docker image content ID for %q", image.name)
-				}
 				return id, err
 			}
 
@@ -93,6 +90,11 @@ func (image *image) Ensure(ctx context.Context) error {
 					return errors.Wrap(err, "not found after pulling image")
 				}
 			}
+
+			if digest == "" {
+				return errors.Errorf("unexpected empty docker image content ID for %q", image.name)
+			}
+
 			image.digest = digest
 
 			return nil
