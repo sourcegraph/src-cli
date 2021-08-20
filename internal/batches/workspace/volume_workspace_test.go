@@ -358,6 +358,7 @@ func TestVolumeWorkspaceCreator(t *testing.T) {
 				a = tc.archive
 			}
 
+			wc.EnsureImage = tc.imageEnsurer
 			w, err := wc.Create(ctx, repo, tc.steps, a)
 			if tc.wantErr {
 				if err == nil {
