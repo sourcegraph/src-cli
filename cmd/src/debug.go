@@ -11,6 +11,20 @@ import (
 	"github.com/sourcegraph/src-cli/internal/exec"
 )
 
+// package level
+type podList struct {
+	Items []struct {
+		Metadata struct {
+			Name string
+		}
+		Spec struct {
+			Containers []struct {
+				Name string
+			}
+		}
+	}
+}
+
 // Init debug flag on src build
 func init() {
 	flagSet := flag.NewFlagSet("debug", flag.ExitOnError)
@@ -48,23 +62,32 @@ USAGE
 		defer zw.Close()
 
 		// TODO: make outFile the input from `-out=` flag stored in `outFile`, validate the .zip postpends `outFile`
-		//write events to archive
-		k8sEvents, err := zw.Create("outFile/kubectl/events.txt")
-		if err != nil {
-			return fmt.Errorf("failed to create k8s-events.txt: %w", err)
+		// Declare buffer type var for kubectl pipe
+		var podsBuff bytes.Buffer
+
+		// Get all pod names as json
+		getPods := exec.Command("kubectl", "get", "pods", "-l", "deploy=sourcegraph", "-o=json")
+		//Output pointer to byte buffer
+		getPods.Stdout = &podsBuff
+		getPods.Stderr = os.Stderr
+
+		// Run getPods
+		if err := getPods.Run(); err != nil {
+			return fmt.Errorf("running kubectl get pods failed: %w", err)
 		}
 
-		//define command to get events
-		cmd := exec.Command("kubectl", "get", "events", "--all-namespaces")
-		cmd.Stdout = k8sEvents
-		cmd.Stderr = os.Stderr
+		//Declare struct to format decode from podList
+		var pods podList
 
-		//get events
-		if err := cmd.Run(); err != nil {
-			return fmt.Errorf("running kubectl get events failed: %w", err)
+		//Decode json from podList
+		if err := json.NewDecoder(&podsBuff).Decode(&pods); err != nil {
+			return fmt.Errorf("failed to unmarshall pods json: %w", err)
 		}
+		fmt.Println(pods)
 
-		return savek8sLogs(zw)
+		archiveEvents(zw)
+		archiveLogs(zw, pods)
+		return nil
 	}
 
 	// Register the command.
@@ -76,42 +99,52 @@ USAGE
 	})
 }
 
-func savek8sLogs(zw *zip.Writer) error {
-	var podsBuff bytes.Buffer
+//func getPods() error {
+//	// Declare buffer type var for kubectl pipe
+//	var podsBuff bytes.Buffer
+//
+//	// Get all pod names as json
+//	getPods := exec.Command("kubectl", "get", "pods", "-l", "deploy=sourcegraph", "-o=json")
+//	//Output pointer to byte buffer
+//	getPods.Stdout = &podsBuff
+//	getPods.Stderr = os.Stderr
+//
+//	// Run getPods
+//	if err := getPods.Run(); err != nil {
+//		return fmt.Errorf("running kubectl get pods failed: %w", err)
+//	}
+//
+//	//Decode json from podList
+//	err := json.NewDecoder(&podsBuff).Decode(&podList)
+//	if err != nil {
+//		return fmt.Errorf("failed to unmarshall pods json: %w", err)
+//	}
+//	return podList
+//}
 
-	// Get all pod names as json
-	getPods := exec.Command("kubectl", "get", "pods", "-l", "deploy=sourcegraph", "-o=json")
-	//Output pointer to byte buffer
-	getPods.Stdout = &podsBuff
-	getPods.Stderr = os.Stderr
-
-	// Run getPods
-	if err := getPods.Run(); err != nil {
-		return fmt.Errorf("running kubectl get pods failed: %w", err)
-	}
-
-	//Declare struct to format decode from podList
-	var podList struct {
-		Items []struct {
-			Metadata struct {
-				Name string
-			}
-			Spec struct {
-				Containers []struct {
-					Name string
-				}
-			}
-		}
-	}
-
-	//Decode json from podList
-	err := json.NewDecoder(&podsBuff).Decode(&podList)
+func archiveEvents(zw *zip.Writer) error {
+	//write events to archive
+	k8sEvents, err := zw.Create("outFile/kubectl/events.txt")
 	if err != nil {
-		return fmt.Errorf("failed to unmarshall pods json: %w", err)
+		return fmt.Errorf("failed to create k8s-events.txt: %w", err)
 	}
+
+	//define command to get events
+	getEvents := exec.Command("kubectl", "get", "events", "--all-namespaces")
+	getEvents.Stdout = k8sEvents
+	getEvents.Stderr = os.Stderr
+
+	//get events
+	if err := getEvents.Run(); err != nil {
+		return fmt.Errorf("running kubectl get events failed: %w", err)
+	}
+	return nil
+}
+
+func archiveLogs(zw *zip.Writer, pods podList) error {
 
 	// run kubectl logs and write to archive, accounts for containers in pod
-	for _, pod := range podList.Items {
+	for _, pod := range pods.Items {
 		fmt.Println("Archiving logs: ", pod.Metadata.Name, "Containers:", pod.Spec.Containers)
 		for _, container := range pod.Spec.Containers {
 			logs, err := zw.Create("outFile/kubectl/logs/" + pod.Metadata.Name + "/" + container.Name + ".txt")
@@ -130,7 +163,7 @@ func savek8sLogs(zw *zip.Writer) error {
 	}
 
 	// run kubectl logs --previous and write to archive if return not err
-	for _, pod := range podList.Items {
+	for _, pod := range pods.Items {
 		for _, container := range pod.Spec.Containers {
 			getPrevLogs := exec.Command("kubectl", "logs", "--previous", pod.Metadata.Name, "-c", container.Name)
 			if err := getPrevLogs.Run(); err == nil {
