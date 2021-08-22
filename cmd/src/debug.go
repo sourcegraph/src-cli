@@ -61,29 +61,10 @@ USAGE
 		zw := zip.NewWriter(out)
 		defer zw.Close()
 
-		// TODO: make outFile the input from `-out=` flag stored in `outFile`, validate the .zip postpends `outFile`
-		// Declare buffer type var for kubectl pipe
-		var podsBuff bytes.Buffer
-
-		// Get all pod names as json
-		getPods := exec.Command("kubectl", "get", "pods", "-l", "deploy=sourcegraph", "-o=json")
-		//Output pointer to byte buffer
-		getPods.Stdout = &podsBuff
-		getPods.Stderr = os.Stderr
-
-		// Run getPods
-		if err := getPods.Run(); err != nil {
-			return fmt.Errorf("running kubectl get pods failed: %w", err)
+		pods, err := getPods()
+		if err != nil {
+			return fmt.Errorf("failed to get pods: %w", err)
 		}
-
-		//Declare struct to format decode from podList
-		var pods podList
-
-		//Decode json from podList
-		if err := json.NewDecoder(&podsBuff).Decode(&pods); err != nil {
-			return fmt.Errorf("failed to unmarshall pods json: %w", err)
-		}
-		fmt.Println(pods)
 
 		archiveEvents(zw)
 		archiveLogs(zw, pods)
@@ -99,29 +80,26 @@ USAGE
 	})
 }
 
-//func getPods() error {
-//	// Declare buffer type var for kubectl pipe
-//	var podsBuff bytes.Buffer
-//
-//	// Get all pod names as json
-//	getPods := exec.Command("kubectl", "get", "pods", "-l", "deploy=sourcegraph", "-o=json")
-//	//Output pointer to byte buffer
-//	getPods.Stdout = &podsBuff
-//	getPods.Stderr = os.Stderr
-//
-//	// Run getPods
-//	if err := getPods.Run(); err != nil {
-//		return fmt.Errorf("running kubectl get pods failed: %w", err)
-//	}
-//
-//	//Decode json from podList
-//	err := json.NewDecoder(&podsBuff).Decode(&podList)
-//	if err != nil {
-//		return fmt.Errorf("failed to unmarshall pods json: %w", err)
-//	}
-//	return podList
-//}
+// TODO: make outFile the input from `-out=` flag stored in `outFile`, validate the .zip postpends `outFile`
+func getPods() (podList, error) {
+	// Declare buffer type var for kubectl pipe
+	var podsBuff bytes.Buffer
 
+	// Get all pod names as json
+	getPods := exec.Command("kubectl", "get", "pods", "-l", "deploy=sourcegraph", "-o=json")
+	getPods.Stdout = &podsBuff
+	getPods.Stderr = os.Stderr
+	err := getPods.Run()
+
+	//Declare struct to format decode from podList
+	var pods podList
+
+	//Decode json from podList
+	err = json.NewDecoder(&podsBuff).Decode(&pods)
+
+	fmt.Println(pods)
+	return pods, err
+}
 func archiveEvents(zw *zip.Writer) error {
 	//write events to archive
 	k8sEvents, err := zw.Create("outFile/kubectl/events.txt")
@@ -140,7 +118,6 @@ func archiveEvents(zw *zip.Writer) error {
 	}
 	return nil
 }
-
 func archiveLogs(zw *zip.Writer, pods podList) error {
 
 	// run kubectl logs and write to archive, accounts for containers in pod
