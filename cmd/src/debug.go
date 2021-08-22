@@ -11,7 +11,6 @@ import (
 	"github.com/sourcegraph/src-cli/internal/exec"
 )
 
-// package level
 type podList struct {
 	Items []struct {
 		Metadata struct {
@@ -82,10 +81,11 @@ USAGE
 	})
 }
 
-// TODO: make outFile the input from `-out=` flag stored in `outFile`, validate the .zip postpends `outFile`
+// TODO: make outFile the input from `-out=` flag stored in `outFile`, validate that .zip postpends `outFile`
 // TODO: improve logging as kubectl calls run (Desc, Mani)
-// TODO: refactor dir structure to be by pod
+// TODO: refactor dir structure to be by pod, change logs to .log filetype
 // TODO: improve error handling
+// TODO: refactor archiveLLogs so that both logs and logs --past are collected in the same loop
 func getPods() (podList, error) {
 	// Declare buffer type var for kubectl pipe
 	var podsBuff bytes.Buffer
@@ -105,6 +105,7 @@ func getPods() (podList, error) {
 	fmt.Println(pods)
 	return pods, err
 }
+
 func archiveEvents(zw *zip.Writer) error {
 	//write events to archive
 	k8sEvents, err := zw.Create("outFile/kubectl/events.txt")
@@ -123,6 +124,8 @@ func archiveEvents(zw *zip.Writer) error {
 	}
 	return nil
 }
+
+// gets current pod logs and logs from past containers
 func archiveLogs(zw *zip.Writer, pods podList) error {
 
 	// run kubectl logs and write to archive, accounts for containers in pod
@@ -161,6 +164,7 @@ func archiveLogs(zw *zip.Writer, pods podList) error {
 
 	return nil
 }
+
 func archiveDescribes(zw *zip.Writer, pods podList) error {
 	for _, pod := range pods.Items {
 		describes, err := zw.Create("outFile/kubectl/describe/" + pod.Metadata.Name + ".txt")
@@ -178,6 +182,7 @@ func archiveDescribes(zw *zip.Writer, pods podList) error {
 	}
 	return nil
 }
+
 func archiveManifests(zw *zip.Writer, pods podList) error {
 	for _, pod := range pods.Items {
 		manifests, err := zw.Create("outFile/kubectl/manifest/" + pod.Metadata.Name + ".yaml")
