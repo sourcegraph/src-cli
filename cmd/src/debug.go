@@ -68,6 +68,8 @@ USAGE
 
 		archiveEvents(zw)
 		archiveLogs(zw, pods)
+		archiveDescribes(zw, pods)
+		archiveManifests(zw, pods)
 		return nil
 	}
 
@@ -81,6 +83,9 @@ USAGE
 }
 
 // TODO: make outFile the input from `-out=` flag stored in `outFile`, validate the .zip postpends `outFile`
+// TODO: improve logging as kubectl calls run (Desc, Mani)
+// TODO: refactor dir structure to be by pod
+// TODO: improve error handling
 func getPods() (podList, error) {
 	// Declare buffer type var for kubectl pipe
 	var podsBuff bytes.Buffer
@@ -154,5 +159,39 @@ func archiveLogs(zw *zip.Writer, pods podList) error {
 		}
 	}
 
+	return nil
+}
+func archiveDescribes(zw *zip.Writer, pods podList) error {
+	for _, pod := range pods.Items {
+		describes, err := zw.Create("outFile/kubectl/describe/" + pod.Metadata.Name + ".txt")
+		if err != nil {
+			return fmt.Errorf("failed to create podLogs.txt: %w", err)
+		}
+
+		describePod := exec.Command("kubectl", "describe", "pod", pod.Metadata.Name)
+		describePod.Stdout = describes
+		describePod.Stderr = os.Stderr
+
+		if err := describePod.Run(); err != nil {
+			return fmt.Errorf("failer to run describe pod: %w", err)
+		}
+	}
+	return nil
+}
+func archiveManifests(zw *zip.Writer, pods podList) error {
+	for _, pod := range pods.Items {
+		manifests, err := zw.Create("outFile/kubectl/manifest/" + pod.Metadata.Name + ".yaml")
+		if err != nil {
+			return fmt.Errorf("failed to create manifest.yaml: %w", err)
+		}
+
+		getManifest := exec.Command("kubectl", "get", "pod", pod.Metadata.Name, "-o", "yaml")
+		getManifest.Stdout = manifests
+		getManifest.Stderr = os.Stderr
+
+		if err := getManifest.Run(); err != nil {
+			fmt.Errorf("failed to get pod yaml: %w", err)
+		}
+	}
 	return nil
 }
