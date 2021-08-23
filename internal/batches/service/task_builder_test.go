@@ -263,7 +263,11 @@ func TestTaskBuilder_BuildAll_Workspaces(t *testing.T) {
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			finder := &mockDirectoryFinder{results: tt.finderResults}
-			tasks, err := buildTasks(context.Background(), tt.spec, finder, repos)
+			workspaces, err := findWorkspaces(context.Background(), tt.spec, finder, repos)
+			if err != nil {
+				t.Fatalf("unexpected err: %s", err)
+			}
+			tasks, err := buildTasks(context.Background(), tt.spec, finder, repos, workspaces)
 			if err != nil {
 				t.Fatalf("unexpected err: %s", err)
 			}
