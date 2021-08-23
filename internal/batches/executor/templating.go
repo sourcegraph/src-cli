@@ -243,6 +243,7 @@ func (tmplCtx *ChangesetTemplateContext) ToFuncMap() template.FuncMap {
 			return map[string]interface{}{
 				"search_result_paths": tmplCtx.Repository.SearchResultPaths(),
 				"name":                tmplCtx.Repository.Name,
+				"branch":              strings.TrimPrefix(tmplCtx.Repository.BaseRef(), "refs/heads/"),
 			}
 		},
 		"batch_change": func() map[string]interface{} {

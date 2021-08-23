@@ -408,8 +408,14 @@ func (svc *Service) ResolveNamespace(ctx context.Context, namespace string) (str
 	return "", fmt.Errorf("failed to resolve namespace %q: no user or organization found", namespace)
 }
 
+type repoRevTuple struct {
+	RepoName string
+	Commit   string
+	Branch   string
+}
+
 func (svc *Service) ResolveRepositories(ctx context.Context, spec *batches.BatchSpec) ([]*graphql.Repository, error) {
-	seen := map[string]*graphql.Repository{}
+	seen := map[repoRevTuple]*graphql.Repository{}
 	unsupported := batches.UnsupportedRepoSet{}
 	ignored := batches.IgnoredRepoSet{}
 
@@ -433,27 +439,30 @@ func (svc *Service) ResolveRepositories(ctx context.Context, spec *batches.Batch
 				continue
 			}
 
-			if other, ok := seen[repo.ID]; !ok {
-				seen[repo.ID] = repo
+			r := repoRevTuple{
+				RepoName: repo.Name,
+				Commit:   repo.Commit.OID,
+				Branch:   repo.BaseRef(),
+			}
 
-				switch st := strings.ToLower(repo.ExternalRepository.ServiceType); st {
-				case "github", "gitlab", "bitbucketserver":
-				default:
-					if !svc.allowUnsupported {
-						unsupported.Append(repo)
-					}
-				}
+			if _, ok := seen[r]; ok {
+				// If we've already seen this repository, can skip.
+				continue
+			}
+			seen[r] = repo
 
-				if !svc.allowIgnored {
-					if locations, ok := repoBatchIgnores[repo]; ok && len(locations) > 0 {
-						ignored.Append(repo)
-					}
+			switch st := strings.ToLower(repo.ExternalRepository.ServiceType); st {
+			case "github", "gitlab", "bitbucketserver":
+			default:
+				if !svc.allowUnsupported {
+					unsupported.Append(repo)
 				}
-			} else {
-				// If we've already seen this repository, we overwrite the
-				// Commit/Branch fields with the latest value we have
-				other.Commit = repo.Commit
-				other.Branch = repo.Branch
+			}
+
+			if !svc.allowIgnored {
+				if locations, ok := repoBatchIgnores[repo]; ok && len(locations) > 0 {
+					ignored.Append(repo)
+				}
 			}
 		}
 	}
