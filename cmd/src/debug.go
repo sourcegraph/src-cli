@@ -65,10 +65,22 @@ USAGE
 			return fmt.Errorf("failed to get pods: %w", err)
 		}
 
-		archiveEvents(zw)
-		archiveLogs(zw, pods)
-		archiveDescribes(zw, pods)
-		archiveManifests(zw, pods)
+		err = archiveEvents(zw)
+		if err != nil {
+			return fmt.Errorf("running archiveEvents failed: %w", err)
+		}
+		err = archiveLogs(zw, pods)
+		if err != nil {
+			return fmt.Errorf("running archiveLogs failed: %w", err)
+		}
+		err = archiveDescribes(zw, pods)
+		if err != nil {
+			return fmt.Errorf("running archiveDescribes failed: %w", err)
+		}
+		err = archiveManifests(zw, pods)
+		if err != nil {
+			return fmt.Errorf("running archiveManifests failed: %w", err)
+		}
 		return nil
 	}
 
