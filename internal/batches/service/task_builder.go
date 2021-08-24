@@ -90,7 +90,7 @@ func (tb *taskBuilder) buildAll(ctx context.Context, repos []*graphql.Repository
 	for _, ws := range workspaces {
 		repo, ok := repoByID[ws.RepoID]
 		if !ok {
-			return nil, errors.New("invalid state")
+			return nil, errors.New("invalid state, didn't find repo for workspace definition")
 		}
 		for _, path := range ws.Paths {
 			fetchWorkspace := ws.OnlyFetchWorkspace

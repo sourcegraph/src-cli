@@ -19,10 +19,8 @@ type RepoWorkspaces struct {
 // findWorkspaces matches the given repos to the workspace configs and
 // searches, via the Sourcegraph instance, the locations of the workspaces in
 // each repository.
-// The repositories that were matched by a workspace config are returned in
-// workspaces. root contains the repositories that didn't match a config.
-// If the user didn't specify any workspaces, the repositories are returned as
-// root repositories.
+// The repositories that were matched by a workspace config and all repos that didn't
+// match a config are returned as workspaces.
 func findWorkspaces(
 	ctx context.Context,
 	spec *batcheslib.BatchSpec,
@@ -76,6 +74,10 @@ func findWorkspaces(
 		}
 
 		for repo, dirs := range repoDirs {
+			// Don't add repos that don't have any matched workspaces.
+			if len(dirs) == 0 {
+				continue
+			}
 			workspacesByID[repo.ID] = RepoWorkspaces{
 				RepoID:             repo.ID,
 				Paths:              dirs,
