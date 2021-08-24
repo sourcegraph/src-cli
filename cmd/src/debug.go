@@ -7,6 +7,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/sourcegraph/src-cli/internal/exec"
 )
@@ -29,6 +30,7 @@ func init() {
 	flagSet := flag.NewFlagSet("debug", flag.ExitOnError)
 
 	usageFunc := func() {
+
 		fmt.Fprintf(flag.CommandLine.Output(), `'src debug' gathers and bundles debug data from a Sourcegraph deployment.
 
 USAGE
@@ -38,7 +40,9 @@ USAGE
 
 	// store value passed to out flag
 	var (
-		outFile = flagSet.String("out", "debug.zip", "The name of the output zip archive")
+		//TODO add deployment type selector
+		deployment = flagSet.String("d", "", "deployment type")
+		outfile    = flagSet.String("out", "debug.zip", "The name of the output zip archive")
 	)
 
 	handler := func(args []string) error {
@@ -46,15 +50,25 @@ USAGE
 			return err
 		}
 
-		if *outFile == "" {
+		//validate out flag
+		if *outfile == "" {
 			return fmt.Errorf("empty -out flag")
 		}
+		if strings.HasSuffix(*outfile, ".zip") != true {
+			*outfile = *outfile + ".zip"
+		}
+		// handle deployment flag
+		if *deployment == "" {
+			return fmt.Errorf("must declare -d=<deployment type>")
+		}
 
-		out, err := os.OpenFile(*outFile, os.O_CREATE|os.O_RDWR|os.O_EXCL, 0666)
+		// open pipe to output file
+		out, err := os.OpenFile(*outfile, os.O_CREATE|os.O_RDWR|os.O_EXCL, 0666)
 		if err != nil {
 			return fmt.Errorf("failed to open file: %w", err)
 		}
 
+		// open zip writer
 		defer out.Close()
 		zw := zip.NewWriter(out)
 		defer zw.Close()
