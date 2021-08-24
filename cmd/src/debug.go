@@ -42,8 +42,7 @@ USAGE
 	)
 
 	handler := func(args []string) error {
-		err := flagSet.Parse(args)
-		if err != nil {
+		if err := flagSet.Parse(args); err != nil {
 			return err
 		}
 
@@ -65,20 +64,18 @@ USAGE
 			return fmt.Errorf("failed to get pods: %w", err)
 		}
 
-		err = archiveEvents(zw)
-		if err != nil {
+		// TODO error group, create function type and run as goroutines
+		// Runs all kubectl based functions
+		if err := archiveEvents(zw); err != nil {
 			return fmt.Errorf("running archiveEvents failed: %w", err)
 		}
-		err = archiveLogs(zw, pods)
-		if err != nil {
+		if err := archiveLogs(zw, pods); err != nil {
 			return fmt.Errorf("running archiveLogs failed: %w", err)
 		}
-		err = archiveDescribes(zw, pods)
-		if err != nil {
+		if err := archiveDescribes(zw, pods); err != nil {
 			return fmt.Errorf("running archiveDescribes failed: %w", err)
 		}
-		err = archiveManifests(zw, pods)
-		if err != nil {
+		if err := archiveManifests(zw, pods); err != nil {
 			return fmt.Errorf("running archiveManifests failed: %w", err)
 		}
 		return nil
@@ -98,6 +95,7 @@ USAGE
 // TODO: refactor dir structure to be by pod, change logs to .log filetype
 // TODO: improve error handling
 // TODO: refactor archiveLLogs so that both logs and logs --past are collected in the same loop
+
 func getPods() (podList, error) {
 	// Declare buffer type var for kubectl pipe
 	var podsBuff bytes.Buffer
@@ -112,7 +110,9 @@ func getPods() (podList, error) {
 	var pods podList
 
 	//Decode json from podList
-	err = json.NewDecoder(&podsBuff).Decode(&pods)
+	if err := json.NewDecoder(&podsBuff).Decode(&pods); err != nil {
+		fmt.Errorf("feailed to unmarshall get pods json: %w", err)
+	}
 
 	fmt.Println(pods)
 	return pods, err
@@ -134,6 +134,7 @@ func archiveEvents(zw *zip.Writer) error {
 	if err := getEvents.Run(); err != nil {
 		return fmt.Errorf("running kubectl get events failed: %w", err)
 	}
+
 	return nil
 }
 
