@@ -62,18 +62,6 @@ USAGE
 			return fmt.Errorf("must declare -d=<deployment type>, as server, compose, or kubernetes")
 		}
 
-		// handle deployment flag
-		//switch *deployment {
-		//case "server":
-		//	fmt.Println("its a single container")
-		//case "compose":
-		//	fmt.Println("its a docker-compose instance")
-		//case "kubernetes":
-		//	fmt.Println("its a kubernetes deployment")
-		//default:
-		//	return fmt.Errorf("must declare -d=<deployment type>, as server, compose, or kubernetes")
-		//}
-
 		// open pipe to output file
 		out, err := os.OpenFile(*outfile, os.O_CREATE|os.O_RDWR|os.O_EXCL, 0666)
 		if err != nil {
@@ -84,6 +72,18 @@ USAGE
 		defer out.Close()
 		zw := zip.NewWriter(out)
 		defer zw.Close()
+
+		// TODO write functions for sourcegraph server and docker-compose instances
+		//switch *deployment {
+		//case "server":
+		//	fmt.Println("its a single container")
+		//case "compose":
+		//	fmt.Println("its a docker-compose instance")
+		//case "kubernetes":
+		//	fmt.Println("its a kubernetes deployment")
+		//default:
+		//	return fmt.Errorf("must declare -d=<deployment type>, as server, compose, or kubernetes")
+		//}
 
 		pods, err := getPods()
 		if err != nil {
