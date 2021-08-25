@@ -34,11 +34,11 @@ func init() {
 		fmt.Fprintf(flag.CommandLine.Output(), `'src debug' gathers and bundles debug data from a Sourcegraph deployment.
 
 USAGE
-  src [-v] debug [-out=debug.zip] 
+  src [-v] debug -d=<deployment type> [-out=debug.zip]
 `)
 	}
 
-	// store value passed to out flag
+	// store value passed to flags
 	var (
 		//TODO add deployment type selector
 		deployment = flagSet.String("d", "", "deployment type")
@@ -58,9 +58,21 @@ USAGE
 			*outfile = *outfile + ".zip"
 		}
 		// handle deployment flag
-		if *deployment == "" {
-			return fmt.Errorf("must declare -d=<deployment type>")
+		if !((*deployment == "server") || (*deployment == "compose") || (*deployment == "kubernetes")) {
+			return fmt.Errorf("must declare -d=<deployment type>, as server, compose, or kubernetes")
 		}
+
+		// handle deployment flag
+		//switch *deployment {
+		//case "server":
+		//	fmt.Println("its a single container")
+		//case "compose":
+		//	fmt.Println("its a docker-compose instance")
+		//case "kubernetes":
+		//	fmt.Println("its a kubernetes deployment")
+		//default:
+		//	return fmt.Errorf("must declare -d=<deployment type>, as server, compose, or kubernetes")
+		//}
 
 		// open pipe to output file
 		out, err := os.OpenFile(*outfile, os.O_CREATE|os.O_RDWR|os.O_EXCL, 0666)
