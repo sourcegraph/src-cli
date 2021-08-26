@@ -224,7 +224,7 @@ func archiveLogs(zw *zip.Writer, pods podList, baseDir string) error {
 	for _, pod := range pods.Items {
 		fmt.Println("Archiving logs: ", pod.Metadata.Name, "Containers:", pod.Spec.Containers)
 		for _, container := range pod.Spec.Containers {
-			logs, err := zw.Create(baseDir + "/kubectl/logs/" + pod.Metadata.Name + "/" + container.Name + ".txt")
+			logs, err := zw.Create(baseDir + "/kubectl/pods/" + pod.Metadata.Name + "/" + container.Name + ".log")
 			if err != nil {
 				return fmt.Errorf("failed to create podLogs.txt: %w", err)
 			}
@@ -245,7 +245,7 @@ func archiveLogs(zw *zip.Writer, pods podList, baseDir string) error {
 			getPrevLogs := exec.Command("kubectl", "logs", "--previous", pod.Metadata.Name, "-c", container.Name)
 			if err := getPrevLogs.Run(); err == nil {
 				fmt.Println("Archiving previous logs: ", pod.Metadata.Name, "Containers: ", pod.Spec.Containers)
-				prev, err := zw.Create(baseDir + "/kubectl/logs/" + pod.Metadata.Name + "/" + "prev-" + container.Name + ".txt")
+				prev, err := zw.Create(baseDir + "/kubectl/pods/" + pod.Metadata.Name + "/" + "prev-" + container.Name + ".log")
 				getPrevLogs.Stdout = prev
 				if err != nil {
 					return fmt.Errorf("failed to create podLogs.txt: %w", err)
@@ -259,7 +259,7 @@ func archiveLogs(zw *zip.Writer, pods podList, baseDir string) error {
 
 func archiveDescribes(zw *zip.Writer, pods podList, baseDir string) error {
 	for _, pod := range pods.Items {
-		describes, err := zw.Create(baseDir + "/kubectl/describe/" + pod.Metadata.Name + ".txt")
+		describes, err := zw.Create(baseDir + "/kubectl/pods/" + pod.Metadata.Name + "/describe-" + pod.Metadata.Name + ".txt")
 		if err != nil {
 			return fmt.Errorf("failed to create podLogs.txt: %w", err)
 		}
@@ -277,7 +277,7 @@ func archiveDescribes(zw *zip.Writer, pods podList, baseDir string) error {
 
 func archiveManifests(zw *zip.Writer, pods podList, baseDir string) error {
 	for _, pod := range pods.Items {
-		manifests, err := zw.Create(baseDir + "/kubectl/manifest/" + pod.Metadata.Name + ".yaml")
+		manifests, err := zw.Create(baseDir + "/kubectl/pods/" + pod.Metadata.Name + "/manifest-" + pod.Metadata.Name + ".yaml")
 		if err != nil {
 			return fmt.Errorf("failed to create manifest.yaml: %w", err)
 		}
