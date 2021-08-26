@@ -40,7 +40,6 @@ USAGE
 
 	// store value passed to flags
 	var (
-		//TODO add deployment type selector
 		deployment = flagSet.String("d", "", "deployment type")
 		base       = flagSet.String("out", "debug.zip", "The name of the output zip archive")
 	)
@@ -63,8 +62,8 @@ USAGE
 			baseDir = strings.TrimSuffix(*base, ".zip")
 		}
 		// handle deployment flag
-		if !((*deployment == "server") || (*deployment == "compose") || (*deployment == "kubernetes")) {
-			return fmt.Errorf("must declare -d=<deployment type>, as server, compose, or kubernetes")
+		if !((*deployment == "serv") || (*deployment == "comp") || (*deployment == "kube")) {
+			return fmt.Errorf("must declare -d=<deployment type>, as serv, comp, or kube")
 		}
 
 		// open pipe to output file
@@ -127,10 +126,7 @@ USAGE
 	})
 }
 
-// TODO: make outFile the input from `-out=` flag stored in `outFile`, validate that .zip postpends `outFile`
 // TODO: improve logging as kubectl calls run (Desc, Mani)
-// TODO: refactor dir structure to be by pod, change logs to .log filetype
-// TODO: improve error handling
 // TODO: refactor archiveLLogs so that both logs and logs --past are collected in the same loop
 
 func getPods() (podList, error) {
