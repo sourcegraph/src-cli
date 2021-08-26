@@ -42,7 +42,7 @@ USAGE
 	var (
 		//TODO add deployment type selector
 		deployment = flagSet.String("d", "", "deployment type")
-		outfile    = flagSet.String("out", "debug.zip", "The name of the output zip archive")
+		base       = flagSet.String("out", "debug.zip", "The name of the output zip archive")
 	)
 
 	handler := func(args []string) error {
@@ -51,11 +51,16 @@ USAGE
 		}
 
 		//validate out flag
-		if *outfile == "" {
+		if *base == "" {
 			return fmt.Errorf("empty -out flag")
 		}
-		if strings.HasSuffix(*outfile, ".zip") != true {
-			*outfile = *outfile + ".zip"
+		// declare basedir for archive file structure
+		var baseDir string
+		if strings.HasSuffix(*base, ".zip") == false {
+			baseDir = *base
+			*base = *base + ".zip"
+		} else {
+			baseDir = strings.TrimSuffix(*base, ".zip")
 		}
 		// handle deployment flag
 		if !((*deployment == "server") || (*deployment == "compose") || (*deployment == "kubernetes")) {
@@ -63,7 +68,7 @@ USAGE
 		}
 
 		// open pipe to output file
-		out, err := os.OpenFile(*outfile, os.O_CREATE|os.O_RDWR|os.O_EXCL, 0666)
+		out, err := os.OpenFile(*base, os.O_CREATE|os.O_RDWR|os.O_EXCL, 0666)
 		if err != nil {
 			return fmt.Errorf("failed to open file: %w", err)
 		}
@@ -92,16 +97,22 @@ USAGE
 
 		// TODO error group, create function type and run as goroutines
 		// Runs all kubectl based functions
-		if err := archiveEvents(zw); err != nil {
+		if err := archiveEvents(zw, baseDir); err != nil {
 			return fmt.Errorf("running archiveEvents failed: %w", err)
 		}
-		if err := archiveLogs(zw, pods); err != nil {
+		if err := archivePV(zw, baseDir); err != nil {
+			return fmt.Errorf("running archivePV failed: %w", err)
+		}
+		if err := archivePVC(zw, baseDir); err != nil {
+			return fmt.Errorf("running archivePV failed: %w", err)
+		}
+		if err := archiveLogs(zw, pods, baseDir); err != nil {
 			return fmt.Errorf("running archiveLogs failed: %w", err)
 		}
-		if err := archiveDescribes(zw, pods); err != nil {
+		if err := archiveDescribes(zw, pods, baseDir); err != nil {
 			return fmt.Errorf("running archiveDescribes failed: %w", err)
 		}
-		if err := archiveManifests(zw, pods); err != nil {
+		if err := archiveManifests(zw, pods, baseDir); err != nil {
 			return fmt.Errorf("running archiveManifests failed: %w", err)
 		}
 		return nil
@@ -144,9 +155,9 @@ func getPods() (podList, error) {
 	return pods, err
 }
 
-func archiveEvents(zw *zip.Writer) error {
+func archiveEvents(zw *zip.Writer, baseDir string) error {
 	//write events to archive
-	k8sEvents, err := zw.Create("outFile/kubectl/events.txt")
+	k8sEvents, err := zw.Create(baseDir + "/kubectl/events.txt")
 	if err != nil {
 		return fmt.Errorf("failed to create k8s-events.txt: %w", err)
 	}
@@ -164,14 +175,56 @@ func archiveEvents(zw *zip.Writer) error {
 	return nil
 }
 
+func archivePV(zw *zip.Writer, baseDir string) error {
+	fmt.Println("Archiving persistent volumes")
+	//write persistent volumes to archive
+	PV, err := zw.Create(baseDir + "/kubectl/persistent-volumes.txt")
+	if err != nil {
+		return fmt.Errorf("failed to create k8s-events.txt: %w", err)
+	}
+
+	//define command to get persistent volumes
+	getPV := exec.Command("kubectl", "get", "pv")
+	getPV.Stdout = PV
+	getPV.Stderr = os.Stderr
+
+	//get persistent volumes
+	if err := getPV.Run(); err != nil {
+		return fmt.Errorf("running kubectl get pv failed: %w", err)
+	}
+
+	return nil
+}
+
+func archivePVC(zw *zip.Writer, baseDir string) error {
+	fmt.Println("Archiving persistent volume claims")
+	//write persistent volume claims to archive
+	PVC, err := zw.Create(baseDir + "/kubectl/persistent-volume-claims.txt")
+	if err != nil {
+		return fmt.Errorf("failed to create k8s-events.txt: %w", err)
+	}
+
+	//define command to get persistent volume claims
+	getPVC := exec.Command("kubectl", "get", "pvc")
+	getPVC.Stdout = PVC
+	getPVC.Stderr = os.Stderr
+
+	//get persistent volumes
+	if err := getPVC.Run(); err != nil {
+		return fmt.Errorf("running kubectl get pvc failed: %w", err)
+	}
+
+	return nil
+}
+
 // gets current pod logs and logs from past containers
-func archiveLogs(zw *zip.Writer, pods podList) error {
+func archiveLogs(zw *zip.Writer, pods podList, baseDir string) error {
 
 	// run kubectl logs and write to archive, accounts for containers in pod
 	for _, pod := range pods.Items {
 		fmt.Println("Archiving logs: ", pod.Metadata.Name, "Containers:", pod.Spec.Containers)
 		for _, container := range pod.Spec.Containers {
-			logs, err := zw.Create("outFile/kubectl/logs/" + pod.Metadata.Name + "/" + container.Name + ".txt")
+			logs, err := zw.Create(baseDir + "/kubectl/logs/" + pod.Metadata.Name + "/" + container.Name + ".txt")
 			if err != nil {
 				return fmt.Errorf("failed to create podLogs.txt: %w", err)
 			}
@@ -192,7 +245,7 @@ func archiveLogs(zw *zip.Writer, pods podList) error {
 			getPrevLogs := exec.Command("kubectl", "logs", "--previous", pod.Metadata.Name, "-c", container.Name)
 			if err := getPrevLogs.Run(); err == nil {
 				fmt.Println("Archiving previous logs: ", pod.Metadata.Name, "Containers: ", pod.Spec.Containers)
-				prev, err := zw.Create("outFile/kubectl/logs/" + pod.Metadata.Name + "/" + "prev-" + container.Name + ".txt")
+				prev, err := zw.Create(baseDir + "/kubectl/logs/" + pod.Metadata.Name + "/" + "prev-" + container.Name + ".txt")
 				getPrevLogs.Stdout = prev
 				if err != nil {
 					return fmt.Errorf("failed to create podLogs.txt: %w", err)
@@ -204,9 +257,9 @@ func archiveLogs(zw *zip.Writer, pods podList) error {
 	return nil
 }
 
-func archiveDescribes(zw *zip.Writer, pods podList) error {
+func archiveDescribes(zw *zip.Writer, pods podList, baseDir string) error {
 	for _, pod := range pods.Items {
-		describes, err := zw.Create("outFile/kubectl/describe/" + pod.Metadata.Name + ".txt")
+		describes, err := zw.Create(baseDir + "/kubectl/describe/" + pod.Metadata.Name + ".txt")
 		if err != nil {
 			return fmt.Errorf("failed to create podLogs.txt: %w", err)
 		}
@@ -222,9 +275,9 @@ func archiveDescribes(zw *zip.Writer, pods podList) error {
 	return nil
 }
 
-func archiveManifests(zw *zip.Writer, pods podList) error {
+func archiveManifests(zw *zip.Writer, pods podList, baseDir string) error {
 	for _, pod := range pods.Items {
-		manifests, err := zw.Create("outFile/kubectl/manifest/" + pod.Metadata.Name + ".yaml")
+		manifests, err := zw.Create(baseDir + "/kubectl/manifest/" + pod.Metadata.Name + ".yaml")
 		if err != nil {
 			return fmt.Errorf("failed to create manifest.yaml: %w", err)
 		}
