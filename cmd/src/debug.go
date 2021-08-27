@@ -4,10 +4,13 @@ import (
 	"archive/zip"
 	"bytes"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"strings"
+	"sync"
 
 	"github.com/sourcegraph/src-cli/internal/exec"
 )
@@ -109,31 +112,66 @@ TODO: improve logging as kubectl calls run (Desc, Mani)
 TODO: refactor archiveLLogs so that both logs and logs --past are collected in the same loop
 */
 
+type archiveFile struct {
+	name string
+	data []byte
+	err error
+}
+
 func archiveKube(zw *zip.Writer, baseDir string) error {
 	pods, err := getPods()
 	if err != nil {
 		return fmt.Errorf("failed to get pods: %w", err)
 	}
-	// TODO error group, create function type and run as goroutines
-	// Runs all kubectl based functions
-	if err := archiveEvents(zw, baseDir); err != nil {
-		return fmt.Errorf("running archiveEvents failed: %w", err)
+
+	ch := make(chan []archiveFile)
+	wg := sync.WaitGroup{}
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		fs := archiveEvents(baseDir)
+		ch <- fs
+	}()
+
+	//if err := archiveEvents(zw, baseDir); err != nil {
+	//	return fmt.Errorf("running archiveEvents failed: %w", err)
+	//}
+	//if err := archivePV(zw, baseDir); err != nil {
+	//	return fmt.Errorf("running archivePV failed: %w", err)
+	//}
+	//if err := archivePVC(zw, baseDir); err != nil {
+	//	return fmt.Errorf("running archivePV failed: %w", err)
+	//}
+	//if err := archiveLogs(zw, pods, baseDir); err != nil {
+	//	return fmt.Errorf("running archiveLogs failed: %w", err)
+	//}
+	//if err := archiveDescribes(zw, pods, baseDir); err != nil {
+	//	return fmt.Errorf("running archiveDescribes failed: %w", err)
+	//}
+	//if err := archiveManifests(zw, pods, baseDir); err != nil {
+	//	return fmt.Errorf("running archiveManifests failed: %w", err)
+	//}
+
+	go func() {
+		wg.Wait()
+		close(ch)
+	}()
+
+	for files := range ch {
+		for _, f := range files {
+			zf, err := zw.Create(f.name)
+			if err != nil {
+				return fmt.Errorf("failed to create %s: %w", f.name, err)
+			}
+
+			_, err = zf.Write(f.data)
+			if err != nil {
+				return fmt.Errorf("failed to write to %s: %w", f.name, err)
+			}
+		}
 	}
-	if err := archivePV(zw, baseDir); err != nil {
-		return fmt.Errorf("running archivePV failed: %w", err)
-	}
-	if err := archivePVC(zw, baseDir); err != nil {
-		return fmt.Errorf("running archivePV failed: %w", err)
-	}
-	if err := archiveLogs(zw, pods, baseDir); err != nil {
-		return fmt.Errorf("running archiveLogs failed: %w", err)
-	}
-	if err := archiveDescribes(zw, pods, baseDir); err != nil {
-		return fmt.Errorf("running archiveDescribes failed: %w", err)
-	}
-	if err := archiveManifests(zw, pods, baseDir); err != nil {
-		return fmt.Errorf("running archiveManifests failed: %w", err)
-	}
+
 	return nil
 }
 
@@ -159,24 +197,12 @@ func getPods() (podList, error) {
 	return pods, err
 }
 
-func archiveEvents(zw *zip.Writer, baseDir string) error {
-	//write events to archive
-	k8sEvents, err := zw.Create(baseDir + "/kubectl/events.txt")
-	if err != nil {
-		return fmt.Errorf("failed to create k8s-events.txt: %w", err)
-	}
+func archiveEvents(baseDir string) (fs []archiveFile) {
+	f := archiveFile{name: baseDir + "/kubectl/events.txt"}
 
-	//define command to get events
-	getEvents := exec.Command("kubectl", "get", "events", "--all-namespaces")
-	getEvents.Stdout = k8sEvents
-	getEvents.Stderr = os.Stderr
+	f.data, f.err = exec.Command("kubectl", "get", "events", "--all-namespaces").CombinedOutput()
 
-	//get events
-	if err := getEvents.Run(); err != nil {
-		return fmt.Errorf("running kubectl get events failed: %w", err)
-	}
-
-	return nil
+	return []archiveFile{f}
 }
 
 func archivePV(zw *zip.Writer, baseDir string) error {
