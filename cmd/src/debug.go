@@ -61,10 +61,10 @@ USAGE
 		} else {
 			baseDir = strings.TrimSuffix(*base, ".zip")
 		}
-		// handle deployment flag
-		if !((*deployment == "serv") || (*deployment == "comp") || (*deployment == "kube")) {
-			return fmt.Errorf("must declare -d=<deployment type>, as serv, comp, or kube")
-		}
+		//// handle deployment flag
+		//if !((*deployment == "serv") || (*deployment == "comp") || (*deployment == "kube")) {
+		//	return fmt.Errorf("must declare -d=<deployment type>, as serv, comp, or kube")
+		//}
 
 		// open pipe to output file
 		out, err := os.OpenFile(*base, os.O_CREATE|os.O_RDWR|os.O_EXCL, 0666)
@@ -80,9 +80,9 @@ USAGE
 		// TODO write functions for sourcegraph server and docker-compose instances
 		switch *deployment {
 		case "serv":
-			fmt.Println("its a single container")
+			getContainers()
 		case "comp":
-			fmt.Println("its a docker-compose instance")
+			getContainers()
 		case "kube":
 			if err := archiveKube(zw, baseDir); err != nil {
 				return fmt.Errorf("archiveKube failed with err: %w", err)
@@ -302,3 +302,14 @@ Docker functions
 
 
 */
+
+func getContainers() (string, error) {
+
+	containers, err := exec.Command("docker", "container", "ls", "--format", "{{.Names}}").Output()
+	if err != nil {
+		fmt.Errorf("failed to get container names with error: %w", err)
+	}
+	contStr := string(containers)
+	fmt.Println(contStr)
+	return contStr, err
+}
