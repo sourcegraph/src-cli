@@ -78,42 +78,19 @@ USAGE
 		defer zw.Close()
 
 		// TODO write functions for sourcegraph server and docker-compose instances
-		//switch *deployment {
-		//case "server":
-		//	fmt.Println("its a single container")
-		//case "compose":
-		//	fmt.Println("its a docker-compose instance")
-		//case "kubernetes":
-		//	fmt.Println("its a kubernetes deployment")
-		//default:
-		//	return fmt.Errorf("must declare -d=<deployment type>, as server, compose, or kubernetes")
-		//}
-
-		pods, err := getPods()
-		if err != nil {
-			return fmt.Errorf("failed to get pods: %w", err)
+		switch *deployment {
+		case "serv":
+			fmt.Println("its a single container")
+		case "comp":
+			fmt.Println("its a docker-compose instance")
+		case "kube":
+			if err := archiveKube(zw, baseDir); err != nil {
+				return fmt.Errorf("archiveKube failed with err: %w", err)
+			}
+		default:
+			return fmt.Errorf("must declare -d=<deployment type>, as server, compose, or kubernetes")
 		}
 
-		// TODO error group, create function type and run as goroutines
-		// Runs all kubectl based functions
-		if err := archiveEvents(zw, baseDir); err != nil {
-			return fmt.Errorf("running archiveEvents failed: %w", err)
-		}
-		if err := archivePV(zw, baseDir); err != nil {
-			return fmt.Errorf("running archivePV failed: %w", err)
-		}
-		if err := archivePVC(zw, baseDir); err != nil {
-			return fmt.Errorf("running archivePV failed: %w", err)
-		}
-		if err := archiveLogs(zw, pods, baseDir); err != nil {
-			return fmt.Errorf("running archiveLogs failed: %w", err)
-		}
-		if err := archiveDescribes(zw, pods, baseDir); err != nil {
-			return fmt.Errorf("running archiveDescribes failed: %w", err)
-		}
-		if err := archiveManifests(zw, pods, baseDir); err != nil {
-			return fmt.Errorf("running archiveManifests failed: %w", err)
-		}
 		return nil
 	}
 
@@ -126,8 +103,39 @@ USAGE
 	})
 }
 
-// TODO: improve logging as kubectl calls run (Desc, Mani)
-// TODO: refactor archiveLLogs so that both logs and logs --past are collected in the same loop
+/*
+Kubernetes functions
+TODO: improve logging as kubectl calls run (Desc, Mani)
+TODO: refactor archiveLLogs so that both logs and logs --past are collected in the same loop
+*/
+
+func archiveKube(zw *zip.Writer, baseDir string) error {
+	pods, err := getPods()
+	if err != nil {
+		return fmt.Errorf("failed to get pods: %w", err)
+	}
+	// TODO error group, create function type and run as goroutines
+	// Runs all kubectl based functions
+	if err := archiveEvents(zw, baseDir); err != nil {
+		return fmt.Errorf("running archiveEvents failed: %w", err)
+	}
+	if err := archivePV(zw, baseDir); err != nil {
+		return fmt.Errorf("running archivePV failed: %w", err)
+	}
+	if err := archivePVC(zw, baseDir); err != nil {
+		return fmt.Errorf("running archivePV failed: %w", err)
+	}
+	if err := archiveLogs(zw, pods, baseDir); err != nil {
+		return fmt.Errorf("running archiveLogs failed: %w", err)
+	}
+	if err := archiveDescribes(zw, pods, baseDir); err != nil {
+		return fmt.Errorf("running archiveDescribes failed: %w", err)
+	}
+	if err := archiveManifests(zw, pods, baseDir); err != nil {
+		return fmt.Errorf("running archiveManifests failed: %w", err)
+	}
+	return nil
+}
 
 func getPods() (podList, error) {
 	// Declare buffer type var for kubectl pipe
@@ -288,3 +296,9 @@ func archiveManifests(zw *zip.Writer, pods podList, baseDir string) error {
 	}
 	return nil
 }
+
+/*
+Docker functions
+
+
+*/
