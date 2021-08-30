@@ -151,6 +151,18 @@ func archiveKube(zw *zip.Writer, baseDir string) error {
 		ch <- fs
 	}()
 
+	// start goroutine for each pods containers
+	for _, pod := range pods.Items {
+		for _, container := range pod.Spec.Containers {
+			wg.Add(1)
+			go func(pod string, container string) {
+				defer wg.Done()
+				fs := getContainerLogs(pod, container, baseDir)
+				ch <- fs
+			}(pod.Metadata.Name, container.Name)
+		}
+	}
+
 	// close channel when wait group goroutines have completed
 	go func() {
 		wg.Wait()
@@ -165,7 +177,6 @@ func archiveKube(zw *zip.Writer, baseDir string) error {
 			if err != nil {
 				return fmt.Errorf("failed to create %s: %w", f.name, err)
 			}
-
 			_, err = zf.Write(f.data)
 			if err != nil {
 				return fmt.Errorf("failed to write to %s: %w", f.name, err)
@@ -200,68 +211,45 @@ func getPods() (podList, error) {
 
 func getEvents(baseDir string) (fs []archiveFile) {
 	f := archiveFile{name: baseDir + "/kubectl/events.txt"}
-
 	f.data, f.err = exec.Command("kubectl", "get", "events", "--all-namespaces").CombinedOutput()
-
 	return []archiveFile{f}
 }
 
 func getPV(baseDir string) (fs []archiveFile) {
 	f := archiveFile{name: baseDir + "/kubectl/persistent-volumes.txt"}
-
 	f.data, f.err = exec.Command("kubectl", "get", "pv").CombinedOutput()
-
 	return []archiveFile{f}
 }
 
 func getPVC(baseDir string) (fs []archiveFile) {
 	//write persistent volume claims to archive
 	f := archiveFile{name: baseDir + "/kubectl/persistent-volume-claims.txt"}
-
 	f.data, f.err = exec.Command("kubectl", "get", "pvc").CombinedOutput()
-
 	return []archiveFile{f}
 }
 
-// gets current pod logs and logs from past containers
-func archiveLogs(zw *zip.Writer, pods podList, baseDir string) error {
-
-	// run kubectl logs and write to archive, accounts for containers in pod
-	for _, pod := range pods.Items {
-		fmt.Println("Archiving logs: ", pod.Metadata.Name, "Containers:", pod.Spec.Containers)
-		for _, container := range pod.Spec.Containers {
-			logs, err := zw.Create(baseDir + "/kubectl/pods/" + pod.Metadata.Name + "/" + container.Name + ".log")
-			if err != nil {
-				return fmt.Errorf("failed to create podLogs.txt: %w", err)
-			}
-
-			getLogs := exec.Command("kubectl", "logs", pod.Metadata.Name, "-c", container.Name)
-			getLogs.Stdout = logs
-			getLogs.Stderr = os.Stderr
-
-			if err := getLogs.Run(); err != nil {
-				return fmt.Errorf("running kubectl get logs failed: %w", err)
-			}
-		}
-	}
-
-	// run kubectl logs --previous and write to archive if return not err
-	for _, pod := range pods.Items {
-		for _, container := range pod.Spec.Containers {
-			getPrevLogs := exec.Command("kubectl", "logs", "--previous", pod.Metadata.Name, "-c", container.Name)
-			if err := getPrevLogs.Run(); err == nil {
-				fmt.Println("Archiving previous logs: ", pod.Metadata.Name, "Containers: ", pod.Spec.Containers)
-				prev, err := zw.Create(baseDir + "/kubectl/pods/" + pod.Metadata.Name + "/" + "prev-" + container.Name + ".log")
-				getPrevLogs.Stdout = prev
-				if err != nil {
-					return fmt.Errorf("failed to create podLogs.txt: %w", err)
-				}
-			}
-		}
-	}
-
-	return nil
+// get kubectl logs for pod containers
+func getContainerLogs(podName string, containerName string, baseDir string) (fs []archiveFile) {
+	fmt.Println("func Name:", podName, "Container:", containerName)
+	f := archiveFile{name: baseDir + "/kubectl/pods/" + podName + "/" + containerName + ".log"}
+	f.data, f.err = exec.Command("kubectl", "logs", podName, "-c", containerName).CombinedOutput()
+	return []archiveFile{f}
 }
+
+//// get kubectl logs --previous for pod containers
+//for _, pod := range pods.Items {
+//	for _, container := range pod.Spec.Containers {
+//		getPrevLogs := exec.Command("kubectl", "logs", "--previous", pod.Metadata.Name, "-c", container.Name)
+//		if err := getPrevLogs.Run(); err == nil {
+//			fmt.Println("Archiving previous logs: ", pod.Metadata.Name, "Containers: ", pod.Spec.Containers)
+//			prev, err := zw.Create(baseDir + "/kubectl/pods/" + pod.Metadata.Name + "/" + "prev-" + container.Name + ".log")
+//			getPrevLogs.Stdout = prev
+//			if err != nil {
+//				return fmt.Errorf("failed to create podLogs.txt: %w", err)
+//			}
+//		}
+//	}
+//}
 
 func archiveDescribes(zw *zip.Writer, pods podList, baseDir string) error {
 	for _, pod := range pods.Items {
@@ -338,4 +326,44 @@ Graveyard
 //}
 //if err := archiveManifests(zw, pods, baseDir); err != nil {
 //	return fmt.Errorf("running archiveManifests failed: %w", err)
+//}
+
+//// gets current pod logs and logs from past containers
+//func getLogs(pods podList, baseDir string) (fs []archiveFile) {
+//
+//	// run kubectl logs and write to archive, accounts for containers in pod
+//	for _, pod := range pods.Items {
+//		fmt.Println("Archiving logs: ", pod.Metadata.Name, "Containers:", pod.Spec.Containers)
+//		for _, container := range pod.Spec.Containers {
+//			logs, err := zw.Create(baseDir + "/kubectl/pods/" + pod.Metadata.Name + "/" + container.Name + ".log")
+//			if err != nil {
+//				return fmt.Errorf("failed to create podLogs.txt: %w", err)
+//			}
+//
+//			getLogs := exec.Command("kubectl", "logs", pod.Metadata.Name, "-c", container.Name)
+//			getLogs.Stdout = logs
+//			getLogs.Stderr = os.Stderr
+//
+//			if err := getLogs.Run(); err != nil {
+//				return fmt.Errorf("running kubectl get logs failed: %w", err)
+//			}
+//		}
+//	}
+//
+//	// run kubectl logs --previous and write to archive if return not err
+//	for _, pod := range pods.Items {
+//		for _, container := range pod.Spec.Containers {
+//			getPrevLogs := exec.Command("kubectl", "logs", "--previous", pod.Metadata.Name, "-c", container.Name)
+//			if err := getPrevLogs.Run(); err == nil {
+//				fmt.Println("Archiving previous logs: ", pod.Metadata.Name, "Containers: ", pod.Spec.Containers)
+//				prev, err := zw.Create(baseDir + "/kubectl/pods/" + pod.Metadata.Name + "/" + "prev-" + container.Name + ".log")
+//				getPrevLogs.Stdout = prev
+//				if err != nil {
+//					return fmt.Errorf("failed to create podLogs.txt: %w", err)
+//				}
+//			}
+//		}
+//	}
+//
+//	return nil
 //}
