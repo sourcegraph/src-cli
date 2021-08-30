@@ -4,10 +4,8 @@ import (
 	"archive/zip"
 	"bytes"
 	"encoding/json"
-	"errors"
 	"flag"
 	"fmt"
-	"io"
 	"os"
 	"strings"
 	"sync"
@@ -26,6 +24,12 @@ type podList struct {
 			}
 		}
 	}
+}
+
+type archiveFile struct {
+	name string
+	data []byte
+	err  error
 }
 
 // Init debug flag on src build
@@ -110,56 +114,53 @@ USAGE
 Kubernetes functions
 TODO: improve logging as kubectl calls run (Desc, Mani)
 TODO: refactor archiveLLogs so that both logs and logs --past are collected in the same loop
+TODO: refactor archive functions to run concurrently as goroutines
 */
 
-type archiveFile struct {
-	name string
-	data []byte
-	err error
-}
-
+// Run kubectl functions concurrently and archive results to zip file
 func archiveKube(zw *zip.Writer, baseDir string) error {
 	pods, err := getPods()
 	if err != nil {
 		return fmt.Errorf("failed to get pods: %w", err)
 	}
+	fmt.Println(pods)
 
+	// setup channel for slice of archive function outputs
 	ch := make(chan []archiveFile)
 	wg := sync.WaitGroup{}
+
+	// create goroutine to get kubectl events
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		fs := getEvents(baseDir)
+		ch <- fs
+	}()
 
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		fs := archiveEvents(baseDir)
+		fs := getPV(baseDir)
 		ch <- fs
 	}()
 
-	//if err := archiveEvents(zw, baseDir); err != nil {
-	//	return fmt.Errorf("running archiveEvents failed: %w", err)
-	//}
-	//if err := archivePV(zw, baseDir); err != nil {
-	//	return fmt.Errorf("running archivePV failed: %w", err)
-	//}
-	//if err := archivePVC(zw, baseDir); err != nil {
-	//	return fmt.Errorf("running archivePV failed: %w", err)
-	//}
-	//if err := archiveLogs(zw, pods, baseDir); err != nil {
-	//	return fmt.Errorf("running archiveLogs failed: %w", err)
-	//}
-	//if err := archiveDescribes(zw, pods, baseDir); err != nil {
-	//	return fmt.Errorf("running archiveDescribes failed: %w", err)
-	//}
-	//if err := archiveManifests(zw, pods, baseDir); err != nil {
-	//	return fmt.Errorf("running archiveManifests failed: %w", err)
-	//}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		fs := getPVC(baseDir)
+		ch <- fs
+	}()
 
+	// close channel when wait group goroutines have completed
 	go func() {
 		wg.Wait()
 		close(ch)
 	}()
 
+	// write to archive all the outputs from kubectl call functions passed to buffer channel
 	for files := range ch {
 		for _, f := range files {
+			// write file path
 			zf, err := zw.Create(f.name)
 			if err != nil {
 				return fmt.Errorf("failed to create %s: %w", f.name, err)
@@ -197,7 +198,7 @@ func getPods() (podList, error) {
 	return pods, err
 }
 
-func archiveEvents(baseDir string) (fs []archiveFile) {
+func getEvents(baseDir string) (fs []archiveFile) {
 	f := archiveFile{name: baseDir + "/kubectl/events.txt"}
 
 	f.data, f.err = exec.Command("kubectl", "get", "events", "--all-namespaces").CombinedOutput()
@@ -205,46 +206,21 @@ func archiveEvents(baseDir string) (fs []archiveFile) {
 	return []archiveFile{f}
 }
 
-func archivePV(zw *zip.Writer, baseDir string) error {
-	fmt.Println("Archiving persistent volumes")
-	//write persistent volumes to archive
-	PV, err := zw.Create(baseDir + "/kubectl/persistent-volumes.txt")
-	if err != nil {
-		return fmt.Errorf("failed to create k8s-events.txt: %w", err)
-	}
+func getPV(baseDir string) (fs []archiveFile) {
+	f := archiveFile{name: baseDir + "/kubectl/persistent-volumes.txt"}
 
-	//define command to get persistent volumes
-	getPV := exec.Command("kubectl", "get", "pv")
-	getPV.Stdout = PV
-	getPV.Stderr = os.Stderr
+	f.data, f.err = exec.Command("kubectl", "get", "pv").CombinedOutput()
 
-	//get persistent volumes
-	if err := getPV.Run(); err != nil {
-		return fmt.Errorf("running kubectl get pv failed: %w", err)
-	}
-
-	return nil
+	return []archiveFile{f}
 }
 
-func archivePVC(zw *zip.Writer, baseDir string) error {
-	fmt.Println("Archiving persistent volume claims")
+func getPVC(baseDir string) (fs []archiveFile) {
 	//write persistent volume claims to archive
-	PVC, err := zw.Create(baseDir + "/kubectl/persistent-volume-claims.txt")
-	if err != nil {
-		return fmt.Errorf("failed to create k8s-events.txt: %w", err)
-	}
+	f := archiveFile{name: baseDir + "/kubectl/persistent-volume-claims.txt"}
 
-	//define command to get persistent volume claims
-	getPVC := exec.Command("kubectl", "get", "pvc")
-	getPVC.Stdout = PVC
-	getPVC.Stderr = os.Stderr
+	f.data, f.err = exec.Command("kubectl", "get", "pvc").CombinedOutput()
 
-	//get persistent volumes
-	if err := getPVC.Run(); err != nil {
-		return fmt.Errorf("running kubectl get pvc failed: %w", err)
-	}
-
-	return nil
+	return []archiveFile{f}
 }
 
 // gets current pod logs and logs from past containers
@@ -339,3 +315,27 @@ func getContainers() (string, error) {
 	fmt.Println(contStr)
 	return contStr, err
 }
+
+/*
+Graveyard
+-----------
+*/
+
+//if err := archiveEvents(zw, baseDir); err != nil {
+//	return fmt.Errorf("running archiveEvents failed: %w", err)
+//}
+//if err := archivePV(zw, baseDir); err != nil {
+//	return fmt.Errorf("running archivePV failed: %w", err)
+//}
+//if err := archivePVC(zw, baseDir); err != nil {
+//	return fmt.Errorf("running archivePV failed: %w", err)
+//}
+//if err := archiveLogs(zw, pods, baseDir); err != nil {
+//	return fmt.Errorf("running archiveLogs failed: %w", err)
+//}
+//if err := archiveDescribes(zw, pods, baseDir); err != nil {
+//	return fmt.Errorf("running archiveDescribes failed: %w", err)
+//}
+//if err := archiveManifests(zw, pods, baseDir); err != nil {
+//	return fmt.Errorf("running archiveManifests failed: %w", err)
+//}
