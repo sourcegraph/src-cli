@@ -108,9 +108,7 @@ USAGE
 
 /*
 Kubernetes functions
-TODO: improve logging as kubectl calls run (Desc, Mani)
-TODO: refactor archiveLLogs so that both logs and logs --past are collected in the same loop
-TODO: refactor archive functions to run concurrently as goroutines
+TODO: improve logging as kubectl calls run
 */
 
 // Run kubectl functions concurrently and archive results to zip file
