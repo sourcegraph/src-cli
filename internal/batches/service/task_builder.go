@@ -10,32 +10,49 @@ import (
 	"github.com/sourcegraph/src-cli/internal/batches/template"
 )
 
-type directoryFinder interface {
-	FindDirectoriesInRepos(ctx context.Context, fileName string, repos ...*graphql.Repository) (map[*graphql.Repository][]string, error)
-}
-
-type taskBuilder struct {
-	spec   *batcheslib.BatchSpec
-	finder directoryFinder
-}
-
 // buildTasks returns tasks for all the workspaces determined for the given spec.
-func buildTasks(ctx context.Context, spec *batcheslib.BatchSpec, finder directoryFinder, repos []*graphql.Repository, workspaces []RepoWorkspaces) ([]*executor.Task, error) {
-	tb := &taskBuilder{spec: spec, finder: finder}
-	return tb.buildAll(ctx, repos, workspaces)
+func buildTasks(ctx context.Context, spec *batcheslib.BatchSpec, repos []*graphql.Repository, workspaces []RepoWorkspaces) ([]*executor.Task, error) {
+	repoByID := make(map[string]*graphql.Repository)
+	for _, repo := range repos {
+		repoByID[repo.ID] = repo
+	}
+
+	tasks := []*executor.Task{}
+	for _, ws := range workspaces {
+		repo, ok := repoByID[ws.RepoID]
+		if !ok {
+			return nil, errors.New("invalid state, didn't find repo for workspace definition")
+		}
+		for _, path := range ws.Paths {
+			fetchWorkspace := ws.OnlyFetchWorkspace
+			if path == "" {
+				fetchWorkspace = false
+			}
+			t, ok, err := buildTask(spec, repo, path, fetchWorkspace)
+			if err != nil {
+				return nil, err
+			}
+
+			if ok {
+				tasks = append(tasks, t)
+			}
+		}
+	}
+
+	return tasks, nil
 }
 
-func (tb *taskBuilder) buildTask(r *graphql.Repository, path string, onlyWorkspace bool) (*executor.Task, bool, error) {
+func buildTask(spec *batcheslib.BatchSpec, r *graphql.Repository, path string, onlyWorkspace bool) (*executor.Task, bool, error) {
 	stepCtx := &template.StepContext{
 		Repository: *r,
 		BatchChange: template.BatchChangeAttributes{
-			Name:        tb.spec.Name,
-			Description: tb.spec.Description,
+			Name:        spec.Name,
+			Description: spec.Description,
 		},
 	}
 
 	var taskSteps []batcheslib.Step
-	for _, step := range tb.spec.Steps {
+	for _, step := range spec.Steps {
 		if step.IfCondition() == "" {
 			taskSteps = append(taskSteps, step)
 			continue
@@ -71,42 +88,11 @@ func (tb *taskBuilder) buildTask(r *graphql.Repository, path string, onlyWorkspa
 		Steps:              taskSteps,
 		OnlyFetchWorkspace: onlyWorkspace,
 
-		TransformChanges: tb.spec.TransformChanges,
-		Template:         tb.spec.ChangesetTemplate,
+		TransformChanges: spec.TransformChanges,
+		Template:         spec.ChangesetTemplate,
 		BatchChangeAttributes: &template.BatchChangeAttributes{
-			Name:        tb.spec.Name,
-			Description: tb.spec.Description,
+			Name:        spec.Name,
+			Description: spec.Description,
 		},
 	}, true, nil
-}
-
-func (tb *taskBuilder) buildAll(ctx context.Context, repos []*graphql.Repository, workspaces []RepoWorkspaces) ([]*executor.Task, error) {
-	repoByID := make(map[string]*graphql.Repository)
-	for _, repo := range repos {
-		repoByID[repo.ID] = repo
-	}
-
-	tasks := []*executor.Task{}
-	for _, ws := range workspaces {
-		repo, ok := repoByID[ws.RepoID]
-		if !ok {
-			return nil, errors.New("invalid state, didn't find repo for workspace definition")
-		}
-		for _, path := range ws.Paths {
-			fetchWorkspace := ws.OnlyFetchWorkspace
-			if path == "" {
-				fetchWorkspace = false
-			}
-			t, ok, err := tb.buildTask(repo, path, fetchWorkspace)
-			if err != nil {
-				return nil, err
-			}
-
-			if ok {
-				tasks = append(tasks, t)
-			}
-		}
-	}
-
-	return tasks, nil
 }
