@@ -119,11 +119,11 @@ TODO: refactor archive functions to run concurrently as goroutines
 
 // Run kubectl functions concurrently and archive results to zip file
 func archiveKube(zw *zip.Writer, baseDir string) error {
-	fmt.Println("getting kubectl data...")
 	pods, err := getPods()
 	if err != nil {
 		return fmt.Errorf("failed to get pods: %w", err)
 	}
+	fmt.Printf("getting kubectl data for %d pods...\n", len(pods.Items))
 
 	// setup channel for slice of archive function outputs
 	ch := make(chan []archiveFile)
