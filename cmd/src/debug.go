@@ -68,10 +68,6 @@ USAGE
 		} else {
 			baseDir = strings.TrimSuffix(*base, ".zip")
 		}
-		//// handle deployment flag
-		//if !((*deployment == "serv") || (*deployment == "comp") || (*deployment == "kube")) {
-		//	return fmt.Errorf("must declare -d=<deployment type>, as serv, comp, or kube")
-		//}
 
 		// open pipe to output file
 		out, err := os.OpenFile(*base, os.O_CREATE|os.O_RDWR|os.O_EXCL, 0666)
@@ -95,7 +91,7 @@ USAGE
 				return fmt.Errorf("archiveKube failed with err: %w", err)
 			}
 		default:
-			return fmt.Errorf("must declare -d=<deployment type>, as server, compose, or kubernetes")
+			return fmt.Errorf("must declare -d=<deployment type>, as serv, comp, or kube")
 		}
 
 		return nil
