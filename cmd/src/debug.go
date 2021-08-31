@@ -78,7 +78,7 @@ USAGE
 			return fmt.Errorf("failed to open file: %w", err)
 		}
 
-		if err := setOpenFileLimits(99999); err != nil {
+		if err := setOpenFileLimits(64000); err != nil {
 			return fmt.Errorf("failed to set open file limits: %w", err)
 		}
 
@@ -302,15 +302,15 @@ func getManifests(ctx context.Context, podName, baseDir string) *archiveFile {
 
 // setOpenFileLimits increases the limit of open files to the given number. This is needed
 // when doings lots of concurrent network requests which establish open sockets.
-func setOpenFileLimits(n int) error {
+func setOpenFileLimits(n uint64) error {
 	var rlimit syscall.Rlimit
 	err := syscall.Getrlimit(syscall.RLIMIT_NOFILE, &rlimit)
 	if err != nil {
 		return err
 	}
 
-	rlimit.Max = 999999
-	rlimit.Cur = 999999
+	rlimit.Max = n
+	rlimit.Cur = n
 
 	return syscall.Setrlimit(syscall.RLIMIT_NOFILE, &rlimit)
 }
