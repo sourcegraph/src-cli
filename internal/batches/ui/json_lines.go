@@ -6,11 +6,12 @@ import (
 	"os"
 	"time"
 
-	batcheslib "github.com/sourcegraph/sourcegraph/lib/batches"
 	"github.com/sourcegraph/src-cli/internal/batches"
 	"github.com/sourcegraph/src-cli/internal/batches/executor"
 	"github.com/sourcegraph/src-cli/internal/batches/graphql"
 	"github.com/sourcegraph/src-cli/internal/batches/workspace"
+
+	batcheslib "github.com/sourcegraph/sourcegraph/lib/batches"
 )
 
 var _ ExecUI = &JSONLines{}
@@ -296,6 +297,36 @@ func (ui *taskExecutionJSONLines) TaskCurrentlyExecuting(task *executor.Task, me
 		Operation: "EXECUTING_TASK",
 		Status:    "PROGRESS",
 		Message:   message,
+		Metadata: map[string]interface{}{
+			"task": lt,
+		},
+	})
+}
+
+func (ui *taskExecutionJSONLines) TaskStdout(task *executor.Task, line string) {
+	lt, ok := ui.linesTasks[task]
+	if !ok {
+		panic("unknown task started")
+	}
+	logEvent(batchesLogEvent{
+		Operation: "TASK_STDOUT",
+		Status:    "PROGRESS",
+		Message:   line,
+		Metadata: map[string]interface{}{
+			"task": lt,
+		},
+	})
+}
+
+func (ui *taskExecutionJSONLines) TaskStderr(task *executor.Task, line string) {
+	lt, ok := ui.linesTasks[task]
+	if !ok {
+		panic("unknown task started")
+	}
+	logEvent(batchesLogEvent{
+		Operation: "TASK_STDERR",
+		Status:    "PROGRESS",
+		Message:   line,
 		Metadata: map[string]interface{}{
 			"task": lt,
 		},

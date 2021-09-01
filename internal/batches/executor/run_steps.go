@@ -65,6 +65,9 @@ type executionOpts struct {
 
 	logger         log.TaskLogger
 	reportProgress func(string)
+
+	uiStdoutWriter io.Writer
+	uiStderrWriter io.Writer
 }
 
 func runSteps(ctx context.Context, opts *executionOpts) (result executionResult, stepResults []stepExecutionResult, err error) {
@@ -310,8 +313,9 @@ func executeSingleStep(
 
 	var stdoutBuffer, stderrBuffer bytes.Buffer
 
-	cmd.Stdout = io.MultiWriter(&stdoutBuffer, opts.logger.PrefixWriter("stdout"))
-	cmd.Stderr = io.MultiWriter(&stderrBuffer, opts.logger.PrefixWriter("stderr"))
+	// TODO: We need to handle closing of these
+	cmd.Stdout = io.MultiWriter(&stdoutBuffer, opts.uiStdoutWriter, opts.logger.PrefixWriter("stdout"))
+	cmd.Stderr = io.MultiWriter(&stderrBuffer, opts.uiStderrWriter, opts.logger.PrefixWriter("stderr"))
 
 	opts.logger.Logf("[Step %d] run: %q, container: %q", i+1, step.Run, step.Container)
 	opts.logger.Logf("[Step %d] full command: %q", i+1, strings.Join(cmd.Args, " "))

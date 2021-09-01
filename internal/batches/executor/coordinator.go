@@ -9,7 +9,6 @@ import (
 	"github.com/cockroachdb/errors"
 	"github.com/hashicorp/go-multierror"
 	batcheslib "github.com/sourcegraph/sourcegraph/lib/batches"
-
 	"github.com/sourcegraph/src-cli/internal/api"
 	"github.com/sourcegraph/src-cli/internal/batches"
 	"github.com/sourcegraph/src-cli/internal/batches/docker"
@@ -217,6 +216,9 @@ type TaskExecutionUI interface {
 
 	// TODO: This should be split up into methods that are more specific.
 	TaskCurrentlyExecuting(*Task, string)
+
+	TaskStdout(*Task, string)
+	TaskStderr(*Task, string)
 }
 
 // Execute executes the given Tasks and the importChangeset statements in the

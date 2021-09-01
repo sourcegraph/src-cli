@@ -8,9 +8,10 @@ import (
 	"time"
 
 	"github.com/sourcegraph/go-diff/diff"
+	"github.com/sourcegraph/src-cli/internal/batches/executor"
+
 	batcheslib "github.com/sourcegraph/sourcegraph/lib/batches"
 	"github.com/sourcegraph/sourcegraph/lib/output"
-	"github.com/sourcegraph/src-cli/internal/batches/executor"
 )
 
 type taskStatus struct {
@@ -213,6 +214,14 @@ func (ui *taskExecTUI) TaskCurrentlyExecuting(task *executor.Task, message strin
 	}
 
 	ui.progress.StatusBarUpdatef(bar, ts.String())
+}
+
+func (ui *taskExecTUI) TaskStdout(task *executor.Task, line string) {
+	// noop
+}
+
+func (ui *taskExecTUI) TaskStderr(task *executor.Task, line string) {
+	// noop
 }
 
 func (ui *taskExecTUI) TaskFinished(task *executor.Task, err error) {

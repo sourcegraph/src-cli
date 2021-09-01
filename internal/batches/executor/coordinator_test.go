@@ -544,6 +544,8 @@ func (d *dummyTaskExecutionUI) TaskChangesetSpecsBuilt(t *Task, specs []*batches
 }
 
 func (d *dummyTaskExecutionUI) TaskCurrentlyExecuting(*Task, string) {}
+func (d *dummyTaskExecutionUI) TaskStdout(*Task, string)             {}
+func (d *dummyTaskExecutionUI) TaskStderr(*Task, string)             {}
 
 var _ taskExecutor = &dummyExecutor{}
 
