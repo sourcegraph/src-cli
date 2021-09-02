@@ -167,7 +167,7 @@ func archiveKube(ctx context.Context, zw *zip.Writer, verbose bool, baseDir stri
 			wg.Add(1)
 			go func(pod, container string) {
 				defer wg.Done()
-				ch <- getContainerLogs(ctx, pod, container, baseDir)
+				ch <- getContainerLog(ctx, pod, container, baseDir)
 			}(pod.Metadata.Name, container.Name)
 		}
 	}
@@ -179,7 +179,7 @@ func archiveKube(ctx context.Context, zw *zip.Writer, verbose bool, baseDir stri
 			wg.Add(1)
 			go func(pod, container string) {
 				defer wg.Done()
-				f := getPastContainerLogs(ctx, pod, container, baseDir)
+				f := getPastContainerLog(ctx, pod, container, baseDir)
 				if f.err == nil {
 					ch <- f
 				}
@@ -192,7 +192,7 @@ func archiveKube(ctx context.Context, zw *zip.Writer, verbose bool, baseDir stri
 		wg.Add(1)
 		go func(pod string) {
 			defer wg.Done()
-			ch <- getDescribes(ctx, pod, baseDir)
+			ch <- getDescribe(ctx, pod, baseDir)
 		}(pod.Metadata.Name)
 	}
 
@@ -201,7 +201,7 @@ func archiveKube(ctx context.Context, zw *zip.Writer, verbose bool, baseDir stri
 		wg.Add(1)
 		go func(pod string) {
 			defer wg.Done()
-			ch <- getManifests(ctx, pod, baseDir)
+			ch <- getManifest(ctx, pod, baseDir)
 		}(pod.Metadata.Name)
 	}
 
@@ -275,26 +275,26 @@ func getPVC(ctx context.Context, baseDir string) *archiveFile {
 }
 
 // get kubectl logs for pod containers
-func getContainerLogs(ctx context.Context, podName, containerName, baseDir string) *archiveFile {
+func getContainerLog(ctx context.Context, podName, containerName, baseDir string) *archiveFile {
 	f := &archiveFile{name: baseDir + "/kubectl/pods/" + podName + "/" + containerName + ".log"}
 	f.data, f.err = exec.CommandContext(ctx, "kubectl", "logs", podName, "-c", containerName).CombinedOutput()
 	return f
 }
 
 // get kubectl logs for past container
-func getPastContainerLogs(ctx context.Context, podName, containerName, baseDir string) *archiveFile {
+func getPastContainerLog(ctx context.Context, podName, containerName, baseDir string) *archiveFile {
 	f := &archiveFile{name: baseDir + "/kubectl/pods/" + podName + "/" + "prev-" + containerName + ".log"}
 	f.data, f.err = exec.CommandContext(ctx, "kubectl", "logs", "--previous", podName, "-c", containerName).CombinedOutput()
 	return f
 }
 
-func getDescribes(ctx context.Context, podName, baseDir string) *archiveFile {
+func getDescribe(ctx context.Context, podName, baseDir string) *archiveFile {
 	f := &archiveFile{name: baseDir + "/kubectl/pods/" + podName + "/describe-" + podName + ".txt"}
 	f.data, f.err = exec.CommandContext(ctx, "kubectl", "describe", "pod", podName).CombinedOutput()
 	return f
 }
 
-func getManifests(ctx context.Context, podName, baseDir string) *archiveFile {
+func getManifest(ctx context.Context, podName, baseDir string) *archiveFile {
 	f := &archiveFile{name: baseDir + "/kubectl/pods/" + podName + "/manifest-" + podName + ".yaml"}
 	f.data, f.err = exec.CommandContext(ctx, "kubectl", "get", "pod", podName, "-o", "yaml").CombinedOutput()
 	return f
@@ -318,18 +318,28 @@ func setOpenFileLimits(n uint64) error {
 /*
 Docker functions
 
-
 */
 
-func getContainers(ctx context.Context) (string, error) {
+func archiveDocker() {
+	fmt.Println("This will execute all docker cli commands as goroutines and ")
+}
 
-	containers, err := exec.CommandContext(ctx, "docker", "container", "ls", "--format", "{{.Names}}").Output()
+func getContainers(ctx context.Context) ([]string, error) {
+
+	c, err := exec.CommandContext(ctx, "docker", "container", "ls", "--format", "{{.Names}}").Output()
 	if err != nil {
 		fmt.Errorf("failed to get container names with error: %w", err)
 	}
-	contStr := string(containers)
-	fmt.Println(contStr)
-	return contStr, err
+	s := string(c)
+	containers := strings.Split(s, "\n")
+	fmt.Println(containers)
+	return containers, err
+}
+
+func getLog(ctx context.Context, container, baseDir string) *archiveFile {
+	f := &archiveFile{name: baseDir + "/docker/containers/" + container + "/" + container + ".log"}
+	f.data, f.err = exec.CommandContext(ctx, "docker", "container", "logs", container).CombinedOutput()
+	return f
 }
 
 /*
