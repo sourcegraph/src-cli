@@ -218,12 +218,18 @@ func (ui *taskExecTUI) TaskCurrentlyExecuting(task *executor.Task, message strin
 	ui.progress.StatusBarUpdatef(bar, ts.String())
 }
 
-func (ui *taskExecTUI) TaskStdoutWriter(ctx context.Context, task *executor.Task) io.Writer {
-	return io.Discard
+type discardCloser struct {
+	io.Writer
 }
 
-func (ui *taskExecTUI) TaskStderrWriter(ctx context.Context, task *executor.Task) io.Writer {
-	return io.Discard
+func (discardCloser) Close() error { return nil }
+
+func (ui *taskExecTUI) StepStdoutWriter(ctx context.Context, task *executor.Task, stepidx int) io.WriteCloser {
+	return discardCloser{io.Discard}
+}
+
+func (ui *taskExecTUI) StepStderrWriter(ctx context.Context, task *executor.Task, stepidx int) io.WriteCloser {
+	return discardCloser{io.Discard}
 }
 
 func (ui *taskExecTUI) TaskFinished(task *executor.Task, err error) {

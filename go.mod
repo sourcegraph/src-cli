@@ -5,6 +5,8 @@ go 1.17
 require (
 	github.com/Masterminds/semver v1.5.0
 	github.com/cockroachdb/errors v1.8.6
+	github.com/cockroachdb/redact v1.1.3 // indirect
+	github.com/derision-test/glock v0.0.0-20210316032053-f5b74334bb29
 	github.com/dustin/go-humanize v1.0.0
 	github.com/gobwas/glob v0.2.3
 	github.com/google/go-cmp v0.5.6
@@ -30,7 +32,6 @@ require (
 require (
 	github.com/Azure/go-ansiterm v0.0.0-20210617225240-d185dfc1b5a1 // indirect
 	github.com/cockroachdb/logtags v0.0.0-20190617123548-eb05cc24525f // indirect
-	github.com/cockroachdb/redact v1.1.3 // indirect
 	github.com/cockroachdb/sentry-go v0.6.1-cockroachdb.2 // indirect
 	github.com/ghodss/yaml v1.0.0 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect

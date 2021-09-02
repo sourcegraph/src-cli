@@ -14,7 +14,6 @@ import (
 	"github.com/sourcegraph/src-cli/internal/batches/workspace"
 
 	batcheslib "github.com/sourcegraph/sourcegraph/lib/batches"
-	"github.com/sourcegraph/sourcegraph/lib/process"
 )
 
 var _ ExecUI = &JSONLines{}
@@ -296,6 +295,7 @@ func (ui *taskExecutionJSONLines) TaskCurrentlyExecuting(task *executor.Task, me
 	if !ok {
 		panic("unknown task started")
 	}
+
 	logEvent(batchesLogEvent{
 		Operation: "EXECUTING_TASK",
 		Status:    "PROGRESS",
@@ -306,38 +306,47 @@ func (ui *taskExecutionJSONLines) TaskCurrentlyExecuting(task *executor.Task, me
 	})
 }
 
-func (ui *taskExecutionJSONLines) TaskStdoutWriter(ctx context.Context, task *executor.Task) io.Writer {
+const stepFlushDuration = 500 * time.Millisecond
+
+func (ui *taskExecutionJSONLines) StepStdoutWriter(ctx context.Context, task *executor.Task, step int) io.WriteCloser {
 	lt, ok := ui.linesTasks[task]
 	if !ok {
 		panic("unknown task started")
 	}
 
-	return process.NewLogger(ctx, func(data string) {
+	sink := func(data string) {
 		logEvent(batchesLogEvent{
-			Operation: "TASK_STDOUT",
+			Operation: "STEP",
 			Status:    "PROGRESS",
 			Message:   data,
 			Metadata: map[string]interface{}{
-				"task": lt,
+				"task":        lt,
+				"step":        step,
+				"output_type": "stdout",
 			},
 		})
-	})
+	}
+	return NewIntervalWriter(ctx, stepFlushDuration, sink)
 }
 
-func (ui *taskExecutionJSONLines) TaskStderrWriter(ctx context.Context, task *executor.Task) io.Writer {
+func (ui *taskExecutionJSONLines) StepStderrWriter(ctx context.Context, task *executor.Task, step int) io.WriteCloser {
 	lt, ok := ui.linesTasks[task]
 	if !ok {
 		panic("unknown task started")
 	}
 
-	return process.NewLogger(ctx, func(data string) {
+	sink := func(data string) {
 		logEvent(batchesLogEvent{
-			Operation: "TASK_STDERR",
+			Operation: "STEP",
 			Status:    "PROGRESS",
 			Message:   data,
 			Metadata: map[string]interface{}{
-				"task": lt,
+				"task":        lt,
+				"step":        step,
+				"output_type": "stderr",
 			},
 		})
-	})
+	}
+
+	return NewIntervalWriter(ctx, stepFlushDuration, sink)
 }

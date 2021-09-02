@@ -68,8 +68,8 @@ type executionOpts struct {
 	logger         log.TaskLogger
 	reportProgress func(string)
 
-	uiStdoutWriter io.Writer
-	uiStderrWriter io.Writer
+	newUiStdoutWriter func(context.Context, *Task, int) io.WriteCloser
+	newUiStderrWriter func(context.Context, *Task, int) io.WriteCloser
 }
 
 func runSteps(ctx context.Context, opts *executionOpts) (result executionResult, stepResults []stepExecutionResult, err error) {
@@ -315,8 +315,17 @@ func executeSingleStep(
 
 	var stdoutBuffer, stderrBuffer bytes.Buffer
 
-	stdout := io.MultiWriter(&stdoutBuffer, opts.uiStdoutWriter, opts.logger.PrefixWriter("stdout"))
-	stderr := io.MultiWriter(&stderrBuffer, opts.uiStderrWriter, opts.logger.PrefixWriter("stderr"))
+	writerCtx, writerCancel := context.WithCancel(ctx)
+	defer writerCancel()
+	uiStdoutWriter := opts.newUiStdoutWriter(writerCtx, opts.task, i)
+	uiStderrWriter := opts.newUiStderrWriter(writerCtx, opts.task, i)
+	defer func() {
+		uiStdoutWriter.Close()
+		uiStderrWriter.Close()
+	}()
+
+	stdout := io.MultiWriter(&stdoutBuffer, uiStdoutWriter, opts.logger.PrefixWriter("stdout"))
+	stderr := io.MultiWriter(&stderrBuffer, uiStderrWriter, opts.logger.PrefixWriter("stderr"))
 
 	wg, err := process.PipeOutput(cmd, stdout, stderr)
 	if err != nil {

@@ -177,8 +177,8 @@ func (x *executor) do(ctx context.Context, task *Task, ui TaskExecutionUI) (err 
 		reportProgress: func(currentlyExecuting string) {
 			ui.TaskCurrentlyExecuting(task, currentlyExecuting)
 		},
-		uiStdoutWriter: ui.TaskStdoutWriter(runCtx, task),
-		uiStderrWriter: ui.TaskStderrWriter(runCtx, task),
+		newUiStdoutWriter: ui.StepStdoutWriter,
+		newUiStderrWriter: ui.StepStderrWriter,
 	}
 
 	result, stepResults, err := runSteps(runCtx, opts)

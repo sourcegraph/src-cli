@@ -544,12 +544,19 @@ func (d *dummyTaskExecutionUI) TaskChangesetSpecsBuilt(t *Task, specs []*batches
 	d.specs[t] = specs
 }
 
-func (d *dummyTaskExecutionUI) TaskCurrentlyExecuting(*Task, string) {}
-func (d *dummyTaskExecutionUI) TaskStdoutWriter(ctx context.Context, task *Task) io.Writer {
-	return io.Discard
+
+type discardCloser struct {
+	io.Writer
 }
-func (d *dummyTaskExecutionUI) TaskStderrWriter(ctx context.Context, task *Task) io.Writer {
-	return io.Discard
+
+func (discardCloser) Close() error { return nil }
+
+func (d *dummyTaskExecutionUI) TaskCurrentlyExecuting(*Task, string) {}
+func (d *dummyTaskExecutionUI) StepStdoutWriter(ctx context.Context, task *Task, step int) io.WriteCloser {
+	return discardCloser{io.Discard}
+}
+func (d *dummyTaskExecutionUI) StepStderrWriter(ctx context.Context, task *Task, step int) io.WriteCloser {
+	return discardCloser{io.Discard}
 }
 
 var _ taskExecutor = &dummyExecutor{}

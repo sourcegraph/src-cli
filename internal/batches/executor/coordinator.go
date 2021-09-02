@@ -218,8 +218,8 @@ type TaskExecutionUI interface {
 	// TODO: This should be split up into methods that are more specific.
 	TaskCurrentlyExecuting(*Task, string)
 
-	TaskStdoutWriter(context.Context, *Task) io.Writer
-	TaskStderrWriter(context.Context, *Task) io.Writer
+	StepStdoutWriter(context.Context, *Task, int) io.WriteCloser
+	StepStderrWriter(context.Context, *Task, int) io.WriteCloser
 }
 
 // Execute executes the given Tasks and the importChangeset statements in the
