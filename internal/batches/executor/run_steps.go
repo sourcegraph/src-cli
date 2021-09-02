@@ -235,7 +235,7 @@ func executeSingleStep(
 	// ----------
 	opts.reportProgress(fmt.Sprintf("Preparing step %d", i+1))
 
-	cidFile, cleanup, err := createCidFile(ctx, opts.tempDir, opts.task.Repository.Slug())
+	cidFile, cleanup, err := createCidFile(ctx, opts.tempDir, util.SlugForRepo(opts.task.Repository.Name, opts.task.Repository.Rev()))
 	if err != nil {
 		return bytes.Buffer{}, bytes.Buffer{}, err
 	}

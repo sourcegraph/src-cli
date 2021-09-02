@@ -12,10 +12,12 @@ import (
 	"sync"
 
 	"github.com/cockroachdb/errors"
-
-	"github.com/sourcegraph/src-cli/internal/api"
-	"github.com/sourcegraph/src-cli/internal/batches/graphql"
 )
+
+type RepoRevision struct {
+	RepoName string
+	Commit   string
+}
 
 // RepoFetcher abstracts the process of retrieving an archive for the given
 // repository.
@@ -24,108 +26,7 @@ type RepoFetcher interface {
 	// relative path in the repository. The RepoZip is possibly unfetched.
 	// Users need to call `Fetch()` on the RepoZip before using it and
 	// `Close()` once // they're done using it.
-	Checkout(repo *graphql.Repository, path string) RepoZip
-}
-
-func NewRepoFetcher(client api.Client, dir string, deleteZips bool) RepoFetcher {
-	return &repoFetcher{client: client, dir: dir, deleteZips: deleteZips}
-}
-
-// repoFetcher is the concrete implementation of the RepoFetcher interface used
-// outside of tests.
-type repoFetcher struct {
-	client     api.Client
-	dir        string
-	deleteZips bool
-
-	zipsMu sync.Mutex
-	zips   map[string]*repoZip
-}
-
-var _ RepoFetcher = &repoFetcher{}
-
-// AdditionalWorkspaceFiles is a list of files the RepoFetcher *tries* to fetch
-// when the desired archive is subdirectory in the given repository. It makes
-// sense to also fetch these files, even if the steps are executed in a
-// subdirectory, since they might influence some global state, such as
-// `.gitignore`.
-//
-// If the file is not found, that's not an error.
-var AdditionalWorkspaceFiles = []string{
-	".gitignore",
-	".gitattributes",
-}
-
-func (rf *repoFetcher) zipFor(repo *graphql.Repository, workspacePath string) *repoZip {
-	rf.zipsMu.Lock()
-	defer rf.zipsMu.Unlock()
-
-	if rf.zips == nil {
-		rf.zips = make(map[string]*repoZip)
-	}
-
-	slug := repo.SlugForPath(workspacePath)
-
-	zipPath := filepath.Join(rf.dir, slug+".zip")
-	zip, ok := rf.zips[zipPath]
-	if !ok {
-		zip = &repoZip{
-			zipPath:       zipPath,
-			repo:          repo,
-			client:        rf.client,
-			deleteOnClose: rf.deleteZips,
-			pathInRepo:    workspacePath,
-		}
-
-		if workspacePath != "" {
-			// We're doing another loop here to catch all
-			// AdditionalWorkspaceFiles on the way *up* from the workspace to the
-			// root.
-			//
-			// Example: path = /examples/cool/project3
-			//
-			// Then we want to fetch the following files:
-			//
-			// /.gitignore
-			// /.gitattributes
-			// /examples/.gitignore
-			// /examples/.gitattributes
-			// /examples/cool/.gitignore
-			// /examples/cool/.gitattributes
-
-			// Split on '/' because the path comes from Sourcegraph and always
-			// has a "/".
-			pathComponents := strings.Split(workspacePath, "/")
-
-			var currentPath string
-			for _, component := range pathComponents {
-				for _, name := range []string{".gitignore", ".gitattributes"} {
-					filename := path.Join(currentPath, name)
-					localPath := filepath.Join(rf.dir, repo.SlugForPath(workspacePath+filename))
-
-					zip.additionalFiles = append(zip.additionalFiles, &additionalFile{
-						filename:  filename,
-						localPath: localPath,
-						fetched:   false,
-					})
-				}
-
-				currentPath = path.Join(currentPath, component)
-			}
-		}
-
-		rf.zips[zipPath] = zip
-	}
-	return zip
-}
-
-func (rf *repoFetcher) Checkout(repo *graphql.Repository, path string) RepoZip {
-	zip := rf.zipFor(repo, path)
-	zip.mu.Lock()
-	defer zip.mu.Unlock()
-
-	zip.checkouts += 1
-	return zip
+	Checkout(repo RepoRevision, path string) RepoZip
 }
 
 // RepoZip implementations represent a downloaded repository archive.
@@ -147,6 +48,117 @@ type RepoZip interface {
 	AdditionalFilePaths() map[string]string
 }
 
+// HTTPClient provides an interface to run API requests.
+type HTTPClient interface {
+	// NewHTTPRequest creates an http.Request for the Sourcegraph API.
+	//
+	// path is joined against the API route. For example on Sourcegraph.com this
+	// will result the URL: https://sourcegraph.com/.api/path.
+	NewHTTPRequest(ctx context.Context, method, path string, body io.Reader) (*http.Request, error)
+
+	// Do runs an http.Request against the Sourcegraph API.
+	Do(req *http.Request) (*http.Response, error)
+}
+
+func NewRepoFetcher(client HTTPClient, dir string, deleteZips bool) RepoFetcher {
+	return &repoFetcher{client: client, dir: dir, deleteZips: deleteZips}
+}
+
+// repoFetcher is the concrete implementation of the RepoFetcher interface used
+// outside of tests.
+type repoFetcher struct {
+	client     HTTPClient
+	dir        string
+	deleteZips bool
+
+	zipsMu sync.Mutex
+	zips   map[string]*repoZip
+}
+
+// additionalWorkspaceFiles is a list of files the RepoFetcher *tries* to fetch
+// when the desired archive is subdirectory in the given repository. It makes
+// sense to also fetch these files, even if the steps are executed in a
+// subdirectory, since they might influence some global state, such as
+// `.gitignore`.
+//
+// If the file is not found, that's not an error.
+var additionalWorkspaceFiles = []string{
+	".gitignore",
+	".gitattributes",
+}
+
+func (rf *repoFetcher) zipFor(repo RepoRevision, workspacePath string) *repoZip {
+	rf.zipsMu.Lock()
+	defer rf.zipsMu.Unlock()
+
+	if rf.zips == nil {
+		rf.zips = make(map[string]*repoZip)
+	}
+
+	slug := util.SlugForPathInRepo(repo.RepoName, repo.Commit, workspacePath)
+
+	zipPath := filepath.Join(rf.dir, slug+".zip")
+	zip, ok := rf.zips[zipPath]
+	if !ok {
+		zip = &repoZip{
+			zipPath:       zipPath,
+			repo:          repo,
+			client:        rf.client,
+			deleteOnClose: rf.deleteZips,
+			pathInRepo:    workspacePath,
+		}
+
+		if workspacePath != "" {
+			// We're doing another loop here to catch all
+			// additionalWorkspaceFiles on the way *up* from the workspace to the
+			// root.
+			//
+			// Example: path = /examples/cool/project3
+			//
+			// Then we want to fetch the following files:
+			//
+			// /.gitignore
+			// /.gitattributes
+			// /examples/.gitignore
+			// /examples/.gitattributes
+			// /examples/cool/.gitignore
+			// /examples/cool/.gitattributes
+
+			// Split on '/' because the path comes from Sourcegraph and always
+			// has a "/".
+			pathComponents := strings.Split(workspacePath, "/")
+
+			var currentPath string
+			for _, component := range pathComponents {
+				for _, name := range additionalWorkspaceFiles {
+					filename := path.Join(currentPath, name)
+					localPath := filepath.Join(rf.dir, util.SlugForPathInRepo(repo.RepoName, repo.Commit, workspacePath+filename))
+
+					zip.additionalFiles = append(zip.additionalFiles, &additionalFile{
+						filename:  filename,
+						localPath: localPath,
+						fetched:   false,
+					})
+				}
+
+				currentPath = path.Join(currentPath, component)
+			}
+		}
+
+		rf.zips[zipPath] = zip
+	}
+	return zip
+}
+
+func (rf *repoFetcher) Checkout(repo RepoRevision, path string) RepoZip {
+	zip := rf.zipFor(repo, path)
+	zip.mu.Lock()
+	defer zip.mu.Unlock()
+
+	zip.checkouts += 1
+	return zip
+}
+
 var _ RepoZip = &repoZip{}
 
 // repoZip is the concrete implementation of the RepoZip interface used outside
@@ -156,10 +168,10 @@ type repoZip struct {
 
 	deleteOnClose bool
 
-	repo       *graphql.Repository
+	repo       RepoRevision
 	pathInRepo string
 
-	client api.Client
+	client HTTPClient
 
 	// zipPath is the path of the downloaded ZIP archive on the local filesystem.
 	zipPath string
@@ -298,7 +310,7 @@ func (rz *repoZip) fetchArchiveAndFiles(ctx context.Context) (err error) {
 // raw endpoint and writes it to `dest`.
 // If `pathInRepo` is empty and `dest` ends in `.zip` a ZIP archive of the
 // whole repository is downloaded.
-func fetchRepositoryFile(ctx context.Context, client api.Client, repo *graphql.Repository, pathInRepo string, dest string) (bool, error) {
+func fetchRepositoryFile(ctx context.Context, client HTTPClient, repo RepoRevision, pathInRepo string, dest string) (bool, error) {
 	endpoint := repositoryRawFileEndpoint(repo, pathInRepo)
 	req, err := client.NewHTTPRequest(ctx, "GET", endpoint, nil)
 	if err != nil {
@@ -335,8 +347,8 @@ func fetchRepositoryFile(ctx context.Context, client api.Client, repo *graphql.R
 	return true, nil
 }
 
-func repositoryRawFileEndpoint(repo *graphql.Repository, pathInRepo string) string {
-	p := path.Join(repo.Name+"@"+repo.BaseRef(), "-", "raw")
+func repositoryRawFileEndpoint(repo RepoRevision, pathInRepo string) string {
+	p := path.Join(repo.RepoName+"@"+repo.Commit, "-", "raw")
 	if pathInRepo != "" {
 		p = path.Join(p, pathInRepo)
 	}

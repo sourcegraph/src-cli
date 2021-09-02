@@ -18,6 +18,7 @@ import (
 
 	"github.com/sourcegraph/src-cli/internal/batches"
 	"github.com/sourcegraph/src-cli/internal/batches/graphql"
+	"github.com/sourcegraph/src-cli/internal/batches/util"
 )
 
 type dockerBindWorkspaceCreator struct {
@@ -58,7 +59,7 @@ func (*dockerBindWorkspaceCreator) prepareGitRepo(ctx context.Context, w *docker
 }
 
 func (wc *dockerBindWorkspaceCreator) unzipToWorkspace(ctx context.Context, repo *graphql.Repository, zip string) (*dockerBindWorkspace, error) {
-	prefix := "workspace-" + repo.Slug()
+	prefix := "workspace-" + util.SlugForRepo(repo.Name, repo.Rev())
 	workspace, err := unzipToTempDir(ctx, zip, wc.Dir, prefix)
 	if err != nil {
 		return nil, errors.Wrap(err, "unzipping the ZIP archive")

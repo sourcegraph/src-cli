@@ -12,6 +12,7 @@ import (
 
 	"github.com/sourcegraph/src-cli/internal/batches"
 	"github.com/sourcegraph/src-cli/internal/batches/log"
+	"github.com/sourcegraph/src-cli/internal/batches/util"
 	"github.com/sourcegraph/src-cli/internal/batches/workspace"
 )
 
@@ -144,7 +145,7 @@ func (x *executor) do(ctx context.Context, task *Task, ui TaskExecutionUI) (err 
 	ui.TaskStarted(task)
 
 	// Let's set up our logging.
-	log, err := x.opts.Logger.AddTask(task.Repository.SlugForPath(task.Path))
+	log, err := x.opts.Logger.AddTask(util.SlugForPathInRepo(task.Repository.Name, task.Repository.Rev(), task.Path))
 	if err != nil {
 		return errors.Wrap(err, "creating log file")
 	}
@@ -161,7 +162,9 @@ func (x *executor) do(ctx context.Context, task *Task, ui TaskExecutionUI) (err 
 	}()
 
 	// Now checkout the archive
-	task.Archive = x.opts.Fetcher.Checkout(task.Repository, task.ArchivePathToFetch())
+	// TODO: Commit is incorrect here, but it's what was there before. We should
+	// use the pinned OID instead.
+	task.Archive = x.opts.Fetcher.Checkout(batches.RepoRevision{RepoName: task.Repository.Name, Commit: task.Repository.BaseRef()}, task.ArchivePathToFetch())
 
 	// Set up our timeout.
 	runCtx, cancel := context.WithTimeout(ctx, x.opts.Timeout)

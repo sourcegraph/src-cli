@@ -16,8 +16,8 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/sourcegraph/src-cli/internal/api"
-	"github.com/sourcegraph/src-cli/internal/batches/graphql"
 	"github.com/sourcegraph/src-cli/internal/batches/mock"
+	"github.com/sourcegraph/src-cli/internal/batches/util"
 )
 
 func TestRepoFetcher_Fetch(t *testing.T) {
@@ -31,14 +31,15 @@ func TestRepoFetcher_Fetch(t *testing.T) {
 		return testTempDir
 	}
 
-	repo := &graphql.Repository{
-		ID:            "src-cli",
-		Name:          "github.com/sourcegraph/src-cli",
-		DefaultBranch: &graphql.Branch{Name: "main", Target: graphql.Target{OID: "d34db33f"}},
+	repo := RepoRevision{
+		RepoName: "github.com/sourcegraph/src-cli",
+		// TODO: use "d34db33f" instead.
+		Commit: "main",
 	}
 
 	archive := mock.RepoArchive{
-		Repo: repo,
+		RepoName: repo.RepoName,
+		Commit:   repo.Commit,
 		Files: map[string]string{
 			"README.md": "# Welcome to the README\n",
 		},
@@ -68,7 +69,7 @@ func TestRepoFetcher_Fetch(t *testing.T) {
 			t.Errorf("unexpected error: %s", err)
 		}
 
-		wantZipFile := repo.Slug() + ".zip"
+		wantZipFile := util.SlugForRepo(repo.RepoName, repo.Commit) + ".zip"
 		ok, err := dirContains(rf.dir, wantZipFile)
 		if err != nil {
 			t.Fatal(err)
@@ -114,7 +115,7 @@ func TestRepoFetcher_Fetch(t *testing.T) {
 			t.Errorf("unexpected error: %s", err)
 		}
 
-		wantZipFile := repo.Slug() + ".zip"
+		wantZipFile := util.SlugForRepo(repo.RepoName, repo.Commit) + ".zip"
 		ok, err := dirContains(rf.dir, wantZipFile)
 		if err != nil {
 			t.Fatal(err)
@@ -176,7 +177,7 @@ func TestRepoFetcher_Fetch(t *testing.T) {
 			t.Error("error is nil")
 		}
 
-		zipFile := repo.Slug() + ".zip"
+		zipFile := util.SlugForRepo(repo.RepoName, repo.Commit) + ".zip"
 		ok, err := dirContains(rf.dir, zipFile)
 		if err != nil {
 			t.Error(err)
@@ -187,17 +188,18 @@ func TestRepoFetcher_Fetch(t *testing.T) {
 	})
 
 	t.Run("non-default branch", func(t *testing.T) {
-		otherBranchOID := "f00b4r"
-		repo := &graphql.Repository{
-			ID:            "src-cli-with-non-main-branch",
-			Name:          "github.com/sourcegraph/src-cli",
-			DefaultBranch: &graphql.Branch{Name: "main", Target: graphql.Target{OID: "d34db33f"}},
-
-			Commit: graphql.Target{OID: otherBranchOID},
-			Branch: graphql.Branch{Name: "other-branch", Target: graphql.Target{OID: otherBranchOID}},
+		// otherBranchOID := "f00b4r"
+		repo := RepoRevision{
+			RepoName: "github.com/sourcegraph/src-cli",
+			// TODO: Use otherBranchOID here.
+			Commit: "other-branch",
 		}
 
-		archive := mock.RepoArchive{Repo: repo, Files: map[string]string{}}
+		archive := mock.RepoArchive{
+			RepoName: repo.RepoName,
+			Commit:   repo.Commit,
+			Files:    map[string]string{},
+		}
 
 		ts := httptest.NewServer(mock.NewZipArchivesMux(t, nil, archive))
 		defer ts.Close()
@@ -217,7 +219,7 @@ func TestRepoFetcher_Fetch(t *testing.T) {
 			t.Fatalf("unexpected error: %s", err)
 		}
 
-		wantZipFile := repo.Slug() + ".zip"
+		wantZipFile := util.SlugForRepo(repo.RepoName, repo.Commit) + ".zip"
 		ok, err := dirContains(rf.dir, wantZipFile)
 		if err != nil {
 			t.Fatal(err)
@@ -229,7 +231,8 @@ func TestRepoFetcher_Fetch(t *testing.T) {
 
 	t.Run("path in repository", func(t *testing.T) {
 		additionalFiles := mock.MockRepoAdditionalFiles{
-			Repo: repo,
+			RepoName: repo.RepoName,
+			Commit:   repo.Commit,
 			AdditionalFiles: map[string]string{
 				".gitignore":     "node_modules",
 				".gitattributes": "* -text",
@@ -239,8 +242,9 @@ func TestRepoFetcher_Fetch(t *testing.T) {
 
 		path := "a/b"
 		archive := mock.RepoArchive{
-			Repo: repo,
-			Path: path,
+			RepoName: repo.RepoName,
+			Commit:   repo.Commit,
+			Path:     path,
 			Files: map[string]string{
 				"a/b/1.txt": "this is 1",
 				"a/b/2.txt": "this is 1",
@@ -293,7 +297,7 @@ func TestRepoFetcher_Fetch(t *testing.T) {
 			t.Errorf("wrong paths requested (-want +got):\n%s", cmp.Diff(wantRequestedFiles, requestedFiles))
 		}
 
-		wantZipFile := repo.SlugForPath(path) + ".zip"
+		wantZipFile := util.SlugForPathInRepo(repo.RepoName, repo.Commit, path) + ".zip"
 		ok, err := dirContains(rf.dir, wantZipFile)
 		if err != nil {
 			t.Fatal(err)
