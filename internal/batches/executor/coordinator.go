@@ -2,6 +2,7 @@ package executor
 
 import (
 	"context"
+	"io"
 	"reflect"
 	"strconv"
 	"time"
@@ -217,8 +218,8 @@ type TaskExecutionUI interface {
 	// TODO: This should be split up into methods that are more specific.
 	TaskCurrentlyExecuting(*Task, string)
 
-	TaskStdout(*Task, string)
-	TaskStderr(*Task, string)
+	TaskStdoutWriter(context.Context, *Task) io.Writer
+	TaskStderrWriter(context.Context, *Task) io.Writer
 }
 
 // Execute executes the given Tasks and the importChangeset statements in the

@@ -1,7 +1,6 @@
 package executor
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"os/exec"
@@ -178,8 +177,8 @@ func (x *executor) do(ctx context.Context, task *Task, ui TaskExecutionUI) (err 
 		reportProgress: func(currentlyExecuting string) {
 			ui.TaskCurrentlyExecuting(task, currentlyExecuting)
 		},
-		uiStdoutWriter: &uiWriter{task: task, fn: ui.TaskStdout},
-		uiStderrWriter: &uiWriter{task: task, fn: ui.TaskStderr},
+		uiStdoutWriter: ui.TaskStdoutWriter(runCtx, task),
+		uiStderrWriter: ui.TaskStderrWriter(runCtx, task),
 	}
 
 	result, stepResults, err := runSteps(runCtx, opts)
@@ -194,22 +193,6 @@ func (x *executor) do(ctx context.Context, task *Task, ui TaskExecutionUI) (err 
 
 	return nil
 }
-
-// TODO: Buffer and flush output
-type uiWriter struct {
-	task *Task
-	fn   func(*Task, string)
-}
-
-func (uiw *uiWriter) Write(p []byte) (int, error) {
-	for _, line := range bytes.Split(p, []byte("\n")) {
-		if string(line) != "" {
-			uiw.fn(uiw.task, string(line))
-		}
-	}
-	return len(p), nil
-}
-
 func (x *executor) addResult(task *Task, result executionResult, stepResults []stepExecutionResult) {
 	x.resultsMu.Lock()
 	defer x.resultsMu.Unlock()

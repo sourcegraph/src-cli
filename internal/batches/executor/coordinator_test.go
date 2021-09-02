@@ -3,6 +3,7 @@ package executor
 import (
 	"context"
 	"fmt"
+	"io"
 	"strings"
 	"sync"
 	"testing"
@@ -544,8 +545,12 @@ func (d *dummyTaskExecutionUI) TaskChangesetSpecsBuilt(t *Task, specs []*batches
 }
 
 func (d *dummyTaskExecutionUI) TaskCurrentlyExecuting(*Task, string) {}
-func (d *dummyTaskExecutionUI) TaskStdout(*Task, string)             {}
-func (d *dummyTaskExecutionUI) TaskStderr(*Task, string)             {}
+func (d *dummyTaskExecutionUI) TaskStdoutWriter(ctx context.Context, task *Task) io.Writer {
+	return io.Discard
+}
+func (d *dummyTaskExecutionUI) TaskStderrWriter(ctx context.Context, task *Task) io.Writer {
+	return io.Discard
+}
 
 var _ taskExecutor = &dummyExecutor{}
 

@@ -1,7 +1,9 @@
 package ui
 
 import (
+	"context"
 	"fmt"
+	"io"
 	"sort"
 	"strings"
 	"sync"
@@ -216,12 +218,12 @@ func (ui *taskExecTUI) TaskCurrentlyExecuting(task *executor.Task, message strin
 	ui.progress.StatusBarUpdatef(bar, ts.String())
 }
 
-func (ui *taskExecTUI) TaskStdout(task *executor.Task, line string) {
-	// noop
+func (ui *taskExecTUI) TaskStdoutWriter(ctx context.Context, task *executor.Task) io.Writer {
+	return io.Discard
 }
 
-func (ui *taskExecTUI) TaskStderr(task *executor.Task, line string) {
-	// noop
+func (ui *taskExecTUI) TaskStderrWriter(ctx context.Context, task *executor.Task) io.Writer {
+	return io.Discard
 }
 
 func (ui *taskExecTUI) TaskFinished(task *executor.Task, err error) {

@@ -1,8 +1,10 @@
 package ui
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"time"
 
@@ -12,6 +14,7 @@ import (
 	"github.com/sourcegraph/src-cli/internal/batches/workspace"
 
 	batcheslib "github.com/sourcegraph/sourcegraph/lib/batches"
+	"github.com/sourcegraph/sourcegraph/lib/process"
 )
 
 var _ ExecUI = &JSONLines{}
@@ -303,32 +306,38 @@ func (ui *taskExecutionJSONLines) TaskCurrentlyExecuting(task *executor.Task, me
 	})
 }
 
-func (ui *taskExecutionJSONLines) TaskStdout(task *executor.Task, line string) {
+func (ui *taskExecutionJSONLines) TaskStdoutWriter(ctx context.Context, task *executor.Task) io.Writer {
 	lt, ok := ui.linesTasks[task]
 	if !ok {
 		panic("unknown task started")
 	}
-	logEvent(batchesLogEvent{
-		Operation: "TASK_STDOUT",
-		Status:    "PROGRESS",
-		Message:   line,
-		Metadata: map[string]interface{}{
-			"task": lt,
-		},
+
+	return process.NewLogger(ctx, func(data string) {
+		logEvent(batchesLogEvent{
+			Operation: "TASK_STDOUT",
+			Status:    "PROGRESS",
+			Message:   data,
+			Metadata: map[string]interface{}{
+				"task": lt,
+			},
+		})
 	})
 }
 
-func (ui *taskExecutionJSONLines) TaskStderr(task *executor.Task, line string) {
+func (ui *taskExecutionJSONLines) TaskStderrWriter(ctx context.Context, task *executor.Task) io.Writer {
 	lt, ok := ui.linesTasks[task]
 	if !ok {
 		panic("unknown task started")
 	}
-	logEvent(batchesLogEvent{
-		Operation: "TASK_STDERR",
-		Status:    "PROGRESS",
-		Message:   line,
-		Metadata: map[string]interface{}{
-			"task": lt,
-		},
+
+	return process.NewLogger(ctx, func(data string) {
+		logEvent(batchesLogEvent{
+			Operation: "TASK_STDERR",
+			Status:    "PROGRESS",
+			Message:   data,
+			Metadata: map[string]interface{}{
+				"task": lt,
+			},
+		})
 	})
 }
