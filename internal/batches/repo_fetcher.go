@@ -12,6 +12,8 @@ import (
 	"sync"
 
 	"github.com/cockroachdb/errors"
+
+	"github.com/sourcegraph/src-cli/internal/batches/util"
 )
 
 type RepoRevision struct {
@@ -34,7 +36,7 @@ type RepoZip interface {
 	// Fetch downloads the archive if it's not on disk yet.
 	Fetch(context.Context) error
 
-	// Close must finalise the downloaded archive. If one or more temporary
+	// Close must finalize the downloaded archive. If one or more temporary
 	// files were created, they should be deleted here.
 	Close() error
 

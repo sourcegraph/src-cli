@@ -58,7 +58,7 @@ func (r *Repository) BaseRef() string {
 		return ensurePrefix(r.Branch.Name)
 	}
 
-	return r.DefaultBranch.Name
+	return ensurePrefix(r.DefaultBranch.Name)
 }
 
 func ensurePrefix(rev string) string {

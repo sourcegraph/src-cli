@@ -33,8 +33,7 @@ func TestRepoFetcher_Fetch(t *testing.T) {
 
 	repo := RepoRevision{
 		RepoName: "github.com/sourcegraph/src-cli",
-		// TODO: use "d34db33f" instead.
-		Commit: "main",
+		Commit:   "d34db33f",
 	}
 
 	archive := mock.RepoArchive{
@@ -188,11 +187,10 @@ func TestRepoFetcher_Fetch(t *testing.T) {
 	})
 
 	t.Run("non-default branch", func(t *testing.T) {
-		// otherBranchOID := "f00b4r"
+		otherBranchOID := "f00b4r"
 		repo := RepoRevision{
 			RepoName: "github.com/sourcegraph/src-cli",
-			// TODO: Use otherBranchOID here.
-			Commit: "other-branch",
+			Commit:   otherBranchOID,
 		}
 
 		archive := mock.RepoArchive{

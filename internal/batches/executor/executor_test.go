@@ -71,11 +71,11 @@ func TestExecutor_Integration(t *testing.T) {
 		{
 			name: "success",
 			archives: []mock.RepoArchive{
-				{RepoName: testRepo1.Name, Commit: testRepo1.BaseRef(), Files: map[string]string{
+				{RepoName: testRepo1.Name, Commit: testRepo1.Rev(), Files: map[string]string{
 					"README.md": "# Welcome to the README\n",
 					"main.go":   "package main\n\nfunc main() {\n\tfmt.Println(     \"Hello World\")\n}\n",
 				}},
-				{RepoName: testRepo2.Name, Commit: testRepo2.BaseRef(), Files: map[string]string{
+				{RepoName: testRepo2.Name, Commit: testRepo2.Rev(), Files: map[string]string{
 					"README.md": "# Sourcegraph README\n",
 				}},
 			},
@@ -100,7 +100,7 @@ func TestExecutor_Integration(t *testing.T) {
 		{
 			name: "empty",
 			archives: []mock.RepoArchive{
-				{RepoName: testRepo1.Name, Commit: testRepo1.BaseRef(), Files: map[string]string{
+				{RepoName: testRepo1.Name, Commit: testRepo1.Rev(), Files: map[string]string{
 					"README.md": "# Welcome to the README\n",
 					"main.go":   "package main\n\nfunc main() {\n\tfmt.Println(     \"Hello World\")\n}\n",
 				}},
@@ -123,7 +123,7 @@ func TestExecutor_Integration(t *testing.T) {
 		{
 			name: "timeout",
 			archives: []mock.RepoArchive{
-				{RepoName: testRepo1.Name, Commit: testRepo1.BaseRef(), Files: map[string]string{"README.md": "line 1"}},
+				{RepoName: testRepo1.Name, Commit: testRepo1.Rev(), Files: map[string]string{"README.md": "line 1"}},
 			},
 			steps: []batcheslib.Step{
 				// This needs to be a loop, because when a process goes to sleep
@@ -143,7 +143,7 @@ func TestExecutor_Integration(t *testing.T) {
 		{
 			name: "templated steps",
 			archives: []mock.RepoArchive{
-				{RepoName: testRepo1.Name, Commit: testRepo1.BaseRef(), Files: map[string]string{
+				{RepoName: testRepo1.Name, Commit: testRepo1.Rev(), Files: map[string]string{
 					"README.md": "# Welcome to the README\n",
 					"main.go":   "package main\n\nfunc main() {\n\tfmt.Println(     \"Hello World\")\n}\n",
 				}},
@@ -181,24 +181,24 @@ func TestExecutor_Integration(t *testing.T) {
 		{
 			name: "workspaces",
 			archives: []mock.RepoArchive{
-				{RepoName: testRepo1.Name, Commit: testRepo1.BaseRef(), Path: "", Files: map[string]string{
+				{RepoName: testRepo1.Name, Commit: testRepo1.Rev(), Path: "", Files: map[string]string{
 					".gitignore":      "node_modules",
 					"message.txt":     "root-dir",
 					"a/message.txt":   "a-dir",
 					"a/.gitignore":    "node_modules-in-a",
 					"a/b/message.txt": "b-dir",
 				}},
-				{RepoName: testRepo1.Name, Commit: testRepo1.BaseRef(), Path: "a", Files: map[string]string{
+				{RepoName: testRepo1.Name, Commit: testRepo1.Rev(), Path: "a", Files: map[string]string{
 					"a/message.txt":   "a-dir",
 					"a/.gitignore":    "node_modules-in-a",
 					"a/b/message.txt": "b-dir",
 				}},
-				{RepoName: testRepo1.Name, Commit: testRepo1.BaseRef(), Path: "a/b", Files: map[string]string{
+				{RepoName: testRepo1.Name, Commit: testRepo1.Rev(), Path: "a/b", Files: map[string]string{
 					"a/b/message.txt": "b-dir",
 				}},
 			},
 			additionalFiles: []mock.MockRepoAdditionalFiles{
-				{RepoName: testRepo1.Name, Commit: testRepo1.BaseRef(), AdditionalFiles: map[string]string{
+				{RepoName: testRepo1.Name, Commit: testRepo1.Rev(), AdditionalFiles: map[string]string{
 					".gitignore":   "node_modules",
 					"a/.gitignore": "node_modules-in-a",
 				}},
@@ -236,10 +236,10 @@ func TestExecutor_Integration(t *testing.T) {
 		{
 			name: "step condition",
 			archives: []mock.RepoArchive{
-				{RepoName: testRepo1.Name, Commit: testRepo1.BaseRef(), Files: map[string]string{
+				{RepoName: testRepo1.Name, Commit: testRepo1.Rev(), Files: map[string]string{
 					"README.md": "# Welcome to the README\n",
 				}},
-				{RepoName: testRepo2.Name, Commit: testRepo2.BaseRef(), Files: map[string]string{
+				{RepoName: testRepo2.Name, Commit: testRepo2.Rev(), Files: map[string]string{
 					"README.md": "# Sourcegraph README\n",
 				}},
 			},
@@ -271,10 +271,10 @@ func TestExecutor_Integration(t *testing.T) {
 		{
 			name: "skips errors",
 			archives: []mock.RepoArchive{
-				{RepoName: testRepo1.Name, Commit: testRepo1.BaseRef(), Files: map[string]string{
+				{RepoName: testRepo1.Name, Commit: testRepo1.Rev(), Files: map[string]string{
 					"README.md": "# Welcome to the README\n",
 				}},
-				{RepoName: testRepo2.Name, Commit: testRepo2.BaseRef(), Files: map[string]string{
+				{RepoName: testRepo2.Name, Commit: testRepo2.Rev(), Files: map[string]string{
 					"README.md": "# Sourcegraph README\n",
 				}},
 			},
@@ -473,7 +473,7 @@ func featuresAllEnabled() batches.FeatureFlags {
 func TestExecutor_CachedStepResults(t *testing.T) {
 	t.Run("single step cached", func(t *testing.T) {
 		archive := mock.RepoArchive{
-			RepoName: testRepo1.Name, Commit: testRepo1.BaseRef(), Files: map[string]string{
+			RepoName: testRepo1.Name, Commit: testRepo1.Rev(), Files: map[string]string{
 				"README.md": "# Welcome to the README\n",
 			},
 		}
@@ -530,7 +530,7 @@ index 02a19af..c9644dd 100644
 
 	t.Run("one of multiple steps cached", func(t *testing.T) {
 		archive := mock.RepoArchive{
-			RepoName: testRepo1.Name, Commit: testRepo1.BaseRef(),
+			RepoName: testRepo1.Name, Commit: testRepo1.Rev(),
 			Files: map[string]string{
 				"README.md": `# automation-testing
 This repository is used to test opening and closing pull request with Automation

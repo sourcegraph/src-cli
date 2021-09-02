@@ -161,10 +161,8 @@ func (x *executor) do(ctx context.Context, task *Task, ui TaskExecutionUI) (err 
 		log.Close()
 	}()
 
-	// Now checkout the archive
-	// TODO: Commit is incorrect here, but it's what was there before. We should
-	// use the pinned OID instead.
-	task.Archive = x.opts.Fetcher.Checkout(batches.RepoRevision{RepoName: task.Repository.Name, Commit: task.Repository.BaseRef()}, task.ArchivePathToFetch())
+	// Now checkout the archive.
+	task.Archive = x.opts.Fetcher.Checkout(batches.RepoRevision{RepoName: task.Repository.Name, Commit: task.Repository.Rev()}, task.ArchivePathToFetch())
 
 	// Set up our timeout.
 	runCtx, cancel := context.WithTimeout(ctx, x.opts.Timeout)
