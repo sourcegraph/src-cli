@@ -91,9 +91,13 @@ USAGE
 		// TODO write functions for sourcegraph server and docker-compose instances
 		switch *deployment {
 		case "serv":
-			getContainers(ctx)
+			if err := archiveDocker(ctx, zw, *verbose, baseDir); err != nil {
+				return fmt.Errorf("archiveDocker failed with err: %w", err)
+			}
 		case "comp":
-			getContainers(ctx)
+			if err := archiveDocker(ctx, zw, *verbose, baseDir); err != nil {
+				return fmt.Errorf("archiveDocker failed with err: %w", err)
+			}
 		case "kube":
 			if err := archiveKube(ctx, zw, *verbose, baseDir); err != nil {
 				return fmt.Errorf("archiveKube failed with err: %w", err)
@@ -114,9 +118,24 @@ USAGE
 	})
 }
 
+// setOpenFileLimits increases the limit of open files to the given number. This is needed
+// when doings lots of concurrent network requests which establish open sockets.
+func setOpenFileLimits(n uint64) error {
+	var rlimit syscall.Rlimit
+	err := syscall.Getrlimit(syscall.RLIMIT_NOFILE, &rlimit)
+	if err != nil {
+		return err
+	}
+
+	rlimit.Max = n
+	rlimit.Cur = n
+
+	return syscall.Setrlimit(syscall.RLIMIT_NOFILE, &rlimit)
+}
+
 /*
 Kubernetes functions
-TODO: improve logging as kubectl calls run
+TODO: handle namespaces
 */
 
 // Run kubectl functions concurrently and archive results to zip file
@@ -300,28 +319,63 @@ func getManifest(ctx context.Context, podName, baseDir string) *archiveFile {
 	return f
 }
 
-// setOpenFileLimits increases the limit of open files to the given number. This is needed
-// when doings lots of concurrent network requests which establish open sockets.
-func setOpenFileLimits(n uint64) error {
-	var rlimit syscall.Rlimit
-	err := syscall.Getrlimit(syscall.RLIMIT_NOFILE, &rlimit)
-	if err != nil {
-		return err
-	}
-
-	rlimit.Max = n
-	rlimit.Cur = n
-
-	return syscall.Setrlimit(syscall.RLIMIT_NOFILE, &rlimit)
-}
-
 /*
 Docker functions
 
 */
 
-func archiveDocker() {
-	fmt.Println("This will execute all docker cli commands as goroutines and ")
+func archiveDocker(ctx context.Context, zw *zip.Writer, verbose bool, baseDir string) error {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	containers, err := getContainers(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get docker containers: %w", err)
+	}
+
+	if verbose {
+		log.Printf("getting docker data for %d containers...\n", len(containers))
+	}
+
+	// setup channel for slice of archive function outputs
+	ch := make(chan *archiveFile)
+	wg := sync.WaitGroup{}
+
+	for _, container := range containers {
+		wg.Add(1)
+		go func(container string) {
+			defer wg.Done()
+			ch <- getLog(ctx, container, baseDir)
+		}(container)
+	}
+
+	// close channel when wait group goroutines have completed
+	go func() {
+		wg.Wait()
+		close(ch)
+	}()
+
+	for f := range ch {
+		if f.err != nil {
+			return fmt.Errorf("aborting due to error on %s: %v\noutput: %s", f.name, f.err, f.data)
+		}
+
+		if verbose {
+			log.Printf("archiving file %q with %d bytes", f.name, len(f.data))
+		}
+
+		zf, err := zw.Create(f.name)
+		if err != nil {
+			return fmt.Errorf("failed to create %s: %w", f.name, err)
+		}
+
+		_, err = zf.Write(f.data)
+		if err != nil {
+			return fmt.Errorf("failed to write to %s: %w", f.name, err)
+		}
+	}
+
+	return nil
 }
 
 func getContainers(ctx context.Context) ([]string, error) {
@@ -332,6 +386,7 @@ func getContainers(ctx context.Context) ([]string, error) {
 	}
 	s := string(c)
 	containers := strings.Split(s, "\n")
+	containers = containers[:len(containers)-1]
 	fmt.Println(containers)
 	return containers, err
 }
