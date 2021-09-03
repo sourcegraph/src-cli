@@ -14,6 +14,7 @@ import (
 
 	"github.com/cockroachdb/errors"
 	"github.com/hashicorp/go-multierror"
+
 	batcheslib "github.com/sourcegraph/sourcegraph/lib/batches"
 	"github.com/sourcegraph/sourcegraph/lib/batches/git"
 	"github.com/sourcegraph/sourcegraph/lib/batches/template"
@@ -65,27 +66,31 @@ type executionOpts struct {
 
 	tempDir string
 
-	logger         log.TaskLogger
-	reportProgress func(string)
+	logger log.TaskLogger
 
-	newUiStdoutWriter func(context.Context, *Task, int) io.WriteCloser
-	newUiStderrWriter func(context.Context, *Task, int) io.WriteCloser
+	ui StepsExecutionUI
+	// reportProgress func(string)
+
+	// newUiStdoutWriter func(context.Context, *Task, int) io.WriteCloser
+	// newUiStderrWriter func(context.Context, *Task, int) io.WriteCloser
 }
 
 func runSteps(ctx context.Context, opts *executionOpts) (result executionResult, stepResults []stepExecutionResult, err error) {
-	opts.reportProgress("Downloading archive")
+	opts.ui.ArchiveDownloadStarted()
 	err = opts.task.Archive.Ensure(ctx)
 	if err != nil {
 		return executionResult{}, nil, errors.Wrap(err, "fetching repo")
 	}
 	defer opts.task.Archive.Close()
+	opts.ui.ArchiveDownloadFinished()
 
-	opts.reportProgress("Initializing workspace")
+	opts.ui.WorkspaceInitializationStarted()
 	workspace, err := opts.wc.Create(ctx, opts.task.Repository, opts.task.Steps, opts.task.Archive)
 	if err != nil {
 		return executionResult{}, nil, errors.Wrap(err, "creating workspace")
 	}
 	defer workspace.Close(ctx)
+	opts.ui.WorkspaceInitializationFinished()
 
 	var (
 		execResult = executionResult{
@@ -119,12 +124,13 @@ func runSteps(ctx context.Context, opts *executionOpts) (result executionResult,
 			return execResult, stepResults, nil
 		}
 
-		switch startStep {
-		case 1:
-			opts.reportProgress("Skipping step 1. Found cached result.")
-		default:
-			opts.reportProgress(fmt.Sprintf("Skipping steps 1 to %d. Found cached results.", startStep))
-		}
+		opts.ui.SkippingStepsUpto(startStep)
+		// switch startStep {
+		// case 1:
+		// 	opts.reportProgress("Skipping step 1. Found cached result.")
+		// default:
+		// 	opts.reportProgress(fmt.Sprintf("Skipping steps 1 to %d. Found cached results.", startStep))
+		// }
 	}
 
 	for i := startStep; i < len(opts.task.Steps); i++ {
@@ -158,9 +164,11 @@ func runSteps(ctx context.Context, opts *executionOpts) (result executionResult,
 			return execResult, nil, errors.Wrap(err, "evaluating step condition")
 		}
 		if !cond {
-			opts.reportProgress(fmt.Sprintf("Skipping step %d", i+1))
+			// opts.reportProgress(fmt.Sprintf("Skipping step %d", i+1))
+			opts.ui.StepSkipped(i + 1)
 			continue
 		}
+
 		// We need to grab the digest for the exact image we're using.
 		img, err := opts.ensureImage(ctx, step.Container)
 		if err != nil {
@@ -205,13 +213,17 @@ func runSteps(ctx context.Context, opts *executionOpts) (result executionResult,
 		}
 		stepResults = append(stepResults, stepResult)
 		previousStepResult = result
+
+		opts.ui.StepFinished(i+1, stepResult.Diff, result.Files, stepResult.Outputs)
 	}
 
-	opts.reportProgress("Calculating diff")
+	opts.ui.CalculatingDiffStarted()
 	diffOut, err := workspace.Diff(ctx)
 	if err != nil {
 		return execResult, nil, errors.Wrap(err, "git diff failed")
 	}
+
+	opts.ui.CalculatingDiffFinished()
 
 	execResult.Diff = string(diffOut)
 	execResult.ChangedFiles = previousStepResult.Files
@@ -233,7 +245,8 @@ func executeSingleStep(
 	// ----------
 	// PREPARATION
 	// ----------
-	opts.reportProgress(fmt.Sprintf("Preparing step %d", i+1))
+	// opts.reportProgress(fmt.Sprintf("Preparing step %d", i+1))
+	opts.ui.StepPreparing(i + 1)
 
 	cidFile, cleanup, err := createCidFile(ctx, opts.tempDir, util.SlugForRepo(opts.task.Repository.Name, opts.task.Repository.Rev()))
 	if err != nil {
@@ -275,7 +288,8 @@ func executeSingleStep(
 	// ----------
 	// EXECUTION
 	// ----------
-	opts.reportProgress(runScript)
+	// opts.reportProgress(runScript)
+	opts.ui.StepStarted(i+1, runScript)
 
 	workspaceOpts, err := workspace.DockerRunOpts(ctx, workDir)
 	if err != nil {
@@ -317,8 +331,8 @@ func executeSingleStep(
 
 	writerCtx, writerCancel := context.WithCancel(ctx)
 	defer writerCancel()
-	uiStdoutWriter := opts.newUiStdoutWriter(writerCtx, opts.task, i)
-	uiStderrWriter := opts.newUiStderrWriter(writerCtx, opts.task, i)
+	uiStdoutWriter := opts.ui.StepStdoutWriter(writerCtx, opts.task, i)
+	uiStderrWriter := opts.ui.StepStderrWriter(writerCtx, opts.task, i)
 	defer func() {
 		uiStdoutWriter.Close()
 		uiStderrWriter.Close()
