@@ -341,11 +341,21 @@ func archiveDocker(ctx context.Context, zw *zip.Writer, verbose bool, baseDir st
 	ch := make(chan *archiveFile)
 	wg := sync.WaitGroup{}
 
+	// start goroutine to run docker container logs <container>
 	for _, container := range containers {
 		wg.Add(1)
 		go func(container string) {
 			defer wg.Done()
 			ch <- getLog(ctx, container, baseDir)
+		}(container)
+	}
+
+	// start goroutine to run docker container inspect <container>
+	for _, container := range containers {
+		wg.Add(1)
+		go func(container string) {
+			defer wg.Done()
+			ch <- getInspect(ctx, container, baseDir)
 		}(container)
 	}
 
@@ -394,6 +404,12 @@ func getContainers(ctx context.Context) ([]string, error) {
 func getLog(ctx context.Context, container, baseDir string) *archiveFile {
 	f := &archiveFile{name: baseDir + "/docker/containers/" + container + "/" + container + ".log"}
 	f.data, f.err = exec.CommandContext(ctx, "docker", "container", "logs", container).CombinedOutput()
+	return f
+}
+
+func getInspect(ctx context.Context, container, baseDir string) *archiveFile {
+	f := &archiveFile{name: baseDir + "/docker/containers/" + container + "/inspect-" + container + ".txt"}
+	f.data, f.err = exec.CommandContext(ctx, "docker", "container", "inspect", container).CombinedOutput()
 	return f
 }
 
