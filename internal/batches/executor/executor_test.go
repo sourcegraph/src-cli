@@ -342,10 +342,10 @@ func TestExecutor_Integration(t *testing.T) {
 
 			// Setup executor
 			opts := newExecutorOpts{
-				Creator:     workspace.NewCreator(context.Background(), "bind", testTempDir, testTempDir, images),
-				Fetcher:     repozip.NewFetcher(client, testTempDir, false),
-				Logger:      mock.LogNoOpManager{},
-				EnsureImage: imageMapEnsurer(images),
+				Creator:             workspace.NewCreator(context.Background(), "bind", testTempDir, testTempDir, images),
+				RepoArchiveRegistry: repozip.NewArchiveRegistry(client, testTempDir, false),
+				Logger:              mock.LogNoOpManager{},
+				EnsureImage:         imageMapEnsurer(images),
 
 				TempDir:     testTempDir,
 				Parallelism: runtime.GOMAXPROCS(0),
@@ -694,10 +694,10 @@ func testExecuteTasks(t *testing.T, tasks []*Task, archives ...mock.RepoArchive)
 
 	// Setup executor
 	executor := newExecutor(newExecutorOpts{
-		Creator:     workspace.NewCreator(context.Background(), "bind", testTempDir, testTempDir, images),
-		Fetcher:     repozip.NewFetcher(client, testTempDir, false),
-		Logger:      mock.LogNoOpManager{},
-		EnsureImage: imageMapEnsurer(images),
+		Creator:             workspace.NewCreator(context.Background(), "bind", testTempDir, testTempDir, images),
+		RepoArchiveRegistry: repozip.NewArchiveRegistry(client, testTempDir, false),
+		Logger:              mock.LogNoOpManager{},
+		EnsureImage:         imageMapEnsurer(images),
 
 		TempDir:     testTempDir,
 		Parallelism: runtime.GOMAXPROCS(0),

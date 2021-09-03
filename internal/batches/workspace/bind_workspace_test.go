@@ -403,9 +403,9 @@ type fakeRepoArchive struct {
 	mockAdditionalFilePaths map[string]string
 }
 
-func (f *fakeRepoArchive) Fetch(context.Context) error { return nil }
-func (f *fakeRepoArchive) Close() error                { return nil }
-func (f *fakeRepoArchive) Path() string                { return f.mockPath }
+func (f *fakeRepoArchive) Ensure(context.Context) error { return nil }
+func (f *fakeRepoArchive) Close() error                 { return nil }
+func (f *fakeRepoArchive) Path() string                 { return f.mockPath }
 func (f *fakeRepoArchive) AdditionalFilePaths() map[string]string {
 	if f.mockAdditionalFilePaths != nil {
 		return f.mockAdditionalFilePaths

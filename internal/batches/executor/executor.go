@@ -51,10 +51,10 @@ type taskResult struct {
 
 type newExecutorOpts struct {
 	// Dependencies
-	Creator     workspace.Creator
-	Fetcher     repozip.Fetcher
-	EnsureImage imageEnsurer
-	Logger      log.LogManager
+	Creator             workspace.Creator
+	RepoArchiveRegistry repozip.ArchiveRegistry
+	EnsureImage         imageEnsurer
+	Logger              log.LogManager
 
 	// Config
 	Parallelism int
@@ -161,7 +161,7 @@ func (x *executor) do(ctx context.Context, task *Task, ui TaskExecutionUI) (err 
 	}()
 
 	// Now checkout the archive.
-	task.Archive = x.opts.Fetcher.Checkout(repozip.RepoRevision{RepoName: task.Repository.Name, Commit: task.Repository.Rev()}, task.ArchivePathToFetch())
+	task.Archive = x.opts.RepoArchiveRegistry.Checkout(repozip.RepoRevision{RepoName: task.Repository.Name, Commit: task.Repository.Rev()}, task.ArchivePathToFetch())
 
 	// Set up our timeout.
 	runCtx, cancel := context.WithTimeout(ctx, x.opts.Timeout)

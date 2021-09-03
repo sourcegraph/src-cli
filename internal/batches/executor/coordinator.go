@@ -10,6 +10,7 @@ import (
 	"github.com/cockroachdb/errors"
 	"github.com/hashicorp/go-multierror"
 	batcheslib "github.com/sourcegraph/sourcegraph/lib/batches"
+
 	"github.com/sourcegraph/src-cli/internal/api"
 	"github.com/sourcegraph/src-cli/internal/batches"
 	"github.com/sourcegraph/src-cli/internal/batches/docker"
@@ -68,10 +69,10 @@ func NewCoordinator(opts NewCoordinatorOpts) *Coordinator {
 	logManager := log.NewManager(opts.TempDir, opts.KeepLogs)
 
 	exec := newExecutor(newExecutorOpts{
-		Fetcher:     repozip.NewFetcher(opts.Client, opts.CacheDir, opts.CleanArchives),
-		EnsureImage: opts.EnsureImage,
-		Creator:     opts.Creator,
-		Logger:      logManager,
+		RepoArchiveRegistry: repozip.NewArchiveRegistry(opts.Client, opts.CacheDir, opts.CleanArchives),
+		EnsureImage:         opts.EnsureImage,
+		Creator:             opts.Creator,
+		Logger:              logManager,
 
 		Parallelism: opts.Parallelism,
 		Timeout:     opts.Timeout,

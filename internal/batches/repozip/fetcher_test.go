@@ -21,7 +21,7 @@ import (
 	"github.com/sourcegraph/src-cli/internal/batches/util"
 )
 
-func TestFetcher_Fetch(t *testing.T) {
+func TestArchive_Ensure(t *testing.T) {
 	workspaceTmpDir := func(t *testing.T) string {
 		testTempDir, err := ioutil.TempDir("", "executor-integration-test-*")
 		if err != nil {
@@ -57,14 +57,14 @@ func TestFetcher_Fetch(t *testing.T) {
 		var clientBuffer bytes.Buffer
 		client := api.NewClient(api.ClientOpts{Endpoint: ts.URL, Out: &clientBuffer})
 
-		rf := &repoFetcher{
+		rf := &archiveRegistry{
 			client:     client,
 			dir:        workspaceTmpDir(t),
 			deleteZips: false,
 		}
 
 		zip := rf.Checkout(repo, "")
-		err := zip.Fetch(context.Background())
+		err := zip.Ensure(context.Background())
 		if err != nil {
 			t.Errorf("unexpected error: %s", err)
 		}
@@ -84,7 +84,7 @@ func TestFetcher_Fetch(t *testing.T) {
 		zip.Close()
 
 		// Create it a second time and make sure that the server wasn't called
-		err = zip.Fetch(context.Background())
+		err = zip.Ensure(context.Background())
 		if err != nil {
 			t.Fatalf("unexpected error: %s", err)
 		}
@@ -102,7 +102,7 @@ func TestFetcher_Fetch(t *testing.T) {
 		var clientBuffer bytes.Buffer
 		client := api.NewClient(api.ClientOpts{Endpoint: ts.URL, Out: &clientBuffer})
 
-		rf := &repoFetcher{
+		rf := &archiveRegistry{
 			client:     client,
 			dir:        workspaceTmpDir(t),
 			deleteZips: true,
@@ -110,7 +110,7 @@ func TestFetcher_Fetch(t *testing.T) {
 
 		zip := rf.Checkout(repo, "")
 
-		err := zip.Fetch(context.Background())
+		err := zip.Ensure(context.Background())
 		if err != nil {
 			t.Errorf("unexpected error: %s", err)
 		}
@@ -166,14 +166,14 @@ func TestFetcher_Fetch(t *testing.T) {
 		var clientBuffer bytes.Buffer
 		client := api.NewClient(api.ClientOpts{Endpoint: ts.URL, Out: &clientBuffer})
 
-		rf := &repoFetcher{
+		rf := &archiveRegistry{
 			client:     client,
 			dir:        workspaceTmpDir(t),
 			deleteZips: false,
 		}
 
 		zip := rf.Checkout(repo, "")
-		if err := zip.Fetch(ctx); err == nil {
+		if err := zip.Ensure(ctx); err == nil {
 			t.Error("error is nil")
 		}
 
@@ -206,14 +206,14 @@ func TestFetcher_Fetch(t *testing.T) {
 		var clientBuffer bytes.Buffer
 		client := api.NewClient(api.ClientOpts{Endpoint: ts.URL, Out: &clientBuffer})
 
-		rf := &repoFetcher{
+		rf := &archiveRegistry{
 			client:     client,
 			dir:        workspaceTmpDir(t),
 			deleteZips: false,
 		}
 		zip := rf.Checkout(repo, "")
 
-		err := zip.Fetch(context.Background())
+		err := zip.Ensure(context.Background())
 		if err != nil {
 			t.Fatalf("unexpected error: %s", err)
 		}
@@ -275,14 +275,14 @@ func TestFetcher_Fetch(t *testing.T) {
 		var clientBuffer bytes.Buffer
 		client := api.NewClient(api.ClientOpts{Endpoint: ts.URL, Out: &clientBuffer})
 
-		rf := &repoFetcher{
+		rf := &archiveRegistry{
 			client:     client,
 			dir:        workspaceTmpDir(t),
 			deleteZips: false,
 		}
 		zip := rf.Checkout(repo, path)
 
-		err := zip.Fetch(context.Background())
+		err := zip.Ensure(context.Background())
 		if err != nil {
 			t.Fatalf("unexpected error: %s", err)
 		}

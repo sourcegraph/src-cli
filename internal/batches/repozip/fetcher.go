@@ -21,20 +21,20 @@ type RepoRevision struct {
 	Commit   string
 }
 
-// Fetcher abstracts the process of retrieving an archive for the given
+// ArchiveRegistry abstracts the process of retrieving an archive for the given
 // repository.
-type Fetcher interface {
-	// Checkout returns a RepoZip for the given repository and the given
-	// relative path in the repository. The RepoZip is possibly unfetched.
-	// Users need to call `Fetch()` on the RepoZip before using it and
+type ArchiveRegistry interface {
+	// Checkout returns an Archive for the given repository and the given
+	// relative path in the repository. The Archive is possibly unfetched.
+	// Users need to call `Ensure()` on the Archive before using it and
 	// `Close()` once // they're done using it.
 	Checkout(repo RepoRevision, path string) Archive
 }
 
 // Archive implementations represent a downloaded repository archive.
 type Archive interface {
-	// Fetch downloads the archive if it's not on disk yet.
-	Fetch(context.Context) error
+	// Ensure downloads the archive if it's not on disk yet.
+	Ensure(context.Context) error
 
 	// Close must finalize the downloaded archive. If one or more temporary
 	// files were created, they should be deleted here.
@@ -62,13 +62,13 @@ type HTTPClient interface {
 	Do(req *http.Request) (*http.Response, error)
 }
 
-func NewFetcher(client HTTPClient, dir string, deleteZips bool) Fetcher {
-	return &repoFetcher{client: client, dir: dir, deleteZips: deleteZips}
+func NewArchiveRegistry(client HTTPClient, dir string, deleteZips bool) ArchiveRegistry {
+	return &archiveRegistry{client: client, dir: dir, deleteZips: deleteZips}
 }
 
-// repoFetcher is the concrete implementation of the RepoFetcher interface used
+// archiveRegistry is the concrete implementation of the ArchiveRegistry interface used
 // outside of tests.
-type repoFetcher struct {
+type archiveRegistry struct {
 	client     HTTPClient
 	dir        string
 	deleteZips bool
@@ -77,7 +77,7 @@ type repoFetcher struct {
 	zips   map[string]*repoArchive
 }
 
-func (rf *repoFetcher) Checkout(repo RepoRevision, path string) Archive {
+func (rf *archiveRegistry) Checkout(repo RepoRevision, path string) Archive {
 	zip := rf.zipFor(repo, path)
 	zip.mu.Lock()
 	defer zip.mu.Unlock()
@@ -86,7 +86,7 @@ func (rf *repoFetcher) Checkout(repo RepoRevision, path string) Archive {
 	return zip
 }
 
-// additionalWorkspaceFiles is a list of files the RepoFetcher *tries* to fetch
+// additionalWorkspaceFiles is a list of files the Archive *tries* to fetch
 // when the desired archive is subdirectory in the given repository. It makes
 // sense to also fetch these files, even if the steps are executed in a
 // subdirectory, since they might influence some global state, such as
@@ -98,7 +98,7 @@ var additionalWorkspaceFiles = []string{
 	".gitattributes",
 }
 
-func (rf *repoFetcher) zipFor(repo RepoRevision, workspacePath string) *repoArchive {
+func (rf *archiveRegistry) zipFor(repo RepoRevision, workspacePath string) *repoArchive {
 	rf.zipsMu.Lock()
 	defer rf.zipsMu.Unlock()
 
@@ -228,7 +228,7 @@ func (rz *repoArchive) AdditionalFilePaths() map[string]string {
 	return paths
 }
 
-func (rz *repoArchive) Fetch(ctx context.Context) (err error) {
+func (rz *repoArchive) Ensure(ctx context.Context) (err error) {
 	rz.mu.Lock()
 	defer rz.mu.Unlock()
 

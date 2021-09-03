@@ -74,7 +74,7 @@ type executionOpts struct {
 
 func runSteps(ctx context.Context, opts *executionOpts) (result executionResult, stepResults []stepExecutionResult, err error) {
 	opts.reportProgress("Downloading archive")
-	err = opts.task.Archive.Fetch(ctx)
+	err = opts.task.Archive.Ensure(ctx)
 	if err != nil {
 		return executionResult{}, nil, errors.Wrap(err, "fetching repo")
 	}
