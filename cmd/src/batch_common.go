@@ -15,6 +15,7 @@ import (
 
 	"github.com/cockroachdb/errors"
 	"github.com/hashicorp/go-multierror"
+
 	batcheslib "github.com/sourcegraph/sourcegraph/lib/batches"
 
 	"github.com/sourcegraph/src-cli/internal/api"
