@@ -69,10 +69,6 @@ type executionOpts struct {
 	logger log.TaskLogger
 
 	ui StepsExecutionUI
-	// reportProgress func(string)
-
-	// newUiStdoutWriter func(context.Context, *Task, int) io.WriteCloser
-	// newUiStderrWriter func(context.Context, *Task, int) io.WriteCloser
 }
 
 func runSteps(ctx context.Context, opts *executionOpts) (result executionResult, stepResults []stepExecutionResult, err error) {
@@ -125,12 +121,6 @@ func runSteps(ctx context.Context, opts *executionOpts) (result executionResult,
 		}
 
 		opts.ui.SkippingStepsUpto(startStep)
-		// switch startStep {
-		// case 1:
-		// 	opts.reportProgress("Skipping step 1. Found cached result.")
-		// default:
-		// 	opts.reportProgress(fmt.Sprintf("Skipping steps 1 to %d. Found cached results.", startStep))
-		// }
 	}
 
 	for i := startStep; i < len(opts.task.Steps); i++ {
@@ -164,7 +154,6 @@ func runSteps(ctx context.Context, opts *executionOpts) (result executionResult,
 			return execResult, nil, errors.Wrap(err, "evaluating step condition")
 		}
 		if !cond {
-			// opts.reportProgress(fmt.Sprintf("Skipping step %d", i+1))
 			opts.ui.StepSkipped(i + 1)
 			continue
 		}
@@ -245,7 +234,6 @@ func executeSingleStep(
 	// ----------
 	// PREPARATION
 	// ----------
-	// opts.reportProgress(fmt.Sprintf("Preparing step %d", i+1))
 	opts.ui.StepPreparing(i + 1)
 
 	cidFile, cleanup, err := createCidFile(ctx, opts.tempDir, util.SlugForRepo(opts.task.Repository.Name, opts.task.Repository.Rev()))
@@ -288,7 +276,6 @@ func executeSingleStep(
 	// ----------
 	// EXECUTION
 	// ----------
-	// opts.reportProgress(runScript)
 	opts.ui.StepStarted(i+1, runScript)
 
 	workspaceOpts, err := workspace.DockerRunOpts(ctx, workDir)
