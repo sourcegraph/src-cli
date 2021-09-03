@@ -10,8 +10,9 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/sourcegraph/src-cli/internal/batches"
+
 	"github.com/sourcegraph/src-cli/internal/batches/graphql"
+	"github.com/sourcegraph/src-cli/internal/batches/repozip"
 )
 
 var repo = &graphql.Repository{
@@ -395,7 +396,7 @@ func readWorkspaceFiles(workspace Workspace) (map[string]string, error) {
 	return files, err
 }
 
-var _ batches.RepoZip = &fakeRepoArchive{}
+var _ repozip.Archive = &fakeRepoArchive{}
 
 type fakeRepoArchive struct {
 	mockPath                string

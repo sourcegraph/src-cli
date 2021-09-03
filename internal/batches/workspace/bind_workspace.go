@@ -16,8 +16,8 @@ import (
 	batcheslib "github.com/sourcegraph/sourcegraph/lib/batches"
 	"github.com/sourcegraph/sourcegraph/lib/batches/git"
 
-	"github.com/sourcegraph/src-cli/internal/batches"
 	"github.com/sourcegraph/src-cli/internal/batches/graphql"
+	"github.com/sourcegraph/src-cli/internal/batches/repozip"
 	"github.com/sourcegraph/src-cli/internal/batches/util"
 )
 
@@ -29,7 +29,7 @@ var _ Creator = &dockerBindWorkspaceCreator{}
 
 func (wc *dockerBindWorkspaceCreator) Type() CreatorType { return CreatorTypeBind }
 
-func (wc *dockerBindWorkspaceCreator) Create(ctx context.Context, repo *graphql.Repository, steps []batcheslib.Step, archive batches.RepoZip) (Workspace, error) {
+func (wc *dockerBindWorkspaceCreator) Create(ctx context.Context, repo *graphql.Repository, steps []batcheslib.Step, archive repozip.Archive) (Workspace, error) {
 	w, err := wc.unzipToWorkspace(ctx, repo, archive.Path())
 	if err != nil {
 		return nil, errors.Wrap(err, "unzipping the repository")

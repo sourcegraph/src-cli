@@ -15,6 +15,7 @@ import (
 	"github.com/sourcegraph/src-cli/internal/batches/docker"
 	"github.com/sourcegraph/src-cli/internal/batches/graphql"
 	"github.com/sourcegraph/src-cli/internal/batches/log"
+	"github.com/sourcegraph/src-cli/internal/batches/repozip"
 	"github.com/sourcegraph/src-cli/internal/batches/workspace"
 )
 
@@ -67,15 +68,14 @@ func NewCoordinator(opts NewCoordinatorOpts) *Coordinator {
 	logManager := log.NewManager(opts.TempDir, opts.KeepLogs)
 
 	exec := newExecutor(newExecutorOpts{
-		Fetcher:     batches.NewRepoFetcher(opts.Client, opts.CacheDir, opts.CleanArchives),
+		Fetcher:     repozip.NewFetcher(opts.Client, opts.CacheDir, opts.CleanArchives),
 		EnsureImage: opts.EnsureImage,
 		Creator:     opts.Creator,
 		Logger:      logManager,
 
-		AutoAuthorDetails: opts.Features.IncludeAutoAuthorDetails,
-		Parallelism:       opts.Parallelism,
-		Timeout:           opts.Timeout,
-		TempDir:           opts.TempDir,
+		Parallelism: opts.Parallelism,
+		Timeout:     opts.Timeout,
+		TempDir:     opts.TempDir,
 	})
 
 	return &Coordinator{

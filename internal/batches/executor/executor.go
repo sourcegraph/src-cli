@@ -10,8 +10,8 @@ import (
 	"github.com/cockroachdb/errors"
 	"github.com/neelance/parallel"
 
-	"github.com/sourcegraph/src-cli/internal/batches"
 	"github.com/sourcegraph/src-cli/internal/batches/log"
+	"github.com/sourcegraph/src-cli/internal/batches/repozip"
 	"github.com/sourcegraph/src-cli/internal/batches/util"
 	"github.com/sourcegraph/src-cli/internal/batches/workspace"
 )
@@ -52,15 +52,14 @@ type taskResult struct {
 type newExecutorOpts struct {
 	// Dependencies
 	Creator     workspace.Creator
-	Fetcher     batches.RepoFetcher
+	Fetcher     repozip.Fetcher
 	EnsureImage imageEnsurer
 	Logger      log.LogManager
 
 	// Config
-	AutoAuthorDetails bool
-	Parallelism       int
-	Timeout           time.Duration
-	TempDir           string
+	Parallelism int
+	Timeout     time.Duration
+	TempDir     string
 }
 
 type executor struct {
@@ -162,7 +161,7 @@ func (x *executor) do(ctx context.Context, task *Task, ui TaskExecutionUI) (err 
 	}()
 
 	// Now checkout the archive.
-	task.Archive = x.opts.Fetcher.Checkout(batches.RepoRevision{RepoName: task.Repository.Name, Commit: task.Repository.Rev()}, task.ArchivePathToFetch())
+	task.Archive = x.opts.Fetcher.Checkout(repozip.RepoRevision{RepoName: task.Repository.Name, Commit: task.Repository.Rev()}, task.ArchivePathToFetch())
 
 	// Set up our timeout.
 	runCtx, cancel := context.WithTimeout(ctx, x.opts.Timeout)

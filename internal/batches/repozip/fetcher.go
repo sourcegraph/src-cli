@@ -1,4 +1,4 @@
-package batches
+package repozip
 
 import (
 	"context"
@@ -21,18 +21,18 @@ type RepoRevision struct {
 	Commit   string
 }
 
-// RepoFetcher abstracts the process of retrieving an archive for the given
+// Fetcher abstracts the process of retrieving an archive for the given
 // repository.
-type RepoFetcher interface {
+type Fetcher interface {
 	// Checkout returns a RepoZip for the given repository and the given
 	// relative path in the repository. The RepoZip is possibly unfetched.
 	// Users need to call `Fetch()` on the RepoZip before using it and
 	// `Close()` once // they're done using it.
-	Checkout(repo RepoRevision, path string) RepoZip
+	Checkout(repo RepoRevision, path string) Archive
 }
 
-// RepoZip implementations represent a downloaded repository archive.
-type RepoZip interface {
+// Archive implementations represent a downloaded repository archive.
+type Archive interface {
 	// Fetch downloads the archive if it's not on disk yet.
 	Fetch(context.Context) error
 
@@ -62,7 +62,7 @@ type HTTPClient interface {
 	Do(req *http.Request) (*http.Response, error)
 }
 
-func NewRepoFetcher(client HTTPClient, dir string, deleteZips bool) RepoFetcher {
+func NewFetcher(client HTTPClient, dir string, deleteZips bool) Fetcher {
 	return &repoFetcher{client: client, dir: dir, deleteZips: deleteZips}
 }
 
@@ -74,7 +74,16 @@ type repoFetcher struct {
 	deleteZips bool
 
 	zipsMu sync.Mutex
-	zips   map[string]*repoZip
+	zips   map[string]*repoArchive
+}
+
+func (rf *repoFetcher) Checkout(repo RepoRevision, path string) Archive {
+	zip := rf.zipFor(repo, path)
+	zip.mu.Lock()
+	defer zip.mu.Unlock()
+
+	zip.checkouts += 1
+	return zip
 }
 
 // additionalWorkspaceFiles is a list of files the RepoFetcher *tries* to fetch
@@ -89,12 +98,12 @@ var additionalWorkspaceFiles = []string{
 	".gitattributes",
 }
 
-func (rf *repoFetcher) zipFor(repo RepoRevision, workspacePath string) *repoZip {
+func (rf *repoFetcher) zipFor(repo RepoRevision, workspacePath string) *repoArchive {
 	rf.zipsMu.Lock()
 	defer rf.zipsMu.Unlock()
 
 	if rf.zips == nil {
-		rf.zips = make(map[string]*repoZip)
+		rf.zips = make(map[string]*repoArchive)
 	}
 
 	slug := util.SlugForPathInRepo(repo.RepoName, repo.Commit, workspacePath)
@@ -102,7 +111,7 @@ func (rf *repoFetcher) zipFor(repo RepoRevision, workspacePath string) *repoZip 
 	zipPath := filepath.Join(rf.dir, slug+".zip")
 	zip, ok := rf.zips[zipPath]
 	if !ok {
-		zip = &repoZip{
+		zip = &repoArchive{
 			zipPath:       zipPath,
 			repo:          repo,
 			client:        rf.client,
@@ -152,20 +161,11 @@ func (rf *repoFetcher) zipFor(repo RepoRevision, workspacePath string) *repoZip 
 	return zip
 }
 
-func (rf *repoFetcher) Checkout(repo RepoRevision, path string) RepoZip {
-	zip := rf.zipFor(repo, path)
-	zip.mu.Lock()
-	defer zip.mu.Unlock()
+var _ Archive = &repoArchive{}
 
-	zip.checkouts += 1
-	return zip
-}
-
-var _ RepoZip = &repoZip{}
-
-// repoZip is the concrete implementation of the RepoZip interface used outside
+// repoArchive is the concrete implementation of the Archive interface used outside
 // of tests.
-type repoZip struct {
+type repoArchive struct {
 	mu sync.Mutex
 
 	deleteOnClose bool
@@ -194,7 +194,7 @@ type additionalFile struct {
 	fetched bool
 }
 
-func (rz *repoZip) Close() error {
+func (rz *repoArchive) Close() error {
 	rz.mu.Lock()
 	defer rz.mu.Unlock()
 
@@ -214,11 +214,11 @@ func (rz *repoZip) Close() error {
 	return nil
 }
 
-func (rz *repoZip) Path() string {
+func (rz *repoArchive) Path() string {
 	return rz.zipPath
 }
 
-func (rz *repoZip) AdditionalFilePaths() map[string]string {
+func (rz *repoArchive) AdditionalFilePaths() map[string]string {
 	paths := map[string]string{}
 	for _, f := range rz.additionalFiles {
 		if f.fetched {
@@ -228,7 +228,7 @@ func (rz *repoZip) AdditionalFilePaths() map[string]string {
 	return paths
 }
 
-func (rz *repoZip) Fetch(ctx context.Context) (err error) {
+func (rz *repoArchive) Fetch(ctx context.Context) (err error) {
 	rz.mu.Lock()
 	defer rz.mu.Unlock()
 
@@ -248,7 +248,7 @@ func (rz *repoZip) Fetch(ctx context.Context) (err error) {
 	return nil
 }
 
-func (rz *repoZip) fetchArchiveAndFiles(ctx context.Context) (err error) {
+func (rz *repoArchive) fetchArchiveAndFiles(ctx context.Context) (err error) {
 	defer func() {
 		if err != nil {
 			// If the context got cancelled, or we ran out of disk space, or ...

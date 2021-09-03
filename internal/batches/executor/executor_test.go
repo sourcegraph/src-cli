@@ -25,6 +25,7 @@ import (
 	"github.com/sourcegraph/src-cli/internal/batches"
 	"github.com/sourcegraph/src-cli/internal/batches/docker"
 	"github.com/sourcegraph/src-cli/internal/batches/mock"
+	"github.com/sourcegraph/src-cli/internal/batches/repozip"
 	"github.com/sourcegraph/src-cli/internal/batches/workspace"
 )
 
@@ -342,7 +343,7 @@ func TestExecutor_Integration(t *testing.T) {
 			// Setup executor
 			opts := newExecutorOpts{
 				Creator:     workspace.NewCreator(context.Background(), "bind", testTempDir, testTempDir, images),
-				Fetcher:     batches.NewRepoFetcher(client, testTempDir, false),
+				Fetcher:     repozip.NewFetcher(client, testTempDir, false),
 				Logger:      mock.LogNoOpManager{},
 				EnsureImage: imageMapEnsurer(images),
 
@@ -694,7 +695,7 @@ func testExecuteTasks(t *testing.T, tasks []*Task, archives ...mock.RepoArchive)
 	// Setup executor
 	executor := newExecutor(newExecutorOpts{
 		Creator:     workspace.NewCreator(context.Background(), "bind", testTempDir, testTempDir, images),
-		Fetcher:     batches.NewRepoFetcher(client, testTempDir, false),
+		Fetcher:     repozip.NewFetcher(client, testTempDir, false),
 		Logger:      mock.LogNoOpManager{},
 		EnsureImage: imageMapEnsurer(images),
 

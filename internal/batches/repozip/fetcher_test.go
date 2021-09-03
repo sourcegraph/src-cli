@@ -1,4 +1,4 @@
-package batches
+package repozip
 
 import (
 	"bytes"
@@ -15,12 +15,13 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+
 	"github.com/sourcegraph/src-cli/internal/api"
 	"github.com/sourcegraph/src-cli/internal/batches/mock"
 	"github.com/sourcegraph/src-cli/internal/batches/util"
 )
 
-func TestRepoFetcher_Fetch(t *testing.T) {
+func TestFetcher_Fetch(t *testing.T) {
 	workspaceTmpDir := func(t *testing.T) string {
 		testTempDir, err := ioutil.TempDir("", "executor-integration-test-*")
 		if err != nil {
