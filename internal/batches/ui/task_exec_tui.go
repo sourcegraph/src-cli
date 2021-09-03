@@ -239,7 +239,7 @@ func (ui *taskExecTUI) StepsExecutionUI(task *executor.Task) executor.StepsExecu
 		task: task,
 		updateStatusBar: func(message string) {
 			ts.currentlyExecuting = message
-			ui.progress.StatusBarUpdatef(bar, message)
+			ui.progress.StatusBarUpdatef(bar, ts.String())
 		},
 	}
 }
