@@ -2,14 +2,13 @@ package service
 
 import (
 	"context"
-	"fmt"
 	"sort"
 
+	"github.com/cockroachdb/errors"
 	"github.com/gobwas/glob"
 	batcheslib "github.com/sourcegraph/sourcegraph/lib/batches"
 	"github.com/sourcegraph/sourcegraph/lib/batches/template"
 
-	"github.com/sourcegraph/src-cli/internal/batches"
 	"github.com/sourcegraph/src-cli/internal/batches/graphql"
 	"github.com/sourcegraph/src-cli/internal/batches/util"
 )
@@ -46,7 +45,7 @@ func findWorkspaces(
 	for _, conf := range spec.Workspaces {
 		g, err := glob.Compile(conf.In)
 		if err != nil {
-			return nil, batches.ValidationError{Reason: fmt.Sprintf("failed to compile glob %q: %v", conf.In, err)}
+			return nil, batcheslib.NewValidationError(errors.Errorf("failed to compile glob %q: %v", conf.In, err))
 		}
 		workspaceMatchers[conf] = g
 	}
@@ -67,7 +66,7 @@ func findWorkspaces(
 
 			// Don't allow duplicate matches.
 			if found {
-				return nil, batches.ValidationError{Reason: fmt.Sprintf("repository %s matches multiple workspaces.in globs in the batch spec. glob: %q", repo.Name, conf.In)}
+				return nil, batcheslib.NewValidationError(errors.Errorf("repository %s matches multiple workspaces.in globs in the batch spec. glob: %q", repo.Name, conf.In))
 			}
 
 			matched[idx] = append(matched[idx], repo)
