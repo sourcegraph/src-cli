@@ -422,7 +422,7 @@ func (ui *stepsExecutionJSONLines) StepFinished(step int, diff []byte, changes *
 	})
 }
 
-func (ui *stepsExecutionJSONLines) CalculatingDiffStarted()  {
+func (ui *stepsExecutionJSONLines) CalculatingDiffStarted() {
 	logEvent(batchesLogEvent{
 		Operation: "TASK_CALCULATING_DIFF",
 		Status:    "STARTED",
