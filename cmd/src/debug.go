@@ -341,6 +341,13 @@ func archiveDocker(ctx context.Context, zw *zip.Writer, verbose bool, baseDir st
 	ch := make(chan *archiveFile)
 	wg := sync.WaitGroup{}
 
+	// start goroutine to run docker container stats --no-stream
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		ch <- getStats(ctx, baseDir)
+	}()
+
 	// start goroutine to run docker container logs <container>
 	for _, container := range containers {
 		wg.Add(1)
@@ -410,6 +417,12 @@ func getLog(ctx context.Context, container, baseDir string) *archiveFile {
 func getInspect(ctx context.Context, container, baseDir string) *archiveFile {
 	f := &archiveFile{name: baseDir + "/docker/containers/" + container + "/inspect-" + container + ".txt"}
 	f.data, f.err = exec.CommandContext(ctx, "docker", "container", "inspect", container).CombinedOutput()
+	return f
+}
+
+func getStats(ctx context.Context, baseDir string) *archiveFile {
+	f := &archiveFile{name: baseDir + "/docker/stats.txt"}
+	f.data, f.err = exec.CommandContext(ctx, "docker", "container", "stats", "--no-stream").CombinedOutput()
 	return f
 }
 
