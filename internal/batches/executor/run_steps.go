@@ -177,6 +177,7 @@ func runSteps(ctx context.Context, opts *executionOpts) (result executionResult,
 		}
 
 		result := template.StepResult{Files: changes, Stdout: &stdoutBuffer, Stderr: &stderrBuffer}
+		fmt.Printf("i=%d, stdoutBuffer.Len()=%d", i, stdoutBuffer.Len())
 
 		// Set stepContext.Step to current step's results before rendering outputs
 		stepContext.Step = result
@@ -184,6 +185,8 @@ func runSteps(ctx context.Context, opts *executionOpts) (result executionResult,
 		if err := setOutputs(step.Outputs, execResult.Outputs, &stepContext); err != nil {
 			return execResult, nil, errors.Wrap(err, "setting step outputs")
 		}
+
+		fmt.Printf("i=%d, execResult.Outputs=%+v", i, execResult.Outputs)
 
 		// Get the current diff and store that away as the per-step result.
 		stepDiff, err := workspace.Diff(ctx)

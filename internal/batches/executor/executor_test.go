@@ -16,6 +16,7 @@ import (
 	"github.com/cockroachdb/errors"
 	"github.com/google/go-cmp/cmp"
 	"github.com/sourcegraph/go-diff/diff"
+
 	batcheslib "github.com/sourcegraph/sourcegraph/lib/batches"
 	"github.com/sourcegraph/sourcegraph/lib/batches/git"
 	"github.com/sourcegraph/sourcegraph/lib/batches/template"
