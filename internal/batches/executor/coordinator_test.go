@@ -544,7 +544,6 @@ func (d *dummyTaskExecutionUI) TaskChangesetSpecsBuilt(t *Task, specs []*batches
 	d.specs[t] = specs
 }
 
-
 type discardCloser struct {
 	io.Writer
 }
