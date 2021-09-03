@@ -6,16 +6,14 @@ import (
 	"strings"
 
 	"github.com/sourcegraph/sourcegraph/lib/batches/template"
-
-	"github.com/sourcegraph/src-cli/internal/batches/graphql"
 )
 
-// GraphQLRepoToTemplatingRepo transforms a given *graphql.Repository into a
+// NewTemplatingRepo transforms a given *graphql.Repository into a
 // template.Repository.
-func GraphQLRepoToTemplatingRepo(r *graphql.Repository) template.Repository {
+func NewTemplatingRepo(repoName string, fileMatches map[string]bool) template.Repository {
 	return template.Repository{
-		Name:        r.Name,
-		FileMatches: r.FileMatches,
+		Name:        repoName,
+		FileMatches: fileMatches,
 	}
 }
 
@@ -32,4 +30,11 @@ func SlugForPathInRepo(repoName, commit, path string) string {
 
 func SlugForRepo(repoName, commit string) string {
 	return strings.ReplaceAll(repoName, "/", "-") + "-" + commit
+}
+
+func EnsureRefPrefix(ref string) string {
+	if strings.HasPrefix(ref, "refs/heads/") {
+		return ref
+	}
+	return "refs/heads/" + ref
 }

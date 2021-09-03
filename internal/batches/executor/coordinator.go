@@ -290,7 +290,7 @@ func (c *Coordinator) Execute(ctx context.Context, tasks []*Task, spec *batchesl
 			case float64:
 				sid = strconv.FormatFloat(tid, 'f', -1, 64)
 			default:
-				return nil, nil, errors.Errorf("cannot convert value of type %T into a valid external ID: expected string or int", id)
+				return nil, nil, batcheslib.NewValidationError(errors.Errorf("cannot convert value of type %T into a valid external ID: expected string or int", id))
 			}
 
 			specs = append(specs, &batcheslib.ChangesetSpec{

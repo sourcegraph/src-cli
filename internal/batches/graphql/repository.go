@@ -1,14 +1,11 @@
 package graphql
 
-import (
-	"strings"
-)
+import "github.com/sourcegraph/src-cli/internal/batches/util"
 
 const RepositoryFieldsFragment = `
 fragment repositoryFields on Repository {
     id
     name
-    url
     externalRepository {
         serviceType
     }
@@ -36,7 +33,6 @@ type Branch struct {
 type Repository struct {
 	ID                 string
 	Name               string
-	URL                string
 	ExternalRepository struct{ ServiceType string }
 
 	DefaultBranch *Branch
@@ -55,17 +51,10 @@ func (r *Repository) HasBranch() bool {
 
 func (r *Repository) BaseRef() string {
 	if r.Branch.Name != "" {
-		return ensurePrefix(r.Branch.Name)
+		return util.EnsureRefPrefix(r.Branch.Name)
 	}
 
-	return ensurePrefix(r.DefaultBranch.Name)
-}
-
-func ensurePrefix(rev string) string {
-	if strings.HasPrefix(rev, "refs/heads/") {
-		return rev
-	}
-	return "refs/heads/" + rev
+	return util.EnsureRefPrefix(r.DefaultBranch.Name)
 }
 
 func (r *Repository) Rev() string {

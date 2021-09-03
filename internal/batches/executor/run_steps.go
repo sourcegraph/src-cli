@@ -132,7 +132,7 @@ func runSteps(ctx context.Context, opts *executionOpts) (result executionResult,
 
 		stepContext := template.StepContext{
 			BatchChange: *opts.task.BatchChangeAttributes,
-			Repository:  util.GraphQLRepoToTemplatingRepo(opts.task.Repository),
+			Repository:  util.NewTemplatingRepo(opts.task.Repository.Name, opts.task.Repository.FileMatches),
 			Outputs:     execResult.Outputs,
 			Steps: template.StepsContext{
 				Path:    execResult.Path,

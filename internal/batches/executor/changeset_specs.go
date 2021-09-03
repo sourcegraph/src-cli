@@ -23,7 +23,7 @@ func createChangesetSpecs(task *Task, result executionResult, features batches.F
 			Path:    result.Path,
 		},
 		Outputs:    result.Outputs,
-		Repository: util.GraphQLRepoToTemplatingRepo(task.Repository),
+		Repository: util.NewTemplatingRepo(task.Repository.Name, task.Repository.FileMatches),
 	}
 
 	var authorName string
@@ -91,7 +91,7 @@ func createChangesetSpecs(task *Task, result executionResult, features batches.F
 			BaseRef:        task.Repository.BaseRef(),
 			BaseRev:        task.Repository.Rev(),
 			HeadRepository: task.Repository.ID,
-			HeadRef:        "refs/heads/" + branch,
+			HeadRef:        util.EnsureRefPrefix(branch),
 			Title:          title,
 			Body:           body,
 			Commits: []batcheslib.GitCommitDescription{
