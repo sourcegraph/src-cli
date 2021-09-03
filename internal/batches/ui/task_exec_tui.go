@@ -475,4 +475,5 @@ func (ui stepsExecTUI) StepFinished(idx int, diff []byte, changes *git.Changes, 
 }
 
 type discardCloser struct{ io.Writer }
+
 func (discardCloser) Close() error { return nil }
