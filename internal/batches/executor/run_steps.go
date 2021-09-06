@@ -176,6 +176,7 @@ func runSteps(ctx context.Context, opts *executionOpts) (result executionResult,
 			return execResult, nil, errors.Wrap(err, "getting changed files in step")
 		}
 
+		fmt.Printf("-------------------\n")
 		result := template.StepResult{Files: changes, Stdout: &stdoutBuffer, Stderr: &stderrBuffer}
 		fmt.Printf("i=%d, stdoutBuffer.Len()=%d\n", i, stdoutBuffer.Len())
 
