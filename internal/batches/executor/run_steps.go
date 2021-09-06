@@ -1,6 +1,7 @@
 package executor
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -9,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/cockroachdb/errors"
@@ -21,8 +23,6 @@ import (
 	"github.com/sourcegraph/src-cli/internal/batches/log"
 	"github.com/sourcegraph/src-cli/internal/batches/util"
 	"github.com/sourcegraph/src-cli/internal/batches/workspace"
-
-	"github.com/sourcegraph/sourcegraph/lib/process"
 
 	yamlv3 "gopkg.in/yaml.v3"
 )
@@ -177,7 +177,7 @@ func runSteps(ctx context.Context, opts *executionOpts) (result executionResult,
 		}
 
 		result := template.StepResult{Files: changes, Stdout: &stdoutBuffer, Stderr: &stderrBuffer}
-		fmt.Printf("i=%d, stdoutBuffer.Len()=%d", i, stdoutBuffer.Len())
+		fmt.Printf("i=%d, stdoutBuffer.Len()=%d\n", i, stdoutBuffer.Len())
 
 		// Set stepContext.Step to current step's results before rendering outputs
 		stepContext.Step = result
@@ -186,7 +186,7 @@ func runSteps(ctx context.Context, opts *executionOpts) (result executionResult,
 			return execResult, nil, errors.Wrap(err, "setting step outputs")
 		}
 
-		fmt.Printf("i=%d, execResult.Outputs=%+v", i, execResult.Outputs)
+		fmt.Printf("i=%d, execResult.Outputs=%+v\n", i, execResult.Outputs)
 
 		// Get the current diff and store that away as the per-step result.
 		stepDiff, err := workspace.Diff(ctx)
@@ -319,10 +319,14 @@ func executeSingleStep(
 	var stdoutBuffer, stderrBuffer bytes.Buffer
 
 	writerCtx, writerCancel := context.WithCancel(ctx)
-	defer writerCancel()
+	defer func() {
+		fmt.Printf("writerCancel()\n")
+		writerCancel()
+	}()
 	uiStdoutWriter := opts.ui.StepStdoutWriter(writerCtx, opts.task, i)
 	uiStderrWriter := opts.ui.StepStderrWriter(writerCtx, opts.task, i)
 	defer func() {
+		fmt.Printf("uiStdoutWriter.Close()\nuiStderrWriter.Close()\n")
 		uiStdoutWriter.Close()
 		uiStderrWriter.Close()
 	}()
@@ -330,7 +334,7 @@ func executeSingleStep(
 	stdout := io.MultiWriter(&stdoutBuffer, uiStdoutWriter, opts.logger.PrefixWriter("stdout"))
 	stderr := io.MultiWriter(&stderrBuffer, uiStderrWriter, opts.logger.PrefixWriter("stderr"))
 
-	wg, err := process.PipeOutput(cmd, stdout, stderr)
+	wg, err := PipeOutput(cmd, stdout, stderr)
 	if err != nil {
 		return bytes.Buffer{}, bytes.Buffer{}, errors.Wrap(err, "piping process output")
 	}
@@ -341,6 +345,7 @@ func executeSingleStep(
 	t0 := time.Now()
 	err = cmd.Run()
 	wg.Wait()
+	fmt.Printf("wg.Wait() done\n")
 	elapsed := time.Since(t0).Round(time.Millisecond)
 	if err != nil {
 		opts.logger.Logf("[Step %d] took %s; error running Docker container: %+v", i+1, elapsed, err)
@@ -617,4 +622,36 @@ func (e stepFailedErr) SingleLineError() string {
 	}
 
 	return strings.Split(out, "\n")[0]
+}
+
+func PipeOutput(c *exec.Cmd, stdoutWriter, stderrWriter io.Writer) (*sync.WaitGroup, error) {
+	stdoutPipe, err := c.StdoutPipe()
+	if err != nil {
+		return nil, err
+	}
+
+	stderrPipe, err := c.StderrPipe()
+	if err != nil {
+		return nil, err
+	}
+
+	wg := &sync.WaitGroup{}
+
+	readIntoBuf := func(w io.Writer, r io.Reader) {
+		defer func() {
+			fmt.Printf("readIntoBuf: wg.Done()\n")
+			wg.Done()
+		}()
+
+		scanner := bufio.NewScanner(r)
+		for scanner.Scan() {
+			fmt.Fprintln(w, scanner.Text())
+		}
+	}
+
+	wg.Add(2)
+	go readIntoBuf(stdoutWriter, stdoutPipe)
+	go readIntoBuf(stderrWriter, stderrPipe)
+
+	return wg, nil
 }
