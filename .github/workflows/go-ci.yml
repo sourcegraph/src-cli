@@ -8,7 +8,7 @@ jobs:
     strategy:
       matrix:
         go-version: [1.17.x]
-        os: [ubuntu-latest]
+        os: [ubuntu-latest, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
@@ -17,4 +17,5 @@ jobs:
         uses: actions/setup-go@v2
         with:
           go-version: ${{ matrix.go-version }}
-      - run: for i in $(seq 1 5); do go test -race -v ./... -run TestExecutor_Integration; done
+      - run: go test -i ./...
+      - run: go test -race -v ./...
