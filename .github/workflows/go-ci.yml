@@ -17,5 +17,4 @@ jobs:
         uses: actions/setup-go@v2
         with:
           go-version: ${{ matrix.go-version }}
-      - run: go test -i ./... -run TestExecutor_Integration
-      - run: go test -race -v ./... -run TestExecutor_Integration
+      - run: for i in $(seq 1 5); do go test -race -v ./... -run TestExecutor_Integration; done
