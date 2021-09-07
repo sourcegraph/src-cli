@@ -84,8 +84,8 @@ type SerializeableWorkspace struct {
 		Name string `json:"name"`
 	} `json:"repository"`
 	Branch struct {
-		AbbrevName string `json:"abbrevName"`
-		Target     struct {
+		Name   string `json:"name"`
+		Target struct {
 			OID string `json:"oid"`
 		} `json:"target"`
 	} `json:"branch"`
@@ -109,14 +109,14 @@ func (ws SerializeableWorkspaces) ToRepoWorkspaces() []service.RepoWorkspace {
 				ID:   w.Repository.ID,
 				Name: w.Repository.Name,
 				Branch: graphql.Branch{
-					Name: w.Branch.AbbrevName,
+					Name: w.Branch.Name,
 					Target: graphql.Target{
 						OID: w.Branch.Target.OID,
 					},
 				},
 				ExternalRepository: struct{ ServiceType string }{ServiceType: "github"},
 				DefaultBranch: &graphql.Branch{
-					Name: w.Branch.AbbrevName,
+					Name: w.Branch.Name,
 					Target: graphql.Target{
 						OID: w.Branch.Target.OID,
 					},
