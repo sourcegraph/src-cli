@@ -396,14 +396,12 @@ func archiveDocker(ctx context.Context, zw *zip.Writer, verbose bool, baseDir st
 }
 
 func getContainers(ctx context.Context) ([]string, error) {
-
 	c, err := exec.CommandContext(ctx, "docker", "container", "ls", "--format", "{{.Names}}").Output()
 	if err != nil {
 		fmt.Errorf("failed to get container names with error: %w", err)
 	}
 	s := string(c)
-	containers := strings.Split(s, "\n")
-	containers = containers[:len(containers)-1]
+	containers := strings.Split(strings.TrimSpace(s), "\n")
 	fmt.Println(containers)
 	return containers, err
 }
