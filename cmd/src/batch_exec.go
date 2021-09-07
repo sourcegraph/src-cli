@@ -73,9 +73,10 @@ Examples:
 	})
 }
 
+// TODO: Put this in `lib` and use it here and in backend
 type WorkspacesResult struct {
-	RawSpec    string                  `json:"rawSpec"`
-	Workspaces SerializeableWorkspaces `json:"workspaces"`
+	RawSpec    string                    `json:"rawSpec"`
+	Workspaces []*SerializeableWorkspace `json:"workspaces"`
 }
 
 type SerializeableWorkspace struct {
@@ -95,9 +96,7 @@ type SerializeableWorkspace struct {
 	SearchResultPaths  []string          `json:"searchResultPaths"`
 }
 
-type SerializeableWorkspaces []*SerializeableWorkspace
-
-func (ws SerializeableWorkspaces) ToRepoWorkspaces() []service.RepoWorkspace {
+func convertWorkspaces(ws []*SerializeableWorkspace) []service.RepoWorkspace {
 	workspaces := make([]service.RepoWorkspace, 0, len(ws))
 	for _, w := range ws {
 		fileMatches := make(map[string]bool)
@@ -217,7 +216,7 @@ func executeBatchSpecInWorkspaces(ctx context.Context, opts executeBatchSpecOpts
 	})
 
 	opts.ui.CheckingCache()
-	tasks := svc.BuildTasks(ctx, batchSpec, input.Workspaces.ToRepoWorkspaces())
+	tasks := svc.BuildTasks(ctx, batchSpec, convertWorkspaces(input.Workspaces))
 	uncachedTasks, cachedSpecs, err := coord.CheckCache(ctx, tasks)
 	if err != nil {
 		return err
