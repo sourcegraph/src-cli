@@ -21,19 +21,23 @@ import (
 
 func init() {
 	usage := `
-INTERNAL USER ONLY: 'src batch exec' executes the given raw batch spec in the given workspaces.
+INTERNAL USE ONLY: 'src batch exec' executes the given raw batch spec in the given workspaces.
+
+The input file contains a JSON dump of the WorkspacesExecutionInput struct in
+github.com/sourcegraph/sourcegraph/lib/batches.
 
 Usage:
 
-    src batch exec -f batch-spec-with-workspaces.json
+    src batch exec -f FILE [command options]
 
 Examples:
 
-    $ src batch apply -f batch-spec-with-workspaces.json
+    $ src batch exec -f batch-spec-with-workspaces.json
+
 `
 
 	flagSet := flag.NewFlagSet("exec", flag.ExitOnError)
-	flags := newBatchExecuteFlags(flagSet, batchDefaultCacheDir(), batchDefaultTempDirPrefix())
+	flags := newBatchExecuteFlags(flagSet, true, batchDefaultCacheDir(), batchDefaultTempDirPrefix())
 
 	handler := func(args []string) error {
 		if err := flagSet.Parse(args); err != nil {
@@ -43,9 +47,6 @@ Examples:
 		if len(flagSet.Args()) != 0 {
 			return cmderrors.Usage("additional arguments not allowed")
 		}
-
-		// Only text output is allowed
-		flags.textOnly = true
 
 		ctx, cancel := contextCancelOnInterrupt(context.Background())
 		defer cancel()
@@ -71,43 +72,6 @@ Examples:
 			fmt.Println(usage)
 		},
 	})
-}
-
-func convertWorkspaces(ws []*batcheslib.Workspace) []service.RepoWorkspace {
-	workspaces := make([]service.RepoWorkspace, 0, len(ws))
-
-	for _, w := range ws {
-		fileMatches := make(map[string]bool)
-		for _, path := range w.SearchResultPaths {
-			fileMatches[path] = true
-		}
-		workspaces = append(workspaces, service.RepoWorkspace{
-			Repo: &graphql.Repository{
-				ID:   w.Repository.ID,
-				Name: w.Repository.Name,
-				Branch: graphql.Branch{
-					Name: w.Branch.Name,
-					Target: graphql.Target{
-						OID: w.Branch.Target.OID,
-					},
-				},
-				ExternalRepository: struct{ ServiceType string }{ServiceType: "github"},
-				DefaultBranch: &graphql.Branch{
-					Name: w.Branch.Name,
-					Target: graphql.Target{
-						OID: w.Branch.Target.OID,
-					},
-				},
-				Commit:      graphql.Target{OID: w.Branch.Target.OID},
-				FileMatches: fileMatches,
-			},
-			Path:               w.Path,
-			Steps:              w.Steps,
-			OnlyFetchWorkspace: w.OnlyFetchWorkspace,
-		})
-	}
-
-	return workspaces
 }
 
 func executeBatchSpecInWorkspaces(ctx context.Context, opts executeBatchSpecOpts) (err error) {
@@ -248,4 +212,41 @@ func loadWorkspaceExecutionInput(file string) (batcheslib.WorkspacesExecutionInp
 	}
 
 	return input, nil
+}
+
+func convertWorkspaces(ws []*batcheslib.Workspace) []service.RepoWorkspace {
+	workspaces := make([]service.RepoWorkspace, 0, len(ws))
+
+	for _, w := range ws {
+		fileMatches := make(map[string]bool)
+		for _, path := range w.SearchResultPaths {
+			fileMatches[path] = true
+		}
+		workspaces = append(workspaces, service.RepoWorkspace{
+			Repo: &graphql.Repository{
+				ID:   w.Repository.ID,
+				Name: w.Repository.Name,
+				Branch: graphql.Branch{
+					Name: w.Branch.Name,
+					Target: graphql.Target{
+						OID: w.Branch.Target.OID,
+					},
+				},
+				ExternalRepository: struct{ ServiceType string }{ServiceType: "github"},
+				DefaultBranch: &graphql.Branch{
+					Name: w.Branch.Name,
+					Target: graphql.Target{
+						OID: w.Branch.Target.OID,
+					},
+				},
+				Commit:      graphql.Target{OID: w.Branch.Target.OID},
+				FileMatches: fileMatches,
+			},
+			Path:               w.Path,
+			Steps:              w.Steps,
+			OnlyFetchWorkspace: w.OnlyFetchWorkspace,
+		})
+	}
+
+	return workspaces
 }

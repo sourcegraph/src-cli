@@ -5,9 +5,10 @@ import (
 	"flag"
 	"fmt"
 
-	"github.com/sourcegraph/sourcegraph/lib/output"
 	"github.com/sourcegraph/src-cli/internal/batches/ui"
 	"github.com/sourcegraph/src-cli/internal/cmderrors"
+
+	"github.com/sourcegraph/sourcegraph/lib/output"
 )
 
 func init() {
@@ -28,7 +29,7 @@ Examples:
 `
 
 	flagSet := flag.NewFlagSet("apply", flag.ExitOnError)
-	flags := newBatchExecuteFlags(flagSet, batchDefaultCacheDir(), batchDefaultTempDirPrefix())
+	flags := newBatchExecuteFlags(flagSet, false, batchDefaultCacheDir(), batchDefaultTempDirPrefix())
 
 	handler := func(args []string) error {
 		if err := flagSet.Parse(args); err != nil {
