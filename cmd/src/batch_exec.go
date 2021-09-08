@@ -222,18 +222,12 @@ func convertWorkspaces(ws []*batcheslib.Workspace) []service.RepoWorkspace {
 		for _, path := range w.SearchResultPaths {
 			fileMatches[path] = true
 		}
+
 		workspaces = append(workspaces, service.RepoWorkspace{
 			Repo: &graphql.Repository{
 				ID:   w.Repository.ID,
 				Name: w.Repository.Name,
 				Branch: graphql.Branch{
-					Name: w.Branch.Name,
-					Target: graphql.Target{
-						OID: w.Branch.Target.OID,
-					},
-				},
-				ExternalRepository: struct{ ServiceType string }{ServiceType: "github"},
-				DefaultBranch: &graphql.Branch{
 					Name: w.Branch.Name,
 					Target: graphql.Target{
 						OID: w.Branch.Target.OID,
