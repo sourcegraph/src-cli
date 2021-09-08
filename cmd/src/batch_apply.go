@@ -5,10 +5,9 @@ import (
 	"flag"
 	"fmt"
 
+	"github.com/sourcegraph/sourcegraph/lib/output"
 	"github.com/sourcegraph/src-cli/internal/batches/ui"
 	"github.com/sourcegraph/src-cli/internal/cmderrors"
-
-	"github.com/sourcegraph/sourcegraph/lib/output"
 )
 
 func init() {

@@ -8,7 +8,6 @@ import (
 	"github.com/cockroachdb/errors"
 	"github.com/hashicorp/go-multierror"
 	"github.com/neelance/parallel"
-
 	"github.com/sourcegraph/sourcegraph/lib/output"
 
 	"github.com/sourcegraph/src-cli/internal/api"
