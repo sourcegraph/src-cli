@@ -73,31 +73,9 @@ Examples:
 	})
 }
 
-// TODO: Put this in `lib` and use it here and in backend
-type WorkspacesResult struct {
-	RawSpec    string                    `json:"rawSpec"`
-	Workspaces []*SerializeableWorkspace `json:"workspaces"`
-}
-
-type SerializeableWorkspace struct {
-	Repository struct {
-		ID   string `json:"id"`
-		Name string `json:"name"`
-	} `json:"repository"`
-	Branch struct {
-		Name   string `json:"name"`
-		Target struct {
-			OID string `json:"oid"`
-		} `json:"target"`
-	} `json:"branch"`
-	Path               string            `json:"path"`
-	OnlyFetchWorkspace bool              `json:"onlyFetchWorkspace"`
-	Steps              []batcheslib.Step `json:"steps"`
-	SearchResultPaths  []string          `json:"searchResultPaths"`
-}
-
-func convertWorkspaces(ws []*SerializeableWorkspace) []service.RepoWorkspace {
+func convertWorkspaces(ws []*batcheslib.Workspace) []service.RepoWorkspace {
 	workspaces := make([]service.RepoWorkspace, 0, len(ws))
+
 	for _, w := range ws {
 		fileMatches := make(map[string]bool)
 		for _, path := range w.SearchResultPaths {
@@ -128,6 +106,7 @@ func convertWorkspaces(ws []*SerializeableWorkspace) []service.RepoWorkspace {
 			OnlyFetchWorkspace: w.OnlyFetchWorkspace,
 		})
 	}
+
 	return workspaces
 }
 
@@ -154,23 +133,18 @@ func executeBatchSpecInWorkspaces(ctx context.Context, opts executeBatchSpecOpts
 		return err
 	}
 
-	f, err := batchOpenFileFlag(&opts.flags.file)
+	// Read the input file that contains the raw spec and the workspaces in
+	// which to execute it.
+	input, err := loadWorkspaceExecutionInput(opts.flags.file)
 	if err != nil {
 		return err
 	}
-	defer f.Close()
 
-	data, err := io.ReadAll(f)
-	if err != nil {
-		return errors.Wrap(err, "reading batch spec")
-	}
+	// Since we already know which workspaces we want to execute the steps in,
+	// we can convert them to RepoWorkspaces and build tasks only for those.
+	repoWorkspaces := convertWorkspaces(input.Workspaces)
 
-	var input WorkspacesResult
-	if err := json.Unmarshal(data, &input); err != nil {
-		return errors.Wrap(err, "unmarshaling input file")
-	}
-
-	// Parse flags and build up our service and executor options.
+	// Parse the raw batch spec contained in the input
 	opts.ui.ParsingBatchSpec()
 	batchSpec, err := svc.ParseBatchSpec([]byte(input.RawSpec))
 	if err != nil {
@@ -216,7 +190,7 @@ func executeBatchSpecInWorkspaces(ctx context.Context, opts executeBatchSpecOpts
 	})
 
 	opts.ui.CheckingCache()
-	tasks := svc.BuildTasks(ctx, batchSpec, convertWorkspaces(input.Workspaces))
+	tasks := svc.BuildTasks(ctx, batchSpec, repoWorkspaces)
 	uncachedTasks, cachedSpecs, err := coord.CheckCache(ctx, tasks)
 	if err != nil {
 		return err
@@ -253,4 +227,25 @@ func executeBatchSpecInWorkspaces(ctx context.Context, opts executeBatchSpecOpts
 	}
 
 	return nil
+}
+
+func loadWorkspaceExecutionInput(file string) (batcheslib.WorkspacesExecutionInput, error) {
+	var input batcheslib.WorkspacesExecutionInput
+
+	f, err := batchOpenFileFlag(&file)
+	if err != nil {
+		return input, err
+	}
+	defer f.Close()
+
+	data, err := io.ReadAll(f)
+	if err != nil {
+		return input, errors.Wrap(err, "reading workspace execution input file")
+	}
+
+	if err := json.Unmarshal(data, &input); err != nil {
+		return input, errors.Wrap(err, "unmarshaling workspace execution input file")
+	}
+
+	return input, nil
 }
