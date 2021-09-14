@@ -162,6 +162,10 @@ func (ui *JSONLines) ExecutionError(err error) {
 	logOperationFailure(batcheslib.LogEventOperationBatchSpecExecution, map[string]interface{}{"error": err.Error()})
 }
 
+func (ui *JSONLines) WriteCache(key string, data []byte) {
+	logOperationSuccess(batcheslib.LogEventOperationWriteCache, map[string]interface{}{"key": key, "data": data})
+}
+
 func logOperationStart(op batcheslib.LogEventOperation, metadata map[string]interface{}) {
 	logEvent(batcheslib.LogEvent{Operation: op, Status: batcheslib.LogEventStatusStarted, Metadata: metadata})
 }

@@ -300,6 +300,8 @@ func executeBatchSpec(ctx context.Context, opts executeBatchSpecOpts) (err error
 
 	opts.ui.CheckingCache()
 	tasks := svc.BuildTasks(ctx, batchSpec, workspaces)
+	// TODO: Hacky inject method. Not good.
+	coord.SetCache(executor.NewLoggingExecutionCache(opts.ui.WriteCache, coord.GetCache()))
 	uncachedTasks, cachedSpecs, err := coord.CheckCache(ctx, tasks)
 	if err != nil {
 		return err

@@ -88,6 +88,14 @@ func NewCoordinator(opts NewCoordinatorOpts) *Coordinator {
 	}
 }
 
+func (c *Coordinator) GetCache() ExecutionCache {
+	return c.cache
+}
+
+func (c *Coordinator) SetCache(ec ExecutionCache) {
+	c.cache = ec
+}
+
 // CheckCache checks whether the internal ExecutionCache contains
 // ChangesetSpecs for the given Tasks. If cached ChangesetSpecs exist, those
 // are returned, otherwise the Task, to be executed later.

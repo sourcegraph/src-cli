@@ -149,6 +149,43 @@ type ExecutionCache interface {
 	Clear(ctx context.Context, key CacheKeyer) error
 }
 
+// NewLoggingExecutionCache wraps an existing cache and calls a given logger with
+// the cache data on write.
+func NewLoggingExecutionCache(logger func(key string, data []byte), c ExecutionCache) ExecutionCache {
+	return &loggingExecutionCache{logger: logger, ExecutionCache: c}
+}
+
+type loggingExecutionCache struct {
+	logger func(key string, data []byte)
+	ExecutionCache
+}
+
+func (c *loggingExecutionCache) Set(ctx context.Context, key CacheKeyer, result executionResult) error {
+	cacheKey, err := key.Key()
+	if err != nil {
+		return err
+	}
+	entry, err := json.Marshal(result)
+	if err != nil {
+		return err
+	}
+	c.logger(cacheKey, entry)
+	return c.ExecutionCache.Set(ctx, key, result)
+}
+
+func (c *loggingExecutionCache) SetStepResult(ctx context.Context, key CacheKeyer, result stepExecutionResult) error {
+	cacheKey, err := key.Key()
+	if err != nil {
+		return err
+	}
+	entry, err := json.Marshal(result)
+	if err != nil {
+		return err
+	}
+	c.logger(cacheKey, entry)
+	return c.ExecutionCache.SetStepResult(ctx, key, result)
+}
+
 func NewCache(dir string) ExecutionCache {
 	if dir == "" {
 		return &ExecutionNoOpCache{}
@@ -169,6 +206,8 @@ func (c ExecutionDiskCache) cacheFilePath(key CacheKeyer) (string, error) {
 		return "", errors.Wrap(err, "calculating execution cache key")
 	}
 
+	// We add key.Slug() here so the cache files are organized by repo and revision
+	// on disk. This is purely for debugging purposes.
 	return filepath.Join(c.Dir, key.Slug(), keyString+cacheFileExt), nil
 }
 

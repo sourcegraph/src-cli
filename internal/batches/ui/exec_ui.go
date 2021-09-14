@@ -51,4 +51,6 @@ type ExecUI interface {
 	ApplyingBatchSpecSuccess(batchChangeURL string)
 
 	ExecutionError(error)
+
+	WriteCache(key string, data []byte)
 }

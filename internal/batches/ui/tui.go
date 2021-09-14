@@ -225,6 +225,8 @@ func (ui *TUI) ExecutionError(err error) {
 	printExecutionError(ui.Out, err)
 }
 
+func (ui *TUI) WriteCache(string, []byte) {}
+
 // prettyPrintBatchUnlicensedError introspects the given error returned when
 // creating a batch spec and ascertains whether it's a licensing error. If it
 // is, then a better message is output. Regardless, the return value of this
