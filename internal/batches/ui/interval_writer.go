@@ -3,6 +3,7 @@ package ui
 import (
 	"bytes"
 	"context"
+	"io"
 	"time"
 
 	"github.com/derision-test/glock"
@@ -52,14 +53,6 @@ func NewIntervalWriter(ctx context.Context, interval time.Duration, sink func(st
 	return newIntervalWriter(ctx, glock.NewRealTicker(interval), sink)
 }
 
-func (l *IntervalWriter) flush() {
-	if l.buf.Len() == 0 {
-		return
-	}
-	l.sink(l.buf.String())
-	l.buf.Reset()
-}
-
 // Close flushes the
 func (l *IntervalWriter) Close() error {
 	l.closed <- struct{}{}
@@ -67,11 +60,20 @@ func (l *IntervalWriter) Close() error {
 	return nil
 }
 
-// Write handler of IntervalWriter.
-func (l *IntervalWriter) Write(p []byte) (int, error) {
-	l.writes <- p
-	<-l.writesDone
-	return len(p), nil
+func (l *IntervalWriter) StdoutWriter() io.Writer {
+	return &prefixedWriter{writes: l.writes, writesDone: l.writesDone, prefix: "stdout: "}
+}
+
+func (l *IntervalWriter) StderrWriter() io.Writer {
+	return &prefixedWriter{writes: l.writes, writesDone: l.writesDone, prefix: "stderr: "}
+}
+
+func (l *IntervalWriter) flush() {
+	if l.buf.Len() == 0 {
+		return
+	}
+	l.sink(l.buf.String())
+	l.buf.Reset()
 }
 
 func (l *IntervalWriter) writeLines(ctx context.Context) {
@@ -102,4 +104,23 @@ func (l *IntervalWriter) writeLines(ctx context.Context) {
 			l.flush()
 		}
 	}
+}
+
+type prefixedWriter struct {
+	writes     chan []byte
+	writesDone chan struct{}
+	prefix     string
+}
+
+func (w *prefixedWriter) Write(p []byte) (int, error) {
+	var prefixedLines []byte
+	for _, line := range bytes.Split(p, []byte("\n")) {
+		prefixedLine := append([]byte(w.prefix), line...)
+		prefixedLine = append(prefixedLine, []byte("\n")...)
+
+		prefixedLines = append(prefixedLines, prefixedLine...)
+	}
+	w.writes <- prefixedLines
+	<-w.writesDone
+	return len(p), nil
 }
