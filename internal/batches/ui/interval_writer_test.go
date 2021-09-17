@@ -18,7 +18,7 @@ func TestIntervalWriter(t *testing.T) {
 	}
 
 	ticker := glock.NewMockTicker(1 * time.Second)
-	writer := newIntervalWriter(ctx, ticker, sink)
+	writer := newIntervalProcessWriter(ctx, ticker, sink)
 
 	stdoutWriter := writer.StdoutWriter()
 	stderrWriter := writer.StderrWriter()

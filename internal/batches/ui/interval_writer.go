@@ -9,9 +9,9 @@ import (
 	"github.com/derision-test/glock"
 )
 
-// IntervalWriter is a io.Writer that flushes to the given sink on the given
-// interval.
-type IntervalWriter struct {
+// IntervalProcessWriter accepts stdout/stderr writes from processes, prefixed
+// them accordingly, and flushes to the given sink on the given interval.
+type IntervalProcessWriter struct {
 	sink func(string)
 
 	ticker glock.Ticker
@@ -26,8 +26,8 @@ type IntervalWriter struct {
 	done   chan struct{}
 }
 
-func newIntervalWriter(ctx context.Context, ticker glock.Ticker, sink func(string)) *IntervalWriter {
-	l := &IntervalWriter{
+func newIntervalProcessWriter(ctx context.Context, ticker glock.Ticker, sink func(string)) *IntervalProcessWriter {
+	l := &IntervalProcessWriter{
 		sink:   sink,
 		ticker: ticker,
 
@@ -45,30 +45,34 @@ func newIntervalWriter(ctx context.Context, ticker glock.Ticker, sink func(strin
 	return l
 }
 
-// NewLogger returns a new Logger instance and spawns a goroutine in the
-// background that regularily flushed the logged output to the given sink.
+// NewIntervalProcessWriter returns a new IntervalProcessWriter instance and
+// spawns a goroutine in the background that regularily flushed the logged
+// output to the given sink.
 //
 // If the passed in ctx is canceled the goroutine will exit.
-func NewIntervalWriter(ctx context.Context, interval time.Duration, sink func(string)) *IntervalWriter {
-	return newIntervalWriter(ctx, glock.NewRealTicker(interval), sink)
+func NewIntervalProcessWriter(ctx context.Context, interval time.Duration, sink func(string)) *IntervalProcessWriter {
+	return newIntervalProcessWriter(ctx, glock.NewRealTicker(interval), sink)
 }
 
-// Close flushes the
-func (l *IntervalWriter) Close() error {
+// StdoutWriter returns an io.Writer that prefixes every line with "stdout: "
+func (l *IntervalProcessWriter) StdoutWriter() io.Writer {
+	return &prefixedWriter{writes: l.writes, writesDone: l.writesDone, prefix: "stdout: "}
+}
+
+// SterrWriter returns an io.Writer that prefixes every line with "stderr: "
+func (l *IntervalProcessWriter) StderrWriter() io.Writer {
+	return &prefixedWriter{writes: l.writes, writesDone: l.writesDone, prefix: "stderr: "}
+}
+
+// Close blocks until all pending writes have been flushed to the buffer. It
+// then causes the underlying goroutine to exit.
+func (l *IntervalProcessWriter) Close() error {
 	l.closed <- struct{}{}
 	<-l.done
 	return nil
 }
 
-func (l *IntervalWriter) StdoutWriter() io.Writer {
-	return &prefixedWriter{writes: l.writes, writesDone: l.writesDone, prefix: "stdout: "}
-}
-
-func (l *IntervalWriter) StderrWriter() io.Writer {
-	return &prefixedWriter{writes: l.writes, writesDone: l.writesDone, prefix: "stderr: "}
-}
-
-func (l *IntervalWriter) flush() {
+func (l *IntervalProcessWriter) flush() {
 	if l.buf.Len() == 0 {
 		return
 	}
@@ -76,7 +80,7 @@ func (l *IntervalWriter) flush() {
 	l.buf.Reset()
 }
 
-func (l *IntervalWriter) writeLines(ctx context.Context) {
+func (l *IntervalProcessWriter) writeLines(ctx context.Context) {
 	defer func() {
 		l.flush()
 		l.ticker.Stop()

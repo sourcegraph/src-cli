@@ -335,23 +335,8 @@ func (ui *stepsExecutionJSONLines) StepOutputWriter(ctx context.Context, task *e
 			},
 		)
 	}
-	return NewIntervalWriter(ctx, stepFlushDuration, sink)
+	return NewIntervalProcessWriter(ctx, stepFlushDuration, sink)
 }
-
-// func (ui *stepsExecutionJSONLines) StepStderrWriter(ctx context.Context, task *executor.Task, step int) io.WriteCloser {
-// 	sink := func(data string) {
-// 		logOperationProgress(
-// 			batcheslib.LogEventOperationTaskStep,
-// 			map[string]interface{}{
-// 				"taskID":      ui.linesTask.ID,
-// 				"step":        step,
-// 				"out":         data,
-// 			},
-// 		)
-// 	}
-
-// 	return NewIntervalWriter(ctx, stepFlushDuration, sink)
-// }
 
 func (ui *stepsExecutionJSONLines) StepFinished(step int, diff []byte, changes *git.Changes, outputs map[string]interface{}) {
 	logOperationSuccess(

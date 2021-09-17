@@ -41,7 +41,6 @@ type StepsExecutionUI interface {
 	StepStarted(int, string)
 
 	StepOutputWriter(context.Context, *Task, int) StepOutputWriter
-	// StepStderrWriter(context.Context, *Task, int) io.WriteCloser
 
 	CalculatingDiffStarted()
 	CalculatingDiffFinished()
