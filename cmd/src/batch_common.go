@@ -312,9 +312,17 @@ func executeBatchSpec(ctx context.Context, opts executeBatchSpecOpts) (err error
 	if err != nil && !opts.flags.skipErrors {
 		return err
 	}
-	taskExecUI.Success()
-	if err != nil && opts.flags.skipErrors {
-		opts.ui.ExecutingTasksSkippingErrors(err)
+	if err == nil || opts.flags.skipErrors {
+		if err == nil {
+			taskExecUI.Success()
+		} else {
+			opts.ui.ExecutingTasksSkippingErrors(err)
+		}
+	} else {
+		if err != nil {
+			taskExecUI.Failed(err)
+			return err
+		}
 	}
 
 	if len(logFiles) > 0 && opts.flags.keepLogs {

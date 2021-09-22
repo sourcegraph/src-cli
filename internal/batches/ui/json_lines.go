@@ -239,6 +239,12 @@ func (ui *taskExecutionJSONLines) Success() {
 	logOperationSuccess(batcheslib.LogEventOperationExecutingTasks, nil)
 }
 
+func (ui *taskExecutionJSONLines) Failed(err error) {
+	logOperationFailure(batcheslib.LogEventOperationExecutingTasks, map[string]interface{}{
+		"error": err.Error(),
+	})
+}
+
 func (ui *taskExecutionJSONLines) TaskStarted(task *executor.Task) {
 	lt, ok := ui.linesTasks[task]
 	if !ok {
@@ -259,7 +265,7 @@ func (ui *taskExecutionJSONLines) TaskFinished(task *executor.Task, err error) {
 	if err != nil {
 		logOperationFailure(batcheslib.LogEventOperationExecutingTask, map[string]interface{}{
 			"taskID": lt.ID,
-			"error":  err,
+			"error":  err.Error(),
 		})
 		return
 	}
@@ -316,8 +322,16 @@ func (ui *stepsExecutionJSONLines) StepSkipped(step int) {
 	logOperationProgress(batcheslib.LogEventOperationTaskStepSkipped, map[string]interface{}{"taskID": ui.linesTask.ID, "step": step})
 }
 
-func (ui *stepsExecutionJSONLines) StepPreparing(step int) {
-	logOperationProgress(batcheslib.LogEventOperationTaskPreparingStep, map[string]interface{}{"taskID": ui.linesTask.ID, "step": step})
+func (ui *stepsExecutionJSONLines) StepPreparingStart(step int) {
+	logOperationStart(batcheslib.LogEventOperationTaskPreparingStep, map[string]interface{}{"taskID": ui.linesTask.ID, "step": step})
+}
+
+func (ui *stepsExecutionJSONLines) StepPreparingSuccess(step int) {
+	logOperationSuccess(batcheslib.LogEventOperationTaskPreparingStep, map[string]interface{}{"taskID": ui.linesTask.ID, "step": step})
+}
+
+func (ui *stepsExecutionJSONLines) StepPreparingFailed(step int, err error) {
+	logOperationFailure(batcheslib.LogEventOperationTaskPreparingStep, map[string]interface{}{"taskID": ui.linesTask.ID, "step": step, "error": err.Error()})
 }
 
 func (ui *stepsExecutionJSONLines) StepStarted(step int, runScript string, env map[string]string) {
@@ -347,6 +361,18 @@ func (ui *stepsExecutionJSONLines) StepFinished(step int, diff []byte, changes *
 			"diff":    string(diff),
 			"changes": changes,
 			"outputs": outputs,
+		},
+	)
+}
+
+func (ui *stepsExecutionJSONLines) StepFailed(step int, err error, exitCode int) {
+	logOperationFailure(
+		batcheslib.LogEventOperationTaskStep,
+		map[string]interface{}{
+			"taskID":   ui.linesTask.ID,
+			"step":     step,
+			"error":    err.Error(),
+			"exitCode": exitCode,
 		},
 	)
 }
