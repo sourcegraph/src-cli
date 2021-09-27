@@ -357,22 +357,23 @@ func executeBatchSpec(ctx context.Context, opts executeBatchSpecOpts) (err error
 
 	opts.ui.CreatingBatchSpec()
 	id, url, err := svc.CreateBatchSpec(ctx, namespace, rawSpec, ids)
-	opts.ui.CreatingBatchSpecSuccess()
 	if err != nil {
 		return opts.ui.CreatingBatchSpecError(err)
 	}
+	previewURL := cfg.Endpoint + url
+	opts.ui.CreatingBatchSpecSuccess(previewURL)
 
-	if opts.applyBatchSpec {
-		opts.ui.ApplyingBatchSpec()
-		batch, err := svc.ApplyBatchChange(ctx, id)
-		if err != nil {
-			return err
-		}
-		opts.ui.ApplyingBatchSpecSuccess(cfg.Endpoint + batch.URL)
-
-	} else {
-		opts.ui.PreviewBatchSpec(cfg.Endpoint + url)
+	if !opts.applyBatchSpec {
+		opts.ui.PreviewBatchSpec(previewURL)
+		return
 	}
+
+	opts.ui.ApplyingBatchSpec()
+	batch, err := svc.ApplyBatchChange(ctx, id)
+	if err != nil {
+		return err
+	}
+	opts.ui.ApplyingBatchSpecSuccess(cfg.Endpoint + batch.URL)
 
 	return nil
 }

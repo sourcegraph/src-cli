@@ -29,7 +29,7 @@ type StepOutputWriter interface {
 
 type StepsExecutionUI interface {
 	ArchiveDownloadStarted()
-	ArchiveDownloadFinished()
+	ArchiveDownloadFinished(error)
 
 	WorkspaceInitializationStarted()
 	WorkspaceInitializationFinished()
@@ -56,7 +56,7 @@ type StepsExecutionUI interface {
 type NoopStepsExecUI struct{}
 
 func (noop NoopStepsExecUI) ArchiveDownloadStarted()                                       {}
-func (noop NoopStepsExecUI) ArchiveDownloadFinished()                                      {}
+func (noop NoopStepsExecUI) ArchiveDownloadFinished(error)                                 {}
 func (noop NoopStepsExecUI) WorkspaceInitializationStarted()                               {}
 func (noop NoopStepsExecUI) WorkspaceInitializationFinished()                              {}
 func (noop NoopStepsExecUI) SkippingStepsUpto(startStep int)                               {}

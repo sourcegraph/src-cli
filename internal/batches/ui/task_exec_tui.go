@@ -437,7 +437,7 @@ type stepsExecTUI struct {
 func (ui stepsExecTUI) ArchiveDownloadStarted() {
 	ui.updateStatusBar("Downloading archive")
 }
-func (ui stepsExecTUI) ArchiveDownloadFinished() {}
+func (ui stepsExecTUI) ArchiveDownloadFinished(err error) {}
 func (ui stepsExecTUI) WorkspaceInitializationStarted() {
 	ui.updateStatusBar("Initializing workspace")
 }
