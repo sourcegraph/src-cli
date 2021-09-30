@@ -43,7 +43,7 @@ func init() {
 
 		fmt.Fprintf(flag.CommandLine.Output(), `'src debug' gathers and bundles debug data from a Sourcegraph deployment.
 
-USAGE
+Usage:
   src [-v] debug -d=<deployment type> [-out=debug.zip]
 `)
 	}
@@ -88,7 +88,6 @@ USAGE
 		defer zw.Close()
 
 		ctx := context.Background()
-		// TODO write functions for sourcegraph server and docker-compose instances
 		switch *deployment {
 		case "serv":
 			if err := archiveDocker(ctx, zw, *verbose, baseDir); err != nil {
@@ -103,7 +102,7 @@ USAGE
 				return fmt.Errorf("archiveKube failed with err: %w", err)
 			}
 		default:
-			return fmt.Errorf("must declare -d=<deployment type>, as serv, comp, or kube")
+			return fmt.Errorf("please declare -d=<deployment type>, as serv, comp, or kube")
 		}
 
 		return nil
@@ -321,7 +320,7 @@ func getManifest(ctx context.Context, podName, baseDir string) *archiveFile {
 
 /*
 Docker functions
-
+TODO: handle for single container instance
 */
 
 func archiveDocker(ctx context.Context, zw *zip.Writer, verbose bool, baseDir string) error {
@@ -423,85 +422,3 @@ func getStats(ctx context.Context, baseDir string) *archiveFile {
 	f.data, f.err = exec.CommandContext(ctx, "docker", "container", "stats", "--no-stream").CombinedOutput()
 	return f
 }
-
-/*
-Graveyard
------------
-*/
-
-//if err := archiveEvents(zw, baseDir); err != nil {
-//	return fmt.Errorf("running archiveEvents failed: %w", err)
-//}
-//if err := archivePV(zw, baseDir); err != nil {
-//	return fmt.Errorf("running archivePV failed: %w", err)
-//}
-//if err := archivePVC(zw, baseDir); err != nil {
-//	return fmt.Errorf("running archivePV failed: %w", err)
-//}
-//if err := archiveLogs(zw, pods, baseDir); err != nil {
-//	return fmt.Errorf("running archiveLogs failed: %w", err)
-//}
-//if err := archiveDescribes(zw, pods, baseDir); err != nil {
-//	return fmt.Errorf("running archiveDescribes failed: %w", err)
-//}
-//if err := archiveManifests(zw, pods, baseDir); err != nil {
-//	return fmt.Errorf("running archiveManifests failed: %w", err)
-//}
-
-//// gets current pod logs and logs from past containers
-//func getLogs(pods podList, baseDir string) (fs []archiveFile) {
-//
-//	// run kubectl logs and write to archive, accounts for containers in pod
-//	for _, pod := range pods.Items {
-//		fmt.Println("Archiving logs: ", pod.Metadata.Name, "Containers:", pod.Spec.Containers)
-//		for _, container := range pod.Spec.Containers {
-//			logs, err := zw.Create(baseDir + "/kubectl/pods/" + pod.Metadata.Name + "/" + container.Name + ".log")
-//			if err != nil {
-//				return fmt.Errorf("failed to create podLogs.txt: %w", err)
-//			}
-//
-//			getLogs := exec.CommandContext(ctx, "kubectl", "logs", pod.Metadata.Name, "-c", container.Name)
-//			getLogs.Stdout = logs
-//			getLogs.Stderr = os.Stderr
-//
-//			if err := getLogs.Run(); err != nil {
-//				return fmt.Errorf("running kubectl get logs failed: %w", err)
-//			}
-//		}
-//	}
-//
-//	// run kubectl logs --previous and write to archive if return not err
-//	for _, pod := range pods.Items {
-//		for _, container := range pod.Spec.Containers {
-//			getPrevLogs := exec.CommandContext(ctx, "kubectl", "logs", "--previous", pod.Metadata.Name, "-c", container.Name)
-//			if err := getPrevLogs.Run(); err == nil {
-//				fmt.Println("Archiving previous logs: ", pod.Metadata.Name, "Containers: ", pod.Spec.Containers)
-//				prev, err := zw.Create(baseDir + "/kubectl/pods/" + pod.Metadata.Name + "/" + "prev-" + container.Name + ".log")
-//				getPrevLogs.Stdout = prev
-//				if err != nil {
-//					return fmt.Errorf("failed to create podLogs.txt: %w", err)
-//				}
-//			}
-//		}
-//	}
-//
-//	return nil
-//}
-
-//func archiveManifests(zw *zip.Writer, pods podList, baseDir string) error {
-//	for _, pod := range pods.Items {
-//		manifests, err := zw.Create(baseDir + "/kubectl/pods/" + pod.Metadata.Name + "/manifest-" + pod.Metadata.Name + ".yaml")
-//		if err != nil {
-//			return fmt.Errorf("failed to create manifest.yaml: %w", err)
-//		}
-//
-//		getManifest := exec.CommandContext(ctx, "kubectl", "get", "pod", pod.Metadata.Name, "-o", "yaml")
-//		getManifest.Stdout = manifests
-//		getManifest.Stderr = os.Stderr
-//
-//		if err := getManifest.Run(); err != nil {
-//			fmt.Errorf("failed to get pod yaml: %w", err)
-//		}
-//	}
-//	return nil
-//}
