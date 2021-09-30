@@ -42,6 +42,9 @@ func init() {
 	usageFunc := func() {
 
 		fmt.Fprintf(flag.CommandLine.Output(), `'src debug' gathers and bundles debug data from a Sourcegraph deployment.
+The debug flag requires the specification of a deployment via the -d flag. '-d' accepts serv, comp, and kube as arguments.
+
+'debug' assumes that sourcegraph is being run in a single tenant cluster, and that containers running on the host machine are all associated with Sourcegraph.
 
 Usage:
   src [-v] debug -d=<deployment type> [-out=debug.zip]
@@ -134,7 +137,7 @@ func setOpenFileLimits(n uint64) error {
 
 /*
 Kubernetes functions
-TODO: handle namespaces
+TODO: handle namespaces, remove --all-namespaces from get events
 */
 
 // Run kubectl functions concurrently and archive results to zip file
