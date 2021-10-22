@@ -168,17 +168,17 @@ func executeBatchSpecInWorkspaces(ctx context.Context, opts executeBatchSpecOpts
 	opts.ui.CheckingCacheSuccess(len(cachedSpecs), len(uncachedTasks))
 
 	taskExecUI := opts.ui.ExecutingTasks(*verbose, opts.flags.parallelism)
-	freshSpecs, _, err := coord.Execute(ctx, uncachedTasks, batchSpec, taskExecUI)
-	if err == nil || opts.flags.skipErrors {
-		if err == nil {
+	freshSpecs, _, executionErr := coord.Execute(ctx, uncachedTasks, batchSpec, taskExecUI)
+	if executionErr == nil || opts.flags.skipErrors {
+		if executionErr == nil {
 			taskExecUI.Success()
 		} else {
-			opts.ui.ExecutingTasksSkippingErrors(err)
+			opts.ui.ExecutingTasksSkippingErrors(executionErr)
 		}
 	} else {
-		if err != nil {
-			taskExecUI.Failed(err)
-			return err
+		if executionErr != nil {
+			taskExecUI.Failed(executionErr)
+			return executionErr
 		}
 	}
 
@@ -197,11 +197,11 @@ func executeBatchSpecInWorkspaces(ctx context.Context, opts executeBatchSpecOpts
 			ids[i] = id
 			opts.ui.UploadingChangesetSpecsProgress(i+1, len(specs))
 		}
-
-		opts.ui.UploadingChangesetSpecsSuccess(ids)
 	}
 
-	return nil
+	opts.ui.UploadingChangesetSpecsSuccess(ids)
+
+	return executionErr
 }
 
 func loadWorkspaceExecutionInput(file string) (batcheslib.WorkspacesExecutionInput, error) {
