@@ -171,6 +171,12 @@ func testReposHandler(t *testing.T, h http.Handler, repos []Repo) {
 	}
 }
 
+func gitInitBare(t *testing.T, path string) {
+	if err := exec.Command("git", "init", "--bare", path).Run(); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func gitInitRepos(t *testing.T, names ...string) string {
 	root, err := os.MkdirTemp("", "")
 	if err != nil {
@@ -184,10 +190,9 @@ func gitInitRepos(t *testing.T, names ...string) string {
 		if err := os.MkdirAll(p, 0755); err != nil {
 			t.Fatal(err)
 		}
+
 		p = filepath.Join(p, ".git")
-		if err := exec.Command("git", "init", "--bare", p).Run(); err != nil {
-			t.Fatal(err)
-		}
+		gitInitBare(t, p)
 	}
 
 	return root
@@ -218,6 +223,32 @@ func TestIgnoreGitSubmodules(t *testing.T) {
 	}
 	if len(repos) != 0 {
 		t.Fatalf("expected no repos, got %v", repos)
+	}
+}
+
+func TestIsBareRepo(t *testing.T) {
+	dir, err := os.MkdirTemp("", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.RemoveAll(dir) })
+
+	gitInitBare(t, dir)
+
+	if !isBareRepo(dir) {
+		t.Errorf("Path %s it not a bare repository", dir)
+	}
+}
+
+func TestEmptyDirIsNotBareRepo(t *testing.T) {
+	dir, err := os.MkdirTemp("", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.RemoveAll(dir) })
+
+	if isBareRepo(dir) {
+		t.Errorf("Path %s it falsey detected as a bare repository", dir)
 	}
 }
 

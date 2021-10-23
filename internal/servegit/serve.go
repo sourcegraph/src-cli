@@ -130,6 +130,23 @@ func (s *Serve) handler() http.Handler {
 	})
 }
 
+// Checks if git thinks the given path is a valid .git folder for a repository
+func isBareRepo(path string) bool {
+	if fi, err := os.Stat(path); err != nil || !fi.IsDir() {
+		return false
+	}
+
+	c := exec.Command("git", "--git-dir", path, "rev-parse", "--is-bare-repository")
+	c.Dir = path
+	out, err := c.CombinedOutput()
+
+	if err != nil {
+		return false
+	}
+
+	return string(out) != "false\n"
+}
+
 // Repos returns a slice of all the git repositories it finds.
 func (s *Serve) Repos() ([]Repo, error) {
 	var repos []Repo
@@ -185,11 +202,8 @@ func (s *Serve) Repos() ([]Repo, error) {
 		// If it yields false, which means it is a non-bare repository,
 		// skip the directory so that it will not recurse to the subdirectories.
 		// If it is a bare repository, proceed to recurse.
-		c := exec.Command("git", "rev-parse", "--is-bare-repository")
-		c.Dir = gitdir
-		out, _ := c.CombinedOutput()
 
-		if string(out) == "false\n" {
+		if !isBareRepo(gitdir) {
 			return filepath.SkipDir
 		}
 
