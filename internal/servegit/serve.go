@@ -147,6 +147,24 @@ func isBareRepo(path string) bool {
 	return string(out) != "false\n"
 }
 
+// Check if git thinks the given path is a proper git checkout
+func isGitRepo(path string) bool {
+	if fi, err := os.Stat(path); err != nil || !fi.IsDir() {
+		return false
+	}
+
+	// Executing git rev-parse --git-dir in the root of a worktree returns .git
+	c := exec.Command("git", "rev-parse", "--git-dir")
+	c.Dir = path
+	out, err := c.CombinedOutput()
+
+	if err != nil {
+		return false
+	}
+
+	return string(out) == ".git\n"
+}
+
 // Repos returns a slice of all the git repositories it finds.
 func (s *Serve) Repos() ([]Repo, error) {
 	var repos []Repo
@@ -177,8 +195,7 @@ func (s *Serve) Repos() ([]Repo, error) {
 		//
 		// A directory which also is a repository (have .git folder inside it)
 		// will contain nil error. If it does, proceed to configure.
-		gitdir := filepath.Join(path, ".git")
-		if fi, err := os.Stat(gitdir); err != nil || !fi.IsDir() {
+		if !isGitRepo(path) {
 			s.Debug.Printf("not a repository root: %s", path)
 			return nil
 		}
@@ -202,7 +219,7 @@ func (s *Serve) Repos() ([]Repo, error) {
 		// If it yields false, which means it is a non-bare repository,
 		// skip the directory so that it will not recurse to the subdirectories.
 		// If it is a bare repository, proceed to recurse.
-
+		gitdir := filepath.Join(path, ".git")
 		if !isBareRepo(gitdir) {
 			return filepath.SkipDir
 		}
