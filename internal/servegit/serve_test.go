@@ -32,7 +32,7 @@ func TestReposHandler(t *testing.T) {
 		repos: []string{"project1", "project2"},
 	}, {
 		name:  "nested",
-		repos: []string{"project1", "project1/subproject", "project2", "dir/project3"},
+		repos: []string{"project1", "project1/subproject", "project2", "dir/project3", "dir/project4.bare"},
 	}}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -191,7 +191,9 @@ func gitInitRepos(t *testing.T, names ...string) string {
 			t.Fatal(err)
 		}
 
-		p = filepath.Join(p, ".git")
+		if !strings.HasSuffix(p, ".bare") {
+			p = filepath.Join(p, ".git")
+		}
 		gitInitBare(t, p)
 	}
 

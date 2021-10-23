@@ -193,9 +193,11 @@ func (s *Serve) Repos() ([]Repo, error) {
 
 		// Check whether a particular directory is a repository or not.
 		//
-		// A directory which also is a repository (have .git folder inside it)
-		// will contain nil error. If it does, proceed to configure.
-		if !isGitRepo(path) {
+		// Valid paths are either bare repositories or git worktrees.
+		isBare := isBareRepo(path)
+		isGit := isGitRepo(path)
+
+		if !isGit && !isBare {
 			s.Debug.Printf("not a repository root: %s", path)
 			return nil
 		}
@@ -216,11 +218,9 @@ func (s *Serve) Repos() ([]Repo, error) {
 
 		// Check whether a repository is a bare repository or not.
 		//
-		// If it yields false, which means it is a non-bare repository,
-		// skip the directory so that it will not recurse to the subdirectories.
-		// If it is a bare repository, proceed to recurse.
-		gitdir := filepath.Join(path, ".git")
-		if !isBareRepo(gitdir) {
+		// Bare repositories shouldn't have any further child
+		// repositories. Only regular git worktrees can have children.
+		if isBare {
 			return filepath.SkipDir
 		}
 
