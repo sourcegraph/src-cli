@@ -15,6 +15,7 @@ import (
 
 	"github.com/cockroachdb/errors"
 	"github.com/hashicorp/go-multierror"
+
 	batcheslib "github.com/sourcegraph/sourcegraph/lib/batches"
 
 	"github.com/sourcegraph/src-cli/internal/api"
@@ -210,6 +211,7 @@ func executeBatchSpec(ctx context.Context, opts executeBatchSpecOpts) (err error
 	svc := service.New(&service.Opts{
 		AllowUnsupported: opts.flags.allowUnsupported,
 		AllowIgnored:     opts.flags.allowIgnored,
+		AllowFiles:       true,
 		Client:           opts.client,
 	})
 
