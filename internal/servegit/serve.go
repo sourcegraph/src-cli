@@ -132,10 +132,6 @@ func (s *Serve) handler() http.Handler {
 
 // Checks if git thinks the given path is a valid .git folder for a repository
 func isBareRepo(path string) bool {
-	if fi, err := os.Stat(path); err != nil || !fi.IsDir() {
-		return false
-	}
-
 	c := exec.Command("git", "--git-dir", path, "rev-parse", "--is-bare-repository")
 	c.Dir = path
 	out, err := c.CombinedOutput()
@@ -149,10 +145,6 @@ func isBareRepo(path string) bool {
 
 // Check if git thinks the given path is a proper git checkout
 func isGitRepo(path string) bool {
-	if fi, err := os.Stat(path); err != nil || !fi.IsDir() {
-		return false
-	}
-
 	// Executing git rev-parse --git-dir in the root of a worktree returns .git
 	c := exec.Command("git", "rev-parse", "--git-dir")
 	c.Dir = path
