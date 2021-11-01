@@ -37,7 +37,7 @@ func NewFlags(flagSet *flag.FlagSet) *Flags {
 		getCurl:            flagSet.Bool("get-curl", false, "Print the curl command for executing this query and exit (WARNING: includes printing your access token!)"),
 		trace:              flagSet.Bool("trace", false, "Log the trace ID for requests. See https://docs.sourcegraph.com/admin/observability/tracing"),
 		insecureSkipVerify: flagSet.Bool("insecure-skip-verify", false, "Skip validation of TLS certificates against trusted chains"),
-		userAgentTelemetry: flagSet.Bool("user-agent-telemetry", defaultUserAgentTelemetry(), "Include the operating system and architecture in the User-Agent sent with requests to Sourcegraph (default: true)"),
+		userAgentTelemetry: flagSet.Bool("user-agent-telemetry", defaultUserAgentTelemetry(), "Include the operating system and architecture in the User-Agent sent with requests to Sourcegraph"),
 	}
 }
 
