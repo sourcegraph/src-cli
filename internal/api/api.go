@@ -16,6 +16,7 @@ import (
 	ioaux "github.com/jig/teereadcloser"
 	"github.com/kballard/go-shellquote"
 	"github.com/mattn/go-isatty"
+	"github.com/sourcegraph/src-cli/internal/version"
 )
 
 // Client instances provide methods to create API requests.
@@ -162,7 +163,7 @@ func (c *client) createHTTPRequest(ctx context.Context, method, p string, body i
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("User-Agent", fmt.Sprintf("src-cli/%s %s %s", "XXX", runtime.GOOS, runtime.GOARCH))
+	req.Header.Set("User-Agent", fmt.Sprintf("src-cli/%s %s %s", version.BuildTag, runtime.GOOS, runtime.GOARCH))
 	if c.opts.AccessToken != "" {
 		req.Header.Set("Authorization", "token "+c.opts.AccessToken)
 	}
