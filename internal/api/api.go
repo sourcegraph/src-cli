@@ -163,7 +163,11 @@ func (c *client) createHTTPRequest(ctx context.Context, method, p string, body i
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("User-Agent", fmt.Sprintf("src-cli/%s %s %s", version.BuildTag, runtime.GOOS, runtime.GOARCH))
+	if c.opts.Flags.UserAgentTelemetry() {
+		req.Header.Set("User-Agent", fmt.Sprintf("src-cli/%s %s %s", version.BuildTag, runtime.GOOS, runtime.GOARCH))
+	} else {
+		req.Header.Set("User-Agent", "src-cli")
+	}
 	if c.opts.AccessToken != "" {
 		req.Header.Set("Authorization", "token "+c.opts.AccessToken)
 	}
