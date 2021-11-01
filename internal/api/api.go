@@ -166,7 +166,7 @@ func (c *client) createHTTPRequest(ctx context.Context, method, p string, body i
 	if c.opts.Flags.UserAgentTelemetry() {
 		req.Header.Set("User-Agent", fmt.Sprintf("src-cli/%s %s %s", version.BuildTag, runtime.GOOS, runtime.GOARCH))
 	} else {
-		req.Header.Set("User-Agent", "src-cli")
+		req.Header.Set("User-Agent", "src-cli/"+version.BuildTag)
 	}
 	if c.opts.AccessToken != "" {
 		req.Header.Set("Authorization", "token "+c.opts.AccessToken)
