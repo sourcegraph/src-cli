@@ -87,6 +87,7 @@ func executeBatchSpecInWorkspaces(ctx context.Context, opts executeBatchSpecOpts
 		AllowIgnored:     opts.flags.allowIgnored,
 		AllowFiles:       false,
 		Client:           opts.client,
+		Parallelism:      opts.flags.parallelism,
 	})
 	if err := svc.DetermineFeatureFlags(ctx); err != nil {
 		return err

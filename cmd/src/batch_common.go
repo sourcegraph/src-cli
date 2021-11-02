@@ -213,6 +213,7 @@ func executeBatchSpec(ctx context.Context, opts executeBatchSpecOpts) (err error
 		AllowIgnored:     opts.flags.allowIgnored,
 		AllowFiles:       true,
 		Client:           opts.client,
+		Parallelism:      opts.flags.parallelism,
 	})
 
 	if err := svc.DetermineFeatureFlags(ctx); err != nil {

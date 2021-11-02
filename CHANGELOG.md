@@ -17,6 +17,8 @@ All notable changes to `src-cli` are documented in this file.
 
 ### Changed
 
+- Pulling container images now occurs in parallel, with the number of concurrent downloads being controlled by the `-j` flag. [#17577](https://github.com/sourcegraph/sourcegraph/issues/17577)
+
 ### Fixed
 
 ### Removed
