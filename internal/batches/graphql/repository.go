@@ -66,3 +66,11 @@ func (r *Repository) Rev() string {
 
 	return r.DefaultBranch.Target.OID
 }
+
+func (r *Repository) FileMatchesList() []string {
+	matches := make([]string, 0, len(r.FileMatches))
+	for path := range r.FileMatches {
+		matches = append(matches, path)
+	}
+	return matches
+}
