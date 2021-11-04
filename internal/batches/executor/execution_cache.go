@@ -5,7 +5,6 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
-	"fmt"
 	"os"
 	"path/filepath"
 
@@ -14,8 +13,6 @@ import (
 	batcheslib "github.com/sourcegraph/sourcegraph/lib/batches"
 	"github.com/sourcegraph/sourcegraph/lib/batches/execution"
 	"github.com/sourcegraph/sourcegraph/lib/batches/execution/cache"
-
-	"github.com/sourcegraph/src-cli/internal/batches/util"
 )
 
 func resolveStepsEnvironment(steps []batcheslib.Step) ([]map[string]string, error) {
@@ -53,81 +50,6 @@ func marshalHash(t *Task, envs []map[string]string) (string, error) {
 
 	hash := sha256.Sum256(raw)
 	return base64.RawURLEncoding.EncodeToString(hash[:16]), nil
-}
-
-// StepsCacheKey implements the CacheKeyer interface for a Task and a *subset*
-// of its Steps, up to and including the step with index StepIndex in
-// Task.Steps.
-type StepsCacheKey struct {
-	*Task
-	StepIndex int
-}
-
-// Key converts the key into a string form that can be used to uniquely identify
-// the cache key in a more concise form than the entire Task.
-func (key StepsCacheKey) Key() (string, error) {
-	// Setup a copy of the Task that only includes the Steps up to and
-	// including key.StepIndex.
-	taskCopy := &Task{
-		Repository:            key.Task.Repository,
-		Path:                  key.Task.Path,
-		OnlyFetchWorkspace:    key.Task.OnlyFetchWorkspace,
-		BatchChangeAttributes: key.Task.BatchChangeAttributes,
-		Template:              key.Task.Template,
-		TransformChanges:      key.Task.TransformChanges,
-		Archive:               key.Task.Archive,
-	}
-
-	taskCopy.Steps = key.Task.Steps[0 : key.StepIndex+1]
-
-	// Resolve environment only for the subset of Steps
-	envs, err := resolveStepsEnvironment(taskCopy.Steps)
-	if err != nil {
-		return "", err
-	}
-
-	hash, err := marshalHash(taskCopy, envs)
-	if err != nil {
-		return "", err
-	}
-	return fmt.Sprintf("%s-step-%d", hash, key.StepIndex), err
-}
-
-func (key StepsCacheKey) Slug() string {
-	return util.SlugForRepo(key.Repository.Name, key.Repository.Rev())
-}
-
-// TaskCacheKey implements the CacheKeyer interface for a Task and all its
-// Steps.
-type TaskCacheKey struct {
-	*Task
-}
-
-// Key converts the key into a string form that can be used to uniquely identify
-// the cache key in a more concise form than the entire Task.
-func (key TaskCacheKey) Key() (string, error) {
-	envs, err := resolveStepsEnvironment(key.Task.Steps)
-	if err != nil {
-		return "", err
-	}
-
-	raw, err := json.Marshal(struct {
-		*Task
-		Environments []map[string]string
-	}{
-		Task:         key.Task,
-		Environments: envs,
-	})
-	if err != nil {
-		return "", err
-	}
-
-	hash := sha256.Sum256(raw)
-	return base64.RawURLEncoding.EncodeToString(hash[:16]), nil
-}
-
-func (key TaskCacheKey) Slug() string {
-	return util.SlugForRepo(key.Repository.Name, key.Repository.Rev())
 }
 
 func NewDiskCache(dir string) cache.Cache {
