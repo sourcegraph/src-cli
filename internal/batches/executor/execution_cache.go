@@ -2,55 +2,15 @@ package executor
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/base64"
 	"encoding/json"
 	"os"
 	"path/filepath"
 
 	"github.com/cockroachdb/errors"
 
-	batcheslib "github.com/sourcegraph/sourcegraph/lib/batches"
 	"github.com/sourcegraph/sourcegraph/lib/batches/execution"
 	"github.com/sourcegraph/sourcegraph/lib/batches/execution/cache"
 )
-
-func resolveStepsEnvironment(steps []batcheslib.Step) ([]map[string]string, error) {
-	// We have to resolve the step environments and include them in the cache
-	// key to ensure that the cache is properly invalidated when an environment
-	// variable changes.
-	//
-	// Note that we don't base the cache key on the entire global environment:
-	// if an unrelated environment variable changes, that's fine. We're only
-	// interested in the ones that actually make it into the step container.
-	global := os.Environ()
-	envs := make([]map[string]string, len(steps))
-	for i, step := range steps {
-		// TODO: This should also render templates inside env vars.
-		env, err := step.Env.Resolve(global)
-		if err != nil {
-			return nil, errors.Wrapf(err, "resolving environment for step %d", i)
-		}
-		envs[i] = env
-	}
-	return envs, nil
-}
-
-func marshalHash(t *Task, envs []map[string]string) (string, error) {
-	raw, err := json.Marshal(struct {
-		*Task
-		Environments []map[string]string
-	}{
-		Task:         t,
-		Environments: envs,
-	})
-	if err != nil {
-		return "", err
-	}
-
-	hash := sha256.Sum256(raw)
-	return base64.RawURLEncoding.EncodeToString(hash[:16]), nil
-}
 
 func NewDiskCache(dir string) cache.Cache {
 	if dir == "" {
