@@ -13,22 +13,10 @@ import (
 
 	batcheslib "github.com/sourcegraph/sourcegraph/lib/batches"
 	"github.com/sourcegraph/sourcegraph/lib/batches/execution"
+	"github.com/sourcegraph/sourcegraph/lib/batches/execution/cache"
 
 	"github.com/sourcegraph/src-cli/internal/batches/util"
 )
-
-func UserCacheDir() (string, error) {
-	userCacheDir, err := os.UserCacheDir()
-	if err != nil {
-		return "", err
-	}
-	return filepath.Join(userCacheDir, "sourcegraph-src"), nil
-}
-
-type CacheKeyer interface {
-	Key() (string, error)
-	Slug() string
-}
 
 func resolveStepsEnvironment(steps []batcheslib.Step) ([]map[string]string, error) {
 	// We have to resolve the step environments and include them in the cache
@@ -142,17 +130,7 @@ func (key TaskCacheKey) Slug() string {
 	return util.SlugForRepo(key.Repository.Name, key.Repository.Rev())
 }
 
-type ExecutionCache interface {
-	Get(ctx context.Context, key CacheKeyer) (result execution.Result, found bool, err error)
-	Set(ctx context.Context, key CacheKeyer, result execution.Result) error
-
-	GetStepResult(ctx context.Context, key CacheKeyer) (result execution.AfterStepResult, found bool, err error)
-	SetStepResult(ctx context.Context, key CacheKeyer, result execution.AfterStepResult) error
-
-	Clear(ctx context.Context, key CacheKeyer) error
-}
-
-func NewDiskCache(dir string) ExecutionCache {
+func NewDiskCache(dir string) cache.Cache {
 	if dir == "" {
 		return &ExecutionNoOpCache{}
 	}
@@ -166,7 +144,7 @@ type ExecutionDiskCache struct {
 
 const cacheFileExt = ".json"
 
-func (c ExecutionDiskCache) cacheFilePath(key CacheKeyer) (string, error) {
+func (c ExecutionDiskCache) cacheFilePath(key cache.Keyer) (string, error) {
 	keyString, err := key.Key()
 	if err != nil {
 		return "", errors.Wrap(err, "calculating execution cache key")
@@ -175,7 +153,7 @@ func (c ExecutionDiskCache) cacheFilePath(key CacheKeyer) (string, error) {
 	return filepath.Join(c.Dir, key.Slug(), keyString+cacheFileExt), nil
 }
 
-func (c ExecutionDiskCache) Get(ctx context.Context, key CacheKeyer) (execution.Result, bool, error) {
+func (c ExecutionDiskCache) Get(ctx context.Context, key cache.Keyer) (execution.Result, bool, error) {
 	var result execution.Result
 
 	path, err := c.cacheFilePath(key)
@@ -222,7 +200,7 @@ func (c ExecutionDiskCache) writeCacheFile(path string, result interface{}) erro
 	return os.WriteFile(path, raw, 0600)
 }
 
-func (c ExecutionDiskCache) Set(ctx context.Context, key CacheKeyer, result execution.Result) error {
+func (c ExecutionDiskCache) Set(ctx context.Context, key cache.Keyer, result execution.Result) error {
 	path, err := c.cacheFilePath(key)
 	if err != nil {
 		return err
@@ -231,7 +209,7 @@ func (c ExecutionDiskCache) Set(ctx context.Context, key CacheKeyer, result exec
 	return c.writeCacheFile(path, &result)
 }
 
-func (c ExecutionDiskCache) Clear(ctx context.Context, key CacheKeyer) error {
+func (c ExecutionDiskCache) Clear(ctx context.Context, key cache.Keyer) error {
 	path, err := c.cacheFilePath(key)
 	if err != nil {
 		return err
@@ -244,7 +222,7 @@ func (c ExecutionDiskCache) Clear(ctx context.Context, key CacheKeyer) error {
 	return os.Remove(path)
 }
 
-func (c ExecutionDiskCache) GetStepResult(ctx context.Context, key CacheKeyer) (execution.AfterStepResult, bool, error) {
+func (c ExecutionDiskCache) GetStepResult(ctx context.Context, key cache.Keyer) (execution.AfterStepResult, bool, error) {
 	var result execution.AfterStepResult
 	path, err := c.cacheFilePath(key)
 	if err != nil {
@@ -259,7 +237,7 @@ func (c ExecutionDiskCache) GetStepResult(ctx context.Context, key CacheKeyer) (
 	return result, found, nil
 }
 
-func (c ExecutionDiskCache) SetStepResult(ctx context.Context, key CacheKeyer, result execution.AfterStepResult) error {
+func (c ExecutionDiskCache) SetStepResult(ctx context.Context, key cache.Keyer, result execution.AfterStepResult) error {
 	path, err := c.cacheFilePath(key)
 	if err != nil {
 		return err
@@ -272,23 +250,23 @@ func (c ExecutionDiskCache) SetStepResult(ctx context.Context, key CacheKeyer, r
 // retrieve cache entries.
 type ExecutionNoOpCache struct{}
 
-func (ExecutionNoOpCache) Get(ctx context.Context, key CacheKeyer) (result execution.Result, found bool, err error) {
+func (ExecutionNoOpCache) Get(ctx context.Context, key cache.Keyer) (result execution.Result, found bool, err error) {
 	return execution.Result{}, false, nil
 }
 
-func (ExecutionNoOpCache) Set(ctx context.Context, key CacheKeyer, result execution.Result) error {
+func (ExecutionNoOpCache) Set(ctx context.Context, key cache.Keyer, result execution.Result) error {
 	return nil
 }
 
-func (ExecutionNoOpCache) Clear(ctx context.Context, key CacheKeyer) error {
+func (ExecutionNoOpCache) Clear(ctx context.Context, key cache.Keyer) error {
 	return nil
 }
 
-func (ExecutionNoOpCache) SetStepResult(ctx context.Context, key CacheKeyer, result execution.AfterStepResult) error {
+func (ExecutionNoOpCache) SetStepResult(ctx context.Context, key cache.Keyer, result execution.AfterStepResult) error {
 	return nil
 }
 
-func (ExecutionNoOpCache) GetStepResult(ctx context.Context, key CacheKeyer) (execution.AfterStepResult, bool, error) {
+func (ExecutionNoOpCache) GetStepResult(ctx context.Context, key cache.Keyer) (execution.AfterStepResult, bool, error) {
 	return execution.AfterStepResult{}, false, nil
 }
 
@@ -301,12 +279,12 @@ type JSONLinesCache struct {
 	Writer JSONCacheWriter
 }
 
-func (c *JSONLinesCache) Get(ctx context.Context, key CacheKeyer) (result execution.Result, found bool, err error) {
+func (c *JSONLinesCache) Get(ctx context.Context, key cache.Keyer) (result execution.Result, found bool, err error) {
 	// noop
 	return execution.Result{}, false, nil
 }
 
-func (c *JSONLinesCache) Set(ctx context.Context, key CacheKeyer, result execution.Result) error {
+func (c *JSONLinesCache) Set(ctx context.Context, key cache.Keyer, result execution.Result) error {
 	k, err := key.Key()
 	if err != nil {
 		return err
@@ -317,7 +295,7 @@ func (c *JSONLinesCache) Set(ctx context.Context, key CacheKeyer, result executi
 	return nil
 }
 
-func (c *JSONLinesCache) SetStepResult(ctx context.Context, key CacheKeyer, result execution.AfterStepResult) error {
+func (c *JSONLinesCache) SetStepResult(ctx context.Context, key cache.Keyer, result execution.AfterStepResult) error {
 	k, err := key.Key()
 	if err != nil {
 		return err
@@ -328,12 +306,12 @@ func (c *JSONLinesCache) SetStepResult(ctx context.Context, key CacheKeyer, resu
 	return nil
 }
 
-func (c *JSONLinesCache) GetStepResult(ctx context.Context, key CacheKeyer) (result execution.AfterStepResult, found bool, err error) {
+func (c *JSONLinesCache) GetStepResult(ctx context.Context, key cache.Keyer) (result execution.AfterStepResult, found bool, err error) {
 	// noop
 	return execution.AfterStepResult{}, false, nil
 }
 
-func (c *JSONLinesCache) Clear(ctx context.Context, key CacheKeyer) error {
+func (c *JSONLinesCache) Clear(ctx context.Context, key cache.Keyer) error {
 	// noop
 	return nil
 }

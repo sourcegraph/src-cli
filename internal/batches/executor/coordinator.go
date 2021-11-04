@@ -9,6 +9,7 @@ import (
 
 	batcheslib "github.com/sourcegraph/sourcegraph/lib/batches"
 	"github.com/sourcegraph/sourcegraph/lib/batches/execution"
+	"github.com/sourcegraph/sourcegraph/lib/batches/execution/cache"
 
 	"github.com/sourcegraph/src-cli/internal/api"
 	"github.com/sourcegraph/src-cli/internal/batches"
@@ -30,7 +31,7 @@ type taskExecutor interface {
 type Coordinator struct {
 	opts NewCoordinatorOpts
 
-	cache      ExecutionCache
+	cache      cache.Cache
 	exec       taskExecutor
 	logManager log.LogManager
 }
@@ -44,7 +45,7 @@ type NewCoordinatorOpts struct {
 	EnsureImage     imageEnsurer
 	Creator         workspace.Creator
 	Client          api.Client
-	Cache           ExecutionCache
+	Cache           cache.Cache
 
 	// Everything that follows are either command-line flags or features.
 
