@@ -134,6 +134,12 @@ func (c *Coordinator) checkCacheForTask(ctx context.Context, task *Task) (specs 
 	}
 
 	if !found {
+		// If we are here, that means we didn't find anything in the cache for the
+		// complete task. So, what if we have cached results for the steps?
+		if err := c.loadCachedStepResults(ctx, task); err != nil {
+			return specs, false, err
+		}
+
 		return specs, false, nil
 	}
 
@@ -181,7 +187,7 @@ func (c Coordinator) buildChangesetSpecs(task *Task, result execution.Result) ([
 	})
 }
 
-func (c *Coordinator) setCachedStepResults(ctx context.Context, task *Task) error {
+func (c *Coordinator) loadCachedStepResults(ctx context.Context, task *Task) error {
 	// We start at the back so that we can find the _last_ cached step,
 	// then restart execution on the following step.
 	for i := len(task.Steps) - 1; i > -1; i-- {
@@ -245,14 +251,6 @@ func (c *Coordinator) Execute(ctx context.Context, tasks []*Task, spec *batchesl
 		specs []*batcheslib.ChangesetSpec
 		errs  *multierror.Error
 	)
-
-	// If we are here, that means we didn't find anything in the cache for the
-	// complete task. So, what if we have cached results for the steps?
-	for _, t := range tasks {
-		if err := c.setCachedStepResults(ctx, t); err != nil {
-			return nil, nil, err
-		}
-	}
 
 	ui.Start(tasks)
 
