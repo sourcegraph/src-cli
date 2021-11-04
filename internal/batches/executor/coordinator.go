@@ -155,7 +155,7 @@ func (c Coordinator) buildChangesetSpecs(task *Task, result execution.Result) ([
 		HeadRepositoryID: task.Repository.ID,
 		Repository: batcheslib.ChangesetSpecRepository{
 			Name:        task.Repository.Name,
-			FileMatches: task.Repository.FileMatchesList(),
+			FileMatches: task.Repository.SortedFileMatches(),
 			BaseRef:     task.Repository.BaseRef(),
 			BaseRev:     task.Repository.Rev(),
 		},
