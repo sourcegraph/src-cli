@@ -41,11 +41,10 @@ type imageEnsurer func(ctx context.Context, name string) (docker.Image, error)
 
 type NewCoordinatorOpts struct {
 	// Dependencies
-	ResolveRepoName repoNameResolver
-	EnsureImage     imageEnsurer
-	Creator         workspace.Creator
-	Client          api.Client
-	Cache           cache.Cache
+	EnsureImage imageEnsurer
+	Creator     workspace.Creator
+	Client      api.Client
+	Cache       cache.Cache
 
 	// Everything that follows are either command-line flags or features.
 
@@ -56,10 +55,6 @@ type NewCoordinatorOpts struct {
 
 	// Used by batcheslib.BuildChangesetSpecs
 	Features batches.FeatureFlags
-
-	// When using `src batch exec` in SSBC we don't want to evaluate the
-	// `importChangesets`.
-	ImportChangesets bool
 
 	CleanArchives bool
 	Parallelism   int
@@ -280,34 +275,6 @@ func (c *Coordinator) Execute(ctx context.Context, tasks []*Task, spec *batchesl
 		}
 
 		specs = append(specs, taskSpecs...)
-	}
-
-	// Add external changeset specs.
-	if c.opts.ImportChangesets {
-		for _, ic := range spec.ImportChangesets {
-			repo, err := c.opts.ResolveRepoName(ctx, ic.Repository)
-			if err != nil {
-				wrapped := errors.Wrapf(err, "resolving repository name %q", ic.Repository)
-				if c.opts.SkipErrors {
-					errs = multierror.Append(errs, wrapped)
-					continue
-				} else {
-					return nil, nil, wrapped
-				}
-			}
-
-			for _, id := range ic.ExternalIDs {
-				sid, err := batcheslib.ParseChangesetSpecExternalID(id)
-				if err != nil {
-					return nil, nil, err
-				}
-
-				specs = append(specs, &batcheslib.ChangesetSpec{
-					BaseRepository: repo.ID,
-					ExternalID:     sid,
-				})
-			}
-		}
 	}
 
 	return specs, c.logManager.LogFiles(), errs.ErrorOrNil()
