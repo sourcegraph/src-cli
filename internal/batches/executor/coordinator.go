@@ -52,7 +52,6 @@ type NewCoordinatorOpts struct {
 	// TODO: We could probably have a wrapper around flags and features,
 	// something like ExecutionArgs, that we can pass around
 	CacheDir   string
-	ClearCache bool
 	SkipErrors bool
 
 	// Used by batcheslib.BuildChangesetSpecs
@@ -112,16 +111,26 @@ func (c *Coordinator) CheckCache(ctx context.Context, tasks []*Task) (uncached [
 	return uncached, specs, nil
 }
 
+func (c *Coordinator) ClearCache(ctx context.Context, tasks []*Task) error {
+	for _, task := range tasks {
+		cacheKey := task.cacheKey()
+		if err := c.cache.Clear(ctx, cacheKey); err != nil {
+			return errors.Wrapf(err, "clearing cache for %q", task.Repository.Name)
+		}
+		for i := len(task.Steps) - 1; i > -1; i-- {
+			key := StepsCacheKey{Task: task, StepIndex: i}
+
+			if err := c.cache.Clear(ctx, key); err != nil {
+				return errors.Wrapf(err, "clearing cache for step %d in %q", i, task.Repository.Name)
+			}
+		}
+	}
+	return nil
+}
+
 func (c *Coordinator) checkCacheForTask(ctx context.Context, task *Task) (specs []*batcheslib.ChangesetSpec, found bool, err error) {
 	// Check if the task is cached.
 	cacheKey := task.cacheKey()
-	if c.opts.ClearCache {
-		if err := c.cache.Clear(ctx, cacheKey); err != nil {
-			return specs, false, errors.Wrapf(err, "clearing cache for %q", task.Repository.Name)
-		}
-
-		return specs, false, nil
-	}
 
 	var result execution.Result
 	result, found, err = c.cache.Get(ctx, cacheKey)
@@ -183,24 +192,16 @@ func (c *Coordinator) setCachedStepResults(ctx context.Context, task *Task) erro
 	for i := len(task.Steps) - 1; i > -1; i-- {
 		key := cache.StepsCacheKey{ExecutionKey: task.cacheKey(), StepIndex: i}
 
-		// If we need to clear the cache, we optimistically try this for every
-		// step.
-		if c.opts.ClearCache {
-			if err := c.cache.Clear(ctx, key); err != nil {
-				return errors.Wrapf(err, "clearing cache for step %d in %q", i, task.Repository.Name)
-			}
-		} else {
-			result, found, err := c.cache.GetStepResult(ctx, key)
-			if err != nil {
-				return errors.Wrapf(err, "checking for cached diff for step %d", i)
-			}
+		result, found, err := c.cache.GetStepResult(ctx, key)
+		if err != nil {
+			return errors.Wrapf(err, "checking for cached diff for step %d", i)
+		}
 
-			// Found a cached result, we're done
-			if found {
-				task.CachedResultFound = true
-				task.CachedResult = result
-				return nil
-			}
+		// Found a cached result, we're done
+		if found {
+			task.CachedResultFound = true
+			task.CachedResult = result
+			return nil
 		}
 	}
 

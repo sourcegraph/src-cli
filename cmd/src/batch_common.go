@@ -295,7 +295,6 @@ func executeBatchSpec(ctx context.Context, ui ui.ExecUI, opts executeBatchSpecOp
 		Creator:          workspaceCreator,
 		CacheDir:         opts.flags.cacheDir,
 		Cache:            executor.NewDiskCache(opts.flags.cacheDir),
-		ClearCache:       opts.flags.clearCache,
 		SkipErrors:       opts.flags.skipErrors,
 		CleanArchives:    opts.flags.cleanArchives,
 		Parallelism:      opts.flags.parallelism,
@@ -307,11 +306,20 @@ func executeBatchSpec(ctx context.Context, ui ui.ExecUI, opts executeBatchSpecOp
 
 	ui.CheckingCache()
 	tasks := svc.BuildTasks(ctx, batchSpec, workspaces)
-	uncachedTasks, cachedSpecs, err := coord.CheckCache(ctx, tasks)
-	if err != nil {
-		return err
+	var (
+		specs         []*batcheslib.ChangesetSpec
+		uncachedTasks []*executor.Task
+	)
+	if opts.flags.clearCache {
+		coord.ClearCache(ctx, tasks)
+		uncachedTasks = tasks
+	} else {
+		uncachedTasks, specs, err = coord.CheckCache(ctx, tasks)
+		if err != nil {
+			return err
+		}
 	}
-	ui.CheckingCacheSuccess(len(cachedSpecs), len(uncachedTasks))
+	ui.CheckingCacheSuccess(len(specs), len(uncachedTasks))
 
 	taskExecUI := ui.ExecutingTasks(*verbose, opts.flags.parallelism)
 	freshSpecs, logFiles, err := coord.Execute(ctx, uncachedTasks, batchSpec, taskExecUI)
@@ -335,7 +343,7 @@ func executeBatchSpec(ctx context.Context, ui ui.ExecUI, opts executeBatchSpecOp
 		ui.LogFilesKept(logFiles)
 	}
 
-	specs := append(cachedSpecs, freshSpecs...)
+	specs = append(specs, freshSpecs...)
 
 	err = svc.ValidateChangesetSpecs(repos, specs)
 	if err != nil {
