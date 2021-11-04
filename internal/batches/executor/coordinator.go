@@ -8,6 +8,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 
 	batcheslib "github.com/sourcegraph/sourcegraph/lib/batches"
+	"github.com/sourcegraph/sourcegraph/lib/batches/execution"
 
 	"github.com/sourcegraph/src-cli/internal/api"
 	"github.com/sourcegraph/src-cli/internal/batches"
@@ -122,7 +123,7 @@ func (c *Coordinator) checkCacheForTask(ctx context.Context, task *Task) (specs 
 		return specs, false, nil
 	}
 
-	var result executionResult
+	var result execution.Result
 	result, found, err = c.cache.Get(ctx, cacheKey)
 	if err != nil {
 		return specs, false, errors.Wrapf(err, "checking cache for %q", task.Repository.Name)
@@ -148,7 +149,7 @@ func (c *Coordinator) checkCacheForTask(ctx context.Context, task *Task) (specs 
 	return specs, true, nil
 }
 
-func (c Coordinator) buildChangesetSpecs(task *Task, result executionResult) ([]*batcheslib.ChangesetSpec, error) {
+func (c Coordinator) buildChangesetSpecs(task *Task, result execution.Result) ([]*batcheslib.ChangesetSpec, error) {
 	input := &batcheslib.ChangesetSpecInput{
 		BaseRepositoryID: task.Repository.ID,
 		HeadRepositoryID: task.Repository.ID,
@@ -162,10 +163,12 @@ func (c Coordinator) buildChangesetSpecs(task *Task, result executionResult) ([]
 		Template:              task.Template,
 		TransformChanges:      task.TransformChanges,
 
-		Diff:         result.Diff,
-		ChangedFiles: result.ChangedFiles,
-		Outputs:      result.Outputs,
-		Path:         result.Path,
+		Result: execution.Result{
+			Diff:         result.Diff,
+			ChangedFiles: result.ChangedFiles,
+			Outputs:      result.Outputs,
+			Path:         result.Path,
+		},
 	}
 
 	return batcheslib.BuildChangesetSpecs(input, batcheslib.ChangesetSpecFeatureFlags{
