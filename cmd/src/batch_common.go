@@ -296,6 +296,7 @@ func executeBatchSpec(ctx context.Context, opts executeBatchSpecOpts) (err error
 	coord := svc.NewCoordinator(executor.NewCoordinatorOpts{
 		Creator:          workspaceCreator,
 		CacheDir:         opts.flags.cacheDir,
+		Cache:            executor.NewDiskCache(opts.flags.cacheDir),
 		ClearCache:       opts.flags.clearCache,
 		SkipErrors:       opts.flags.skipErrors,
 		CleanArchives:    opts.flags.cleanArchives,

@@ -152,7 +152,7 @@ type ExecutionCache interface {
 	Clear(ctx context.Context, key CacheKeyer) error
 }
 
-func NewCache(dir string) ExecutionCache {
+func NewDiskCache(dir string) ExecutionCache {
 	if dir == "" {
 		return &ExecutionNoOpCache{}
 	}

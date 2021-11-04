@@ -17,6 +17,7 @@ import (
 	"github.com/sourcegraph/src-cli/internal/batches/workspace"
 
 	batcheslib "github.com/sourcegraph/sourcegraph/lib/batches"
+	"github.com/sourcegraph/sourcegraph/lib/batches/execution"
 	"github.com/sourcegraph/sourcegraph/lib/batches/git"
 )
 
@@ -375,4 +376,49 @@ func logEvent(e batcheslib.LogEvent) {
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 	}
+}
+
+type JSONLinesCache struct{}
+
+func (c *JSONLinesCache) Get(ctx context.Context, key executor.CacheKeyer) (result execution.Result, found bool, err error) {
+	// noop
+	return execution.Result{}, false, nil
+}
+
+func (c *JSONLinesCache) Set(ctx context.Context, key executor.CacheKeyer, result execution.Result) error {
+	k, err := key.Key()
+	if err != nil {
+		return err
+	}
+
+	logOperationSuccess(batcheslib.LogEventOperationCacheResult, &batcheslib.CacheResultMetadata{
+		Key:   k,
+		Value: result,
+	})
+
+	return nil
+}
+
+func (c *JSONLinesCache) SetStepResult(ctx context.Context, key executor.CacheKeyer, result execution.AfterStepResult) error {
+	k, err := key.Key()
+	if err != nil {
+		return err
+	}
+
+	logOperationSuccess(batcheslib.LogEventOperationCacheAfterStepResult, &batcheslib.CacheAfterStepResultMetadata{
+		Key:   k,
+		Value: result,
+	})
+
+	return nil
+}
+
+func (c *JSONLinesCache) GetStepResult(ctx context.Context, key executor.CacheKeyer) (result execution.AfterStepResult, found bool, err error) {
+	// noop
+	return execution.AfterStepResult{}, false, nil
+}
+
+func (c *JSONLinesCache) Clear(ctx context.Context, key executor.CacheKeyer) error {
+	// noop
+	return nil
 }

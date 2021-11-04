@@ -151,6 +151,7 @@ func executeBatchSpecInWorkspaces(ctx context.Context, opts executeBatchSpecOpts
 	coord := svc.NewCoordinator(executor.NewCoordinatorOpts{
 		Creator:       workspaceCreator,
 		CacheDir:      opts.flags.cacheDir,
+		Cache:         &ui.JSONLinesCache{},
 		ClearCache:    opts.flags.clearCache,
 		SkipErrors:    opts.flags.skipErrors,
 		CleanArchives: opts.flags.cleanArchives,
