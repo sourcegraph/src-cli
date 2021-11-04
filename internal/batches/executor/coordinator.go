@@ -11,7 +11,6 @@ import (
 	"github.com/sourcegraph/sourcegraph/lib/batches/execution"
 	"github.com/sourcegraph/sourcegraph/lib/batches/execution/cache"
 
-	"github.com/sourcegraph/src-cli/internal/api"
 	"github.com/sourcegraph/src-cli/internal/batches"
 	"github.com/sourcegraph/src-cli/internal/batches/docker"
 	"github.com/sourcegraph/src-cli/internal/batches/graphql"
@@ -41,10 +40,10 @@ type imageEnsurer func(ctx context.Context, name string) (docker.Image, error)
 
 type NewCoordinatorOpts struct {
 	// Dependencies
-	EnsureImage imageEnsurer
-	Creator     workspace.Creator
-	Client      api.Client
-	Cache       cache.Cache
+	EnsureImage         imageEnsurer
+	Creator             workspace.Creator
+	Cache               cache.Cache
+	RepoArchiveRegistry repozip.ArchiveRegistry
 
 	// Everything that follows are either command-line flags or features.
 
@@ -67,7 +66,7 @@ func NewCoordinator(opts NewCoordinatorOpts) *Coordinator {
 	logManager := log.NewManager(opts.TempDir, opts.KeepLogs)
 
 	exec := newExecutor(newExecutorOpts{
-		RepoArchiveRegistry: repozip.NewArchiveRegistry(opts.Client, opts.CacheDir, opts.CleanArchives),
+		RepoArchiveRegistry: opts.RepoArchiveRegistry,
 		EnsureImage:         opts.EnsureImage,
 		Creator:             opts.Creator,
 		Logger:              logManager,
@@ -113,7 +112,7 @@ func (c *Coordinator) ClearCache(ctx context.Context, tasks []*Task) error {
 			return errors.Wrapf(err, "clearing cache for %q", task.Repository.Name)
 		}
 		for i := len(task.Steps) - 1; i > -1; i-- {
-			key := StepsCacheKey{Task: task, StepIndex: i}
+			key := cache.StepsCacheKey{ExecutionKey: task.cacheKey(), StepIndex: i}
 
 			if err := c.cache.Clear(ctx, key); err != nil {
 				return errors.Wrapf(err, "clearing cache for step %d in %q", i, task.Repository.Name)

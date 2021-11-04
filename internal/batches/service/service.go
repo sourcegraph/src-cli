@@ -21,6 +21,7 @@ import (
 	"github.com/sourcegraph/src-cli/internal/batches/docker"
 	"github.com/sourcegraph/src-cli/internal/batches/executor"
 	"github.com/sourcegraph/src-cli/internal/batches/graphql"
+	"github.com/sourcegraph/src-cli/internal/batches/repozip"
 )
 
 type Service struct {
@@ -200,7 +201,7 @@ func (svc *Service) BuildTasks(ctx context.Context, spec *batcheslib.BatchSpec, 
 }
 
 func (svc *Service) NewCoordinator(opts executor.NewCoordinatorOpts) *executor.Coordinator {
-	opts.Client = svc.client
+	opts.RepoArchiveRegistry = repozip.NewArchiveRegistry(svc.client, opts.CacheDir, opts.CleanArchives)
 	opts.Features = svc.features
 	opts.EnsureImage = svc.EnsureImage
 
