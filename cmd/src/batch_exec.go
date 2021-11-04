@@ -147,11 +147,18 @@ func executeBatchSpecInWorkspaces(ctx context.Context, opts executeBatchSpecOpts
 		opts.ui.DeterminingWorkspaceCreatorTypeSuccess(workspaceCreator.Type())
 	}
 
+	lines, ok := opts.ui.(*ui.JSONLines)
+	if !ok {
+		panic("foobar")
+	}
+
+	cache := &executor.JSONLinesCache{Writer: lines}
+
 	// EXECUTION OF TASKS
 	coord := svc.NewCoordinator(executor.NewCoordinatorOpts{
 		Creator:       workspaceCreator,
 		CacheDir:      opts.flags.cacheDir,
-		Cache:         &ui.JSONLinesCache{},
+		Cache:         cache,
 		ClearCache:    opts.flags.clearCache,
 		SkipErrors:    opts.flags.skipErrors,
 		CleanArchives: opts.flags.cleanArchives,
