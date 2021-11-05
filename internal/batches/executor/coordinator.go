@@ -13,7 +13,6 @@ import (
 
 	"github.com/sourcegraph/src-cli/internal/batches"
 	"github.com/sourcegraph/src-cli/internal/batches/docker"
-	"github.com/sourcegraph/src-cli/internal/batches/graphql"
 	"github.com/sourcegraph/src-cli/internal/batches/log"
 	"github.com/sourcegraph/src-cli/internal/batches/repozip"
 	"github.com/sourcegraph/src-cli/internal/batches/workspace"
@@ -35,7 +34,6 @@ type Coordinator struct {
 	logManager log.LogManager
 }
 
-type repoNameResolver func(ctx context.Context, name string) (*graphql.Repository, error)
 type imageEnsurer func(ctx context.Context, name string) (docker.Image, error)
 
 type NewCoordinatorOpts struct {
