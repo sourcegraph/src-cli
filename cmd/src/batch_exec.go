@@ -164,14 +164,14 @@ func executeBatchSpecInWorkspaces(ctx context.Context, ui *ui.JSONLines, opts ex
 	// are loaded and set on the tasks.
 	ui.CheckingCache()
 	tasks := svc.BuildTasks(ctx, batchSpec, repoWorkspaces)
-	_, _, err = coord.CheckCache(ctx, tasks)
+	uncachedTasks, cachedSpecs, err := coord.CheckCache(ctx, tasks)
 	if err != nil {
 		return err
 	}
-	ui.CheckingCacheSuccess(0, len(tasks))
+	ui.CheckingCacheSuccess(len(cachedSpecs), len(uncachedTasks))
 
 	taskExecUI := ui.ExecutingTasks(*verbose, opts.flags.parallelism)
-	specs, _, err := coord.Execute(ctx, tasks, batchSpec, taskExecUI)
+	specs, _, err := coord.Execute(ctx, uncachedTasks, batchSpec, taskExecUI)
 	if err == nil || opts.flags.skipErrors {
 		if err == nil {
 			taskExecUI.Success()
@@ -184,6 +184,7 @@ func executeBatchSpecInWorkspaces(ctx context.Context, ui *ui.JSONLines, opts ex
 			return err
 		}
 	}
+	specs = append(specs, cachedSpecs...)
 
 	ids := make([]graphql.ChangesetSpecID, len(specs))
 
