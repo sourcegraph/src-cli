@@ -160,18 +160,15 @@ func executeBatchSpecInWorkspaces(ctx context.Context, ui *ui.JSONLines, opts ex
 	})
 
 	// `src batch exec` uses server-side caching for changeset specs, so we
-	// only need to call `CheckCache` to make sure that per-step cache entries
+	// only need to call `CheckStepResultsCache` to make sure that per-step cache entries
 	// are loaded and set on the tasks.
-	ui.CheckingCache()
 	tasks := svc.BuildTasks(ctx, batchSpec, repoWorkspaces)
-	uncachedTasks, cachedSpecs, err := coord.CheckCache(ctx, tasks)
-	if err != nil {
+	if err := coord.CheckStepResultsCache(ctx, tasks); err != nil {
 		return err
 	}
-	ui.CheckingCacheSuccess(len(cachedSpecs), len(uncachedTasks))
 
 	taskExecUI := ui.ExecutingTasks(*verbose, opts.flags.parallelism)
-	specs, _, err := coord.Execute(ctx, uncachedTasks, batchSpec, taskExecUI)
+	specs, _, err := coord.Execute(ctx, tasks, batchSpec, taskExecUI)
 	if err == nil || opts.flags.skipErrors {
 		if err == nil {
 			taskExecUI.Success()
@@ -184,8 +181,6 @@ func executeBatchSpecInWorkspaces(ctx context.Context, ui *ui.JSONLines, opts ex
 			return err
 		}
 	}
-	specs = append(specs, cachedSpecs...)
-
 	ids := make([]graphql.ChangesetSpecID, len(specs))
 
 	ui.UploadingChangesetSpecs(len(specs))
