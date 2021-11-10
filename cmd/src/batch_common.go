@@ -324,13 +324,14 @@ func executeBatchSpec(ctx context.Context, ui ui.ExecUI, opts executeBatchSpecOp
 	freshSpecs, logFiles, execErr := coord.Execute(ctx, uncachedTasks, batchSpec, taskExecUI)
 	// Add external changeset specs.
 	importedSpecs, importErr := svc.CreateImportChangesetSpecs(ctx, batchSpec)
-	err = nil
+	var errs *multierror.Error
 	if execErr != nil {
 		err = multierror.Append(err, execErr)
 	}
 	if importErr != nil {
 		err = multierror.Append(err, importErr)
 	}
+	err = errs.ErrorOrNil()
 	if err != nil && !opts.flags.skipErrors {
 		return err
 	}
