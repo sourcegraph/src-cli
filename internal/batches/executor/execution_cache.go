@@ -157,16 +157,16 @@ type JSONCacheWriter interface {
 	WriteAfterStepResult(key string, value execution.AfterStepResult)
 }
 
-type SSBCCache struct {
+type ServerSideCache struct {
 	Writer JSONCacheWriter
 }
 
-func (c *SSBCCache) Get(ctx context.Context, key cache.Keyer) (result execution.Result, found bool, err error) {
+func (c *ServerSideCache) Get(ctx context.Context, key cache.Keyer) (result execution.Result, found bool, err error) {
 	// noop
 	return execution.Result{}, false, nil
 }
 
-func (c *SSBCCache) Set(ctx context.Context, key cache.Keyer, result execution.Result) error {
+func (c *ServerSideCache) Set(ctx context.Context, key cache.Keyer, result execution.Result) error {
 	k, err := key.Key()
 	if err != nil {
 		return err
@@ -177,7 +177,7 @@ func (c *SSBCCache) Set(ctx context.Context, key cache.Keyer, result execution.R
 	return nil
 }
 
-func (c *SSBCCache) SetStepResult(ctx context.Context, key cache.Keyer, result execution.AfterStepResult) error {
+func (c *ServerSideCache) SetStepResult(ctx context.Context, key cache.Keyer, result execution.AfterStepResult) error {
 	k, err := key.Key()
 	if err != nil {
 		return err
@@ -188,7 +188,7 @@ func (c *SSBCCache) SetStepResult(ctx context.Context, key cache.Keyer, result e
 	return nil
 }
 
-func (c *SSBCCache) GetStepResult(ctx context.Context, key cache.Keyer) (result execution.AfterStepResult, found bool, err error) {
+func (c *ServerSideCache) GetStepResult(ctx context.Context, key cache.Keyer) (result execution.AfterStepResult, found bool, err error) {
 	rawKey, err := key.Key()
 	if err != nil {
 		return result, false, err
@@ -202,7 +202,7 @@ func (c *SSBCCache) GetStepResult(ctx context.Context, key cache.Keyer) (result 
 	return result, found, nil
 }
 
-func (c *SSBCCache) Clear(ctx context.Context, key cache.Keyer) error {
+func (c *ServerSideCache) Clear(ctx context.Context, key cache.Keyer) error {
 	// noop
 	return nil
 }
