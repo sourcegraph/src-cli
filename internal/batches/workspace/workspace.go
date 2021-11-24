@@ -95,9 +95,9 @@ func BestCreatorType(ctx context.Context, images map[string]docker.Image) Creato
 	// if you have a batch change with steps that run as UID 1000 and then UID
 	// 2000, you'll get errors when the second step tries to write.
 
-	// For the time being, we're only going to consider volume mode on Intel
-	// macOS.
-	if runtime.GOOS != "darwin" || runtime.GOARCH != "amd64" {
+	// For the time being, we're only going to consider volume mode on Intel or
+	// M1 macOS.
+	if runtime.GOOS != "darwin" || (runtime.GOARCH != "amd64" && runtime.GOARCH != "arm64") {
 		return CreatorTypeBind
 	}
 
