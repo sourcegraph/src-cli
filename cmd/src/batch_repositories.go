@@ -68,7 +68,6 @@ Examples:
 			return err
 		}
 
-		seen := map[string]struct{}{}
 		final := []*graphql.Repository{}
 		finalMax := 0
 		for _, on := range spec.On {
@@ -83,10 +82,7 @@ Examples:
 					max = len(repo.Name)
 				}
 
-				if _, ok := seen[repo.ID]; !ok {
-					seen[repo.ID] = struct{}{}
-					final = append(final, repo)
-				}
+				final = append(final, repo)
 			}
 
 			if max > finalMax {
@@ -129,7 +125,7 @@ const batchRepositoriesTemplate = `
 {{- else -}}
     {{- color "success" -}}
 {{- end -}}
-{{- .RepoCount }} repositor{{ if eq .RepoCount 1 }}y{{else}}ies{{ end }}{{- color "nc" -}}
+{{- .RepoCount }} workspace{{ if ne .RepoCount 1 }}s{{ end }}{{- color "nc" -}}
 {{- if ne (len .Query) 0 -}}
     {{- " for " -}}{{- color "search-query"}}"{{.Query}}"{{ color "nc" -}}
 {{- end -}}
@@ -137,6 +133,7 @@ const batchRepositoriesTemplate = `
 
 {{- range .Repos -}}
     {{- "  "}}{{ color "success" }}{{ padRight .Name $.Max " " }}{{ color "nc" -}}
+    {{- color "search-filename" -}}{{ " " }}{{- .Branch.Name -}}{{- color "nc " -}}
     {{- color "search-border"}}{{" ("}}{{color "nc" -}}
     {{- color "search-repository"}}{{$.SourcegraphEndpoint}}{{.URL}}{{color "nc" -}}
     {{- color "search-border"}}{{")\n"}}{{color "nc" -}}
@@ -151,7 +148,7 @@ const batchRepositoriesTotalTemplate = `
 {{- else -}}
     {{- color "success" -}}
 {{- end -}}
-{{- .RepoCount }} repositor{{ if eq .RepoCount 1 }}y{{else}}ies{{ end }} total
+{{- .RepoCount }} workspace{{ if ne .RepoCount 1 }}s{{ end }} total
 {{- color "nc" -}}
 `
 

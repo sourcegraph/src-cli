@@ -442,7 +442,11 @@ func (svc *Service) ResolveNamespace(ctx context.Context, namespace string) (str
 }
 
 func (svc *Service) ResolveRepositories(ctx context.Context, spec *batcheslib.BatchSpec) ([]*graphql.Repository, error) {
-	seen := map[string]*graphql.Repository{}
+	type repoRevKey struct {
+		repo   string
+		branch string
+	}
+	seen := map[repoRevKey]*graphql.Repository{}
 	unsupported := batches.UnsupportedRepoSet{}
 	ignored := batches.IgnoredRepoSet{}
 
@@ -470,8 +474,12 @@ func (svc *Service) ResolveRepositories(ctx context.Context, spec *batcheslib.Ba
 		}
 
 		for _, repo := range reposWithBranch {
-			if other, ok := seen[repo.ID]; !ok {
-				seen[repo.ID] = repo
+			key := repoRevKey{
+				repo:   repo.ID,
+				branch: repo.Branch.Name,
+			}
+			if other, ok := seen[key]; !ok {
+				seen[key] = repo
 
 				switch st := strings.ToLower(repo.ExternalRepository.ServiceType); st {
 				case "github", "gitlab", "bitbucketserver":
@@ -488,9 +496,8 @@ func (svc *Service) ResolveRepositories(ctx context.Context, spec *batcheslib.Ba
 				}
 			} else {
 				// If we've already seen this repository, we overwrite the
-				// Commit/Branch fields with the latest value we have
+				// Commit field with the latest value we have.
 				other.Commit = repo.Commit
-				other.Branch = repo.Branch
 			}
 		}
 	}
@@ -516,12 +523,18 @@ func (svc *Service) ResolveRepositories(ctx context.Context, spec *batcheslib.Ba
 func (svc *Service) ResolveRepositoriesOn(ctx context.Context, on *batcheslib.OnQueryOrRepository) ([]*graphql.Repository, error) {
 	if on.RepositoriesMatchingQuery != "" {
 		return svc.resolveRepositorySearch(ctx, on.RepositoriesMatchingQuery)
-	} else if on.Repository != "" && on.Branch != "" {
-		repo, err := svc.resolveRepositoryNameAndBranch(ctx, on.Repository, on.Branch)
-		if err != nil {
-			return nil, err
+	} else if on.Repository != "" && len(on.Branches) > 0 {
+		repos := make([]*graphql.Repository, len(on.Branches))
+		for i, branch := range on.Branches {
+			repo, err := svc.resolveRepositoryNameAndBranch(ctx, on.Repository, branch)
+			if err != nil {
+				return nil, err
+			}
+
+			repos[i] = repo
 		}
-		return []*graphql.Repository{repo}, nil
+
+		return repos, nil
 	} else if on.Repository != "" {
 		repo, err := svc.resolveRepositoryName(ctx, on.Repository)
 		if err != nil {

@@ -35,11 +35,6 @@ func findWorkspaces(
 	finder directoryFinder,
 	repos []*graphql.Repository,
 ) ([]RepoWorkspace, error) {
-	repoByID := make(map[string]*graphql.Repository)
-	for _, repo := range repos {
-		repoByID[repo.ID] = repo
-	}
-
 	// Pre-compile all globs.
 	workspaceMatchers := make(map[batcheslib.WorkspaceConfiguration]glob.Glob)
 	for _, conf := range spec.Workspaces {
@@ -83,7 +78,11 @@ func findWorkspaces(
 		Paths              []string
 		OnlyFetchWorkspace bool
 	}
-	workspacesByID := map[string]repoWorkspaces{}
+	type workspaceKey struct {
+		repo   string
+		branch string
+	}
+	workspacesByID := map[workspaceKey]repoWorkspaces{}
 	for idx, repos := range matched {
 		conf := spec.Workspaces[idx]
 		repoDirs, err := finder.FindDirectoriesInRepos(ctx, conf.RootAtLocationOf, repos...)
@@ -96,7 +95,10 @@ func findWorkspaces(
 			if len(dirs) == 0 {
 				continue
 			}
-			workspacesByID[repo.ID] = repoWorkspaces{
+			workspacesByID[workspaceKey{
+				repo:   repo.ID,
+				branch: repo.Branch.Name,
+			}] = repoWorkspaces{
 				Repo:               repo,
 				Paths:              dirs,
 				OnlyFetchWorkspace: conf.OnlyFetchWorkspace,
@@ -106,16 +108,20 @@ func findWorkspaces(
 
 	// And add the root for repos.
 	for _, repo := range root {
-		conf, ok := workspacesByID[repo.ID]
+		key := workspaceKey{
+			repo:   repo.ID,
+			branch: repo.Branch.Name,
+		}
+		conf, ok := workspacesByID[key]
 		if !ok {
-			workspacesByID[repo.ID] = repoWorkspaces{
+			workspacesByID[key] = repoWorkspaces{
 				Repo:               repo,
 				Paths:              []string{""},
 				OnlyFetchWorkspace: false,
 			}
 			continue
 		}
-		conf.Paths = append(workspacesByID[repo.ID].Paths, "")
+		conf.Paths = append(workspacesByID[key].Paths, "")
 	}
 
 	workspaces := make([]RepoWorkspace, 0, len(workspacesByID))
