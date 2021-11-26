@@ -71,7 +71,7 @@ Examples:
 		final := []*graphql.Repository{}
 		finalMax := 0
 		for _, on := range spec.On {
-			repos, err := svc.ResolveRepositoriesOn(ctx, &on)
+			repos, _, err := svc.ResolveRepositoriesOn(ctx, &on)
 			if err != nil {
 				return errors.Wrapf(err, "Resolving %q", on.String())
 			}
@@ -133,7 +133,7 @@ const batchRepositoriesTemplate = `
 
 {{- range .Repos -}}
     {{- "  "}}{{ color "success" }}{{ padRight .Name $.Max " " }}{{ color "nc" -}}
-    {{- color "search-filename" -}}{{ " " }}{{- .Branch.Name -}}{{- color "nc " -}}
+    {{- if ne (len .Branch.Name) 0 -}}{{ " " }}{{- color "search-branch" -}}{{- .Branch.Name -}}{{ color "nc" -}}{{- end -}}
     {{- color "search-border"}}{{" ("}}{{color "nc" -}}
     {{- color "search-repository"}}{{$.SourcegraphEndpoint}}{{.URL}}{{color "nc" -}}
     {{- color "search-border"}}{{")\n"}}{{color "nc" -}}
