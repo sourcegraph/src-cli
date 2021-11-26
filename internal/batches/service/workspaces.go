@@ -82,7 +82,7 @@ func findWorkspaces(
 		repo   string
 		branch string
 	}
-	workspacesByID := map[workspaceKey]repoWorkspaces{}
+	workspacesByKey := map[workspaceKey]repoWorkspaces{}
 	for idx, repos := range matched {
 		conf := spec.Workspaces[idx]
 		repoDirs, err := finder.FindDirectoriesInRepos(ctx, conf.RootAtLocationOf, repos...)
@@ -95,10 +95,11 @@ func findWorkspaces(
 			if len(dirs) == 0 {
 				continue
 			}
-			workspacesByID[workspaceKey{
+			key := workspaceKey{
 				repo:   repo.ID,
 				branch: repo.Branch.Name,
-			}] = repoWorkspaces{
+			}
+			workspacesByKey[key] = repoWorkspaces{
 				Repo:               repo,
 				Paths:              dirs,
 				OnlyFetchWorkspace: conf.OnlyFetchWorkspace,
@@ -112,20 +113,20 @@ func findWorkspaces(
 			repo:   repo.ID,
 			branch: repo.Branch.Name,
 		}
-		conf, ok := workspacesByID[key]
+		conf, ok := workspacesByKey[key]
 		if !ok {
-			workspacesByID[key] = repoWorkspaces{
+			workspacesByKey[key] = repoWorkspaces{
 				Repo:               repo,
 				Paths:              []string{""},
 				OnlyFetchWorkspace: false,
 			}
 			continue
 		}
-		conf.Paths = append(workspacesByID[key].Paths, "")
+		conf.Paths = append(workspacesByKey[key].Paths, "")
 	}
 
-	workspaces := make([]RepoWorkspace, 0, len(workspacesByID))
-	for _, workspace := range workspacesByID {
+	workspaces := make([]RepoWorkspace, 0, len(workspacesByKey))
+	for _, workspace := range workspacesByKey {
 		for _, path := range workspace.Paths {
 			fetchWorkspace := workspace.OnlyFetchWorkspace
 			if path == "" {
