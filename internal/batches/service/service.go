@@ -442,17 +442,17 @@ func (svc *Service) ResolveNamespace(ctx context.Context, namespace string) (str
 }
 
 func (svc *Service) ResolveRepositories(ctx context.Context, spec *batcheslib.BatchSpec) ([]*graphql.Repository, error) {
-	type repoRevKey struct {
-		repo   string
-		branch string
+	type seenRepo struct {
+		overridable bool
+		revisions   []*graphql.Repository
 	}
-	seen := map[repoRevKey]*graphql.Repository{}
+	seen := map[string]*seenRepo{}
 	unsupported := batches.UnsupportedRepoSet{}
 	ignored := batches.IgnoredRepoSet{}
 
 	// TODO: this could be trivially parallelised in the future.
 	for _, on := range spec.On {
-		repos, err := svc.ResolveRepositoriesOn(ctx, &on)
+		repos, overridable, err := svc.ResolveRepositoriesOn(ctx, &on)
 		if err != nil {
 			return nil, errors.Wrapf(err, "resolving %q", on.String())
 		}
@@ -474,12 +474,23 @@ func (svc *Service) ResolveRepositories(ctx context.Context, spec *batcheslib.Ba
 		}
 
 		for _, repo := range reposWithBranch {
-			key := repoRevKey{
-				repo:   repo.ID,
-				branch: repo.Branch.Name,
-			}
-			if other, ok := seen[key]; !ok {
-				seen[key] = repo
+			if other, ok := seen[repo.ID]; ok {
+				// We've seen this repo previously, so we now need to ascertain
+				// whether we're overriding the previous revisions, or merging
+				// into them.
+				if other.overridable {
+					other.revisions = []*graphql.Repository{repo}
+				} else {
+					other.revisions = append(other.revisions, repo)
+				}
+				other.overridable = overridable
+			} else {
+				// This is a new repo, so let's set up the state we need to
+				// track.
+				seen[repo.ID] = &seenRepo{
+					overridable: overridable,
+					revisions:   []*graphql.Repository{repo},
+				}
 
 				switch st := strings.ToLower(repo.ExternalRepository.ServiceType); st {
 				case "github", "gitlab", "bitbucketserver":
@@ -494,18 +505,16 @@ func (svc *Service) ResolveRepositories(ctx context.Context, spec *batcheslib.Ba
 						ignored.Append(repo)
 					}
 				}
-			} else {
-				// If we've already seen this repository, we overwrite the
-				// Commit field with the latest value we have.
-				other.Commit = repo.Commit
 			}
 		}
 	}
 
 	final := make([]*graphql.Repository, 0, len(seen))
-	for _, repo := range seen {
-		if !unsupported.Includes(repo) && !ignored.Includes(repo) {
-			final = append(final, repo)
+	for _, seenRepo := range seen {
+		for _, repo := range seenRepo.revisions {
+			if !unsupported.Includes(repo) && !ignored.Includes(repo) {
+				final = append(final, repo)
+			}
 		}
 	}
 
@@ -520,32 +529,33 @@ func (svc *Service) ResolveRepositories(ctx context.Context, spec *batcheslib.Ba
 	return final, nil
 }
 
-func (svc *Service) ResolveRepositoriesOn(ctx context.Context, on *batcheslib.OnQueryOrRepository) ([]*graphql.Repository, error) {
+func (svc *Service) ResolveRepositoriesOn(ctx context.Context, on *batcheslib.OnQueryOrRepository) ([]*graphql.Repository, bool, error) {
 	if on.RepositoriesMatchingQuery != "" {
-		return svc.resolveRepositorySearch(ctx, on.RepositoriesMatchingQuery)
+		repo, err := svc.resolveRepositorySearch(ctx, on.RepositoriesMatchingQuery)
+		return repo, true, err
 	} else if on.Repository != "" && len(on.Branches) > 0 {
 		repos := make([]*graphql.Repository, len(on.Branches))
 		for i, branch := range on.Branches {
 			repo, err := svc.resolveRepositoryNameAndBranch(ctx, on.Repository, branch)
 			if err != nil {
-				return nil, err
+				return nil, false, err
 			}
 
 			repos[i] = repo
 		}
 
-		return repos, nil
+		return repos, false, nil
 	} else if on.Repository != "" {
 		repo, err := svc.resolveRepositoryName(ctx, on.Repository)
 		if err != nil {
-			return nil, err
+			return nil, false, err
 		}
-		return []*graphql.Repository{repo}, nil
+		return []*graphql.Repository{repo}, false, nil
 	}
 
 	// This shouldn't happen on any batch spec that has passed validation, but,
 	// alas, software.
-	return nil, ErrMalformedOnQueryOrRepository
+	return nil, false, ErrMalformedOnQueryOrRepository
 }
 
 const repositoryNameQuery = `
