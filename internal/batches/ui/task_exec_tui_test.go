@@ -198,6 +198,10 @@ func TestTaskExecTUI_Integration(t *testing.T) {
 }
 
 func TestProgressUpdateAfterComplete(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Something emits different escape codes on windows.")
+	}
+
 	buf := &ttyBuf{}
 
 	now := time.Now()
