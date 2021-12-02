@@ -529,24 +529,31 @@ func (svc *Service) ResolveRepositoriesOn(ctx context.Context, on *batcheslib.On
 	if on.RepositoriesMatchingQuery != "" {
 		repo, err := svc.resolveRepositorySearch(ctx, on.RepositoriesMatchingQuery)
 		return repo, true, err
-	} else if on.Repository != "" && len(on.Branches) > 0 {
-		repos := make([]*graphql.Repository, len(on.Branches))
-		for i, branch := range on.Branches {
-			repo, err := svc.resolveRepositoryNameAndBranch(ctx, on.Repository, branch)
-			if err != nil {
-				return nil, false, err
-			}
-
-			repos[i] = repo
-		}
-
-		return repos, false, nil
 	} else if on.Repository != "" {
-		repo, err := svc.resolveRepositoryName(ctx, on.Repository)
+		branches, err := on.Branches()
 		if err != nil {
 			return nil, false, err
 		}
-		return []*graphql.Repository{repo}, false, nil
+
+		if len(branches) > 0 {
+			repos := make([]*graphql.Repository, len(branches))
+			for i, branch := range branches {
+				repo, err := svc.resolveRepositoryNameAndBranch(ctx, on.Repository, branch)
+				if err != nil {
+					return nil, false, err
+				}
+
+				repos[i] = repo
+			}
+
+			return repos, false, nil
+		} else {
+			repo, err := svc.resolveRepositoryName(ctx, on.Repository)
+			if err != nil {
+				return nil, false, err
+			}
+			return []*graphql.Repository{repo}, false, nil
+		}
 	}
 
 	// This shouldn't happen on any batch spec that has passed validation, but,
