@@ -15,6 +15,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 
 	batcheslib "github.com/sourcegraph/sourcegraph/lib/batches"
+	onlib "github.com/sourcegraph/sourcegraph/lib/batches/on"
 
 	"github.com/sourcegraph/src-cli/internal/api"
 	"github.com/sourcegraph/src-cli/internal/batches"
@@ -438,11 +439,7 @@ func (svc *Service) ResolveNamespace(ctx context.Context, namespace string) (str
 }
 
 func (svc *Service) ResolveRepositories(ctx context.Context, spec *batcheslib.BatchSpec) ([]*graphql.Repository, error) {
-	type seenRepo struct {
-		overridable bool
-		revisions   []*graphql.Repository
-	}
-	seen := map[string]*seenRepo{}
+	agg := onlib.NewAggregator()
 	unsupported := batches.UnsupportedRepoSet{}
 	ignored := batches.IgnoredRepoSet{}
 
@@ -451,6 +448,13 @@ func (svc *Service) ResolveRepositories(ctx context.Context, spec *batcheslib.Ba
 		repos, overridable, err := svc.ResolveRepositoriesOn(ctx, &on)
 		if err != nil {
 			return nil, errors.Wrapf(err, "resolving %q", on.String())
+		}
+
+		var result *onlib.RuleResult
+		if overridable {
+			result = agg.NewRuleResult(onlib.RepositoryRuleTypeQuery)
+		} else {
+			result = agg.NewRuleResult(onlib.RepositoryRuleTypeExplicit)
 		}
 
 		reposWithBranch := make([]*graphql.Repository, 0, len(repos))
@@ -470,47 +474,29 @@ func (svc *Service) ResolveRepositories(ctx context.Context, spec *batcheslib.Ba
 		}
 
 		for _, repo := range reposWithBranch {
-			if other, ok := seen[repo.ID]; ok {
-				// We've seen this repo previously, so we now need to ascertain
-				// whether we're overriding the previous revisions, or merging
-				// into them.
-				if other.overridable {
-					other.revisions = []*graphql.Repository{repo}
-				} else {
-					other.revisions = append(other.revisions, repo)
-				}
-				other.overridable = overridable
-			} else {
-				// This is a new repo, so let's set up the state we need to
-				// track.
-				seen[repo.ID] = &seenRepo{
-					overridable: overridable,
-					revisions:   []*graphql.Repository{repo},
-				}
+			result.AddRepoRevision(repo.ID, repo)
 
-				switch st := strings.ToLower(repo.ExternalRepository.ServiceType); st {
-				case "github", "gitlab", "bitbucketserver":
-				default:
-					if !svc.allowUnsupported {
-						unsupported.Append(repo)
-					}
+			switch st := strings.ToLower(repo.ExternalRepository.ServiceType); st {
+			case "github", "gitlab", "bitbucketserver":
+			default:
+				if !svc.allowUnsupported {
+					unsupported.Append(repo)
 				}
+			}
 
-				if !svc.allowIgnored {
-					if locations, ok := repoBatchIgnores[repo]; ok && len(locations) > 0 {
-						ignored.Append(repo)
-					}
+			if !svc.allowIgnored {
+				if locations, ok := repoBatchIgnores[repo]; ok && len(locations) > 0 {
+					ignored.Append(repo)
 				}
 			}
 		}
 	}
 
-	final := make([]*graphql.Repository, 0, len(seen))
-	for _, seenRepo := range seen {
-		for _, repo := range seenRepo.revisions {
-			if !unsupported.Includes(repo) && !ignored.Includes(repo) {
-				final = append(final, repo)
-			}
+	final := []*graphql.Repository{}
+	for _, rev := range agg.Revisions() {
+		repo := rev.(*graphql.Repository)
+		if !unsupported.Includes(repo) && !ignored.Includes(repo) {
+			final = append(final, repo)
 		}
 	}
 
