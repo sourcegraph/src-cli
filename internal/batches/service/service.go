@@ -439,24 +439,18 @@ func (svc *Service) ResolveNamespace(ctx context.Context, namespace string) (str
 }
 
 func (svc *Service) ResolveRepositories(ctx context.Context, spec *batcheslib.BatchSpec) ([]*graphql.Repository, error) {
-	agg := onlib.NewAggregator()
+	agg := onlib.NewRepoRevisionAggregator()
 	unsupported := batches.UnsupportedRepoSet{}
 	ignored := batches.IgnoredRepoSet{}
 
 	// TODO: this could be trivially parallelised in the future.
 	for _, on := range spec.On {
-		repos, overridable, err := svc.ResolveRepositoriesOn(ctx, &on)
+		repos, ruleType, err := svc.ResolveRepositoriesOn(ctx, &on)
 		if err != nil {
 			return nil, errors.Wrapf(err, "resolving %q", on.String())
 		}
 
-		var result *onlib.RuleResult
-		if overridable {
-			result = agg.NewRuleResult(onlib.RepositoryRuleTypeQuery)
-		} else {
-			result = agg.NewRuleResult(onlib.RepositoryRuleTypeExplicit)
-		}
-
+		result := agg.NewRuleRevisions(ruleType)
 		reposWithBranch := make([]*graphql.Repository, 0, len(repos))
 		for _, repo := range repos {
 			if !repo.HasBranch() {
@@ -511,14 +505,14 @@ func (svc *Service) ResolveRepositories(ctx context.Context, spec *batcheslib.Ba
 	return final, nil
 }
 
-func (svc *Service) ResolveRepositoriesOn(ctx context.Context, on *batcheslib.OnQueryOrRepository) (_ []*graphql.Repository, overridable bool, err error) {
+func (svc *Service) ResolveRepositoriesOn(ctx context.Context, on *batcheslib.OnQueryOrRepository) (_ []*graphql.Repository, _ onlib.RepositoryRuleType, err error) {
 	if on.RepositoriesMatchingQuery != "" {
 		repo, err := svc.resolveRepositorySearch(ctx, on.RepositoriesMatchingQuery)
-		return repo, true, err
+		return repo, onlib.RepositoryRuleTypeQuery, err
 	} else if on.Repository != "" {
-		branches, err := on.Branches()
+		branches, err := on.GetBranches()
 		if err != nil {
-			return nil, false, err
+			return nil, onlib.RepositoryRuleTypeExplicit, err
 		}
 
 		if len(branches) > 0 {
@@ -526,25 +520,25 @@ func (svc *Service) ResolveRepositoriesOn(ctx context.Context, on *batcheslib.On
 			for i, branch := range branches {
 				repo, err := svc.resolveRepositoryNameAndBranch(ctx, on.Repository, branch)
 				if err != nil {
-					return nil, false, err
+					return nil, onlib.RepositoryRuleTypeExplicit, err
 				}
 
 				repos[i] = repo
 			}
 
-			return repos, false, nil
+			return repos, onlib.RepositoryRuleTypeExplicit, nil
 		} else {
 			repo, err := svc.resolveRepositoryName(ctx, on.Repository)
 			if err != nil {
-				return nil, false, err
+				return nil, onlib.RepositoryRuleTypeExplicit, err
 			}
-			return []*graphql.Repository{repo}, false, nil
+			return []*graphql.Repository{repo}, onlib.RepositoryRuleTypeExplicit, nil
 		}
 	}
 
 	// This shouldn't happen on any batch spec that has passed validation, but,
 	// alas, software.
-	return nil, false, ErrMalformedOnQueryOrRepository
+	return nil, onlib.RepositoryRuleTypeExplicit, ErrMalformedOnQueryOrRepository
 }
 
 const repositoryNameQuery = `
