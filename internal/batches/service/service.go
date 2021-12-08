@@ -505,7 +505,7 @@ func (svc *Service) ResolveRepositories(ctx context.Context, spec *batcheslib.Ba
 	return final, nil
 }
 
-func (svc *Service) ResolveRepositoriesOn(ctx context.Context, on *batcheslib.OnQueryOrRepository) (_ []*graphql.Repository, _ onlib.RepositoryRuleType, err error) {
+func (svc *Service) ResolveRepositoriesOn(ctx context.Context, on *batcheslib.OnQueryOrRepository) ([]*graphql.Repository, onlib.RepositoryRuleType, error) {
 	if on.RepositoriesMatchingQuery != "" {
 		repo, err := svc.resolveRepositorySearch(ctx, on.RepositoriesMatchingQuery)
 		return repo, onlib.RepositoryRuleTypeQuery, err
