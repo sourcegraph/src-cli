@@ -454,22 +454,6 @@ func (vd *validator) signIn(baseURL string, email, password string) (*vdClient, 
 	return client, nil
 }
 
-// extractCSRFToken extracts CSRF token from HTML response body.
-func (vd *validator) extractCSRFToken(body string) string {
-	anchor := `X-Csrf-Token":"`
-	i := strings.Index(body, anchor)
-	if i == -1 {
-		return ""
-	}
-
-	j := strings.Index(body[i+len(anchor):], `","`)
-	if j == -1 {
-		return ""
-	}
-
-	return body[i+len(anchor) : i+len(anchor)+j]
-}
-
 // Client is an authenticated client for a Sourcegraph user for doing e2e testing.
 // The user may or may not be a site admin depends on how the client is instantiated.
 // It works by simulating how the browser would send HTTP requests to the server.
