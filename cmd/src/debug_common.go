@@ -42,8 +42,14 @@ func setOpenFileLimits(n uint64) error {
 func setupDebug(base string) (*os.File, *zip.Writer, context.Context, error) {
 	// open pipe to output file
 	out, err := os.OpenFile(base, os.O_CREATE|os.O_RDWR|os.O_EXCL, 0666)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("failed to open file: %w", err)
+	}
 	// increase limit of open files
 	err = setOpenFileLimits(64000)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("failed to set open file limits: %w", err)
+	}
 	// init zip writer
 	zw := zip.NewWriter(out)
 	// init context
@@ -355,3 +361,10 @@ func getStats(ctx context.Context, baseDir string) *archiveFile {
 	f.data, f.err = exec.CommandContext(ctx, "docker", "container", "stats", "--no-stream").CombinedOutput()
 	return f
 }
+
+// TODO api brainstorm
+// Perform the request.
+/* var result interface{}
+if ok, err := cfg.apiClient(apiFlags, flagSet.Output()).NewRequest(query, vars).DoRaw(context.Background(), &result); err != nil || !ok {
+return err
+} */

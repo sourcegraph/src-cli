@@ -14,18 +14,17 @@ func init() {
 
 Usage:
 
-    src debug kube -o FILE [command options]
+    src debug comp -o FILE [command options]
 
 Examples:
 
-    $ src debug kube -o debug.zip
+    $ src debug comp -o debug.zip
 
 `
 
 	flagSet := flag.NewFlagSet("kube", flag.ExitOnError)
-	var (
-		base = flagSet.String("out", "debug.zip", "The name of the output zip archive")
-	)
+	var base string
+	flagSet.StringVar(&base, "out", "debug.zip", "The name of the output zip archive")
 
 	handler := func(args []string) error {
 		if err := flagSet.Parse(args); err != nil {
@@ -33,19 +32,19 @@ Examples:
 		}
 
 		//validate out flag
-		if *base == "" {
+		if base == "" {
 			return fmt.Errorf("empty -out flag")
 		}
 		// declare basedir for archive file structure
 		var baseDir string
-		if strings.HasSuffix(*base, ".zip") == false {
-			baseDir = *base
-			*base = *base + ".zip"
+		if strings.HasSuffix(base, ".zip") == false {
+			baseDir = base
+			base = base + ".zip"
 		} else {
-			baseDir = strings.TrimSuffix(*base, ".zip")
+			baseDir = strings.TrimSuffix(base, ".zip")
 		}
 
-		out, zw, ctx, err := setupDebug(*base)
+		out, zw, ctx, err := setupDebug(base)
 		if err != nil {
 			return fmt.Errorf("failed to open file: %w", err)
 		}
