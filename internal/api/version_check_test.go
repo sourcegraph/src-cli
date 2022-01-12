@@ -20,6 +20,12 @@ func TestCheckSourcegraphVersion(t *testing.T) {
 			expected:       true,
 		},
 		{
+			currentVersion: "3.12.6-rc.3",
+			constraint:     ">= 3.10.6-0",
+			minDate:        "2020-01-19",
+			expected:       true,
+		},
+		{
 			currentVersion: "3.12.6",
 			constraint:     ">= 3.13",
 			minDate:        "2020-01-19",
@@ -44,19 +50,19 @@ func TestCheckSourcegraphVersion(t *testing.T) {
 			expected:       true,
 		},
 		{
-			currentVersion: "54959_2020-01-29_9258595",
+			currentVersion: "54959_2020-01-29_925859585436",
 			minDate:        "2020-01-19",
 			constraint:     ">= 999.13",
 			expected:       true,
 		},
 		{
-			currentVersion: "54959_2020-01-29_9258595",
+			currentVersion: "54959_2020-01-29_925859585436",
 			minDate:        "2020-01-30",
 			constraint:     ">= 999.13",
 			expected:       false,
 		},
 		{
-			currentVersion: "54959_2020-01-29_9258595",
+			currentVersion: "54959_2020-01-29_925859585436",
 			minDate:        "2020-01-29",
 			constraint:     ">= 0.0",
 			expected:       true,
