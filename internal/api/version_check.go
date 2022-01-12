@@ -22,7 +22,10 @@ func CheckSourcegraphVersion(version, constraint, minDate string) (bool, error) 
 		return true, nil
 	}
 
-	buildDate := regexp.MustCompile(`^\d+_(\d{4}-\d{2}-\d{2})_[a-z0-9]{7}$`)
+	// This should match the version format returned by Sourcegraph, which uses the 12
+	// character abbreviated commit hash:
+	// https://sourcegraph.com/github.com/sourcegraph/sourcegraph/-/blob/enterprise/dev/ci/internal/ci/config.go?L96.
+	buildDate := regexp.MustCompile(`^\d+_(\d{4}-\d{2}-\d{2})_[a-z0-9]{12}$`)
 	matches := buildDate.FindStringSubmatch(version)
 	if len(matches) > 1 {
 		return matches[1] >= minDate, nil
