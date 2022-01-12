@@ -93,7 +93,7 @@ func TestCheckSourcegraphVersion(t *testing.T) {
 			minDate:        "2020-01-29",
 			constraint:     ">= 0.0",
 			expected:       true,
-		}
+		},
 	} {
 		actual, err := CheckSourcegraphVersion(tc.currentVersion, tc.constraint, tc.minDate)
 		if err != nil {
