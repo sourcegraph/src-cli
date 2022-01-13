@@ -29,7 +29,7 @@ Examples:
 
 	flagSet := flag.NewFlagSet("validate", flag.ExitOnError)
 	apiFlags := api.NewFlags(flagSet)
-	fileFlag := flagSet.String("f", "", "The batch spec file to read.")
+	fileFlag := flagSet.String("f", "batch.yaml", "The batch spec file to read. Set to - for stdin.")
 
 	var (
 		allowUnsupported bool

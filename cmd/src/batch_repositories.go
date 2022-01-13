@@ -32,7 +32,7 @@ Examples:
 	flagSet := flag.NewFlagSet("repositories", flag.ExitOnError)
 
 	var (
-		fileFlag = flagSet.String("f", "", "The batch spec file to read.")
+		fileFlag = flagSet.String("f", "batch.yaml", "The batch spec file to read. Set to - for stdin.")
 		apiFlags = api.NewFlags(flagSet)
 	)
 

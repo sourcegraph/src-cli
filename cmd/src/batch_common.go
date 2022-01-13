@@ -96,8 +96,8 @@ func newBatchExecuteFlags(flagSet *flag.FlagSet, workspaceExecution bool, cacheD
 	)
 
 	flagSet.StringVar(
-		&caf.file, "f", "",
-		"The batch spec file to read.",
+		&caf.file, "f", "batch.yaml",
+		"The batch spec file to read. Set to - for stdin.",
 	)
 
 	flagSet.IntVar(
