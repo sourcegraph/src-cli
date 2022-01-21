@@ -82,7 +82,7 @@ Usage:
 or
     cat src-validate.yml | src validate [options]
 
-if user is authenticated , user can also run default checks
+if user is authenticated, user can also run default checks
 
 	src validate [options]
 
