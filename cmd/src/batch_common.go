@@ -226,7 +226,6 @@ func executeBatchSpec(ctx context.Context, ui ui.ExecUI, opts executeBatchSpecOp
 	svc := service.New(&service.Opts{
 		AllowUnsupported: opts.flags.allowUnsupported,
 		AllowIgnored:     opts.flags.allowIgnored,
-		AllowFiles:       true,
 		Client:           opts.client,
 	})
 
@@ -343,10 +342,10 @@ func executeBatchSpec(ctx context.Context, ui ui.ExecUI, opts executeBatchSpecOp
 	importedSpecs, importErr := svc.CreateImportChangesetSpecs(ctx, batchSpec)
 	var errs *multierror.Error
 	if execErr != nil {
-		err = multierror.Append(err, execErr)
+		errs = multierror.Append(errs, execErr)
 	}
 	if importErr != nil {
-		err = multierror.Append(err, importErr)
+		errs = multierror.Append(errs, importErr)
 	}
 	err = errs.ErrorOrNil()
 	if err != nil && !opts.flags.skipErrors {
