@@ -76,8 +76,7 @@ Examples:
 		}
 		ui.ResolvingNamespaceSuccess(namespaceID)
 
-		// TODO: add to ExecUI.
-		pending := out.Pending(output.Line("", output.StylePending, "Sending batch spec"))
+		ui.SendingBatchSpec()
 		batchSpecID, err := svc.UpsertBatchSpecInput(
 			ctx,
 			raw,
@@ -87,46 +86,40 @@ Examples:
 			flags.clearCache,
 		)
 		if err != nil {
-			pending.Complete(output.Linef(output.EmojiFailure, output.StyleWarning, "Error sending batch spec: %s", err.Error()))
 			return err
 		}
-		pending.Complete(output.Line(output.EmojiSuccess, output.StyleSuccess, "Batch spec sent"))
+		ui.SendingBatchSpecSuccess()
 
 		// Wait for the workspaces to be resolved.
-		pending = out.Pending(output.Line("", output.StylePending, "Resolving workspaces"))
+		ui.ResolvingWorkspaces()
 		ticker := time.NewTicker(1 * time.Second)
 		defer ticker.Stop()
 		for range ticker.C {
 			res, err := svc.GetBatchSpecWorkspaceResolution(ctx, batchSpecID)
 			if err != nil {
-				pending.Complete(output.Linef(output.EmojiFailure, output.StyleWarning, "Error resolving workspaces: %s", err.Error()))
 				return err
 			}
 
 			if res.State == "FAILED" {
-				pending.Complete(output.Linef(output.EmojiFailure, output.StyleWarning, "Workspace resolution failed: %s", res.FailureMessage))
 				return errors.Newf("workspace resolution failed: %s", res.FailureMessage)
 			} else if res.State == "COMPLETED" {
-				pending.Complete(output.Line(output.EmojiSuccess, output.StyleSuccess, "Resolved workspaces"))
 				break
-			} else {
-				pending.Updatef("Resolving workspaces: %s", res.State)
 			}
 		}
+		ui.ResolvingWorkspacesSuccess()
 
 		// We have to enqueue this for execution with a separate operation.
 		//
 		// TODO: when the execute flag is wired up in the upsert mutation, just set
 		// it there and remove this.
-		pending = out.Pending(output.Line("", output.StylePending, "Executing on Sourcegraph"))
+		ui.ExecutingBatchSpec()
 		batchSpecID, err = svc.ExecuteBatchSpec(ctx, batchSpecID, flags.clearCache)
 		if err != nil {
-			pending.Complete(output.Linef(output.EmojiFailure, output.StyleWarning, "Execution failed: %s", err.Error()))
 			return err
 		}
+		ui.ExecutingBatchSpecSuccess()
 
-		// TODO: make beautiful, add a link, et cetera.
-		pending.Complete(output.Linef(output.EmojiInfo, output.Fg256Color(12), "Executing at: %s/batch-changes/executions/%s", strings.TrimSuffix(cfg.Endpoint, "/"), batchSpecID))
+		ui.RemoteSuccess(strings.TrimSuffix(cfg.Endpoint, "/") + "/batch-changes/executions/" + batchSpecID)
 
 		return nil
 	}
