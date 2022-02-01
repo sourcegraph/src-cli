@@ -7,7 +7,6 @@ import (
 )
 
 func HasInput(fd uintptr, timeout time.Duration) (bool, error) {
-
 	rfds := &goselect.FDSet{}
 	rfds.Zero()
 	rfds.Set(fd)
