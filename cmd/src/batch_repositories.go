@@ -67,8 +67,13 @@ Examples:
 			return err
 		}
 
+		var file string
+		if fileFlag != nil {
+			file = *fileFlag
+		}
+
 		out := output.NewOutput(flagSet.Output(), output.OutputOpts{Verbose: *verbose})
-		spec, _, err := parseBatchSpec(fileFlag, svc)
+		spec, _, err := parseBatchSpec(file, svc)
 		if err != nil {
 			ui := &ui.TUI{Out: out}
 			ui.ParsingBatchSpecFailure(err)

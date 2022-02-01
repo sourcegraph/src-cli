@@ -68,7 +68,12 @@ Examples:
 			return err
 		}
 
-		if _, _, err := parseBatchSpec(fileFlag, svc); err != nil {
+		file, err := getBatchSpecFile(flagSet, fileFlag)
+		if err != nil {
+			return err
+		}
+
+		if _, _, err := parseBatchSpec(file, svc); err != nil {
 			ui.ParsingBatchSpecFailure(err)
 			return err
 		}
