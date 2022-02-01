@@ -56,7 +56,12 @@ const sourcegraphVersionQuery = `query SourcegraphVersion {
 	site {
 	  productVersion
 	}
+	batchChanges(first: 1) {
+    nodes {
+      id
+    }
   }
+}
   `
 
 // getSourcegraphVersion queries the Sourcegraph GraphQL API to get the
