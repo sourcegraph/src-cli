@@ -34,7 +34,7 @@ func (ff *FeatureFlags) SetFromVersion(version string) error {
 		{&ff.BatchChanges, ">= 3.26.0", "2021-03-07"},
 		{&ff.AllowConditionalExec, ">= 3.28.0", "2021-05-05"},
 		{&ff.AllowOptionalPublished, ">= 3.30.0", "2021-06-21"},
-		{&ff.ServerSideBatchChanges, ">= 3.35.0", "2021-12-01"},
+		{&ff.ServerSideBatchChanges, ">= 3.37.0", "2022-01-31"},
 	} {
 		value, err := api.CheckSourcegraphVersion(version, feature.constraint, feature.minDate)
 		if err != nil {

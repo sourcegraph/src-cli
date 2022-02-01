@@ -57,11 +57,11 @@ Examples:
 		out := output.NewOutput(flagSet.Output(), output.OutputOpts{Verbose: *verbose})
 		ui := &ui.TUI{Out: out}
 
-		// OK, now for the real stuff. First up, we'd better parse the input so
-		// we can access the name. (It doesn't hurt that this also validates the
-		// input.)
+		// OK, now for the real stuff. We have to load in the batch spec, and we
+		// may as well validate it at the same time so we don't even have to go to
+		// the backend if it's invalid.
 		ui.ParsingBatchSpec()
-		spec, raw, err := parseBatchSpec(fileFlag, svc)
+		_, raw, err := parseBatchSpec(fileFlag, svc)
 		if err != nil {
 			ui.ParsingBatchSpecFailure(err)
 			return err
@@ -76,53 +76,21 @@ Examples:
 		}
 		ui.ResolvingNamespaceSuccess(namespaceID)
 
-		// We need to figure out if there's an existing batch spec that should
-		// be replaced, or if this is a new batch spec.
-		//
 		// TODO: add to ExecUI.
-		pending := out.Pending(output.Line("", output.StylePending, "Determining batch spec operations"))
-		prevSpecID, err := svc.GetBatchSpecIDByName(ctx, namespaceID, spec.Name)
+		pending := out.Pending(output.Line("", output.StylePending, "Sending batch spec"))
+		batchSpecID, err := svc.UpsertBatchSpecInput(
+			ctx,
+			raw,
+			namespaceID,
+			flags.allowIgnored,
+			flags.allowUnsupported,
+			flags.clearCache,
+		)
 		if err != nil {
-			pending.Complete(output.Linef(output.EmojiFailure, output.StyleWarning, "Error determining operations: %s", err.Error()))
+			pending.Complete(output.Linef(output.EmojiFailure, output.StyleWarning, "Error sending batch spec: %s", err.Error()))
 			return err
 		}
-		pending.Complete(output.Line(output.EmojiSuccess, output.StyleSuccess, "Batch spec operations determined"))
-
-		// Actually perform the create or replace.
-		var batchSpecID string
-		if prevSpecID != "" {
-			pending := out.Pending(output.Line("", output.StylePending, "Replacing batch spec"))
-			batchSpecID, err = svc.ReplaceBatchSpecInput(
-				ctx,
-				prevSpecID,
-				raw,
-				flags.allowIgnored,
-				flags.allowUnsupported,
-				flags.clearCache,
-			)
-			if err != nil {
-				pending.Complete(output.Linef(output.EmojiFailure, output.StyleWarning, "Error replacing batch spec: %s", err.Error()))
-				return err
-			}
-
-			pending.Complete(output.Line(output.EmojiSuccess, output.StyleSuccess, "Replaced batch spec"))
-		} else {
-			pending := out.Pending(output.Line("", output.StylePending, "Creating batch spec"))
-			batchSpecID, err = svc.CreateBatchSpecFromRaw(
-				ctx,
-				raw,
-				namespaceID,
-				flags.allowIgnored,
-				flags.allowUnsupported,
-				flags.clearCache,
-			)
-			if err != nil {
-				pending.Complete(output.Linef(output.EmojiFailure, output.StyleWarning, "Error creating batch spec: %s", err.Error()))
-				return err
-			}
-
-			pending.Complete(output.Line(output.EmojiSuccess, output.StyleSuccess, "Created batch spec"))
-		}
+		pending.Complete(output.Line(output.EmojiSuccess, output.StyleSuccess, "Batch spec sent"))
 
 		// Wait for the workspaces to be resolved.
 		pending = out.Pending(output.Line("", output.StylePending, "Resolving workspaces"))
@@ -148,8 +116,8 @@ Examples:
 
 		// We have to enqueue this for execution with a separate operation.
 		//
-		// TODO: when the execute flag is wired up in the create and replace
-		// mutations, just set it there and remove this.
+		// TODO: when the execute flag is wired up in the upsert mutation, just set
+		// it there and remove this.
 		pending = out.Pending(output.Line("", output.StylePending, "Executing on Sourcegraph"))
 		batchSpecID, err = svc.ExecuteBatchSpec(ctx, batchSpecID, flags.clearCache)
 		if err != nil {

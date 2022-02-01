@@ -15,36 +15,7 @@ func (svc *Service) areServerSideBatchChangesSupported() error {
 	return nil
 }
 
-const batchSpecIDByNameQuery = `
-query BatchSpecIDByName($namespace: ID!, $name: String!) {
-    batchChange(namespace: $namespace, name: $name) {
-        currentSpec {
-            id
-        }
-    }
-}
-`
-
-func (svc *Service) GetBatchSpecIDByName(ctx context.Context, namespace, name string) (string, error) {
-	var resp struct {
-		BatchChange struct {
-			CurrentSpec struct {
-				ID string `json:"id"`
-			} `json:"currentSpec"`
-		} `json:"batchChange"`
-	}
-
-	if ok, err := svc.client.NewRequest(batchSpecIDByNameQuery, map[string]interface{}{
-		"namespace": namespace,
-		"name":      name,
-	}).Do(ctx, &resp); err != nil || !ok {
-		return "", err
-	}
-
-	return resp.BatchChange.CurrentSpec.ID, nil
-}
-
-const createBatchSpecFromRawQuery = `
+const upsertBatchSpecInputQuery = `
 mutation CreateBatchSpecFromRaw(
     $batchSpec: String!,
     $namespace: ID!,
@@ -52,7 +23,7 @@ mutation CreateBatchSpecFromRaw(
     $allowUnsupported: Boolean!,
     $noCache: Boolean!,
 ) {
-    createBatchSpecFromRaw(
+    upsertBatchSpecInput(
         batchSpec: $batchSpec,
         namespace: $namespace,
         allowIgnored: $allowIgnored,
@@ -64,7 +35,7 @@ mutation CreateBatchSpecFromRaw(
 }
 `
 
-func (svc *Service) CreateBatchSpecFromRaw(
+func (svc *Service) UpsertBatchSpecInput(
 	ctx context.Context,
 	batchSpec string,
 	namespaceID string,
@@ -77,12 +48,12 @@ func (svc *Service) CreateBatchSpecFromRaw(
 	}
 
 	var resp struct {
-		CreateBatchSpecFromRaw struct {
+		UpsertBatchSpecInput struct {
 			ID string `json:"id"`
-		} `json:"createBatchSpecFromRaw"`
+		} `json:"upsertBatchSpecInput"`
 	}
 
-	if ok, err := svc.client.NewRequest(createBatchSpecFromRawQuery, map[string]interface{}{
+	if ok, err := svc.client.NewRequest(upsertBatchSpecInputQuery, map[string]interface{}{
 		"batchSpec":        batchSpec,
 		"namespace":        namespaceID,
 		"allowIgnored":     allowIgnored,
@@ -92,58 +63,7 @@ func (svc *Service) CreateBatchSpecFromRaw(
 		return "", err
 	}
 
-	return resp.CreateBatchSpecFromRaw.ID, nil
-}
-
-const replaceBatchSpecInputQuery = `
-mutation ReplaceBatchSpecInput(
-    $previousSpec: ID!,
-    $batchSpec: String!,
-    $allowIgnored: Boolean!,
-    $allowUnsupported: Boolean!,
-    $noCache: Boolean!,
-) {
-    replaceBatchSpecInput(
-        previousSpec: $previousSpec,
-        batchSpec: $batchSpec,
-        allowIgnored: $allowIgnored,
-        allowUnsupported: $allowUnsupported,
-        noCache: $noCache,
-    ) {
-        id
-    }
-}
-`
-
-func (svc *Service) ReplaceBatchSpecInput(
-	ctx context.Context,
-	previousSpecID string,
-	batchSpec string,
-	allowIgnored bool,
-	allowUnsupported bool,
-	noCache bool,
-) (string, error) {
-	if err := svc.areServerSideBatchChangesSupported(); err != nil {
-		return "", err
-	}
-
-	var resp struct {
-		ReplaceBatchSpecInput struct {
-			ID string `json:"id"`
-		} `json:"replaceBatchSpecInput"`
-	}
-
-	if ok, err := svc.client.NewRequest(replaceBatchSpecInputQuery, map[string]interface{}{
-		"previousSpec":     previousSpecID,
-		"batchSpec":        batchSpec,
-		"allowIgnored":     allowIgnored,
-		"allowUnsupported": allowUnsupported,
-		"noCache":          noCache,
-	}).Do(ctx, &resp); err != nil || !ok {
-		return "", err
-	}
-
-	return resp.ReplaceBatchSpecInput.ID, nil
+	return resp.UpsertBatchSpecInput.ID, nil
 }
 
 const executeBatchSpecQuery = `
