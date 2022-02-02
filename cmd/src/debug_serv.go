@@ -22,7 +22,7 @@ Examples:
 
 `
 
-	flagSet := flag.NewFlagSet("kube", flag.ExitOnError)
+	flagSet := flag.NewFlagSet("serv", flag.ExitOnError)
 	var base string
 	flagSet.StringVar(&base, "out", "debug.zip", "The name of the output zip archive")
 
