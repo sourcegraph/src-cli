@@ -57,15 +57,15 @@ func New(opts *Opts) *Service {
 // first thing we do.
 const sourcegraphVersionQuery = `query SourcegraphVersion {
 	site {
-	  productVersion
+		productVersion
 	}
 	batchChanges(first: 1) {
-    nodes {
-      id
-    }
-  }
+		nodes {
+			id
+		}
+	}
 }
-  `
+`
 
 // getSourcegraphVersion queries the Sourcegraph GraphQL API to get the
 // current version of the Sourcegraph instance.
