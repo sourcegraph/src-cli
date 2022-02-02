@@ -22,9 +22,9 @@ Examples:
 
 `
 
-	flagSet := flag.NewFlagSet("kube", flag.ExitOnError)
+	flagSet := flag.NewFlagSet("comp", flag.ExitOnError)
 	var base string
-	flagSet.StringVar(&base, "out", "debug.zip", "The name of the output zip archive")
+	flagSet.StringVar(&base, "o", "debug.zip", "The name of the output zip archive")
 
 	handler := func(args []string) error {
 		if err := flagSet.Parse(args); err != nil {
@@ -33,7 +33,7 @@ Examples:
 
 		//validate out flag
 		if base == "" {
-			return fmt.Errorf("empty -out flag")
+			return fmt.Errorf("empty -o flag")
 		}
 		// declare basedir for archive file structure
 		var baseDir string
