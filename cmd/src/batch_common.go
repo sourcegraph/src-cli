@@ -246,7 +246,6 @@ func executeBatchSpec(ctx context.Context, ui ui.ExecUI, opts executeBatchSpecOp
 		AllowUnsupported: opts.flags.allowUnsupported,
 		AllowIgnored:     opts.flags.allowIgnored,
 		Client:           opts.client,
-		Parallelism:      opts.flags.parallelism,
 	})
 
 	if err := svc.DetermineFeatureFlags(ctx); err != nil {
@@ -288,7 +287,10 @@ func executeBatchSpec(ctx context.Context, ui ui.ExecUI, opts executeBatchSpecOp
 
 	if len(batchSpec.Steps) > 0 {
 		ui.PreparingContainerImages()
-		images, err := svc.EnsureDockerImages(ctx, batchSpec.Steps, ui.PreparingContainerImagesProgress)
+		images, err := svc.EnsureDockerImages(
+			ctx, batchSpec.Steps, opts.flags.parallelism,
+			ui.PreparingContainerImagesProgress,
+		)
 		if err != nil {
 			return err
 		}

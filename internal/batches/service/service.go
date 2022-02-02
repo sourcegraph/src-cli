@@ -32,14 +32,12 @@ type Service struct {
 	client           api.Client
 	features         batches.FeatureFlags
 	imageCache       *docker.ImageCache
-	parallelism      int
 }
 
 type Opts struct {
 	AllowUnsupported bool
 	AllowIgnored     bool
 	Client           api.Client
-	Parallelism      int
 }
 
 var (
@@ -47,17 +45,11 @@ var (
 )
 
 func New(opts *Opts) *Service {
-	parallelism := opts.Parallelism
-	if parallelism < 1 {
-		parallelism = 1
-	}
-
 	return &Service{
 		allowUnsupported: opts.AllowUnsupported,
 		allowIgnored:     opts.AllowIgnored,
 		client:           opts.Client,
 		imageCache:       docker.NewImageCache(),
-		parallelism:      parallelism,
 	}
 }
 
@@ -165,7 +157,7 @@ func (svc *Service) CreateChangesetSpec(ctx context.Context, spec *batcheslib.Ch
 //
 // Progress information is reported back to the given progress function: perc
 // will be a value between 0.0 and 1.0, inclusive.
-func (svc *Service) EnsureDockerImages(ctx context.Context, steps []batcheslib.Step, progress func(done, total int)) (map[string]docker.Image, error) {
+func (svc *Service) EnsureDockerImages(ctx context.Context, steps []batcheslib.Step, parallelism int, progress func(done, total int)) (map[string]docker.Image, error) {
 	// Figure out the image names used in the batch spec.
 	names := map[string]struct{}{}
 	for i := range steps {
@@ -191,8 +183,11 @@ func (svc *Service) EnsureDockerImages(ctx context.Context, steps []batcheslib.S
 	defer cancel()
 
 	// Spawn worker goroutines to call EnsureImage on each image name.
+	if parallelism < 1 {
+		parallelism = 1
+	}
 	var wg sync.WaitGroup
-	for i := 0; i < svc.parallelism; i++ {
+	for i := 0; i < parallelism; i++ {
 		wg.Add(1)
 		go func() {
 			for name := range inputs {
