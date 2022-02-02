@@ -5,9 +5,10 @@ import (
 	"flag"
 	"fmt"
 
-	"github.com/sourcegraph/sourcegraph/lib/output"
 	"github.com/sourcegraph/src-cli/internal/batches/ui"
 	"github.com/sourcegraph/src-cli/internal/cmderrors"
+
+	"github.com/sourcegraph/sourcegraph/lib/output"
 )
 
 func init() {
@@ -17,13 +18,16 @@ creating or updating the described batch change if necessary.
 
 Usage:
 
-    src batch apply -f FILE [command options]
+    src batch apply [command options] [-f FILE]
+    src batch apply [command options] FILE
 
 Examples:
 
     $ src batch apply -f batch.spec.yaml
-  
+
     $ src batch apply -f batch.spec.yaml -namespace myorg
+
+    $ src batch apply batch.spec.yaml
 
 `
 
@@ -50,13 +54,11 @@ Examples:
 			execUI = &ui.TUI{Out: out}
 		}
 
-		err := executeBatchSpec(ctx, executeBatchSpecOpts{
+		err := executeBatchSpec(ctx, execUI, executeBatchSpecOpts{
 			flags:  flags,
 			client: cfg.apiClient(flags.api, flagSet.Output()),
 
 			applyBatchSpec: true,
-
-			ui: execUI,
 		})
 		if err != nil {
 			return cmderrors.ExitCode(1, nil)

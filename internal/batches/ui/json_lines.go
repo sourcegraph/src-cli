@@ -17,6 +17,7 @@ import (
 	"github.com/sourcegraph/src-cli/internal/batches/workspace"
 
 	batcheslib "github.com/sourcegraph/sourcegraph/lib/batches"
+	"github.com/sourcegraph/sourcegraph/lib/batches/execution"
 	"github.com/sourcegraph/sourcegraph/lib/batches/git"
 )
 
@@ -171,6 +172,22 @@ func (ui *JSONLines) ExecutionError(err error) {
 	logOperationFailure(batcheslib.LogEventOperationBatchSpecExecution, &batcheslib.BatchSpecExecutionMetadata{Error: err.Error()})
 }
 
+var _ executor.JSONCacheWriter = &JSONLines{}
+
+func (ui *JSONLines) WriteExecutionResult(key string, value execution.Result) {
+	logOperationSuccess(batcheslib.LogEventOperationCacheResult, &batcheslib.CacheResultMetadata{
+		Key:   key,
+		Value: value,
+	})
+}
+
+func (ui *JSONLines) WriteAfterStepResult(key string, value execution.AfterStepResult) {
+	logOperationSuccess(batcheslib.LogEventOperationCacheAfterStepResult, &batcheslib.CacheAfterStepResultMetadata{
+		Key:   key,
+		Value: value,
+	})
+}
+
 type taskExecutionJSONLines struct {
 	verbose     bool
 	parallelism int
@@ -322,13 +339,13 @@ func (ui *stepsExecutionJSONLines) StepOutputWriter(ctx context.Context, task *e
 	return NewIntervalProcessWriter(ctx, stepFlushDuration, sink)
 }
 
-func (ui *stepsExecutionJSONLines) StepFinished(step int, diff []byte, changes *git.Changes, outputs map[string]interface{}) {
+func (ui *stepsExecutionJSONLines) StepFinished(step int, diff string, changes *git.Changes, outputs map[string]interface{}) {
 	logOperationSuccess(
 		batcheslib.LogEventOperationTaskStep,
 		&batcheslib.TaskStepMetadata{
 			TaskID:  ui.linesTask.ID,
 			Step:    step,
-			Diff:    string(diff),
+			Diff:    diff,
 			Outputs: outputs,
 		},
 	)

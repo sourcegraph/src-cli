@@ -2,6 +2,8 @@ package executor
 
 import (
 	batcheslib "github.com/sourcegraph/sourcegraph/lib/batches"
+	"github.com/sourcegraph/sourcegraph/lib/batches/execution"
+	"github.com/sourcegraph/sourcegraph/lib/batches/execution/cache"
 	"github.com/sourcegraph/sourcegraph/lib/batches/template"
 
 	"github.com/sourcegraph/src-cli/internal/batches/graphql"
@@ -30,8 +32,8 @@ type Task struct {
 
 	Archive repozip.Archive `json:"-"`
 
-	CachedResultFound bool                `json:"-"`
-	CachedResult      stepExecutionResult `json:"-"`
+	CachedResultFound bool                      `json:"-"`
+	CachedResult      execution.AfterStepResult `json:"-"`
 }
 
 func (t *Task) ArchivePathToFetch() string {
@@ -41,6 +43,31 @@ func (t *Task) ArchivePathToFetch() string {
 	return ""
 }
 
-func (t *Task) cacheKey() TaskCacheKey {
-	return TaskCacheKey{t}
+func (t *Task) cacheKey(globalEnv []string) *cache.ExecutionKeyWithGlobalEnv {
+	return &cache.ExecutionKeyWithGlobalEnv{
+		GlobalEnv: globalEnv,
+		ExecutionKey: &cache.ExecutionKey{
+			Repository: batcheslib.Repository{
+				ID:          t.Repository.ID,
+				Name:        t.Repository.Name,
+				BaseRef:     t.Repository.BaseRef(),
+				BaseRev:     t.Repository.Rev(),
+				FileMatches: t.Repository.SortedFileMatches(),
+			},
+			Path:                  t.Path,
+			OnlyFetchWorkspace:    t.OnlyFetchWorkspace,
+			Steps:                 t.Steps,
+			BatchChangeAttributes: t.BatchChangeAttributes,
+		},
+	}
+}
+
+func cacheKeyForStep(key *cache.ExecutionKeyWithGlobalEnv, stepIndex int) *cache.StepsCacheKeyWithGlobalEnv {
+	return &cache.StepsCacheKeyWithGlobalEnv{
+		StepsCacheKey: &cache.StepsCacheKey{
+			ExecutionKey: key.ExecutionKey,
+			StepIndex:    stepIndex,
+		},
+		GlobalEnv: key.GlobalEnv,
+	}
 }

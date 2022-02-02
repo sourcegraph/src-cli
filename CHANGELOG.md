@@ -13,15 +13,102 @@ All notable changes to `src-cli` are documented in this file.
 
 ### Added
 
-- Requests to Sourcegraph will now include the operating system and architecture `src` is running on by default. To disable this, set the `SRC_DISABLE_USER_AGENT_TELEMETRY` environment variable to any non-empty string, or provide the `-user-agent-telemetry=false` flag on the command line. [#15769](https://github.com/sourcegraph/sourcegraph/issues/15769)
-
 ### Changed
 
+- `src batch` commands no longer require `-f` to read from a file. Additionally, running a `src batch` command that requires a batch spec file without a `-f` option from the terminal will now generate an error instead of waiting indefinitely for a batch spec on standard input; however, piping in a batch spec will still work as expected. [#687](https://github.com/sourcegraph/src-cli/pull/687)
 - Pulling container images now occurs in parallel, with the number of concurrent downloads being controlled by the `-j` flag. [#17577](https://github.com/sourcegraph/sourcegraph/issues/17577)
 
 ### Fixed
 
 ### Removed
+
+## 3.36.2
+
+### Changed
+
+- `src validate` can now execute default validation checks (add external service, clone repo, search repo, search non-indexed branch of that repo, remove external service) for Sourcegraph instance when no validation file is specified as well as continue to support JSON and YAML file validation files.
+
+### Fixed
+
+- `src batch preview` and `src batch apply` could erroneously return exit code 0 and no warning when the execution actually failed.
+
+## 3.36.1
+
+### Changed
+
+- `src exec` now allows the `files:` property. (internal use only)
+
+## 3.36.0
+
+_This version is the same as 3.35.3, just retagged for the upcoming 3.36.0 release of Sourcegraph._
+
+## 3.35.3
+
+### Fixed
+
+- Certain Batch Changes features that previously would not work on prerelease versions of Sourcegraph will now work as expected again.
+
+## 3.35.2
+
+### Fixed
+
+- `src batch validate` and `src batch repos` now accept `-allow-unsupported` and `-force-override-ignore` and don't fail on specs using `files` anymore.
+
+## 3.35.1
+
+### Changed
+
+- `src validate` has been updated to work with Sourcegraph 3.35's changed CSRF behaviour. [#673](https://github.com/sourcegraph/src-cli/pull/673)
+
+## 3.35.0
+
+### Added
+
+- Individual batch changes can publish multiple changesets to the same repository by specifying multiple target branches using the [`on.branches`](https://docs.sourcegraph.com/batch_changes/references/batch_spec_yaml_reference#on-repository) attribute. [#25228](https://github.com/sourcegraph/sourcegraph/issues/25228)
+
+### Changed
+
+- `src batch [preview|apply]` will now use the faster volume workspace by default for macOS systems using arm64 processors (aka "Apple Silicon")
+
+### Fixed
+
+- Excess newlines in between outputs in logfiles written when `--keep-logs` is used have been fixed. [#665](https://github.com/sourcegraph/src-cli/pull/665)
+- `src` would sometimes panic when Ctrl-C was pressed while executing batch change steps due to a bug in the library used to render the execution progress bars. This has been fixed. [🤘 #666](https://github.com/sourcegraph/src-cli/pull/666)
+- In batch changes, when using `workspaces` src would incorrectly treat `in` not being set as _don't match anything_. This is fixed and it matches everything like `*`. [#664](https://github.com/sourcegraph/src-cli/pull/664)
+
+## 3.34.1
+
+### Added
+
+- For internal use only: Allow exec mode to read step cache files from the current working directory.
+
+### Fixed
+
+- For internal use only: Fix an off-by-one error in the JSON log UI.
+
+## 3.34.0
+
+### Added
+
+- Bare repositories can now be served with `src serve-git`. Thanks to [Andreas Rammhold](https://github.com/andir) for the contribution! [#639](https://github.com/sourcegraph/src-cli/pull/639)
+
+## 3.33.8
+
+### Fixed
+
+- For internal use only: Switch to single workspaces only in payload.
+
+## 3.33.7
+
+### Added
+
+- A `-client-only` flag has been added to `src version`. When set, only the local src-cli's version will be printed and no attempt is made to fetch the recommended version from the configured Sourcegraph server.
+
+## 3.33.6
+
+### Added
+
+- Requests to Sourcegraph will now include the operating system and architecture `src` is running on by default. To disable this, set the `SRC_DISABLE_USER_AGENT_TELEMETRY` environment variable to any non-empty string, or provide the `-user-agent-telemetry=false` flag on the command line. [#15769](https://github.com/sourcegraph/sourcegraph/issues/15769)
 
 ## 3.33.5
 

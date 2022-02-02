@@ -13,20 +13,22 @@ import (
 	"sync"
 
 	"github.com/cockroachdb/errors"
+	"github.com/hashicorp/go-multierror"
 
 	batcheslib "github.com/sourcegraph/sourcegraph/lib/batches"
+	onlib "github.com/sourcegraph/sourcegraph/lib/batches/on"
 
 	"github.com/sourcegraph/src-cli/internal/api"
 	"github.com/sourcegraph/src-cli/internal/batches"
 	"github.com/sourcegraph/src-cli/internal/batches/docker"
 	"github.com/sourcegraph/src-cli/internal/batches/executor"
 	"github.com/sourcegraph/src-cli/internal/batches/graphql"
+	"github.com/sourcegraph/src-cli/internal/batches/repozip"
 )
 
 type Service struct {
 	allowUnsupported bool
 	allowIgnored     bool
-	allowFiles       bool
 	client           api.Client
 	features         batches.FeatureFlags
 	imageCache       *docker.ImageCache
@@ -36,7 +38,6 @@ type Service struct {
 type Opts struct {
 	AllowUnsupported bool
 	AllowIgnored     bool
-	AllowFiles       bool
 	Client           api.Client
 	Parallelism      int
 }
@@ -54,7 +55,6 @@ func New(opts *Opts) *Service {
 	return &Service{
 		allowUnsupported: opts.AllowUnsupported,
 		allowIgnored:     opts.AllowIgnored,
-		allowFiles:       opts.AllowFiles,
 		client:           opts.Client,
 		imageCache:       docker.NewImageCache(),
 		parallelism:      parallelism,
@@ -165,15 +165,14 @@ func (svc *Service) CreateChangesetSpec(ctx context.Context, spec *batcheslib.Ch
 //
 // Progress information is reported back to the given progress function: perc
 // will be a value between 0.0 and 1.0, inclusive.
-func (svc *Service) EnsureDockerImages(ctx context.Context, spec *batcheslib.BatchSpec, progress func(done, total int)) (map[string]docker.Image, error) {
+func (svc *Service) EnsureDockerImages(ctx context.Context, steps []batcheslib.Step, progress func(done, total int)) (map[string]docker.Image, error) {
 	// Figure out the image names used in the batch spec.
 	names := map[string]struct{}{}
-	for i := range spec.Steps {
-		names[spec.Steps[i].Container] = struct{}{}
+	for i := range steps {
+		names[steps[i].Container] = struct{}{}
 	}
 
-	// Set up our progress reporting.
-	total := len(names)
+	total := len(steps)
 	progress(0, total)
 
 	// Set up the channels that will be used in the parallel goroutines handling
@@ -239,10 +238,6 @@ func (svc *Service) EnsureDockerImages(ctx context.Context, spec *batcheslib.Bat
 	return images, nil
 }
 
-func (svc *Service) HasDockerImages(spec *batcheslib.BatchSpec) bool {
-	return len(spec.Steps) > 0
-}
-
 func (svc *Service) EnsureImage(ctx context.Context, name string) (docker.Image, error) {
 	img := svc.imageCache.Get(name)
 
@@ -262,12 +257,27 @@ func (svc *Service) BuildTasks(ctx context.Context, spec *batcheslib.BatchSpec, 
 }
 
 func (svc *Service) NewCoordinator(opts executor.NewCoordinatorOpts) *executor.Coordinator {
-	opts.ResolveRepoName = svc.resolveRepositoryName
-	opts.Client = svc.client
+	opts.RepoArchiveRegistry = repozip.NewArchiveRegistry(svc.client, opts.CacheDir, opts.CleanArchives)
 	opts.Features = svc.features
 	opts.EnsureImage = svc.EnsureImage
 
 	return executor.NewCoordinator(opts)
+}
+
+func (svc *Service) CreateImportChangesetSpecs(ctx context.Context, batchSpec *batcheslib.BatchSpec) ([]*batcheslib.ChangesetSpec, error) {
+	return batcheslib.BuildImportChangesetSpecs(ctx, batchSpec.ImportChangesets, func(ctx context.Context, repoNames []string) (_ map[string]string, errs error) {
+		repoNameIDs := map[string]string{}
+		for _, name := range repoNames {
+			repo, err := svc.resolveRepositoryName(ctx, name)
+			if err != nil {
+				wrapped := errors.Wrapf(err, "resolving repository name %q", name)
+				errs = multierror.Append(errs, wrapped)
+				continue
+			}
+			repoNameIDs[name] = repo.ID
+		}
+		return repoNameIDs, errs
+	})
 }
 
 // ValidateChangesetSpecs validates that among all branch changesets there are no
@@ -341,7 +351,6 @@ func (svc *Service) ParseBatchSpec(data []byte) (*batcheslib.BatchSpec, error) {
 		AllowArrayEnvironments: svc.features.AllowArrayEnvironments,
 		AllowTransformChanges:  svc.features.AllowTransformChanges,
 		AllowConditionalExec:   svc.features.AllowConditionalExec,
-		AllowFiles:             svc.allowFiles,
 	})
 	if err != nil {
 		return nil, errors.Wrap(err, "parsing batch spec")
@@ -488,17 +497,18 @@ func (svc *Service) ResolveNamespace(ctx context.Context, namespace string) (str
 }
 
 func (svc *Service) ResolveRepositories(ctx context.Context, spec *batcheslib.BatchSpec) ([]*graphql.Repository, error) {
-	seen := map[string]*graphql.Repository{}
+	agg := onlib.NewRepoRevisionAggregator()
 	unsupported := batches.UnsupportedRepoSet{}
 	ignored := batches.IgnoredRepoSet{}
 
 	// TODO: this could be trivially parallelised in the future.
 	for _, on := range spec.On {
-		repos, err := svc.ResolveRepositoriesOn(ctx, &on)
+		repos, ruleType, err := svc.ResolveRepositoriesOn(ctx, &on)
 		if err != nil {
 			return nil, errors.Wrapf(err, "resolving %q", on.String())
 		}
 
+		result := agg.NewRuleRevisions(ruleType)
 		reposWithBranch := make([]*graphql.Repository, 0, len(repos))
 		for _, repo := range repos {
 			if !repo.HasBranch() {
@@ -516,33 +526,27 @@ func (svc *Service) ResolveRepositories(ctx context.Context, spec *batcheslib.Ba
 		}
 
 		for _, repo := range reposWithBranch {
-			if other, ok := seen[repo.ID]; !ok {
-				seen[repo.ID] = repo
+			result.AddRepoRevision(repo.ID, repo)
 
-				switch st := strings.ToLower(repo.ExternalRepository.ServiceType); st {
-				case "github", "gitlab", "bitbucketserver":
-				default:
-					if !svc.allowUnsupported {
-						unsupported.Append(repo)
-					}
+			switch st := strings.ToLower(repo.ExternalRepository.ServiceType); st {
+			case "github", "gitlab", "bitbucketserver":
+			default:
+				if !svc.allowUnsupported {
+					unsupported.Append(repo)
 				}
+			}
 
-				if !svc.allowIgnored {
-					if locations, ok := repoBatchIgnores[repo]; ok && len(locations) > 0 {
-						ignored.Append(repo)
-					}
+			if !svc.allowIgnored {
+				if locations, ok := repoBatchIgnores[repo]; ok && len(locations) > 0 {
+					ignored.Append(repo)
 				}
-			} else {
-				// If we've already seen this repository, we overwrite the
-				// Commit/Branch fields with the latest value we have
-				other.Commit = repo.Commit
-				other.Branch = repo.Branch
 			}
 		}
 	}
 
-	final := make([]*graphql.Repository, 0, len(seen))
-	for _, repo := range seen {
+	final := []*graphql.Repository{}
+	for _, rev := range agg.Revisions() {
+		repo := rev.(*graphql.Repository)
 		if !unsupported.Includes(repo) && !ignored.Includes(repo) {
 			final = append(final, repo)
 		}
@@ -559,26 +563,40 @@ func (svc *Service) ResolveRepositories(ctx context.Context, spec *batcheslib.Ba
 	return final, nil
 }
 
-func (svc *Service) ResolveRepositoriesOn(ctx context.Context, on *batcheslib.OnQueryOrRepository) ([]*graphql.Repository, error) {
+func (svc *Service) ResolveRepositoriesOn(ctx context.Context, on *batcheslib.OnQueryOrRepository) ([]*graphql.Repository, onlib.RepositoryRuleType, error) {
 	if on.RepositoriesMatchingQuery != "" {
-		return svc.resolveRepositorySearch(ctx, on.RepositoriesMatchingQuery)
-	} else if on.Repository != "" && on.Branch != "" {
-		repo, err := svc.resolveRepositoryNameAndBranch(ctx, on.Repository, on.Branch)
-		if err != nil {
-			return nil, err
-		}
-		return []*graphql.Repository{repo}, nil
+		repo, err := svc.resolveRepositorySearch(ctx, on.RepositoriesMatchingQuery)
+		return repo, onlib.RepositoryRuleTypeQuery, err
 	} else if on.Repository != "" {
-		repo, err := svc.resolveRepositoryName(ctx, on.Repository)
+		branches, err := on.GetBranches()
 		if err != nil {
-			return nil, err
+			return nil, onlib.RepositoryRuleTypeExplicit, err
 		}
-		return []*graphql.Repository{repo}, nil
+
+		if len(branches) > 0 {
+			repos := make([]*graphql.Repository, len(branches))
+			for i, branch := range branches {
+				repo, err := svc.resolveRepositoryNameAndBranch(ctx, on.Repository, branch)
+				if err != nil {
+					return nil, onlib.RepositoryRuleTypeExplicit, err
+				}
+
+				repos[i] = repo
+			}
+
+			return repos, onlib.RepositoryRuleTypeExplicit, nil
+		} else {
+			repo, err := svc.resolveRepositoryName(ctx, on.Repository)
+			if err != nil {
+				return nil, onlib.RepositoryRuleTypeExplicit, err
+			}
+			return []*graphql.Repository{repo}, onlib.RepositoryRuleTypeExplicit, nil
+		}
 	}
 
 	// This shouldn't happen on any batch spec that has passed validation, but,
 	// alas, software.
-	return nil, ErrMalformedOnQueryOrRepository
+	return nil, onlib.RepositoryRuleTypeExplicit, ErrMalformedOnQueryOrRepository
 }
 
 const repositoryNameQuery = `

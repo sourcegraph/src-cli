@@ -8,7 +8,6 @@ import (
 	"io"
 
 	"github.com/cockroachdb/errors"
-	"github.com/hashicorp/go-multierror"
 
 	"github.com/sourcegraph/src-cli/internal/batches/executor"
 	"github.com/sourcegraph/src-cli/internal/batches/graphql"
@@ -52,10 +51,9 @@ Examples:
 		ctx, cancel := contextCancelOnInterrupt(context.Background())
 		defer cancel()
 
-		err := executeBatchSpecInWorkspaces(ctx, executeBatchSpecOpts{
+		err := executeBatchSpecInWorkspaces(ctx, &ui.JSONLines{}, executeBatchSpecOpts{
 			flags:  flags,
 			client: cfg.apiClient(flags.api, flagSet.Output()),
-			ui:     &ui.JSONLines{},
 		})
 		if err != nil {
 			return cmderrors.ExitCode(1, nil)
@@ -75,17 +73,16 @@ Examples:
 	})
 }
 
-func executeBatchSpecInWorkspaces(ctx context.Context, opts executeBatchSpecOpts) (err error) {
+func executeBatchSpecInWorkspaces(ctx context.Context, ui *ui.JSONLines, opts executeBatchSpecOpts) (err error) {
 	defer func() {
 		if err != nil {
-			opts.ui.ExecutionError(err)
+			ui.ExecutionError(err)
 		}
 	}()
 
 	svc := service.New(&service.Opts{
 		AllowUnsupported: opts.flags.allowUnsupported,
 		AllowIgnored:     opts.flags.allowIgnored,
-		AllowFiles:       false,
 		Client:           opts.client,
 		Parallelism:      opts.flags.parallelism,
 	})
@@ -107,37 +104,21 @@ func executeBatchSpecInWorkspaces(ctx context.Context, opts executeBatchSpecOpts
 		return err
 	}
 
-	// Since we already know which workspaces we want to execute the steps in,
-	// we can convert them to RepoWorkspaces and build tasks only for those.
-	repoWorkspaces := convertWorkspaces(input.Workspaces)
-
-	// Parse the raw batch spec contained in the input
-	opts.ui.ParsingBatchSpec()
-	batchSpec, err := svc.ParseBatchSpec([]byte(input.RawSpec))
-	if err != nil {
-		var multiErr *multierror.Error
-		if errors.As(err, &multiErr) {
-			opts.ui.ParsingBatchSpecFailure(multiErr)
-			return cmderrors.ExitCode(2, nil)
-		} else {
-			// This shouldn't happen; let's just punt and let the normal
-			// rendering occur.
-			return err
-		}
-	}
-	opts.ui.ParsingBatchSpecSuccess()
+	// Since we already know which workspace we want to execute the steps in,
+	// we can convert it to a RepoWorkspace and build a task only for that one.
+	repoWorkspace := convertWorkspace(input.Workspace)
 
 	var workspaceCreator workspace.Creator
 
-	if svc.HasDockerImages(batchSpec) {
-		opts.ui.PreparingContainerImages()
-		images, err := svc.EnsureDockerImages(ctx, batchSpec, opts.ui.PreparingContainerImagesProgress)
+	if len(input.Workspace.Steps) > 0 {
+		ui.PreparingContainerImages()
+		images, err := svc.EnsureDockerImages(ctx, input.Workspace.Steps, ui.PreparingContainerImagesProgress)
 		if err != nil {
 			return err
 		}
-		opts.ui.PreparingContainerImagesSuccess()
+		ui.PreparingContainerImagesSuccess()
 
-		opts.ui.DeterminingWorkspaceCreatorType()
+		ui.DeterminingWorkspaceCreatorType()
 		workspaceCreator = workspace.NewCreator(ctx, opts.flags.workspace, opts.flags.cacheDir, opts.flags.tempDir, images)
 		if workspaceCreator.Type() == workspace.CreatorTypeVolume {
 			_, err = svc.EnsureImage(ctx, workspace.DockerVolumeWorkspaceImage)
@@ -145,39 +126,37 @@ func executeBatchSpecInWorkspaces(ctx context.Context, opts executeBatchSpecOpts
 				return err
 			}
 		}
-		opts.ui.DeterminingWorkspaceCreatorTypeSuccess(workspaceCreator.Type())
+		ui.DeterminingWorkspaceCreatorTypeSuccess(workspaceCreator.Type())
 	}
 
 	// EXECUTION OF TASKS
 	coord := svc.NewCoordinator(executor.NewCoordinatorOpts{
 		Creator:       workspaceCreator,
 		CacheDir:      opts.flags.cacheDir,
-		ClearCache:    opts.flags.clearCache,
+		Cache:         &executor.ServerSideCache{Writer: ui},
 		SkipErrors:    opts.flags.skipErrors,
 		CleanArchives: opts.flags.cleanArchives,
 		Parallelism:   opts.flags.parallelism,
 		Timeout:       opts.flags.timeout,
 		KeepLogs:      opts.flags.keepLogs,
 		TempDir:       opts.flags.tempDir,
-		// Do not import changesets in `src batch exec`
-		ImportChangesets: false,
 	})
 
-	opts.ui.CheckingCache()
-	tasks := svc.BuildTasks(ctx, batchSpec, repoWorkspaces)
-	uncachedTasks, cachedSpecs, err := coord.CheckCache(ctx, tasks)
-	if err != nil {
+	// `src batch exec` uses server-side caching for changeset specs, so we
+	// only need to call `CheckStepResultsCache` to make sure that per-step cache entries
+	// are loaded and set on the tasks.
+	tasks := svc.BuildTasks(ctx, input.Spec, []service.RepoWorkspace{repoWorkspace})
+	if err := coord.CheckStepResultsCache(ctx, tasks); err != nil {
 		return err
 	}
-	opts.ui.CheckingCacheSuccess(len(cachedSpecs), len(uncachedTasks))
 
-	taskExecUI := opts.ui.ExecutingTasks(*verbose, opts.flags.parallelism)
-	freshSpecs, _, err := coord.Execute(ctx, uncachedTasks, batchSpec, taskExecUI)
+	taskExecUI := ui.ExecutingTasks(*verbose, opts.flags.parallelism)
+	_, _, err = coord.Execute(ctx, tasks, input.Spec, taskExecUI)
 	if err == nil || opts.flags.skipErrors {
 		if err == nil {
 			taskExecUI.Success()
 		} else {
-			opts.ui.ExecutingTasksSkippingErrors(err)
+			ui.ExecutingTasksSkippingErrors(err)
 		}
 	} else {
 		if err != nil {
@@ -186,28 +165,13 @@ func executeBatchSpecInWorkspaces(ctx context.Context, opts executeBatchSpecOpts
 		}
 	}
 
-	specs := append(cachedSpecs, freshSpecs...)
-
-	ids := make([]graphql.ChangesetSpecID, len(specs))
-
-	opts.ui.UploadingChangesetSpecs(len(specs))
-	for i, spec := range specs {
-		id, err := svc.CreateChangesetSpec(ctx, spec)
-		if err != nil {
-			return err
-		}
-		ids[i] = id
-		opts.ui.UploadingChangesetSpecsProgress(i+1, len(specs))
-	}
-	opts.ui.UploadingChangesetSpecsSuccess(ids)
-
 	return nil
 }
 
 func loadWorkspaceExecutionInput(file string) (batcheslib.WorkspacesExecutionInput, error) {
 	var input batcheslib.WorkspacesExecutionInput
 
-	f, err := batchOpenFileFlag(&file)
+	f, err := batchOpenFileFlag(file)
 	if err != nil {
 		return input, err
 	}
@@ -225,33 +189,26 @@ func loadWorkspaceExecutionInput(file string) (batcheslib.WorkspacesExecutionInp
 	return input, nil
 }
 
-func convertWorkspaces(ws []*batcheslib.Workspace) []service.RepoWorkspace {
-	workspaces := make([]service.RepoWorkspace, 0, len(ws))
-
-	for _, w := range ws {
-		fileMatches := make(map[string]bool)
-		for _, path := range w.SearchResultPaths {
-			fileMatches[path] = true
-		}
-
-		workspaces = append(workspaces, service.RepoWorkspace{
-			Repo: &graphql.Repository{
-				ID:   w.Repository.ID,
-				Name: w.Repository.Name,
-				Branch: graphql.Branch{
-					Name: w.Branch.Name,
-					Target: graphql.Target{
-						OID: w.Branch.Target.OID,
-					},
-				},
-				Commit:      graphql.Target{OID: w.Branch.Target.OID},
-				FileMatches: fileMatches,
-			},
-			Path:               w.Path,
-			Steps:              w.Steps,
-			OnlyFetchWorkspace: w.OnlyFetchWorkspace,
-		})
+func convertWorkspace(w batcheslib.Workspace) service.RepoWorkspace {
+	fileMatches := make(map[string]bool)
+	for _, path := range w.SearchResultPaths {
+		fileMatches[path] = true
 	}
-
-	return workspaces
+	return service.RepoWorkspace{
+		Repo: &graphql.Repository{
+			ID:   w.Repository.ID,
+			Name: w.Repository.Name,
+			Branch: graphql.Branch{
+				Name: w.Branch.Name,
+				Target: graphql.Target{
+					OID: w.Branch.Target.OID,
+				},
+			},
+			Commit:      graphql.Target{OID: w.Branch.Target.OID},
+			FileMatches: fileMatches,
+		},
+		Path:               w.Path,
+		Steps:              w.Steps,
+		OnlyFetchWorkspace: w.OnlyFetchWorkspace,
+	}
 }

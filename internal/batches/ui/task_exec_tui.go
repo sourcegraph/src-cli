@@ -455,7 +455,7 @@ func (ui stepsExecTUI) StepSkipped(step int) {
 	ui.updateStatusBar(fmt.Sprintf("Skipping step %d", step))
 }
 func (ui stepsExecTUI) StepPreparingStart(step int) {
-	ui.updateStatusBar(fmt.Sprintf("Preparing %d", step))
+	ui.updateStatusBar(fmt.Sprintf("Preparing step %d", step))
 }
 func (ui stepsExecTUI) StepPreparingSuccess(step int) {
 	// noop right now
@@ -477,7 +477,7 @@ func (ui stepsExecTUI) CalculatingDiffStarted() {
 func (ui stepsExecTUI) CalculatingDiffFinished() {
 	// noop right now
 }
-func (ui stepsExecTUI) StepFinished(idx int, diff []byte, changes *git.Changes, outputs map[string]interface{}) {
+func (ui stepsExecTUI) StepFinished(idx int, diff string, changes *git.Changes, outputs map[string]interface{}) {
 	// noop right now
 }
 func (ui stepsExecTUI) StepFailed(idx int, err error, exitCode int) {

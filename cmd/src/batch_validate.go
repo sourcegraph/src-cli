@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/sourcegraph/sourcegraph/lib/output"
+
 	"github.com/sourcegraph/src-cli/internal/api"
 	"github.com/sourcegraph/src-cli/internal/batches/service"
 	"github.com/sourcegraph/src-cli/internal/batches/ui"
@@ -18,9 +19,11 @@ func init() {
 
 Usage:
 
-    src batch validate -f FILE
+    src batch validate [-f] FILE
 
 Examples:
+
+    $ src batch validate batch.spec.yaml
 
     $ src batch validate -f batch.spec.yaml
 
@@ -28,7 +31,20 @@ Examples:
 
 	flagSet := flag.NewFlagSet("validate", flag.ExitOnError)
 	apiFlags := api.NewFlags(flagSet)
-	fileFlag := flagSet.String("f", "", "The batch spec file to read.")
+	fileFlag := flagSet.String("f", "", "The batch spec file to read, or - to read from standard input.")
+
+	var (
+		allowUnsupported bool
+		allowIgnored     bool
+	)
+	flagSet.BoolVar(
+		&allowUnsupported, "allow-unsupported", false,
+		"Allow unsupported code hosts.",
+	)
+	flagSet.BoolVar(
+		&allowIgnored, "force-override-ignore", false,
+		"Do not ignore repositories that have a .batchignore file.",
+	)
 
 	handler := func(args []string) error {
 		ctx := context.Background()
@@ -44,7 +60,9 @@ Examples:
 		out := output.NewOutput(flagSet.Output(), output.OutputOpts{Verbose: *verbose})
 		ui := &ui.TUI{Out: out}
 		svc := service.New(&service.Opts{
-			Client: cfg.apiClient(apiFlags, flagSet.Output()),
+			Client:           cfg.apiClient(apiFlags, flagSet.Output()),
+			AllowUnsupported: allowUnsupported,
+			AllowIgnored:     allowIgnored,
 		})
 
 		if err := svc.DetermineFeatureFlags(ctx); err != nil {
@@ -52,7 +70,12 @@ Examples:
 			return err
 		}
 
-		if _, _, err := parseBatchSpec(fileFlag, svc); err != nil {
+		file, err := getBatchSpecFile(flagSet, fileFlag)
+		if err != nil {
+			return err
+		}
+
+		if _, _, err := parseBatchSpec(file, svc); err != nil {
 			ui.ParsingBatchSpecFailure(err)
 			return err
 		}
