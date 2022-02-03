@@ -763,7 +763,7 @@ func (svc *Service) FindDirectoriesInRepos(ctx context.Context, fileName string,
 
 var defaultQueryCountRegex = regexp.MustCompile(`\bcount:(\d+|all)\b`)
 
-const hardCodedCount = " count:99999"
+const hardCodedCount = " count:999999"
 
 func setDefaultQueryCount(query string) string {
 	if defaultQueryCountRegex.MatchString(query) {
