@@ -31,7 +31,7 @@ type Service struct {
 	allowIgnored     bool
 	client           api.Client
 	features         batches.FeatureFlags
-	imageCache       *docker.ImageCache
+	imageCache       docker.ImageCache
 }
 
 type Opts struct {

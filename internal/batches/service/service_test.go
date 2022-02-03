@@ -3,6 +3,7 @@ package service
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -10,12 +11,15 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/stretchr/testify/assert"
 
 	batcheslib "github.com/sourcegraph/sourcegraph/lib/batches"
 
 	"github.com/sourcegraph/src-cli/internal/api"
 	"github.com/sourcegraph/src-cli/internal/batches"
+	"github.com/sourcegraph/src-cli/internal/batches/docker"
 	"github.com/sourcegraph/src-cli/internal/batches/graphql"
+	"github.com/sourcegraph/src-cli/internal/batches/mock"
 )
 
 func TestSetDefaultQueryCount(t *testing.T) {
@@ -568,4 +572,41 @@ func TestService_ValidateChangesetSpecs(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestEnsureDockerImages(t *testing.T) {
+	ctx := context.Background()
+
+	newServiceWithImages := func(images map[string]docker.Image) *Service {
+		return &Service{
+			imageCache: &mock.ImageCache{Images: images},
+		}
+	}
+
+	t.Run("single image, varying parallelism", func(t *testing.T) {
+		// A zeroed mock.Image should be usable for testing purposes.
+		image := &mock.Image{}
+		images := map[string]docker.Image{
+			"image": image,
+		}
+		steps := []batcheslib.Step{
+			{Container: "image"},
+		}
+
+		for _, parallelism := range []int{0, 1, 2, 8} {
+			t.Run(fmt.Sprintf("%d worker(s)", parallelism), func(t *testing.T) {
+				svc := newServiceWithImages(images)
+				progress := &mock.Progress{}
+
+				have, err := svc.EnsureDockerImages(ctx, steps, parallelism, progress.Callback())
+				assert.Nil(t, err)
+				assert.EqualValues(t, images, have)
+				assert.Len(t, progress.Calls, 2)
+				assert.Equal(t, 0, progress.Calls[0].Done)
+				assert.Equal(t, 1, progress.Calls[0].Total)
+				assert.Equal(t, 1, progress.Calls[1].Done)
+				assert.Equal(t, 1, progress.Calls[1].Total)
+			})
+		}
+	})
 }
