@@ -155,9 +155,13 @@ func (svc *Service) CreateChangesetSpec(ctx context.Context, spec *batcheslib.Ch
 // images exist and to determine the exact content digest to be used when running
 // each step, including any required by the service itself.
 //
-// Progress information is reported back to the given progress function: perc
-// will be a value between 0.0 and 1.0, inclusive.
-func (svc *Service) EnsureDockerImages(ctx context.Context, steps []batcheslib.Step, parallelism int, progress func(done, total int)) (map[string]docker.Image, error) {
+// Progress information is reported back to the given progress function.
+func (svc *Service) EnsureDockerImages(
+	ctx context.Context,
+	steps []batcheslib.Step,
+	parallelism int,
+	progress func(done, total int),
+) (map[string]docker.Image, error) {
 	// Figure out the image names used in the batch spec.
 	names := map[string]struct{}{}
 	for i := range steps {
@@ -190,15 +194,30 @@ func (svc *Service) EnsureDockerImages(ctx context.Context, steps []batcheslib.S
 	for i := 0; i < parallelism; i++ {
 		wg.Add(1)
 		go func() {
-			for name := range inputs {
-				img, err := svc.EnsureImage(workerCtx, name)
-				complete <- image{
-					name:  name,
-					image: img,
-					err:   err,
+			defer wg.Done()
+			for {
+				select {
+				case <-workerCtx.Done():
+					// If the worker context has been cancelled, then we just want to
+					// return immediately, rather than continuing to read from inputs.
+					return
+				case name, more := <-inputs:
+					if !more {
+						return
+					}
+					img, err := svc.EnsureImage(workerCtx, name)
+					select {
+					case <-workerCtx.Done():
+						return
+					case complete <- image{
+						name:  name,
+						image: img,
+						err:   err,
+					}:
+						// All good; let's move onto the next input.
+					}
 				}
 			}
-			wg.Done()
 		}()
 	}
 
