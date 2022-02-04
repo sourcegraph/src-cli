@@ -168,7 +168,7 @@ func (svc *Service) EnsureDockerImages(
 		names[steps[i].Container] = struct{}{}
 	}
 
-	total := len(steps)
+	total := len(names)
 	progress(0, total)
 
 	// Set up the channels that will be used in the parallel goroutines handling
