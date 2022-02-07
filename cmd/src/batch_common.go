@@ -15,8 +15,10 @@ import (
 
 	"github.com/cockroachdb/errors"
 	"github.com/hashicorp/go-multierror"
+	"github.com/mattn/go-isatty"
 
 	batcheslib "github.com/sourcegraph/sourcegraph/lib/batches"
+	"github.com/sourcegraph/sourcegraph/lib/batches/template"
 
 	"github.com/sourcegraph/src-cli/internal/api"
 	"github.com/sourcegraph/src-cli/internal/batches"
@@ -114,7 +116,7 @@ func newBatchExecuteFlags(flagSet *flag.FlagSet, workspaceExecution bool, cacheD
 
 	flagSet.StringVar(
 		&caf.file, "f", "",
-		"The batch spec file to read.",
+		"The batch spec file to read, or - to read from standard input.",
 	)
 
 	flagSet.IntVar(
@@ -142,6 +144,23 @@ func newBatchExecuteFlags(flagSet *flag.FlagSet, workspaceExecution bool, cacheD
 	flagSet.BoolVar(verbose, "v", false, "print verbose output")
 
 	return caf
+}
+
+var errAdditionalArguments = cmderrors.Usage("additional arguments not allowed")
+
+func getBatchSpecFile(flagSet *flag.FlagSet, fileFlag *string) (string, error) {
+	if fileFlag == nil || *fileFlag != "" {
+		if flagSet.NArg() != 0 {
+			return "", errAdditionalArguments
+		}
+		if fileFlag == nil {
+			return "", nil
+		}
+		return *fileFlag, nil
+	} else if flagSet.NArg() > 1 {
+		return "", errAdditionalArguments
+	}
+	return flagSet.Arg(0), nil
 }
 
 func batchDefaultCacheDir() string {
@@ -193,14 +212,31 @@ func batchDefaultTempDirPrefix() string {
 	return os.TempDir()
 }
 
-func batchOpenFileFlag(flag *string) (io.ReadCloser, error) {
-	if flag == nil || *flag == "" || *flag == "-" {
+func batchOpenFileFlag(flag string) (io.ReadCloser, error) {
+	if flag == "" || flag == "-" {
+		if flag != "-" {
+			// If the flag wasn't set, we want to check stdin. If it's not a TTY,
+			// then we'll assume that we always want to read from it. If it is a TTY,
+			// then we'll briefly pause to see if data is getting piped in, otherwise
+			// we'll error out, because it's likely that the user forgot the `-f` on
+			// the command line.
+			fd := os.Stdin.Fd()
+			if isatty.IsTerminal(fd) {
+				has, err := ui.HasInput(os.Stdin.Fd(), 250*time.Millisecond)
+				if err != nil {
+					return nil, errors.Wrap(err, "checking for input on stdin")
+				} else if !has {
+					return nil, errors.New("-f specified, but no input was detected on stdin; did you forget to pipe a batch spec in?")
+				}
+			}
+		}
+
 		return os.Stdin, nil
 	}
 
-	file, err := os.Open(*flag)
+	file, err := os.Open(flag)
 	if err != nil {
-		return nil, errors.Wrapf(err, "cannot open file %q", *flag)
+		return nil, errors.Wrapf(err, "cannot open file %s", flag)
 	}
 	return file, nil
 }
@@ -209,6 +245,7 @@ type executeBatchSpecOpts struct {
 	flags *batchExecuteFlags
 
 	applyBatchSpec bool
+	file           string
 
 	client api.Client
 }
@@ -243,7 +280,7 @@ func executeBatchSpec(ctx context.Context, ui ui.ExecUI, opts executeBatchSpecOp
 
 	// Parse flags and build up our service and executor options.
 	ui.ParsingBatchSpec()
-	batchSpec, rawSpec, err := parseBatchSpec(&opts.flags.file, svc)
+	batchSpec, rawSpec, err := parseBatchSpec(opts.file, svc)
 	if err != nil {
 		var multiErr *multierror.Error
 		if errors.As(err, &multiErr) {
@@ -268,7 +305,10 @@ func executeBatchSpec(ctx context.Context, ui ui.ExecUI, opts executeBatchSpecOp
 
 	if len(batchSpec.Steps) > 0 {
 		ui.PreparingContainerImages()
-		images, err := svc.EnsureDockerImages(ctx, batchSpec.Steps, ui.PreparingContainerImagesProgress)
+		images, err := svc.EnsureDockerImages(
+			ctx, batchSpec.Steps, opts.flags.parallelism,
+			ui.PreparingContainerImagesProgress,
+		)
 		if err != nil {
 			return err
 		}
@@ -320,7 +360,14 @@ func executeBatchSpec(ctx context.Context, ui ui.ExecUI, opts executeBatchSpecOp
 	})
 
 	ui.CheckingCache()
-	tasks := svc.BuildTasks(ctx, batchSpec, workspaces)
+	tasks := svc.BuildTasks(
+		ctx,
+		&template.BatchChangeAttributes{
+			Name:        batchSpec.Name,
+			Description: batchSpec.Description,
+		},
+		workspaces,
+	)
 	var (
 		specs         []*batcheslib.ChangesetSpec
 		uncachedTasks []*executor.Task
@@ -329,7 +376,8 @@ func executeBatchSpec(ctx context.Context, ui ui.ExecUI, opts executeBatchSpecOp
 		coord.ClearCache(ctx, tasks)
 		uncachedTasks = tasks
 	} else {
-		uncachedTasks, specs, err = coord.CheckCache(ctx, tasks)
+		// Check the cache for completely cached executions.
+		uncachedTasks, specs, err = coord.CheckCache(ctx, batchSpec, tasks)
 		if err != nil {
 			return err
 		}
@@ -337,7 +385,7 @@ func executeBatchSpec(ctx context.Context, ui ui.ExecUI, opts executeBatchSpecOp
 	ui.CheckingCacheSuccess(len(specs), len(uncachedTasks))
 
 	taskExecUI := ui.ExecutingTasks(*verbose, opts.flags.parallelism)
-	freshSpecs, logFiles, execErr := coord.Execute(ctx, uncachedTasks, batchSpec, taskExecUI)
+	freshSpecs, logFiles, execErr := coord.ExecuteAndBuildSpecs(ctx, batchSpec, uncachedTasks, taskExecUI)
 	// Add external changeset specs.
 	importedSpecs, importErr := svc.CreateImportChangesetSpecs(ctx, batchSpec)
 	var errs *multierror.Error
@@ -420,7 +468,7 @@ func executeBatchSpec(ctx context.Context, ui ui.ExecUI, opts executeBatchSpecOp
 
 // parseBatchSpec parses and validates the given batch spec. If the spec has
 // validation errors, they are returned.
-func parseBatchSpec(file *string, svc *service.Service) (*batcheslib.BatchSpec, string, error) {
+func parseBatchSpec(file string, svc *service.Service) (*batcheslib.BatchSpec, string, error) {
 	f, err := batchOpenFileFlag(file)
 	if err != nil {
 		return nil, "", err
