@@ -11,7 +11,6 @@ import (
 	"github.com/sourcegraph/sourcegraph/lib/output"
 	"github.com/sourcegraph/src-cli/internal/batches/service"
 	"github.com/sourcegraph/src-cli/internal/batches/ui"
-	"github.com/sourcegraph/src-cli/internal/cmderrors"
 )
 
 func init() {
@@ -41,10 +40,6 @@ Examples:
 
 		if err := flagSet.Parse(args); err != nil {
 			return err
-		}
-
-		if len(flagSet.Args()) != 0 {
-			return cmderrors.Usage("additional arguments not allowed")
 		}
 
 		file, err := getBatchSpecFile(flagSet, fileFlag)
