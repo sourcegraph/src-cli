@@ -20,6 +20,7 @@ func init() {
 Usage:
 
     src batch remote [-f FILE]
+    src batch remote FILE
 
 Examples:
 
@@ -31,7 +32,7 @@ Examples:
 	flags := newBatchExecutionFlags(flagSet)
 
 	var (
-		fileFlag = flagSet.String("f", "batch.yaml", "The name of the batch spec file to create.")
+		fileFlag = flagSet.String("f", "", "The name of the batch spec file to run.")
 	)
 
 	handler := func(args []string) error {
