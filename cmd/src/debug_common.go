@@ -364,7 +364,6 @@ func getStats(ctx context.Context, baseDir string) *archiveFile {
 
 // TODO api brainstorm
 // Perform the request.
-/* var result interface{}
-if ok, err := cfg.apiClient(apiFlags, flagSet.Output()).NewRequest(query, vars).DoRaw(context.Background(), &result); err != nil || !ok {
-return err
-} */
+func getConfig() *archiveFile {
+
+}
