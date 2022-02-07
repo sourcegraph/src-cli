@@ -344,7 +344,8 @@ func executeBatchSpec(ctx context.Context, ui ui.ExecUI, opts executeBatchSpecOp
 
 	ui.CheckingCache()
 	tasks := svc.BuildTasks(
-		ctx, &template.BatchChangeAttributes{
+		ctx,
+		&template.BatchChangeAttributes{
 			Name:        batchSpec.Name,
 			Description: batchSpec.Description,
 		},

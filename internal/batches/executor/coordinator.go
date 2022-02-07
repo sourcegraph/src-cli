@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/cockroachdb/errors"
-	"github.com/hashicorp/go-multierror"
 
 	batcheslib "github.com/sourcegraph/sourcegraph/lib/batches"
 	"github.com/sourcegraph/sourcegraph/lib/batches/execution"
@@ -295,20 +294,9 @@ func (c *Coordinator) ExecuteAndBuildSpecs(ctx context.Context, batchSpec *batch
 }
 
 func (c *Coordinator) doExecute(ctx context.Context, tasks []*Task, ui TaskExecutionUI) (results []taskResult, err error) {
-	var errs *multierror.Error
-
 	ui.Start(tasks)
 
 	// Run executor
 	c.exec.Start(ctx, tasks, ui)
-	results, err = c.exec.Wait(ctx)
-	if err != nil {
-		if c.opts.SkipErrors {
-			errs = multierror.Append(errs, err)
-		} else {
-			return nil, err
-		}
-	}
-
-	return results, errs.ErrorOrNil()
+	return c.exec.Wait(ctx)
 }
