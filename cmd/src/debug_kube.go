@@ -53,7 +53,7 @@ Examples:
 
 		err = archiveKube(ctx, zw, *verbose, baseDir)
 		if err != nil {
-			return cmderrors.ExitCode(1, nil)
+			return cmderrors.ExitCode(1, err)
 		}
 		return nil
 	}

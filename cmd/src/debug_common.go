@@ -162,6 +162,12 @@ func archiveKube(ctx context.Context, zw *zip.Writer, verbose bool, baseDir stri
 		}(pod.Metadata.Name)
 	}
 
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		ch <- getExternalServicesConfig(ctx, baseDir)
+	}()
+
 	// close channel when wait group goroutines have completed
 	go func() {
 		wg.Wait()
@@ -171,7 +177,8 @@ func archiveKube(ctx context.Context, zw *zip.Writer, verbose bool, baseDir stri
 	// write to archive all the outputs from kubectl call functions passed to buffer channel
 	for f := range ch {
 		if f.err != nil {
-			return fmt.Errorf("aborting due to error on %s: %v\noutput: %s", f.name, f.err, f.data)
+			log.Printf("getting data for %s failed: %v\noutput: %s", f.name, f.err, f.data)
+			continue
 		}
 
 		if verbose {
@@ -362,8 +369,11 @@ func getStats(ctx context.Context, baseDir string) *archiveFile {
 	return f
 }
 
-// TODO api brainstorm
-// Perform the request.
-func getConfig() *archiveFile {
+func getExternalServicesConfig(ctx context.Context, baseDir string) *archiveFile {
+	const fmtStr = `{{range .Nodes}}{{.id}} | {{.kind}} | {{.displayName}}{{"\n"}}{{.config}}{{"\n---\n"}}{{end}}`
 
+	f := &archiveFile{name: baseDir + "/config/external_services.txt"}
+	f.data, f.err = exec.CommandContext(ctx, os.Args[0], "extsvc", "list", "-f", fmtStr).CombinedOutput()
+
+	return f
 }
