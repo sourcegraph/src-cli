@@ -289,7 +289,7 @@ func TestCoordinator_Execute(t *testing.T) {
 			// the batch spec. We'll run this multiple times to cover both the
 			// cache and non-cache code paths.
 			execute := func(t *testing.T) {
-				specs, _, err := coord.ExecuteAndCache(ctx, tc.batchSpec, tc.tasks, newDummyTaskExecutionUI())
+				specs, _, err := coord.ExecuteAndBuildSpecs(ctx, tc.batchSpec, tc.tasks, newDummyTaskExecutionUI())
 				if tc.wantErrInclude == "" {
 					if err != nil {
 						t.Fatalf("execution failed: %s", err)
@@ -447,7 +447,7 @@ func execAndEnsure(t *testing.T, coord *Coordinator, exec *dummyExecutor, batchS
 	}
 
 	// Execute
-	freshSpecs, _, err := coord.ExecuteAndCache(context.Background(), batchSpec, uncached, newDummyTaskExecutionUI())
+	freshSpecs, _, err := coord.ExecuteAndBuildSpecs(context.Background(), batchSpec, uncached, newDummyTaskExecutionUI())
 	if err != nil {
 		t.Fatalf("execution of task failed: %s", err)
 	}

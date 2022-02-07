@@ -241,7 +241,7 @@ func (c *Coordinator) writeCache(ctx context.Context, taskResult taskResult, ui 
 	return nil
 }
 
-func (c *Coordinator) writecacheAndBuildSpecs(ctx context.Context, batchSpec *batcheslib.BatchSpec, taskResult taskResult, ui TaskExecutionUI) ([]*batcheslib.ChangesetSpec, error) {
+func (c *Coordinator) writeCacheAndBuildSpecs(ctx context.Context, batchSpec *batcheslib.BatchSpec, taskResult taskResult, ui TaskExecutionUI) ([]*batcheslib.ChangesetSpec, error) {
 	c.writeCache(ctx, taskResult, ui)
 
 	// If the steps didn't result in any diff, we don't need to create a
@@ -274,15 +274,16 @@ func (c *Coordinator) Execute(ctx context.Context, tasks []*Task, ui TaskExecuti
 	return err
 }
 
-// Execute executes the given tasks. It calls the ui on updates.
-func (c *Coordinator) ExecuteAndCache(ctx context.Context, batchSpec *batcheslib.BatchSpec, tasks []*Task, ui TaskExecutionUI) ([]*batcheslib.ChangesetSpec, []string, error) {
+// ExecuteAndBuildSpecs executes the given tasks and builds changeset specs for the results.
+// It calls the ui on updates.
+func (c *Coordinator) ExecuteAndBuildSpecs(ctx context.Context, batchSpec *batcheslib.BatchSpec, tasks []*Task, ui TaskExecutionUI) ([]*batcheslib.ChangesetSpec, []string, error) {
 	results, errs := c.doExecute(ctx, tasks, ui)
 
 	var specs []*batcheslib.ChangesetSpec
 
 	// Write results to cache, build ChangesetSpecs if possible and add to list.
 	for _, taskResult := range results {
-		taskSpecs, err := c.writecacheAndBuildSpecs(ctx, batchSpec, taskResult, ui)
+		taskSpecs, err := c.writeCacheAndBuildSpecs(ctx, batchSpec, taskResult, ui)
 		if err != nil {
 			return nil, nil, err
 		}

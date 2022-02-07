@@ -367,7 +367,7 @@ func executeBatchSpec(ctx context.Context, ui ui.ExecUI, opts executeBatchSpecOp
 	ui.CheckingCacheSuccess(len(specs), len(uncachedTasks))
 
 	taskExecUI := ui.ExecutingTasks(*verbose, opts.flags.parallelism)
-	freshSpecs, logFiles, execErr := coord.ExecuteAndCache(ctx, batchSpec, uncachedTasks, taskExecUI)
+	freshSpecs, logFiles, execErr := coord.ExecuteAndBuildSpecs(ctx, batchSpec, uncachedTasks, taskExecUI)
 	// Add external changeset specs.
 	importedSpecs, importErr := svc.CreateImportChangesetSpecs(ctx, batchSpec)
 	var errs *multierror.Error
