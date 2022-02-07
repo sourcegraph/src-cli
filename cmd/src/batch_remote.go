@@ -46,6 +46,11 @@ Examples:
 			return cmderrors.Usage("additional arguments not allowed")
 		}
 
+		file, err := getBatchSpecFile(flagSet, fileFlag)
+		if err != nil {
+			return err
+		}
+
 		svc := service.New(&service.Opts{
 			Client: cfg.apiClient(flags.api, flagSet.Output()),
 		})
@@ -61,7 +66,7 @@ Examples:
 		// may as well validate it at the same time so we don't even have to go to
 		// the backend if it's invalid.
 		ui.ParsingBatchSpec()
-		_, raw, err := parseBatchSpec(fileFlag, svc)
+		_, raw, err := parseBatchSpec(file, svc)
 		if err != nil {
 			ui.ParsingBatchSpecFailure(err)
 			return err
