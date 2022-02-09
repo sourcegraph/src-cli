@@ -61,6 +61,7 @@ func setupDebug(base string) (*os.File, *zip.Writer, context.Context, error) {
 /*
 Kubernetes stuff
 TODO: handle namespaces, remove --all-namespaces from get events
+TODO: have a confirmation step that warns user about which namespace and context they have kubectl pointed at
 */
 
 type podList struct {
@@ -368,6 +369,12 @@ func getStats(ctx context.Context, baseDir string) *archiveFile {
 	f.data, f.err = exec.CommandContext(ctx, "docker", "container", "stats", "--no-stream").CombinedOutput()
 	return f
 }
+
+/*
+General Stuff
+TODO: file issue on the existence of OAuth signKey which needs to be redacted
+TODO: Create getSiteConfig function
+*/
 
 func getExternalServicesConfig(ctx context.Context, baseDir string) *archiveFile {
 	const fmtStr = `{{range .Nodes}}{{.id}} | {{.kind}} | {{.displayName}}{{"\n"}}{{.config}}{{"\n---\n"}}{{end}}`
