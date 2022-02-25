@@ -42,3 +42,11 @@ Use "src debug [command] -h" for more information about a command.
 		usageFunc: func() { fmt.Println(usage) },
 	})
 }
+
+/*
+TODO:
+	- This project needs some consideration around monitoring
+		- You should be aware when a executed cmd has failed
+		- You should be able to recieve an output that tells you what you've created in the zip file
+		- an additional introspection command might be useful to look at whats in a zip file easily
+*/

@@ -8,6 +8,8 @@ import (
 	"github.com/sourcegraph/src-cli/internal/cmderrors"
 )
 
+// TODO: seperate graphQL API call functions from archiveKube main function -- in accordance with database dumps, and prometheus, these should be optional via flags
+
 func init() {
 	usage := `
 'src debug kube' mocks kubectl commands to gather information about a kubernetes sourcegraph instance. 
@@ -24,7 +26,9 @@ Examples:
 
 	flagSet := flag.NewFlagSet("kube", flag.ExitOnError)
 	var base string
+	var namespace string
 	flagSet.StringVar(&base, "o", "debug.zip", "The name of the output zip archive")
+	flagSet.StringVar(&namespace, "n", "default", "The namespace passed to kubectl commands, if not specified the default namespace is used")
 
 	handler := func(args []string) error {
 		if err := flagSet.Parse(args); err != nil {
@@ -51,7 +55,7 @@ Examples:
 		defer out.Close()
 		defer zw.Close()
 
-		err = archiveKube(ctx, zw, *verbose, baseDir)
+		err = archiveKube(ctx, zw, *verbose, namespace, baseDir)
 		if err != nil {
 			return cmderrors.ExitCode(1, err)
 		}
