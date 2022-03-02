@@ -10,6 +10,7 @@ import (
 	"path"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/grafana/regexp"
 
@@ -24,6 +25,7 @@ import (
 	"github.com/sourcegraph/src-cli/internal/batches/executor"
 	"github.com/sourcegraph/src-cli/internal/batches/graphql"
 	"github.com/sourcegraph/src-cli/internal/batches/repozip"
+	"github.com/sourcegraph/src-cli/internal/retrier"
 )
 
 type Service struct {
@@ -139,20 +141,31 @@ mutation CreateChangesetSpec($spec: String!) {
 }
 `
 
-func (svc *Service) CreateChangesetSpec(ctx context.Context, spec *batcheslib.ChangesetSpec) (graphql.ChangesetSpecID, error) {
+func (svc *Service) CreateChangesetSpec(ctx context.Context, spec *batcheslib.ChangesetSpec, maxRetries int) (graphql.ChangesetSpecID, error) {
+	return svc.createChangesetSpec(ctx, spec, maxRetries, 5*time.Second, 1.6)
+}
+
+func (svc *Service) createChangesetSpec(ctx context.Context, spec *batcheslib.ChangesetSpec, maxRetries int, retryWait time.Duration, multiplier float64) (graphql.ChangesetSpecID, error) {
 	raw, err := json.Marshal(spec)
 	if err != nil {
 		return "", errors.Wrap(err, "marshalling changeset spec JSON")
 	}
 
+	req := svc.newRequest(createChangesetSpecMutation, map[string]interface{}{
+		"spec": string(raw),
+	})
 	var result struct {
 		CreateChangesetSpec struct {
 			ID string
 		}
 	}
-	if ok, err := svc.newRequest(createChangesetSpecMutation, map[string]interface{}{
-		"spec": string(raw),
-	}).Do(ctx, &result); err != nil || !ok {
+	if err := retrier.Retry(func() error {
+		ok, err := req.Do(ctx, &result)
+		if !ok {
+			return errors.New("no data is available")
+		}
+		return err
+	}, maxRetries, retryWait, multiplier); err != nil {
 		return "", err
 	}
 

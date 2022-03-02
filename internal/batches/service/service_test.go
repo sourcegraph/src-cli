@@ -698,3 +698,40 @@ func TestEnsureDockerImages(t *testing.T) {
 
 	})
 }
+
+const testCreateChangesetSpecFailureResult = `
+{
+  "data": {
+    "createChangesetSpec": {
+      "id": []
+    }
+  }
+}
+`
+
+const testCreateChangesetSpecSuccessResult = `
+{
+  "data": {
+    "createChangesetSpec": {
+      "id": "foo"
+    }
+  }
+}
+`
+
+func TestCreateChangesetSpec(t *testing.T) {
+	ctx := context.Background()
+	spec := &batcheslib.ChangesetSpec{}
+
+	// Force a retry by sending a failure back first.
+	client, done := mockGraphQLClient(
+		testCreateChangesetSpecFailureResult,
+		testCreateChangesetSpecSuccessResult,
+	)
+	t.Cleanup(done)
+
+	svc := Service{client: client}
+	id, err := svc.createChangesetSpec(ctx, spec, 5, 0, 0)
+	assert.Nil(t, err)
+	assert.EqualValues(t, "foo", id)
+}
