@@ -72,6 +72,9 @@ func NewCoordinator(opts NewCoordinatorOpts) *Coordinator {
 		Parallelism: opts.Parallelism,
 		Timeout:     opts.Timeout,
 		TempDir:     opts.TempDir,
+		WriteToCache: func(ctx context.Context, stepResult execution.AfterStepResult, task *Task) error {
+			return writeToCache(ctx, opts.Cache, stepResult, task)
+		},
 	})
 
 	return &Coordinator{
@@ -221,20 +224,24 @@ func (c *Coordinator) loadCachedStepResults(ctx context.Context, task *Task, glo
 	return nil
 }
 
+func writeToCache(ctx context.Context, cache cache.Cache, stepResult execution.AfterStepResult, task *Task) error {
+	globalEnv := os.Environ()
+	cacheKey := task.cacheKey(globalEnv)
+
+	key := cacheKeyForStep(cacheKey, stepResult.StepIndex)
+	if err := cache.SetStepResult(ctx, key, stepResult); err != nil {
+		return errors.Wrapf(err, "caching result for step %d in %q", stepResult.StepIndex, task.Repository.Name)
+	}
+
+	return nil
+}
+
 func (c *Coordinator) writeCache(ctx context.Context, taskResult taskResult, ui TaskExecutionUI) error {
 	// Add to the cache, even if no diff was produced.
 	globalEnv := os.Environ()
 	cacheKey := taskResult.task.cacheKey(globalEnv)
 	if err := c.cache.Set(ctx, cacheKey, taskResult.result); err != nil {
 		return errors.Wrapf(err, "caching result for %q", taskResult.task.Repository.Name)
-	}
-
-	// Save the per-step results
-	for _, stepResult := range taskResult.stepResults {
-		key := cacheKeyForStep(cacheKey, stepResult.StepIndex)
-		if err := c.cache.SetStepResult(ctx, key, stepResult); err != nil {
-			return errors.Wrapf(err, "caching result for step %d in %q", stepResult.StepIndex, taskResult.task.Repository.Name)
-		}
 	}
 
 	return nil
