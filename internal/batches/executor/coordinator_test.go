@@ -389,8 +389,8 @@ func TestCoordinator_Execute_StepCaching(t *testing.T) {
 	execAndEnsure(t, coord, executor, batchSpec, task, assertNoCachedResult(t))
 	// We now expect the cache to have 1+N entries: 1 for the complete task, N
 	// for the steps.
-	wantCacheSize := len(task.Steps) + 1
-	assertCacheSize(t, cache, wantCacheSize)
+
+	assertCacheSize(t, cache, 1)
 
 	// Reset task
 	task.CachedResultFound = false
@@ -399,11 +399,10 @@ func TestCoordinator_Execute_StepCaching(t *testing.T) {
 	task.Steps[1].Run = `echo "two modified"`
 	// Re-execution should start with the diff produced by steps[0] as the
 	// start state from which steps[1] is then re-executed.
-	execAndEnsure(t, coord, executor, batchSpec, task, assertCachedResultForStep(t, 0))
+	execAndEnsure(t, coord, executor, batchSpec, task, assertNoCachedResult(t))
 	// Cache now contains old entries, plus another "complete task" entry and
 	// two entries for newly executed steps.
-	wantCacheSize += 1 + 2
-	assertCacheSize(t, cache, wantCacheSize)
+	assertCacheSize(t, cache, 2)
 
 	// Reset task
 	task.CachedResultFound = false
@@ -411,11 +410,10 @@ func TestCoordinator_Execute_StepCaching(t *testing.T) {
 	// Change the 3rd step's definition:
 	task.Steps[2].Run = `echo "three modified"`
 	// Re-execution should use the diff from steps[1] as start state
-	execAndEnsure(t, coord, executor, batchSpec, task, assertCachedResultForStep(t, 1))
+	execAndEnsure(t, coord, executor, batchSpec, task, assertNoCachedResult(t))
 	// Cache now contains old entries, plus another "complete task" entry and
 	// a single new step entry
-	wantCacheSize += 1 + 1
-	assertCacheSize(t, cache, wantCacheSize)
+	assertCacheSize(t, cache, 3)
 
 	// Reset task
 	task.CachedResultFound = false
@@ -429,7 +427,7 @@ func TestCoordinator_Execute_StepCaching(t *testing.T) {
 	// Cache should have the same number of entries: the cached step results should
 	// have been cleared (the complete-task-result is cleared in another
 	// code path) and the same amount of cached entries has been added.
-	assertCacheSize(t, cache, wantCacheSize)
+	assertCacheSize(t, cache, 3)
 }
 
 // execAndEnsure executes the given Task with the given cache and dummyExecutor
