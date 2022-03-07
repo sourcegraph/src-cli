@@ -72,7 +72,7 @@ func NewCoordinator(opts NewCoordinatorOpts) *Coordinator {
 		Parallelism: opts.Parallelism,
 		Timeout:     opts.Timeout,
 		TempDir:     opts.TempDir,
-		WriteToCache: func(ctx context.Context, stepResult execution.AfterStepResult, task *Task) error {
+		WriteStepCacheResult: func(ctx context.Context, stepResult execution.AfterStepResult, task *Task) error {
 			return writeToCache(ctx, opts.Cache, stepResult, task)
 		},
 	})
