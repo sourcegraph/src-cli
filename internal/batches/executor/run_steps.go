@@ -38,7 +38,7 @@ type executionOpts struct {
 
 	ui StepsExecutionUI
 
-	writeToCache func(ctx context.Context, stepResult execution.AfterStepResult, task *Task) error
+	writeStepCacheResult func(ctx context.Context, stepResult execution.AfterStepResult, task *Task) error
 }
 
 func runSteps(ctx context.Context, opts *executionOpts) (result execution.Result, stepResults []execution.AfterStepResult, err error) {
