@@ -59,9 +59,9 @@ type newExecutorOpts struct {
 	Logger              log.LogManager
 
 	// Config
-	Parallelism  int
-	Timeout      time.Duration
-	TempDir      string
+	Parallelism          int
+	Timeout              time.Duration
+	TempDir              string
 	WriteStepCacheResult func(ctx context.Context, stepResult execution.AfterStepResult, task *Task) error
 }
 
@@ -179,7 +179,7 @@ func (x *executor) do(ctx context.Context, task *Task, ui TaskExecutionUI) (err 
 		tempDir:     x.opts.TempDir,
 
 		ui:           ui.StepsExecutionUI(task),
-		writeToCache: x.opts.WriteToCache,
+		writeToCache: x.opts.WriteStepCacheResult,
 	}
 
 	result, stepResults, err := runSteps(runCtx, opts)
