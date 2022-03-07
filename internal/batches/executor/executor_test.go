@@ -359,7 +359,7 @@ func TestExecutor_Integration(t *testing.T) {
 				TempDir:     testTempDir,
 				Parallelism: runtime.GOMAXPROCS(0),
 				Timeout:     tc.executorTimeout,
-				WriteToCache: func(ctx context.Context, stepResult execution.AfterStepResult, task *Task) error {
+				WriteStepCacheResult: func(ctx context.Context, stepResult execution.AfterStepResult, task *Task) error {
 					cacheLock.Lock()
 					cacheCount += 1
 					cacheLock.Unlock()
@@ -716,7 +716,7 @@ func testExecuteTasks(t *testing.T, tasks []*Task, archives ...mock.RepoArchive)
 		TempDir:     testTempDir,
 		Parallelism: runtime.GOMAXPROCS(0),
 		Timeout:     30 * time.Second,
-		WriteToCache: func(ctx context.Context, stepResult execution.AfterStepResult, task *Task) error {
+		WriteStepCacheResult: func(ctx context.Context, stepResult execution.AfterStepResult, task *Task) error {
 			return nil
 		},
 	})

@@ -236,7 +236,7 @@ func writeToCache(ctx context.Context, cache cache.Cache, stepResult execution.A
 	return nil
 }
 
-func (c *Coordinator) writeCache(ctx context.Context, taskResult taskResult, ui TaskExecutionUI) error {
+func (c *Coordinator) writeExecutionCacheResult(ctx context.Context, taskResult taskResult, ui TaskExecutionUI) error {
 	// Add to the cache, even if no diff was produced.
 	globalEnv := os.Environ()
 	cacheKey := taskResult.task.cacheKey(globalEnv)
@@ -248,7 +248,7 @@ func (c *Coordinator) writeCache(ctx context.Context, taskResult taskResult, ui 
 }
 
 func (c *Coordinator) writeCacheAndBuildSpecs(ctx context.Context, batchSpec *batcheslib.BatchSpec, taskResult taskResult, ui TaskExecutionUI) ([]*batcheslib.ChangesetSpec, error) {
-	c.writeCache(ctx, taskResult, ui)
+	c.writeExecutionCacheResult(ctx, taskResult, ui)
 
 	// If the steps didn't result in any diff, we don't need to create a
 	// changeset spec that's displayed to the user and send to the server.
@@ -272,7 +272,7 @@ func (c *Coordinator) Execute(ctx context.Context, tasks []*Task, ui TaskExecuti
 
 	// Write results to cache.
 	for _, taskResult := range results {
-		if cacheErr := c.writeCache(ctx, taskResult, ui); cacheErr != nil {
+		if cacheErr := c.writeExecutionCacheResult(ctx, taskResult, ui); cacheErr != nil {
 			return cacheErr
 		}
 	}
