@@ -62,7 +62,7 @@ type newExecutorOpts struct {
 	Parallelism  int
 	Timeout      time.Duration
 	TempDir      string
-	WriteToCache func(ctx context.Context, stepResult execution.AfterStepResult, task *Task) error
+	WriteStepCacheResult func(ctx context.Context, stepResult execution.AfterStepResult, task *Task) error
 }
 
 type executor struct {
