@@ -63,6 +63,8 @@ type NewCoordinatorOpts struct {
 func NewCoordinator(opts NewCoordinatorOpts) *Coordinator {
 	logManager := log.NewManager(opts.TempDir, opts.KeepLogs)
 
+	globalEnv := os.Environ()
+
 	exec := newExecutor(newExecutorOpts{
 		RepoArchiveRegistry: opts.RepoArchiveRegistry,
 		EnsureImage:         opts.EnsureImage,
@@ -73,7 +75,8 @@ func NewCoordinator(opts NewCoordinatorOpts) *Coordinator {
 		Timeout:     opts.Timeout,
 		TempDir:     opts.TempDir,
 		WriteStepCacheResult: func(ctx context.Context, stepResult execution.AfterStepResult, task *Task) error {
-			return writeToCache(ctx, opts.Cache, stepResult, task)
+			cacheKey := task.cacheKey(globalEnv)
+			return writeToCache(ctx, opts.Cache, stepResult, task, cacheKey)
 		},
 	})
 
@@ -224,10 +227,7 @@ func (c *Coordinator) loadCachedStepResults(ctx context.Context, task *Task, glo
 	return nil
 }
 
-func writeToCache(ctx context.Context, cache cache.Cache, stepResult execution.AfterStepResult, task *Task) error {
-	globalEnv := os.Environ()
-	cacheKey := task.cacheKey(globalEnv)
-
+func writeToCache(ctx context.Context, cache cache.Cache, stepResult execution.AfterStepResult, task *Task, cacheKey *cache.ExecutionKeyWithGlobalEnv) error {
 	key := cacheKeyForStep(cacheKey, stepResult.StepIndex)
 	if err := cache.SetStepResult(ctx, key, stepResult); err != nil {
 		return errors.Wrapf(err, "caching result for step %d in %q", stepResult.StepIndex, task.Repository.Name)
