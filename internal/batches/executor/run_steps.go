@@ -189,7 +189,7 @@ func runSteps(ctx context.Context, opts *executionOpts) (result execution.Result
 		previousStepResult = result
 
 		// cache the result here
-		err = opts.writeToCache(ctx, stepResult, opts.task)
+		err = opts.writeStepCacheResult(ctx, stepResult, opts.task)
 		if err != nil {
 			return execResult, nil, errors.Wrap(err, "failed to cache stepResult")
 		}

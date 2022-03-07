@@ -178,8 +178,8 @@ func (x *executor) do(ctx context.Context, task *Task, ui TaskExecutionUI) (err 
 		ensureImage: x.opts.EnsureImage,
 		tempDir:     x.opts.TempDir,
 
-		ui:           ui.StepsExecutionUI(task),
-		writeToCache: x.opts.WriteStepCacheResult,
+		ui:                   ui.StepsExecutionUI(task),
+		writeStepCacheResult: x.opts.WriteStepCacheResult,
 	}
 
 	result, stepResults, err := runSteps(runCtx, opts)
