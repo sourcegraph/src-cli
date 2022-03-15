@@ -1,9 +1,12 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
+	"log"
 	"strings"
+	"unicode"
 
 	"github.com/sourcegraph/src-cli/internal/cmderrors"
 )
@@ -48,6 +51,26 @@ Examples:
 			baseDir = strings.TrimSuffix(base, ".zip")
 		}
 
+		ctx := context.Background()
+
+		pods, err := getPods(ctx, namespace)
+		if err != nil {
+			return fmt.Errorf("failed to get pods: %w", err)
+		}
+
+		log.Printf("getting kubectl data for %d pods...\n", len(pods.Items))
+		var verify string
+		fmt.Print("Do you want to start writing to an archive? [y/n] ")
+		_, err = fmt.Scanln(&verify)
+		for unicode.ToLower(rune(verify[0])) != 'y' && unicode.ToLower(rune(verify[0])) != 'n' {
+			fmt.Println("Input must be string y or n")
+			_, err = fmt.Scanln(&verify)
+		}
+		if unicode.ToLower(rune(verify[0])) == 'n' {
+			fmt.Println("escaping")
+			return nil
+		}
+
 		out, zw, ctx, err := setupDebug(base)
 		if err != nil {
 			return err
@@ -55,7 +78,7 @@ Examples:
 		defer out.Close()
 		defer zw.Close()
 
-		err = archiveKube(ctx, zw, *verbose, namespace, baseDir)
+		err = archiveKube(ctx, zw, *verbose, namespace, baseDir, pods)
 		if err != nil {
 			return cmderrors.ExitCode(1, err)
 		}

@@ -24,6 +24,7 @@ type archiveFile struct {
 // setOpenFileLimits increases the limit of open files to the given number. This is needed
 // when doings lots of concurrent network requests which establish open sockets.
 func setOpenFileLimits(n uint64) error {
+
 	var rlimit syscall.Rlimit
 	err := syscall.Getrlimit(syscall.RLIMIT_NOFILE, &rlimit)
 	if err != nil {
@@ -78,21 +79,21 @@ type podList struct {
 }
 
 // Run kubectl functions concurrently and archive results to zip file
-func archiveKube(ctx context.Context, zw *zip.Writer, verbose bool, namespace, baseDir string) error {
+func archiveKube(ctx context.Context, zw *zip.Writer, verbose bool, namespace, baseDir string, pods podList) error {
 	// Create a context with a cancel function that we call when returning
 	// from archiveKube. This ensures we close all pending go-routines when returning
 	// early because of an error.
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	pods, err := getPods(ctx, namespace)
-	if err != nil {
-		return fmt.Errorf("failed to get pods: %w", err)
-	}
+	//pods, err := getPods(ctx, namespace)
+	//if err != nil {
+	//	return fmt.Errorf("failed to get pods: %w", err)
+	//}
 
-	if verbose {
-		log.Printf("getting kubectl data for %d pods...\n", len(pods.Items))
-	}
+	//if verbose {
+	//	log.Printf("getting kubectl data for %d pods...\n", len(pods.Items))
+	//}
 
 	// setup channel for slice of archive function outputs
 	ch := make(chan *archiveFile)
