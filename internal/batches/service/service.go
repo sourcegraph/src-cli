@@ -24,6 +24,7 @@ import (
 	"github.com/sourcegraph/src-cli/internal/batches/executor"
 	"github.com/sourcegraph/src-cli/internal/batches/graphql"
 	"github.com/sourcegraph/src-cli/internal/batches/repozip"
+	"github.com/sourcegraph/src-cli/internal/set"
 )
 
 type Service struct {
@@ -171,9 +172,9 @@ func (svc *Service) EnsureDockerImages(
 	progress func(done, total int),
 ) (map[string]docker.Image, error) {
 	// Figure out the image names used in the batch spec.
-	names := map[string]struct{}{}
+	names := set.New[string]()
 	for i := range steps {
-		names[steps[i].Container] = struct{}{}
+		names.Add(steps[i].Container)
 	}
 
 	total := len(names)
@@ -572,7 +573,7 @@ func (svc *Service) ResolveRepositories(ctx context.Context, spec *batcheslib.Ba
 	final := []*graphql.Repository{}
 	for _, rev := range agg.Revisions() {
 		repo := rev.(*graphql.Repository)
-		if !unsupported.Includes(repo) && !ignored.Includes(repo) {
+		if !unsupported.Includes(repo) && !ignored.Contains(repo) {
 			final = append(final, repo)
 		}
 	}
@@ -789,11 +790,11 @@ func (svc *Service) FindDirectoriesInRepos(ctx context.Context, fileName string,
 				return fmt.Errorf("result for query %q did not match any repository", queryID)
 			}
 
-			files := map[string]struct{}{}
+			files := set.New[string]()
 
 			for _, r := range search.Results.Results {
 				for file := range r.FileMatches {
-					files[file] = struct{}{}
+					files.Add(file)
 				}
 			}
 

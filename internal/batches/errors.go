@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/sourcegraph/src-cli/internal/batches/graphql"
+	"github.com/sourcegraph/src-cli/internal/set"
 )
 
 // TODO(mrnugget): Merge these two types (give them an "errorfmt" function,
@@ -22,10 +23,10 @@ func (e UnsupportedRepoSet) Includes(r *graphql.Repository) bool {
 
 func (e UnsupportedRepoSet) Error() string {
 	repos := []string{}
-	typeSet := map[string]struct{}{}
+	typeSet := set.New[string]()
 	for repo := range e {
 		repos = append(repos, repo.Name)
-		typeSet[repo.ExternalRepository.ServiceType] = struct{}{}
+		typeSet.Add(repo.ExternalRepository.ServiceType)
 	}
 
 	types := []string{}
