@@ -42,6 +42,7 @@ The commands are:
 	extensions,ext  manages extensions (experimental)
 	batch           manages batch changes
 	lsif            manages LSIF data
+	login		authenticate to a Sourcegraph instance with your user credentials
 	serve-git       serves your local git repositories over HTTP for Sourcegraph to pull
 	version         display and compare the src-cli version against the recommended version for your instance
 
