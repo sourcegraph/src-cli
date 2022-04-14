@@ -219,18 +219,35 @@ func (e errorWithHint) Error() string {
 	return fmt.Sprintf("%s\n\n%s\n", e.err, e.hint)
 }
 
-var errUnauthorizedHint = strings.Join([]string{
-	"You may need to specify or update your GitHub access token to use this endpoint.",
-	"See https://docs.sourcegraph.com/cli/references/lsif/upload.",
-}, "\n")
-
 // handleLSIFUploadError writes the given error to the given output. If the
 // given output object is nil then the error will be written to standard out.
 //
 // This method returns the error that should be passed back up to the runner.
 func handleLSIFUploadError(out *output.Output, err error) error {
 	if err == upload.ErrUnauthorized {
-		err = errorWithHint{err: err, hint: errUnauthorizedHint}
+		var actionableHints []string
+		if lsifUploadFlags.gitHubToken != "" {
+			actionableHints = append(actionableHints,
+				"The supplied -github-token did not give the expected access level for the target repository.",
+				"Please check that supplied token matches the code host and has expected access of the target repository.",
+			)
+		} else if lsifUploadFlags.gitLabToken != "" {
+			actionableHints = append(actionableHints,
+				"The supplied -gitlab-token did not give the expected access level for the target repository.",
+				"Please check that supplied token matches the code host and has expected access of the target repository.",
+			)
+		} else {
+			actionableHints = append(actionableHints,
+				"Please retry your request with a -github-token or -gitlab-token (matching the code host of the target repository).",
+				"This token will be used to check with the code host that the uploading user has write access to the target repository.",
+			)
+		}
+
+		err = errorWithHint{err: err, hint: strings.Join(mergeStringSlices(
+			[]string{"This Sourcegraph instance has enforced auth for LSIF uploads."},
+			actionableHints,
+			[]string{"See https://docs.sourcegraph.com/cli/references/lsif/upload."},
+		), "\n")}
 	}
 
 	if lsifUploadFlags.ignoreUploadFailures {
@@ -245,4 +262,13 @@ func handleLSIFUploadError(out *output.Output, err error) error {
 // emergencyOutput creates a default Output object writing to standard out.
 func emergencyOutput() *output.Output {
 	return output.NewOutput(os.Stdout, output.OutputOpts{})
+}
+
+func mergeStringSlices(ss ...[]string) []string {
+	var combined []string
+	for _, s := range ss {
+		combined = append(combined, s...)
+	}
+
+	return combined
 }
