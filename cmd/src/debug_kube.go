@@ -30,8 +30,10 @@ Examples:
 	flagSet := flag.NewFlagSet("kube", flag.ExitOnError)
 	var base string
 	var namespace string
+	var extsvc bool
 	flagSet.StringVar(&base, "o", "debug.zip", "The name of the output zip archive")
 	flagSet.StringVar(&namespace, "n", "default", "The namespace passed to kubectl commands, if not specified the default namespace is used")
+	flagSet.BoolVar(&extsvc, "ext", false, "Include external service json in archive")
 
 	handler := func(args []string) error {
 		if err := flagSet.Parse(args); err != nil {
@@ -78,7 +80,7 @@ Examples:
 		defer out.Close()
 		defer zw.Close()
 
-		err = archiveKube(ctx, zw, *verbose, namespace, baseDir, pods)
+		err = archiveKube(ctx, zw, *verbose, extsvc, namespace, baseDir, pods)
 		if err != nil {
 			return cmderrors.ExitCode(1, err)
 		}

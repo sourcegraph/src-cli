@@ -12,8 +12,16 @@ import (
 	"sync"
 	"syscall"
 
+	"golang.org/x/sync/semaphore"
+
 	"github.com/sourcegraph/src-cli/internal/exec"
 )
+
+/*
+General Stuff
+TODO: file issue on the existence of OAuth signKey which needs to be redacted
+TODO: Create getSiteConfig function
+*/
 
 type archiveFile struct {
 	name string
@@ -59,6 +67,17 @@ func setupDebug(base string) (*os.File, *zip.Writer, context.Context, error) {
 	return out, zw, ctx, err
 }
 
+// getExternalServicesConfig calls src extsvc list with the format flag -f,
+//and then returns an archiveFile to be consumed
+func getExternalServicesConfig(ctx context.Context, baseDir string) *archiveFile {
+	const fmtStr = `{{range .Nodes}}{{.id}} | {{.kind}} | {{.displayName}}{{"\n"}}{{.config}}{{"\n---\n"}}{{end}}`
+
+	f := &archiveFile{name: baseDir + "/config/external_services.txt"}
+	f.data, f.err = exec.CommandContext(ctx, os.Args[0], "extsvc", "list", "-f", fmtStr).CombinedOutput()
+
+	return f
+}
+
 /*
 Kubernetes stuff
 TODO: handle namespaces, remove --all-namespaces from get events
@@ -79,30 +98,26 @@ type podList struct {
 }
 
 // Run kubectl functions concurrently and archive results to zip file
-func archiveKube(ctx context.Context, zw *zip.Writer, verbose bool, namespace, baseDir string, pods podList) error {
+func archiveKube(ctx context.Context, zw *zip.Writer, verbose, ext bool, namespace, baseDir string, pods podList) error {
 	// Create a context with a cancel function that we call when returning
 	// from archiveKube. This ensures we close all pending go-routines when returning
 	// early because of an error.
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	//pods, err := getPods(ctx, namespace)
-	//if err != nil {
-	//	return fmt.Errorf("failed to get pods: %w", err)
-	//}
-
-	//if verbose {
-	//	log.Printf("getting kubectl data for %d pods...\n", len(pods.Items))
-	//}
-
-	// setup channel for slice of archive function outputs
+	// setup channel for slice of archive function outputs, as well as throttling semaphore
 	ch := make(chan *archiveFile)
 	wg := sync.WaitGroup{}
+	semaphore := semaphore.NewWeighted(8)
 
 	// create goroutine to get kubectl events
 	wg.Add(1)
 	go func() {
+		if err := semaphore.Acquire(ctx, 1); err != nil {
+			// return err
+		}
 		defer wg.Done()
+		defer semaphore.Release(1)
 		ch <- getEvents(ctx, namespace, baseDir)
 	}()
 
@@ -125,7 +140,11 @@ func archiveKube(ctx context.Context, zw *zip.Writer, verbose bool, namespace, b
 		for _, container := range pod.Spec.Containers {
 			wg.Add(1)
 			go func(pod, container string) {
+				if err := semaphore.Acquire(ctx, 1); err != nil {
+					// return err
+				}
 				defer wg.Done()
+				defer semaphore.Release(1)
 				ch <- getContainerLog(ctx, pod, container, namespace, baseDir)
 			}(pod.Metadata.Name, container.Name)
 		}
@@ -164,11 +183,14 @@ func archiveKube(ctx context.Context, zw *zip.Writer, verbose bool, namespace, b
 		}(pod.Metadata.Name)
 	}
 
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		ch <- getExternalServicesConfig(ctx, baseDir)
-	}()
+	// start goroutine to get external service config
+	if ext == true {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			ch <- getExternalServicesConfig(ctx, baseDir)
+		}()
+	}
 
 	// close channel when wait group goroutines have completed
 	go func() {
@@ -313,6 +335,13 @@ func archiveDocker(ctx context.Context, zw *zip.Writer, verbose bool, baseDir st
 		}(container)
 	}
 
+	// start goroutine to get external service config
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		ch <- getExternalServicesConfig(ctx, baseDir)
+	}()
+
 	// close channel when wait group goroutines have completed
 	go func() {
 		wg.Wait()
@@ -368,20 +397,5 @@ func getInspect(ctx context.Context, container, baseDir string) *archiveFile {
 func getStats(ctx context.Context, baseDir string) *archiveFile {
 	f := &archiveFile{name: baseDir + "/docker/stats.txt"}
 	f.data, f.err = exec.CommandContext(ctx, "docker", "container", "stats", "--no-stream").CombinedOutput()
-	return f
-}
-
-/*
-General Stuff
-TODO: file issue on the existence of OAuth signKey which needs to be redacted
-TODO: Create getSiteConfig function
-*/
-
-func getExternalServicesConfig(ctx context.Context, baseDir string) *archiveFile {
-	const fmtStr = `{{range .Nodes}}{{.id}} | {{.kind}} | {{.displayName}}{{"\n"}}{{.config}}{{"\n---\n"}}{{end}}`
-
-	f := &archiveFile{name: baseDir + "/config/external_services.txt"}
-	f.data, f.err = exec.CommandContext(ctx, os.Args[0], "extsvc", "list", "-f", fmtStr).CombinedOutput()
-
 	return f
 }
