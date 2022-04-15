@@ -116,14 +116,18 @@ func archiveKube(ctx context.Context, zw *zip.Writer, verbose, ext bool, namespa
 		if err := semaphore.Acquire(ctx, 1); err != nil {
 			// return err
 		}
-		defer wg.Done()
 		defer semaphore.Release(1)
+		defer wg.Done()
 		ch <- getEvents(ctx, namespace, baseDir)
 	}()
 
 	// create goroutine to get persistent volumes
 	wg.Add(1)
 	go func() {
+		if err := semaphore.Acquire(ctx, 1); err != nil {
+			// return err
+		}
+		defer semaphore.Release(1)
 		defer wg.Done()
 		ch <- getPV(ctx, namespace, baseDir)
 	}()
@@ -131,6 +135,10 @@ func archiveKube(ctx context.Context, zw *zip.Writer, verbose, ext bool, namespa
 	// create goroutine to get persistent volumes claim
 	wg.Add(1)
 	go func() {
+		if err := semaphore.Acquire(ctx, 1); err != nil {
+			// return err
+		}
+		defer semaphore.Release(1)
 		defer wg.Done()
 		ch <- getPVC(ctx, namespace, baseDir)
 	}()
@@ -143,8 +151,8 @@ func archiveKube(ctx context.Context, zw *zip.Writer, verbose, ext bool, namespa
 				if err := semaphore.Acquire(ctx, 1); err != nil {
 					// return err
 				}
-				defer wg.Done()
 				defer semaphore.Release(1)
+				defer wg.Done()
 				ch <- getContainerLog(ctx, pod, container, namespace, baseDir)
 			}(pod.Metadata.Name, container.Name)
 		}
@@ -156,6 +164,10 @@ func archiveKube(ctx context.Context, zw *zip.Writer, verbose, ext bool, namespa
 		for _, container := range pod.Spec.Containers {
 			wg.Add(1)
 			go func(pod, container string) {
+				if err := semaphore.Acquire(ctx, 1); err != nil {
+					// return err
+				}
+				defer semaphore.Release(1)
 				defer wg.Done()
 				f := getPastContainerLog(ctx, pod, container, namespace, baseDir)
 				if f.err == nil {
@@ -169,6 +181,10 @@ func archiveKube(ctx context.Context, zw *zip.Writer, verbose, ext bool, namespa
 	for _, pod := range pods.Items {
 		wg.Add(1)
 		go func(pod string) {
+			if err := semaphore.Acquire(ctx, 1); err != nil {
+				// return err
+			}
+			defer semaphore.Release(1)
 			defer wg.Done()
 			ch <- getDescribe(ctx, pod, namespace, baseDir)
 		}(pod.Metadata.Name)
@@ -178,6 +194,10 @@ func archiveKube(ctx context.Context, zw *zip.Writer, verbose, ext bool, namespa
 	for _, pod := range pods.Items {
 		wg.Add(1)
 		go func(pod string) {
+			if err := semaphore.Acquire(ctx, 1); err != nil {
+				// return err
+			}
+			defer semaphore.Release(1)
 			defer wg.Done()
 			ch <- getManifest(ctx, pod, namespace, baseDir)
 		}(pod.Metadata.Name)
@@ -187,6 +207,10 @@ func archiveKube(ctx context.Context, zw *zip.Writer, verbose, ext bool, namespa
 	if ext == true {
 		wg.Add(1)
 		go func() {
+			if err := semaphore.Acquire(ctx, 1); err != nil {
+				// return err
+			}
+			defer semaphore.Release(1)
 			defer wg.Done()
 			ch <- getExternalServicesConfig(ctx, baseDir)
 		}()
