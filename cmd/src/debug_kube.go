@@ -9,6 +9,7 @@ import (
 	"unicode"
 
 	"github.com/sourcegraph/src-cli/internal/cmderrors"
+	"github.com/sourcegraph/src-cli/internal/exec"
 )
 
 // TODO: seperate graphQL API call functions from archiveKube main function -- in accordance with database dumps, and prometheus, these should be optional via flags
@@ -59,8 +60,13 @@ Examples:
 		if err != nil {
 			return fmt.Errorf("failed to get pods: %w", err)
 		}
+		kubectx, err := exec.CommandContext(ctx, "kubectl", "config", "current-context").CombinedOutput()
+		if err != nil {
+			return fmt.Errorf("failed to get current-context: %w", err)
+		}
 
-		log.Printf("getting kubectl data for %d pods...\n", len(pods.Items))
+		log.Printf("getting kubectl data for %d pods, from context %s ...\n", len(pods.Items), kubectx)
+
 		var verify string
 		fmt.Print("Do you want to start writing to an archive? [y/n] ")
 		_, err = fmt.Scanln(&verify)
