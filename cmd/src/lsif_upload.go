@@ -246,7 +246,7 @@ func handleLSIFUploadError(out *output.Output, err error) error {
 		err = errorWithHint{err: err, hint: strings.Join(mergeStringSlices(
 			[]string{"This Sourcegraph instance has enforced auth for LSIF uploads."},
 			actionableHints,
-			[]string{"See https://docs.sourcegraph.com/cli/references/lsif/upload."},
+			[]string{"For more details, see https://docs.sourcegraph.com/cli/references/lsif/upload."},
 		), "\n")}
 	}
 
