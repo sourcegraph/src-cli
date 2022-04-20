@@ -121,7 +121,16 @@ Examples:
 		}
 		ui.ExecutingBatchSpecSuccess()
 
-		ui.RemoteSuccess(strings.TrimSuffix(cfg.Endpoint, "/") + "/batch-changes/executions/" + batchSpecID)
+		var batchChangeName string = "comby-fmt"
+		executionURL := fmt.Sprintf(
+			"%s/%s/batch-changes/%s/executions/%s",
+			strings.TrimSuffix(cfg.Endpoint, "/"),
+			strings.TrimPrefix(namespaceDetails.URL, "/"),
+			batchChangeName,
+			batchSpecID,
+		)
+		// ui.RemoteSuccess(strings.TrimSuffix(cfg.Endpoint, "/") + "/batch-changes/executions/" + batchSpecID)
+		ui.RemoteSuccess(executionURL)
 
 		return nil
 	}
