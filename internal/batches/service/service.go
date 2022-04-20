@@ -463,10 +463,12 @@ const namespaceQuery = `
 query NamespaceQuery($name: String!) {
     user(username: $name) {
         id
+        url
     }
 
     organization(name: $name) {
         id
+        url
     }
 }
 `
@@ -475,7 +477,7 @@ const usernameQuery = `
 query GetCurrentUserID {
     currentUser {
         id
-		url
+        url
     }
 }
 `
