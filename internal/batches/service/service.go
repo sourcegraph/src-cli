@@ -480,12 +480,12 @@ query GetCurrentUserID {
 }
 `
 
-type NamespaceDetails struct {
+type Namespace struct {
 	ID  string
 	URL string
 }
 
-func (svc *Service) ResolveNamespace(ctx context.Context, namespace string) (NamespaceDetails, error) {
+func (svc *Service) ResolveNamespace(ctx context.Context, namespace string) (Namespace, error) {
 	if namespace == "" {
 		// if no namespace is provided, default to logged in user as namespace
 		var resp struct {
@@ -497,13 +497,13 @@ func (svc *Service) ResolveNamespace(ctx context.Context, namespace string) (Nam
 			} `json:"data"`
 		}
 		if ok, err := svc.client.NewRequest(usernameQuery, nil).DoRaw(ctx, &resp); err != nil || !ok {
-			return NamespaceDetails{}, errors.WithMessage(err, "failed to resolve namespace: no user logged in")
+			return Namespace{}, errors.WithMessage(err, "failed to resolve namespace: no user logged in")
 		}
 
 		if resp.Data.CurrentUser.ID == "" {
-			return NamespaceDetails{}, errors.New("cannot resolve current user")
+			return Namespace{}, errors.New("cannot resolve current user")
 		}
-		return NamespaceDetails{
+		return Namespace{
 			ID:  resp.Data.CurrentUser.ID,
 			URL: resp.Data.CurrentUser.URL,
 		}, nil
@@ -525,22 +525,22 @@ func (svc *Service) ResolveNamespace(ctx context.Context, namespace string) (Nam
 	if ok, err := svc.client.NewRequest(namespaceQuery, map[string]interface{}{
 		"name": namespace,
 	}).DoRaw(ctx, &result); err != nil || !ok {
-		return NamespaceDetails{}, err
+		return Namespace{}, err
 	}
 
 	if result.Data.User != nil {
-		return NamespaceDetails{
+		return Namespace{
 			ID:  result.Data.User.ID,
 			URL: result.Data.User.URL,
 		}, nil
 	}
 	if result.Data.Organization != nil {
-		return NamespaceDetails{
+		return Namespace{
 			ID:  result.Data.Organization.ID,
 			URL: result.Data.Organization.URL,
 		}, nil
 	}
-	return NamespaceDetails{}, fmt.Errorf("failed to resolve namespace %q: no user or organization found", namespace)
+	return Namespace{}, fmt.Errorf("failed to resolve namespace %q: no user or organization found", namespace)
 }
 
 func (svc *Service) ResolveRepositories(ctx context.Context, spec *batcheslib.BatchSpec) ([]*graphql.Repository, error) {
