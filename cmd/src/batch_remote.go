@@ -63,7 +63,7 @@ Examples:
 		// may as well validate it at the same time so we don't even have to go to
 		// the backend if it's invalid.
 		ui.ParsingBatchSpec()
-		_, raw, err := parseBatchSpec(file, svc)
+		spec, raw, err := parseBatchSpec(file, svc)
 		if err != nil {
 			ui.ParsingBatchSpecFailure(err)
 			return err
@@ -121,15 +121,13 @@ Examples:
 		}
 		ui.ExecutingBatchSpecSuccess()
 
-		var batchChangeName string = "comby-fmt"
 		executionURL := fmt.Sprintf(
 			"%s/%s/batch-changes/%s/executions/%s",
 			strings.TrimSuffix(cfg.Endpoint, "/"),
 			strings.TrimPrefix(namespace.URL, "/"),
-			batchChangeName,
+			spec.Name,
 			batchSpecID,
 		)
-		// ui.RemoteSuccess(strings.TrimSuffix(cfg.Endpoint, "/") + "/batch-changes/executions/" + batchSpecID)
 		ui.RemoteSuccess(executionURL)
 
 		return nil
