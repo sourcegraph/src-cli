@@ -64,7 +64,7 @@ Examples:
 		if err != nil {
 			return fmt.Errorf("failed to get current-context: %w", err)
 		}
-
+		//TODO: improve formating to include ls like pod listing for pods targeted.
 		log.Printf("getting kubectl data for %d pods, from context %s ...\n", len(pods.Items), kubectx)
 
 		var verify string

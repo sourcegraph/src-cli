@@ -172,6 +172,8 @@ func archiveKube(ctx context.Context, zw *zip.Writer, verbose, ext bool, namespa
 				f := getPastContainerLog(ctx, pod, container, namespace, baseDir)
 				if f.err == nil {
 					ch <- f
+				} else {
+					fmt.Printf("Could not gather --previous pod logs for: %s \nExited with err: %s\n", pod, f.err)
 				}
 			}(pod.Metadata.Name, container.Name)
 		}
