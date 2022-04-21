@@ -12,6 +12,8 @@ import (
 	"sync"
 	"syscall"
 
+	"github.com/cockroachdb/errors"
+
 	"golang.org/x/sync/semaphore"
 
 	"github.com/sourcegraph/src-cli/internal/exec"
@@ -298,7 +300,11 @@ func getContainerLog(ctx context.Context, podName, containerName, namespace, bas
 // get kubectl logs for past container
 func getPastContainerLog(ctx context.Context, podName, containerName, namespace, baseDir string) *archiveFile {
 	f := &archiveFile{name: baseDir + "/kubectl/pods/" + podName + "/" + "prev-" + containerName + ".log"}
+	cmdStr := []string{"kubectl", "-n", namespace, "logs", "--previous", podName, "-c", containerName}
 	f.data, f.err = exec.CommandContext(ctx, "kubectl", "-n", namespace, "logs", "--previous", podName, "-c", containerName).CombinedOutput()
+	if f.err != nil {
+		f.err = errors.Wrapf(f.err, "executing command: %s: received error: %s", cmdStr, f.data)
+	}
 	return f
 }
 
@@ -398,13 +404,20 @@ func archiveDocker(ctx context.Context, zw *zip.Writer, verbose bool, baseDir st
 }
 
 func getContainers(ctx context.Context) ([]string, error) {
-	c, err := exec.CommandContext(ctx, "docker", "container", "ls", "--format", "{{.Names}}").Output()
+	c, err := exec.CommandContext(ctx, "docker", "container", "ls", "--format", "{{.Names}} {{.Networks}}").Output()
 	if err != nil {
 		fmt.Errorf("failed to get container names with error: %w", err)
 	}
 	s := string(c)
-	containers := strings.Split(strings.TrimSpace(s), "\n")
-	fmt.Println(containers)
+	preprocessed := strings.Split(strings.TrimSpace(s), "\n")
+	containers := []string{}
+	for _, container := range preprocessed {
+		fmt.Printf("%#v\n", container)
+		tmpStr := strings.Split(container, " ")
+		if tmpStr[1] == "docker-compose_sourcegraph" {
+			containers = append(containers, tmpStr[0])
+		}
+	}
 	return containers, err
 }
 
