@@ -225,7 +225,7 @@ func (e errorWithHint) Error() string {
 // This method returns the error that should be passed back up to the runner.
 func handleLSIFUploadError(out *output.Output, err error) error {
 	if err == upload.ErrUnauthorized {
-		err = filterLSIFUnauthorizeedError(out, err)
+		err = filterLSIFUnauthorizedError(out, err)
 	}
 
 	if lsifUploadFlags.ignoreUploadFailures {
@@ -237,26 +237,43 @@ func handleLSIFUploadError(out *output.Output, err error) error {
 	return err
 }
 
-func filterLSIFUnauthorizeedError(out *output.Output, err error) error {
+func filterLSIFUnauthorizedError(out *output.Output, err error) error {
 	var actionableHints []string
-	if lsifUploadFlags.gitHubToken != "" {
-		actionableHints = append(actionableHints,
-			"The supplied -github-token did not give the expected access level for the target repository.",
-			"Please check that supplied token matches the code host and has expected access of the target repository.",
-		)
-	} else if lsifUploadFlags.gitLabToken != "" {
-		actionableHints = append(actionableHints,
-			"The supplied -gitlab-token did not give the expected access level for the target repository.",
-			"Please check that supplied token matches the code host and has expected access of the target repository.",
-		)
+	needsGitHubToken := strings.HasPrefix(lsifUploadFlags.repo, "github.com")
+	needsGitLabToken := strings.HasPrefix(lsifUploadFlags.repo, "gitlab.com")
+
+	if needsGitHubToken {
+		if lsifUploadFlags.gitHubToken != "" {
+			actionableHints = append(actionableHints,
+				fmt.Sprintf("The supplied -github-token does not indicate that you have collaborator access to %s.", lsifUploadFlags.repo),
+				"Please check the value of the supplied token and its permissions on the code host and try again.",
+			)
+		} else {
+			actionableHints = append(actionableHints,
+				fmt.Sprintf("Please retry your request with a -github-token=XXX with with collaborator access to %s.", lsifUploadFlags.repo),
+				"This token will be used to check with the code host that the uploading user has write access to the target repository.",
+			)
+		}
+	} else if needsGitLabToken {
+		if lsifUploadFlags.gitLabToken != "" {
+			actionableHints = append(actionableHints,
+				fmt.Sprintf("The supplied -gitlab-token does not indicate that you have write access to %s.", lsifUploadFlags.repo),
+				"Please check the value of the supplied token and its permissions on the code host and try again.",
+			)
+		} else {
+			actionableHints = append(actionableHints,
+				fmt.Sprintf("Please retry your request with a -gitlab-token=XXX with with write access to %s.", lsifUploadFlags.repo),
+				"This token will be used to check with the code host that the uploading user has write access to the target repository.",
+			)
+		}
 	} else {
 		actionableHints = append(actionableHints,
-			"Please retry your request with a -github-token or -gitlab-token (matching the code host of the target repository).",
-			"This token will be used to check with the code host that the uploading user has write access to the target repository.",
+			"Verification is supported for the following code hosts: github.com, gitlab.com.",
+			"Please request support for additional code host verification at https://github.com/sourcegraph/sourcegraph/issues/4967.",
 		)
 	}
 
-	err = errorWithHint{err: err, hint: strings.Join(mergeStringSlices(
+	return errorWithHint{err: err, hint: strings.Join(mergeStringSlices(
 		[]string{"This Sourcegraph instance has enforced auth for LSIF uploads."},
 		actionableHints,
 		[]string{"For more details, see https://docs.sourcegraph.com/cli/references/lsif/upload."},
