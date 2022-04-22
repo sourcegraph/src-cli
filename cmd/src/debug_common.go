@@ -13,10 +13,8 @@ import (
 	"syscall"
 
 	"github.com/cockroachdb/errors"
-
-	"golang.org/x/sync/semaphore"
-
 	"github.com/sourcegraph/src-cli/internal/exec"
+	"golang.org/x/sync/semaphore"
 )
 
 /*
@@ -69,6 +67,8 @@ func setupDebug(base string) (*os.File, *zip.Writer, context.Context, error) {
 	return out, zw, ctx, err
 }
 
+// TODO: Currently external services and site configs are pulled using the src endpoints
+
 // getExternalServicesConfig calls src extsvc list with the format flag -f,
 //and then returns an archiveFile to be consumed
 func getExternalServicesConfig(ctx context.Context, baseDir string) *archiveFile {
@@ -76,6 +76,16 @@ func getExternalServicesConfig(ctx context.Context, baseDir string) *archiveFile
 
 	f := &archiveFile{name: baseDir + "/config/external_services.txt"}
 	f.data, f.err = exec.CommandContext(ctx, os.Args[0], "extsvc", "list", "-f", fmtStr).CombinedOutput()
+
+	return f
+}
+
+// getSiteConfig calls src api -query=... to query the api for site config json
+// TODO: correctly format json output before writing to zip
+func getSiteConfig(ctx context.Context, baseDir string) *archiveFile {
+	const siteConfigStr = `query { site { configuration { effectiveContents } } }`
+	f := &archiveFile{name: baseDir + "/config/siteConfig.json"}
+	f.data, f.err = exec.CommandContext(ctx, os.Args[0], "api", "-query", siteConfigStr).CombinedOutput()
 
 	return f
 }
@@ -100,7 +110,7 @@ type podList struct {
 }
 
 // Run kubectl functions concurrently and archive results to zip file
-func archiveKube(ctx context.Context, zw *zip.Writer, verbose, ext bool, namespace, baseDir string, pods podList) error {
+func archiveKube(ctx context.Context, zw *zip.Writer, verbose, configs bool, namespace, baseDir string, pods podList) error {
 	// Create a context with a cancel function that we call when returning
 	// from archiveKube. This ensures we close all pending go-routines when returning
 	// early because of an error.
@@ -162,6 +172,7 @@ func archiveKube(ctx context.Context, zw *zip.Writer, verbose, ext bool, namespa
 
 	// start goroutine to run kubectl logs --previous for each pod's container's
 	// won't write to zip on err, only passes bytes to channel if err not nil
+	// TODO: It may be nice to store a list of pods for which --previous isn't collected, to be outputted with verbose flag
 	for _, pod := range pods.Items {
 		for _, container := range pod.Spec.Containers {
 			wg.Add(1)
@@ -175,7 +186,9 @@ func archiveKube(ctx context.Context, zw *zip.Writer, verbose, ext bool, namespa
 				if f.err == nil {
 					ch <- f
 				} else {
-					fmt.Printf("Could not gather --previous pod logs for: %s \nExited with err: %s\n", pod, f.err)
+					if verbose {
+						fmt.Printf("Could not gather --previous pod logs for: %s \nExited with err: %s\n", pod, f.err)
+					}
 				}
 			}(pod.Metadata.Name, container.Name)
 		}
@@ -208,7 +221,7 @@ func archiveKube(ctx context.Context, zw *zip.Writer, verbose, ext bool, namespa
 	}
 
 	// start goroutine to get external service config
-	if ext == true {
+	if configs == true {
 		wg.Add(1)
 		go func() {
 			if err := semaphore.Acquire(ctx, 1); err != nil {
@@ -217,6 +230,16 @@ func archiveKube(ctx context.Context, zw *zip.Writer, verbose, ext bool, namespa
 			defer semaphore.Release(1)
 			defer wg.Done()
 			ch <- getExternalServicesConfig(ctx, baseDir)
+		}()
+
+		wg.Add(1)
+		go func() {
+			if err := semaphore.Acquire(ctx, 1); err != nil {
+				// return err
+			}
+			defer semaphore.Release(1)
+			defer wg.Done()
+			ch <- getSiteConfig(ctx, baseDir)
 		}()
 	}
 
@@ -322,10 +345,10 @@ func getManifest(ctx context.Context, podName, namespace, baseDir string) *archi
 
 /*
 Docker functions
-TODO: handle for single container instance
+TODO: handle for single container/server instance
 */
 
-func archiveDocker(ctx context.Context, zw *zip.Writer, verbose bool, baseDir string) error {
+func archiveDocker(ctx context.Context, zw *zip.Writer, verbose, configs bool, baseDir string) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -367,12 +390,20 @@ func archiveDocker(ctx context.Context, zw *zip.Writer, verbose bool, baseDir st
 		}(container)
 	}
 
-	// start goroutine to get external service config
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		ch <- getExternalServicesConfig(ctx, baseDir)
-	}()
+	// start goroutine to get configs
+	if configs == true {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			ch <- getExternalServicesConfig(ctx, baseDir)
+		}()
+
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			ch <- getSiteConfig(ctx, baseDir)
+		}()
+	}
 
 	// close channel when wait group goroutines have completed
 	go func() {
@@ -412,7 +443,6 @@ func getContainers(ctx context.Context) ([]string, error) {
 	preprocessed := strings.Split(strings.TrimSpace(s), "\n")
 	containers := []string{}
 	for _, container := range preprocessed {
-		fmt.Printf("%#v\n", container)
 		tmpStr := strings.Split(container, " ")
 		if tmpStr[1] == "docker-compose_sourcegraph" {
 			containers = append(containers, tmpStr[0])

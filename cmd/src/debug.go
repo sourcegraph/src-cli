@@ -21,7 +21,8 @@ The commands are:
 	serv                 generates docker outputs
 	
 
-Use "src debug [command] -h" for more information about a command.
+Use "src debug [command] -h" for more information about a subcommands.
+src debug has access to flags on src -- Ex: src -v kube -o foo.zip
 
 `
 
@@ -46,7 +47,7 @@ Use "src debug [command] -h" for more information about a command.
 /*
 TODO:
 	- This project needs some consideration around monitoring
-		- You should be aware when a executed cmd has failed
-		- You should be able to recieve an output that tells you what you've created in the zip file
+		- You should be aware when an executed cmd has failed
+		- You should be able to receive an output that tells you what you've created in the zip file
 		- an additional introspection command might be useful to look at whats in a zip file easily
 */

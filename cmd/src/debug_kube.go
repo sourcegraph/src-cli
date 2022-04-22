@@ -20,21 +20,31 @@ func init() {
 
 Usage:
 
-    src debug kube -o FILE [command options]
+    src debug kube [command options]
+
+Flags:
+
+	-o			Specify the name of the output zip archive.
+	-n			Specify the namespace passed to kubectl commands. If not specified the 'default' namespace is used.
+	-cfg		Include Sourcegraph configuration json. Defaults to true.
 
 Examples:
 
     $ src debug kube -o debug.zip
+
+	$ src -v debug kube -n ns-sourcegraph -o foo
+
+	$ src debug kube -cfg=false -o bar.zip
 
 `
 
 	flagSet := flag.NewFlagSet("kube", flag.ExitOnError)
 	var base string
 	var namespace string
-	var extsvc bool
+	var configs bool
+	flagSet.BoolVar(&configs, "cfg", true, "If true include Sourcegraph configuration files. Default value true.")
+	flagSet.StringVar(&namespace, "n", "default", "The namespace passed to kubectl commands, if not specified the 'default' namespace is used")
 	flagSet.StringVar(&base, "o", "debug.zip", "The name of the output zip archive")
-	flagSet.StringVar(&namespace, "n", "default", "The namespace passed to kubectl commands, if not specified the default namespace is used")
-	flagSet.BoolVar(&extsvc, "ext", false, "Include external service json in archive")
 
 	handler := func(args []string) error {
 		if err := flagSet.Parse(args); err != nil {
@@ -64,8 +74,8 @@ Examples:
 		if err != nil {
 			return fmt.Errorf("failed to get current-context: %w", err)
 		}
-		//TODO: improve formating to include ls like pod listing for pods targeted.
-		log.Printf("getting kubectl data for %d pods, from context %s ...\n", len(pods.Items), kubectx)
+		//TODO: improve formating to include 'ls' like pod listing for pods targeted.
+		log.Printf("Archiving kubectl data for %d pods\n SRC_ENDPOINT: %v\n Context: %s Namespace: %v\n Output filename: %v", len(pods.Items), cfg.Endpoint, kubectx, namespace, base)
 
 		var verify string
 		fmt.Print("Do you want to start writing to an archive? [y/n] ")
@@ -86,7 +96,7 @@ Examples:
 		defer out.Close()
 		defer zw.Close()
 
-		err = archiveKube(ctx, zw, *verbose, extsvc, namespace, baseDir, pods)
+		err = archiveKube(ctx, zw, *verbose, configs, namespace, baseDir, pods)
 		if err != nil {
 			return cmderrors.ExitCode(1, err)
 		}
@@ -97,8 +107,6 @@ Examples:
 		flagSet: flagSet,
 		handler: handler,
 		usageFunc: func() {
-			fmt.Fprintf(flag.CommandLine.Output(), "Usage of 'src debug %s':\n", flagSet.Name())
-			flagSet.PrintDefaults()
 			fmt.Println(usage)
 		},
 	})
