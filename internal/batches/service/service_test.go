@@ -3,16 +3,25 @@ package service
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/sourcegraph/sourcegraph/lib/errors"
+	"github.com/stretchr/testify/assert"
+
+	batcheslib "github.com/sourcegraph/sourcegraph/lib/batches"
+
 	"github.com/sourcegraph/src-cli/internal/api"
 	"github.com/sourcegraph/src-cli/internal/batches"
+	"github.com/sourcegraph/src-cli/internal/batches/docker"
 	"github.com/sourcegraph/src-cli/internal/batches/graphql"
+	"github.com/sourcegraph/src-cli/internal/batches/mock"
 )
 
 func TestSetDefaultQueryCount(t *testing.T) {
@@ -143,8 +152,8 @@ func TestResolveRepositories_Unsupported(t *testing.T) {
 	client, done := mockGraphQLClient(testResolveRepositoriesUnsupported)
 	defer done()
 
-	spec := &batches.BatchSpec{
-		On: []batches.OnQueryOrRepository{
+	spec := &batcheslib.BatchSpec{
+		On: []batcheslib.OnQueryOrRepository{
 			{RepositoriesMatchingQuery: "testquery"},
 		},
 	}
@@ -223,8 +232,8 @@ const testResolveRepositoriesUnsupported = `{
 `
 
 func TestResolveRepositories_Ignored(t *testing.T) {
-	spec := &batches.BatchSpec{
-		On: []batches.OnQueryOrRepository{
+	spec := &batcheslib.BatchSpec{
+		On: []batcheslib.OnQueryOrRepository{
 			{RepositoriesMatchingQuery: "testquery"},
 		},
 	}
@@ -320,14 +329,98 @@ const testBatchIgnoreInRepos = `{
 }
 `
 
+func TestResolveRepositories_RepoWithoutBranch(t *testing.T) {
+	spec := &batcheslib.BatchSpec{
+		On: []batcheslib.OnQueryOrRepository{
+			{RepositoriesMatchingQuery: "testquery"},
+		},
+	}
+
+	client, done := mockGraphQLClient(testResolveRepositoriesNoBranch, testBatchIgnoreInReposNoBranch)
+	defer done()
+
+	svc := &Service{client: client, allowIgnored: false}
+
+	repos, err := svc.ResolveRepositories(context.Background(), spec)
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+	if len(repos) != 1 {
+		t.Fatalf("wrong number of repos. want=%d, have=%d", 2, len(repos))
+	}
+}
+
+const testResolveRepositoriesNoBranch = `{
+  "data": {
+    "search": {
+      "results": {
+        "results": [
+          {
+            "__typename": "Repository",
+            "id": "UmVwb3NpdG9yeToxMw==",
+            "name": "bitbucket.sgdev.org/SOUR/automation-testing",
+            "url": "/bitbucket.sgdev.org/SOUR/automation-testing",
+            "externalRepository": { "serviceType": "bitbucketserver" },
+            "defaultBranch": null
+          },
+          {
+            "__typename": "Repository",
+            "id": "UmVwb3NpdG9yeTo0",
+            "name": "github.com/sourcegraph/automation-testing",
+            "url": "/github.com/sourcegraph/automation-testing",
+            "externalRepository": { "serviceType": "github" },
+            "defaultBranch": null
+          },
+          {
+            "__typename": "Repository",
+            "id": "UmVwb3NpdG9yeTo2MQ==",
+            "name": "gitlab.sgdev.org/sourcegraph/automation-testing",
+            "url": "/gitlab.sgdev.org/sourcegraph/automation-testing",
+            "externalRepository": { "serviceType": "gitlab" },
+            "defaultBranch": { "name": "refs/heads/master", "target": { "oid": "3b79a5d479d2af9cfe91e0aad4e9dddca7278150" } }
+          }
+        ]
+      }
+    }
+  }
+}
+`
+
+const testBatchIgnoreInReposNoBranch = `{
+    "data": {
+        "repo_0": { "results": { "results": [] } }
+    }
+}
+`
+
 func TestService_FindDirectoriesInRepos(t *testing.T) {
 	client, done := mockGraphQLClient(testFindDirectoriesInRepos)
 	defer done()
 
 	fileName := "package.json"
 	repos := []*graphql.Repository{
-		{ID: "repo-id-0", Name: "github.com/sourcegraph/automation-testing"},
-		{ID: "repo-id-1", Name: "github.com/sourcegraph/sourcegraph"},
+		{
+			ID:     "repo-id-0",
+			Name:   "github.com/sourcegraph/automation-testing",
+			Branch: graphql.Branch{Name: "dev"},
+			DefaultBranch: &graphql.Branch{
+				Name: "main",
+				Target: graphql.Target{
+					OID: "d34db33f",
+				},
+			},
+		},
+		{
+			ID:     "repo-id-1",
+			Name:   "github.com/sourcegraph/sourcegraph",
+			Branch: graphql.Branch{Name: "dev"},
+			DefaultBranch: &graphql.Branch{
+				Name: "main",
+				Target: graphql.Target{
+					OID: "d34db33f",
+				},
+			},
+		},
 	}
 
 	svc := &Service{client: client}
@@ -342,7 +435,7 @@ func TestService_FindDirectoriesInRepos(t *testing.T) {
 
 	want := map[*graphql.Repository][]string{
 		repos[0]: {"examples/project3", "project1", "project2"},
-		repos[1]: {"docs/client1", ".", "docs/client2/examples"},
+		repos[1]: {"docs/client1", "", "docs/client2/examples"},
 	}
 
 	if !cmp.Equal(want, results, cmpopts.SortSlices(sortStrings)) {
@@ -412,52 +505,52 @@ func TestService_ValidateChangesetSpecs(t *testing.T) {
 
 	tests := map[string]struct {
 		repos []*graphql.Repository
-		specs []*batches.ChangesetSpec
+		specs []*batcheslib.ChangesetSpec
 
 		wantErrInclude string
 	}{
 		"no errors": {
 			repos: []*graphql.Repository{repo1, repo2},
-			specs: []*batches.ChangesetSpec{
-				{CreatedChangeset: &batches.CreatedChangeset{
-					HeadRepository: repo1.ID, HeadRef: "refs/heads/branch-1"},
+			specs: []*batcheslib.ChangesetSpec{
+				{
+					HeadRepository: repo1.ID, HeadRef: "refs/heads/branch-1",
 				},
-				{CreatedChangeset: &batches.CreatedChangeset{
-					HeadRepository: repo1.ID, HeadRef: "refs/heads/branch-2"},
+				{
+					HeadRepository: repo1.ID, HeadRef: "refs/heads/branch-2",
 				},
-				{CreatedChangeset: &batches.CreatedChangeset{
-					HeadRepository: repo2.ID, HeadRef: "refs/heads/branch-1"},
+				{
+					HeadRepository: repo2.ID, HeadRef: "refs/heads/branch-1",
 				},
-				{CreatedChangeset: &batches.CreatedChangeset{
-					HeadRepository: repo2.ID, HeadRef: "refs/heads/branch-2"},
+				{
+					HeadRepository: repo2.ID, HeadRef: "refs/heads/branch-2",
 				},
 			},
 		},
 
 		"imported changeset": {
 			repos: []*graphql.Repository{repo1},
-			specs: []*batches.ChangesetSpec{
-				{ExternalChangeset: &batches.ExternalChangeset{
+			specs: []*batcheslib.ChangesetSpec{
+				{
 					ExternalID: "123",
-				}},
+				},
 			},
 			// This should not fail validation ever.
 		},
 
 		"duplicate branches": {
 			repos: []*graphql.Repository{repo1, repo2},
-			specs: []*batches.ChangesetSpec{
-				{CreatedChangeset: &batches.CreatedChangeset{
-					HeadRepository: repo1.ID, HeadRef: "refs/heads/branch-1"},
+			specs: []*batcheslib.ChangesetSpec{
+				{
+					HeadRepository: repo1.ID, HeadRef: "refs/heads/branch-1",
 				},
-				{CreatedChangeset: &batches.CreatedChangeset{
-					HeadRepository: repo1.ID, HeadRef: "refs/heads/branch-2"},
+				{
+					HeadRepository: repo1.ID, HeadRef: "refs/heads/branch-2",
 				},
-				{CreatedChangeset: &batches.CreatedChangeset{
-					HeadRepository: repo2.ID, HeadRef: "refs/heads/branch-1"},
+				{
+					HeadRepository: repo2.ID, HeadRef: "refs/heads/branch-1",
 				},
-				{CreatedChangeset: &batches.CreatedChangeset{
-					HeadRepository: repo2.ID, HeadRef: "refs/heads/branch-1"},
+				{
+					HeadRepository: repo2.ID, HeadRef: "refs/heads/branch-1",
 				},
 			},
 			wantErrInclude: `github.com/sourcegraph/sourcegraph: 2 changeset specs have the branch "branch-1"`,
@@ -471,10 +564,8 @@ func TestService_ValidateChangesetSpecs(t *testing.T) {
 			if tt.wantErrInclude != "" {
 				if haveErr == nil {
 					t.Fatalf("expected %q to be included in error, but got none", tt.wantErrInclude)
-				} else {
-					if !strings.Contains(haveErr.Error(), tt.wantErrInclude) {
-						t.Fatalf("expected %q to be included in error, but was not. error=%q", tt.wantErrInclude, haveErr.Error())
-					}
+				} else if !strings.Contains(haveErr.Error(), tt.wantErrInclude) {
+					t.Fatalf("expected %q to be included in error, but was not. error=%q", tt.wantErrInclude, haveErr.Error())
 				}
 			} else {
 				if haveErr != nil {
@@ -483,4 +574,127 @@ func TestService_ValidateChangesetSpecs(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestEnsureDockerImages(t *testing.T) {
+	ctx := context.Background()
+	parallelCases := []int{0, 1, 2, 4, 8}
+
+	newServiceWithImages := func(images map[string]docker.Image) *Service {
+		return &Service{
+			imageCache: &mock.ImageCache{Images: images},
+		}
+	}
+
+	t.Run("success", func(t *testing.T) {
+		t.Run("single image", func(t *testing.T) {
+			// A zeroed mock.Image should be usable for testing purposes.
+			image := &mock.Image{}
+			images := map[string]docker.Image{
+				"image": image,
+			}
+
+			for name, steps := range map[string][]batcheslib.Step{
+				"single step":    {{Container: "image"}},
+				"multiple steps": {{Container: "image"}, {Container: "image"}},
+			} {
+				t.Run(name, func(t *testing.T) {
+					for _, parallelism := range parallelCases {
+						t.Run(fmt.Sprintf("%d worker(s)", parallelism), func(t *testing.T) {
+							svc := newServiceWithImages(images)
+							progress := &mock.Progress{}
+
+							have, err := svc.EnsureDockerImages(ctx, steps, parallelism, progress.Callback())
+							assert.Nil(t, err)
+							assert.Equal(t, images, have)
+							assert.Equal(t, []mock.ProgressCall{
+								{Done: 0, Total: 1},
+								{Done: 1, Total: 1},
+							}, progress.Calls)
+						})
+					}
+				})
+			}
+		})
+
+		t.Run("multiple images", func(t *testing.T) {
+			var (
+				imageA = &mock.Image{}
+				imageB = &mock.Image{}
+				imageC = &mock.Image{}
+				images = map[string]docker.Image{
+					"a": imageA,
+					"b": imageB,
+					"c": imageC,
+				}
+			)
+
+			for _, parallelism := range parallelCases {
+				t.Run(fmt.Sprintf("%d worker(s)", parallelism), func(t *testing.T) {
+					svc := newServiceWithImages(images)
+					progress := &mock.Progress{}
+
+					have, err := svc.EnsureDockerImages(ctx, []batcheslib.Step{
+						{Container: "a"},
+						{Container: "a"},
+						{Container: "a"},
+						{Container: "b"},
+						{Container: "c"},
+					}, parallelism, progress.Callback())
+					assert.Nil(t, err)
+					assert.Equal(t, images, have)
+					assert.Equal(t, []mock.ProgressCall{
+						{Done: 0, Total: 3},
+						{Done: 1, Total: 3},
+						{Done: 2, Total: 3},
+						{Done: 3, Total: 3},
+					}, progress.Calls)
+				})
+			}
+		})
+	})
+
+	t.Run("errors", func(t *testing.T) {
+		// The only really interesting case is where an image fails — we want to
+		// ensure that the error is propagated, and that we don't end up
+		// deadlocking while the context cancellation propagates. Let's set up a
+		// good number of images (and steps) so we can give this a good test.
+		wantErr := errors.New("expected error")
+		images := map[string]docker.Image{}
+		steps := []batcheslib.Step{}
+
+		total := 100
+		for i := 0; i < total; i++ {
+			name := strconv.Itoa(i)
+			if i%25 == 0 {
+				images[name] = &mock.Image{EnsureErr: wantErr}
+			} else {
+				images[name] = &mock.Image{}
+			}
+			for j := 0; j < (i%10)+1; j++ {
+				steps = append(steps, batcheslib.Step{Container: name})
+			}
+		}
+
+		// Just verify we did that right!
+		assert.Len(t, images, total)
+		assert.True(t, len(steps) > total)
+
+		for _, parallelism := range parallelCases {
+			t.Run(fmt.Sprintf("%d worker(s)", parallelism), func(t *testing.T) {
+				svc := newServiceWithImages(images)
+				progress := &mock.Progress{}
+
+				have, err := svc.EnsureDockerImages(ctx, steps, parallelism, progress.Callback())
+				assert.ErrorIs(t, err, wantErr)
+				assert.Nil(t, have)
+
+				// Because there's no particular order the images will be fetched in,
+				// the number of progress calls we get is non-deterministic, other than
+				// that we should always get the first one.
+				assert.Equal(t, mock.ProgressCall{Done: 0, Total: total}, progress.Calls[0])
+			})
+		}
+
+	})
 }

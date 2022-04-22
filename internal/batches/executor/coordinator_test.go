@@ -9,11 +9,18 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/sourcegraph/batch-change-utils/overridable"
-	"github.com/sourcegraph/src-cli/internal/batches"
-	"github.com/sourcegraph/src-cli/internal/batches/git"
+
+	"github.com/sourcegraph/sourcegraph/lib/batches/execution"
+	"github.com/sourcegraph/sourcegraph/lib/batches/overridable"
+
+	batcheslib "github.com/sourcegraph/sourcegraph/lib/batches"
+	"github.com/sourcegraph/sourcegraph/lib/batches/execution/cache"
+	"github.com/sourcegraph/sourcegraph/lib/batches/git"
+	"github.com/sourcegraph/sourcegraph/lib/batches/template"
+
 	"github.com/sourcegraph/src-cli/internal/batches/graphql"
 	"github.com/sourcegraph/src-cli/internal/batches/mock"
+	"github.com/sourcegraph/src-cli/internal/batches/util"
 )
 
 func TestCoordinator_Execute(t *testing.T) {
@@ -21,26 +28,25 @@ func TestCoordinator_Execute(t *testing.T) {
 	srcCLITask := &Task{Repository: testRepo1}
 	sourcegraphTask := &Task{Repository: testRepo2}
 
-	buildSpecFor := func(repo *graphql.Repository, modify func(*batches.ChangesetSpec)) *batches.ChangesetSpec {
-		spec := &batches.ChangesetSpec{
+	buildSpecFor := func(repo *graphql.Repository, modify func(*batcheslib.ChangesetSpec)) *batcheslib.ChangesetSpec {
+		spec := &batcheslib.ChangesetSpec{
 			BaseRepository: repo.ID,
-			CreatedChangeset: &batches.CreatedChangeset{
-				BaseRef:        repo.BaseRef(),
-				BaseRev:        repo.Rev(),
-				HeadRepository: repo.ID,
-				HeadRef:        "refs/heads/" + testChangesetTemplate.Branch,
-				Title:          testChangesetTemplate.Title,
-				Body:           testChangesetTemplate.Body,
-				Commits: []batches.GitCommitDescription{
-					{
-						Message:     testChangesetTemplate.Commit.Message,
-						AuthorName:  testChangesetTemplate.Commit.Author.Name,
-						AuthorEmail: testChangesetTemplate.Commit.Author.Email,
-						Diff:        `dummydiff1`,
-					},
+
+			BaseRef:        repo.BaseRef(),
+			BaseRev:        repo.Rev(),
+			HeadRepository: repo.ID,
+			HeadRef:        util.EnsureRefPrefix(testChangesetTemplate.Branch),
+			Title:          testChangesetTemplate.Title,
+			Body:           testChangesetTemplate.Body,
+			Commits: []batcheslib.GitCommitDescription{
+				{
+					Message:     testChangesetTemplate.Commit.Message,
+					AuthorName:  testChangesetTemplate.Commit.Author.Name,
+					AuthorEmail: testChangesetTemplate.Commit.Author.Email,
+					Diff:        `dummydiff1`,
 				},
-				Published: false,
 			},
+			Published: batcheslib.PublishedValue{Val: false},
 		}
 
 		modify(spec)
@@ -54,10 +60,10 @@ func TestCoordinator_Execute(t *testing.T) {
 		opts     NewCoordinatorOpts
 
 		tasks     []*Task
-		batchSpec *batches.BatchSpec
+		batchSpec *batcheslib.BatchSpec
 
 		wantCacheEntries int
-		wantSpecs        []*batches.ChangesetSpec
+		wantSpecs        []*batcheslib.ChangesetSpec
 		wantErrInclude   string
 	}{
 		{
@@ -65,7 +71,7 @@ func TestCoordinator_Execute(t *testing.T) {
 
 			tasks: []*Task{srcCLITask, sourcegraphTask},
 
-			batchSpec: &batches.BatchSpec{
+			batchSpec: &batcheslib.BatchSpec{
 				Name:              "my-batch-change",
 				Description:       "the description",
 				ChangesetTemplate: testChangesetTemplate,
@@ -73,19 +79,19 @@ func TestCoordinator_Execute(t *testing.T) {
 
 			executor: &dummyExecutor{
 				results: []taskResult{
-					{task: srcCLITask, result: executionResult{Diff: `dummydiff1`}},
-					{task: sourcegraphTask, result: executionResult{Diff: `dummydiff2`}},
+					{task: srcCLITask, result: execution.Result{Diff: `dummydiff1`}},
+					{task: sourcegraphTask, result: execution.Result{Diff: `dummydiff2`}},
 				},
 			},
 			opts: NewCoordinatorOpts{Features: featuresAllEnabled()},
 
 			wantCacheEntries: 2,
-			wantSpecs: []*batches.ChangesetSpec{
-				buildSpecFor(testRepo1, func(spec *batches.ChangesetSpec) {
-					spec.CreatedChangeset.Commits[0].Diff = `dummydiff1`
+			wantSpecs: []*batcheslib.ChangesetSpec{
+				buildSpecFor(testRepo1, func(spec *batcheslib.ChangesetSpec) {
+					spec.Commits[0].Diff = `dummydiff1`
 				}),
-				buildSpecFor(testRepo2, func(spec *batches.ChangesetSpec) {
-					spec.CreatedChangeset.Commits[0].Diff = `dummydiff2`
+				buildSpecFor(testRepo2, func(spec *batcheslib.ChangesetSpec) {
+					spec.Commits[0].Diff = `dummydiff2`
 				}),
 			},
 		},
@@ -93,10 +99,10 @@ func TestCoordinator_Execute(t *testing.T) {
 			name:  "templated changesetTemplate",
 			tasks: []*Task{srcCLITask},
 
-			batchSpec: &batches.BatchSpec{
+			batchSpec: &batcheslib.BatchSpec{
 				Name:        "my-batch-change",
 				Description: "the description",
-				ChangesetTemplate: &batches.ChangesetTemplate{
+				ChangesetTemplate: &batcheslib.ChangesetTemplate{
 					Title: `output1=${{ outputs.output1}}`,
 					Body: `output1=${{ outputs.output1}}
 		output2=${{ outputs.output2.subField }}
@@ -112,9 +118,9 @@ func TestCoordinator_Execute(t *testing.T) {
 		batch_change_description=${{ batch_change.description }}
 		`,
 					Branch: "templated-branch-${{ outputs.output1 }}",
-					Commit: batches.ExpandedGitCommitDescription{
+					Commit: batcheslib.ExpandedGitCommitDescription{
 						Message: "output1=${{ outputs.output1}},output2=${{ outputs.output2.subField }}",
-						Author: &batches.GitCommitAuthor{
+						Author: &batcheslib.GitCommitAuthor{
 							Name:  "output1=${{ outputs.output1}}",
 							Email: "output1=${{ outputs.output1}}",
 						},
@@ -127,7 +133,7 @@ func TestCoordinator_Execute(t *testing.T) {
 				results: []taskResult{
 					{
 						task: srcCLITask,
-						result: executionResult{
+						result: execution.Result{
 							Diff: `dummydiff1`,
 							Outputs: map[string]interface{}{
 								"output1": "myOutputValue1",
@@ -148,11 +154,11 @@ func TestCoordinator_Execute(t *testing.T) {
 			opts: NewCoordinatorOpts{Features: featuresAllEnabled()},
 
 			wantCacheEntries: 1,
-			wantSpecs: []*batches.ChangesetSpec{
-				buildSpecFor(testRepo1, func(spec *batches.ChangesetSpec) {
-					spec.CreatedChangeset.HeadRef = "refs/heads/templated-branch-myOutputValue1"
-					spec.CreatedChangeset.Title = "output1=myOutputValue1"
-					spec.CreatedChangeset.Body = `output1=myOutputValue1
+			wantSpecs: []*batcheslib.ChangesetSpec{
+				buildSpecFor(testRepo1, func(spec *batcheslib.ChangesetSpec) {
+					spec.HeadRef = "refs/heads/templated-branch-myOutputValue1"
+					spec.Title = "output1=myOutputValue1"
+					spec.Body = `output1=myOutputValue1
 		output2=subFieldValue
 
 		modified_files=[modified.txt]
@@ -164,7 +170,7 @@ func TestCoordinator_Execute(t *testing.T) {
 
 		batch_change_name=my-batch-change
 		batch_change_description=the description`
-					spec.CreatedChangeset.Commits = []batches.GitCommitDescription{
+					spec.Commits = []batcheslib.GitCommitDescription{
 						{
 							Message:     "output1=myOutputValue1,output2=subFieldValue",
 							AuthorName:  "output1=myOutputValue1",
@@ -180,10 +186,10 @@ func TestCoordinator_Execute(t *testing.T) {
 
 			tasks: []*Task{srcCLITask, sourcegraphTask},
 
-			batchSpec: &batches.BatchSpec{
+			batchSpec: &batcheslib.BatchSpec{
 				ChangesetTemplate: testChangesetTemplate,
-				TransformChanges: &batches.TransformChanges{
-					Group: []batches.Group{
+				TransformChanges: &batcheslib.TransformChanges{
+					Group: []batcheslib.Group{
 						{Directory: "a/b/c", Branch: "in-directory-c"},
 						{Directory: "a/b", Branch: "in-directory-b", Repository: testRepo2.Name},
 					},
@@ -192,8 +198,8 @@ func TestCoordinator_Execute(t *testing.T) {
 
 			executor: &dummyExecutor{
 				results: []taskResult{
-					{task: srcCLITask, result: executionResult{Diff: nestedChangesDiff}},
-					{task: sourcegraphTask, result: executionResult{Diff: nestedChangesDiff}},
+					{task: srcCLITask, result: execution.Result{Diff: nestedChangesDiff}},
+					{task: sourcegraphTask, result: execution.Result{Diff: nestedChangesDiff}},
 				},
 			},
 			opts: NewCoordinatorOpts{Features: featuresAllEnabled()},
@@ -201,22 +207,22 @@ func TestCoordinator_Execute(t *testing.T) {
 			// We have 4 ChangesetSpecs, but we only want 2 cache entries,
 			// since we cache per Task, not per resulting changeset spec.
 			wantCacheEntries: 2,
-			wantSpecs: []*batches.ChangesetSpec{
-				buildSpecFor(testRepo1, func(spec *batches.ChangesetSpec) {
-					spec.CreatedChangeset.HeadRef = "refs/heads/" + testChangesetTemplate.Branch
-					spec.CreatedChangeset.Commits[0].Diff = nestedChangesDiffSubdirA + nestedChangesDiffSubdirB
+			wantSpecs: []*batcheslib.ChangesetSpec{
+				buildSpecFor(testRepo1, func(spec *batcheslib.ChangesetSpec) {
+					spec.HeadRef = "refs/heads/" + testChangesetTemplate.Branch
+					spec.Commits[0].Diff = nestedChangesDiffSubdirA + nestedChangesDiffSubdirB
 				}),
-				buildSpecFor(testRepo2, func(spec *batches.ChangesetSpec) {
-					spec.CreatedChangeset.HeadRef = "refs/heads/in-directory-b"
-					spec.CreatedChangeset.Commits[0].Diff = nestedChangesDiffSubdirB + nestedChangesDiffSubdirC
+				buildSpecFor(testRepo2, func(spec *batcheslib.ChangesetSpec) {
+					spec.HeadRef = "refs/heads/in-directory-b"
+					spec.Commits[0].Diff = nestedChangesDiffSubdirB + nestedChangesDiffSubdirC
 				}),
-				buildSpecFor(testRepo1, func(spec *batches.ChangesetSpec) {
-					spec.CreatedChangeset.HeadRef = "refs/heads/in-directory-c"
-					spec.CreatedChangeset.Commits[0].Diff = nestedChangesDiffSubdirC
+				buildSpecFor(testRepo1, func(spec *batcheslib.ChangesetSpec) {
+					spec.HeadRef = "refs/heads/in-directory-c"
+					spec.Commits[0].Diff = nestedChangesDiffSubdirC
 				}),
-				buildSpecFor(testRepo2, func(spec *batches.ChangesetSpec) {
-					spec.CreatedChangeset.HeadRef = "refs/heads/" + testChangesetTemplate.Branch
-					spec.CreatedChangeset.Commits[0].Diff = nestedChangesDiffSubdirA
+				buildSpecFor(testRepo2, func(spec *batcheslib.ChangesetSpec) {
+					spec.HeadRef = util.EnsureRefPrefix(testChangesetTemplate.Branch)
+					spec.Commits[0].Diff = nestedChangesDiffSubdirA
 				}),
 			},
 		},
@@ -226,7 +232,7 @@ func TestCoordinator_Execute(t *testing.T) {
 
 			tasks: []*Task{srcCLITask, sourcegraphTask},
 
-			batchSpec: &batches.BatchSpec{
+			batchSpec: &batcheslib.BatchSpec{
 				Name:              "my-batch-change",
 				Description:       "the description",
 				ChangesetTemplate: testChangesetTemplate,
@@ -235,7 +241,7 @@ func TestCoordinator_Execute(t *testing.T) {
 			// Execution succeeded in srcCLIRepo, but fails in sourcegraphRepo
 			executor: &dummyExecutor{
 				results: []taskResult{
-					{task: srcCLITask, result: executionResult{Diff: `dummydiff1`}},
+					{task: srcCLITask, result: execution.Result{Diff: `dummydiff1`}},
 				},
 				waitErr: stepFailedErr{
 					Err:         fmt.Errorf("something went wrong"),
@@ -249,9 +255,9 @@ func TestCoordinator_Execute(t *testing.T) {
 			wantErrInclude: "run: broken command",
 			// We want 1 cache entry and 1 spec
 			wantCacheEntries: 1,
-			wantSpecs: []*batches.ChangesetSpec{
-				buildSpecFor(testRepo1, func(spec *batches.ChangesetSpec) {
-					spec.CreatedChangeset.Commits[0].Diff = `dummydiff1`
+			wantSpecs: []*batcheslib.ChangesetSpec{
+				buildSpecFor(testRepo1, func(spec *batcheslib.ChangesetSpec) {
+					spec.Commits[0].Diff = `dummydiff1`
 				}),
 			},
 		},
@@ -263,9 +269,7 @@ func TestCoordinator_Execute(t *testing.T) {
 
 			// Set attributes on Task which would be set by the TaskBuilder
 			for _, t := range tc.tasks {
-				t.TransformChanges = tc.batchSpec.TransformChanges
-				t.Template = tc.batchSpec.ChangesetTemplate
-				t.BatchChangeAttributes = &BatchChangeAttributes{
+				t.BatchChangeAttributes = &template.BatchChangeAttributes{
 					Name:        tc.batchSpec.Name,
 					Description: tc.batchSpec.Description,
 				}
@@ -285,7 +289,7 @@ func TestCoordinator_Execute(t *testing.T) {
 			// the batch spec. We'll run this multiple times to cover both the
 			// cache and non-cache code paths.
 			execute := func(t *testing.T) {
-				specs, _, err := coord.Execute(ctx, tc.tasks, tc.batchSpec, newDummyTaskExecutionUI())
+				specs, _, err := coord.ExecuteAndBuildSpecs(ctx, tc.batchSpec, tc.tasks, newDummyTaskExecutionUI())
 				if tc.wantErrInclude == "" {
 					if err != nil {
 						t.Fatalf("execution failed: %s", err)
@@ -293,10 +297,9 @@ func TestCoordinator_Execute(t *testing.T) {
 				} else {
 					if err == nil {
 						t.Fatalf("expected error to include %q, but got no error", tc.wantErrInclude)
-					} else {
-						if !strings.Contains(err.Error(), tc.wantErrInclude) {
-							t.Errorf("wrong error. have=%q want included=%q", err, tc.wantErrInclude)
-						}
+					}
+					if !strings.Contains(err.Error(), tc.wantErrInclude) {
+						t.Errorf("wrong error. have=%q want included=%q", err, tc.wantErrInclude)
 					}
 				}
 
@@ -306,9 +309,9 @@ func TestCoordinator_Execute(t *testing.T) {
 
 				opts := []cmp.Option{
 					cmpopts.EquateEmpty(),
-					cmpopts.SortSlices(func(a, b *batches.ChangesetSpec) bool {
-						if a.BaseRepository == b.BaseRepository && a.CreatedChangeset != nil && b.CreatedChangeset != nil {
-							return a.CreatedChangeset.HeadRef < b.CreatedChangeset.HeadRef
+					cmpopts.SortSlices(func(a, b *batcheslib.ChangesetSpec) bool {
+						if a.BaseRepository == b.BaseRepository {
+							return a.HeadRef < b.HeadRef
 						}
 						return a.BaseRepository < b.BaseRepository
 					}),
@@ -352,40 +355,42 @@ func TestCoordinator_Execute_StepCaching(t *testing.T) {
 	logManager := mock.LogNoOpManager{}
 
 	task := &Task{
-		Steps: []batches.Step{
+		Steps: []batcheslib.Step{
 			{Run: `echo "one"`},
 			{Run: `echo "two"`},
 			{Run: `echo "three"`},
 		},
 		Repository:            testRepo1,
-		BatchChangeAttributes: &BatchChangeAttributes{},
+		BatchChangeAttributes: &template.BatchChangeAttributes{},
 	}
 
 	executor := &dummyExecutor{}
 	executor.results = []taskResult{{
 		task: task,
-		result: executionResult{
+		result: execution.Result{
 			Diff:         "dummydiff",
 			ChangedFiles: &git.Changes{},
 			Outputs:      map[string]interface{}{},
 			Path:         "",
 		},
-		stepResults: []stepExecutionResult{
-			{StepIndex: 0, Diff: []byte(`step-0-diff`)},
-			{StepIndex: 1, Diff: []byte(`step-1-diff`)},
-			{StepIndex: 2, Diff: []byte(`step-2-diff`)},
+		stepResults: []execution.AfterStepResult{
+			{StepIndex: 0, Diff: `step-0-diff`},
+			{StepIndex: 1, Diff: `step-1-diff`},
+			{StepIndex: 2, Diff: `step-2-diff`},
 		},
 	}}
 
 	// Build Coordinator
 	coord := &Coordinator{cache: cache, exec: executor, logManager: logManager}
 
+	batchSpec := &batcheslib.BatchSpec{ChangesetTemplate: testChangesetTemplate}
+
 	// First execution. Make sure that the Task executes all steps.
-	execAndEnsure(t, coord, executor, task, assertNoCachedResult(t))
+	execAndEnsure(t, coord, executor, batchSpec, task, assertNoCachedResult(t))
 	// We now expect the cache to have 1+N entries: 1 for the complete task, N
 	// for the steps.
-	wantCacheSize := len(task.Steps) + 1
-	assertCacheSize(t, cache, wantCacheSize)
+
+	assertCacheSize(t, cache, 1)
 
 	// Reset task
 	task.CachedResultFound = false
@@ -394,11 +399,10 @@ func TestCoordinator_Execute_StepCaching(t *testing.T) {
 	task.Steps[1].Run = `echo "two modified"`
 	// Re-execution should start with the diff produced by steps[0] as the
 	// start state from which steps[1] is then re-executed.
-	execAndEnsure(t, coord, executor, task, assertCachedResultForStep(t, 0))
+	execAndEnsure(t, coord, executor, batchSpec, task, assertNoCachedResult(t))
 	// Cache now contains old entries, plus another "complete task" entry and
 	// two entries for newly executed steps.
-	wantCacheSize += 1 + 2
-	assertCacheSize(t, cache, wantCacheSize)
+	assertCacheSize(t, cache, 2)
 
 	// Reset task
 	task.CachedResultFound = false
@@ -406,42 +410,47 @@ func TestCoordinator_Execute_StepCaching(t *testing.T) {
 	// Change the 3rd step's definition:
 	task.Steps[2].Run = `echo "three modified"`
 	// Re-execution should use the diff from steps[1] as start state
-	execAndEnsure(t, coord, executor, task, assertCachedResultForStep(t, 1))
+	execAndEnsure(t, coord, executor, batchSpec, task, assertNoCachedResult(t))
 	// Cache now contains old entries, plus another "complete task" entry and
 	// a single new step entry
-	wantCacheSize += 1 + 1
-	assertCacheSize(t, cache, wantCacheSize)
+	assertCacheSize(t, cache, 3)
 
 	// Reset task
 	task.CachedResultFound = false
 
 	// Now we execute the spec with -clear-cache:
-	coord.opts.ClearCache = true
+	if err := coord.ClearCache(context.Background(), []*Task{task}); err != nil {
+		t.Fatal(err)
+	}
 	// We don't want any cached results set on the task:
-	execAndEnsure(t, coord, executor, task, assertNoCachedResult(t))
+	execAndEnsure(t, coord, executor, batchSpec, task, assertNoCachedResult(t))
 	// Cache should have the same number of entries: the cached step results should
 	// have been cleared (the complete-task-result is cleared in another
 	// code path) and the same amount of cached entries has been added.
-	assertCacheSize(t, cache, wantCacheSize)
+	assertCacheSize(t, cache, 3)
 }
 
 // execAndEnsure executes the given Task with the given cache and dummyExecutor
 // in a new Coordinator, setting cb as the startCallback on the executor.
-func execAndEnsure(t *testing.T, coord *Coordinator, exec *dummyExecutor, task *Task, cb startCallback) {
+func execAndEnsure(t *testing.T, coord *Coordinator, exec *dummyExecutor, batchSpec *batcheslib.BatchSpec, task *Task, cb startCallback) {
 	t.Helper()
-
-	batchSpec := &batches.BatchSpec{ChangesetTemplate: testChangesetTemplate}
-	// Set the ChangesetTemplate on Task
-	task.Template = batchSpec.ChangesetTemplate
 
 	// Setup the callback
 	exec.startCb = cb
 
+	// Check cache
+	uncached, cachedSpecs, err := coord.CheckCache(context.Background(), batchSpec, []*Task{task})
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	// Execute
-	specs, _, err := coord.Execute(context.Background(), []*Task{task}, batchSpec, newDummyTaskExecutionUI())
+	freshSpecs, _, err := coord.ExecuteAndBuildSpecs(context.Background(), batchSpec, uncached, newDummyTaskExecutionUI())
 	if err != nil {
 		t.Fatalf("execution of task failed: %s", err)
 	}
+
+	specs := append(cachedSpecs, freshSpecs...)
 
 	// Sanity check, because we're not interested in the specs
 	if have, want := len(specs), 1; have != want {
@@ -461,24 +470,6 @@ func assertCacheSize(t *testing.T, cache *inMemoryExecutionCache, want int) {
 
 	if have := cache.size(); have != want {
 		t.Fatalf("wrong cache size. have=%d, want=%d", have, want)
-	}
-}
-
-// assertCachedResultForStep returns a function that can be used as a
-// startCallback on dummyExecutor to assert that the first Task has a cached
-// result for the given step.
-func assertCachedResultForStep(t *testing.T, step int) func(context.Context, []*Task, TaskExecutionUI) {
-	return func(c context.Context, tasks []*Task, ui TaskExecutionUI) {
-		t.Helper()
-
-		task := tasks[0]
-		if !task.CachedResultFound {
-			t.Fatalf("CachedResultFound not set")
-		}
-
-		if have, want := task.CachedResult.StepIndex, step; have != want {
-			t.Fatalf("CachedResult.Step wrong. have=%d, want=%d", have, want)
-		}
 	}
 }
 
@@ -504,7 +495,7 @@ func newDummyTaskExecutionUI() *dummyTaskExecutionUI {
 		started:         map[*Task]struct{}{},
 		finished:        map[*Task]struct{}{},
 		finishedWithErr: map[*Task]struct{}{},
-		specs:           map[*Task][]*batches.ChangesetSpec{},
+		specs:           map[*Task][]*batcheslib.ChangesetSpec{},
 	}
 }
 
@@ -514,11 +505,12 @@ type dummyTaskExecutionUI struct {
 	started         map[*Task]struct{}
 	finished        map[*Task]struct{}
 	finishedWithErr map[*Task]struct{}
-	specs           map[*Task][]*batches.ChangesetSpec
+	specs           map[*Task][]*batcheslib.ChangesetSpec
 }
 
-func (d *dummyTaskExecutionUI) Start([]*Task) {}
-func (d *dummyTaskExecutionUI) Success()      {}
+func (d *dummyTaskExecutionUI) Start([]*Task)    {}
+func (d *dummyTaskExecutionUI) Success()         {}
+func (d *dummyTaskExecutionUI) Failed(err error) {}
 func (d *dummyTaskExecutionUI) TaskStarted(t *Task) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
@@ -529,23 +521,23 @@ func (d *dummyTaskExecutionUI) TaskFinished(t *Task, err error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
-	if _, ok := d.started[t]; ok {
-		delete(d.started, t)
-	}
+	delete(d.started, t)
 	if err != nil {
 		d.finishedWithErr[t] = struct{}{}
 	} else {
 		d.finished[t] = struct{}{}
 	}
 }
-func (d *dummyTaskExecutionUI) TaskChangesetSpecsBuilt(t *Task, specs []*batches.ChangesetSpec) {
+func (d *dummyTaskExecutionUI) TaskChangesetSpecsBuilt(t *Task, specs []*batcheslib.ChangesetSpec) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
 	d.specs[t] = specs
 }
 
-func (d *dummyTaskExecutionUI) TaskCurrentlyExecuting(*Task, string) {}
+func (d *dummyTaskExecutionUI) StepsExecutionUI(t *Task) StepsExecutionUI {
+	return NoopStepsExecUI{}
+}
 
 var _ taskExecutor = &dummyExecutor{}
 
@@ -588,10 +580,10 @@ func (c *inMemoryExecutionCache) size() int {
 	return len(c.cache)
 }
 
-func (c *inMemoryExecutionCache) getCacheItem(key CacheKeyer) (interface{}, bool, error) {
+func (c *inMemoryExecutionCache) getCacheItem(key cache.Keyer) (interface{}, bool, error) {
 	k, err := key.Key()
 	if err != nil {
-		return executionResult{}, false, err
+		return execution.Result{}, false, err
 	}
 
 	c.mu.RLock()
@@ -601,17 +593,17 @@ func (c *inMemoryExecutionCache) getCacheItem(key CacheKeyer) (interface{}, bool
 	return res, ok, nil
 }
 
-func (c *inMemoryExecutionCache) Get(ctx context.Context, key CacheKeyer) (executionResult, bool, error) {
+func (c *inMemoryExecutionCache) Get(ctx context.Context, key cache.Keyer) (execution.Result, bool, error) {
 	res, ok, err := c.getCacheItem(key)
 	if err != nil || !ok {
-		return executionResult{}, ok, err
+		return execution.Result{}, ok, err
 	}
 
-	execResult, ok := res.(executionResult)
+	execResult, ok := res.(execution.Result)
 	return execResult, ok, nil
 }
 
-func (c *inMemoryExecutionCache) Set(ctx context.Context, key CacheKeyer, result executionResult) error {
+func (c *inMemoryExecutionCache) Set(ctx context.Context, key cache.Keyer, result execution.Result) error {
 	k, err := key.Key()
 	if err != nil {
 		return err
@@ -624,17 +616,17 @@ func (c *inMemoryExecutionCache) Set(ctx context.Context, key CacheKeyer, result
 	return nil
 }
 
-func (c *inMemoryExecutionCache) GetStepResult(ctx context.Context, key CacheKeyer) (stepExecutionResult, bool, error) {
+func (c *inMemoryExecutionCache) GetStepResult(ctx context.Context, key cache.Keyer) (execution.AfterStepResult, bool, error) {
 	res, ok, err := c.getCacheItem(key)
 	if err != nil || !ok {
-		return stepExecutionResult{}, ok, err
+		return execution.AfterStepResult{}, ok, err
 	}
 
-	execResult, ok := res.(stepExecutionResult)
+	execResult, ok := res.(execution.AfterStepResult)
 	return execResult, ok, nil
 }
 
-func (c *inMemoryExecutionCache) SetStepResult(ctx context.Context, key CacheKeyer, result stepExecutionResult) error {
+func (c *inMemoryExecutionCache) SetStepResult(ctx context.Context, key cache.Keyer, result execution.AfterStepResult) error {
 	k, err := key.Key()
 	if err != nil {
 		return err
@@ -647,7 +639,7 @@ func (c *inMemoryExecutionCache) SetStepResult(ctx context.Context, key CacheKey
 	return nil
 }
 
-func (c *inMemoryExecutionCache) Clear(ctx context.Context, key CacheKeyer) error {
+func (c *inMemoryExecutionCache) Clear(ctx context.Context, key cache.Keyer) error {
 	k, err := key.Key()
 	if err != nil {
 		return err

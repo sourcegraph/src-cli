@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"os/exec"
 
-	"github.com/hashicorp/go-multierror"
 	"github.com/neelance/parallel"
-	"github.com/pkg/errors"
+	"github.com/sourcegraph/sourcegraph/lib/errors"
 	"github.com/sourcegraph/sourcegraph/lib/output"
+
 	"github.com/sourcegraph/src-cli/internal/api"
 	"github.com/sourcegraph/src-cli/internal/batches"
 	"github.com/sourcegraph/src-cli/internal/batches/executor"
@@ -42,13 +42,16 @@ func (ui *TUI) ParsingBatchSpecSuccess() {
 }
 
 func (ui *TUI) ParsingBatchSpecFailure(err error) {
-	if merr, ok := err.(*multierror.Error); ok {
-		block := ui.Out.Block(output.Line("\u274c", output.StyleWarning, "Batch spec failed validation."))
-		defer block.Close()
+	block := ui.Out.Block(output.Line("\u274c", output.StyleWarning, "Batch spec failed validation."))
+	defer block.Close()
 
-		for i, err := range merr.Errors {
+	var multiErr errors.MultiError
+	if errors.As(err, &multiErr) {
+		for i, err := range multiErr.Errors() {
 			block.Writef("%d. %s", i+1, err)
 		}
+	} else {
+		block.Writef("1. %s", err)
 	}
 }
 
@@ -67,8 +70,8 @@ func (ui *TUI) PreparingContainerImages() {
 	}}, nil)
 }
 
-func (ui *TUI) PreparingContainerImagesProgress(percent float64) {
-	ui.progress.SetValue(0, percent)
+func (ui *TUI) PreparingContainerImagesProgress(done, total int) {
+	ui.progress.SetValue(0, float64(done)/float64(total))
 }
 
 func (ui *TUI) PreparingContainerImagesSuccess() {
@@ -180,7 +183,7 @@ func (ui *TUI) UploadingChangesetSpecsProgress(done, total int) {
 	ui.progress.SetValue(0, float64(done))
 }
 
-func (ui *TUI) UploadingChangesetSpecsSuccess() {
+func (ui *TUI) UploadingChangesetSpecsSuccess(ids []graphql.ChangesetSpecID) {
 	ui.progress.Complete()
 }
 
@@ -188,7 +191,7 @@ func (ui *TUI) CreatingBatchSpec() {
 	ui.pending = batchCreatePending(ui.Out, "Creating batch spec on Sourcegraph")
 }
 
-func (ui *TUI) CreatingBatchSpecSuccess() {
+func (ui *TUI) CreatingBatchSpecSuccess(previewURL string) {
 	batchCompletePending(ui.pending, "Creating batch spec on Sourcegraph")
 }
 
@@ -220,8 +223,36 @@ func (ui *TUI) ApplyingBatchSpecSuccess(batchChangeURL string) {
 	block.Writef("%s", batchChangeURL)
 }
 
+func (ui *TUI) SendingBatchSpec() {
+	ui.pending = batchCreatePending(ui.Out, "Sending batch spec")
+}
+
+func (ui *TUI) SendingBatchSpecSuccess() {
+	batchCompletePending(ui.pending, "Sending batch spec")
+}
+
+func (ui *TUI) ResolvingWorkspaces() {
+	ui.pending = batchCreatePending(ui.Out, "Resolving workspaces")
+}
+
+func (ui *TUI) ResolvingWorkspacesSuccess() {
+	batchCompletePending(ui.pending, "Resolving workspaces")
+}
+
+func (ui *TUI) ExecutingBatchSpec() {
+	ui.pending = batchCreatePending(ui.Out, "Executing batch spec")
+}
+
+func (ui *TUI) ExecutingBatchSpecSuccess() {
+	batchCompletePending(ui.pending, "Executing batch spec")
+}
+
 func (ui *TUI) ExecutionError(err error) {
 	printExecutionError(ui.Out, err)
+}
+
+func (ui *TUI) RemoteSuccess(url string) {
+	ui.Out.WriteLine(output.Line(output.EmojiLightbulb, output.Fg256Color(12), "Executing at: "+url))
 }
 
 // prettyPrintBatchUnlicensedError introspects the given error returned when
@@ -306,7 +337,7 @@ func printExecutionError(out *output.Output, err error) {
 	}
 
 	switch err := err.(type) {
-	case parallel.Errors, *multierror.Error, api.GraphQlErrors:
+	case parallel.Errors, errors.MultiError, api.GraphQlErrors:
 		writeErrs(flattenErrs(err))
 
 	default:
@@ -327,8 +358,8 @@ func flattenErrs(err error) (result []error) {
 			result = append(result, flattenErrs(e)...)
 		}
 
-	case *multierror.Error:
-		for _, e := range errs.Errors {
+	case errors.MultiError:
+		for _, e := range errs.Errors() {
 			result = append(result, flattenErrs(e)...)
 		}
 

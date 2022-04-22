@@ -5,9 +5,10 @@ import (
 	"flag"
 	"fmt"
 
-	"github.com/sourcegraph/sourcegraph/lib/output"
 	"github.com/sourcegraph/src-cli/internal/batches/ui"
 	"github.com/sourcegraph/src-cli/internal/cmderrors"
+
+	"github.com/sourcegraph/sourcegraph/lib/output"
 )
 
 func init() {
@@ -17,26 +18,30 @@ creating or updating the described batch change if necessary.
 
 Usage:
 
-    src batch apply -f FILE [command options]
+    src batch apply [command options] [-f FILE]
+    src batch apply [command options] FILE
 
 Examples:
 
     $ src batch apply -f batch.spec.yaml
-  
+
     $ src batch apply -f batch.spec.yaml -namespace myorg
+
+    $ src batch apply batch.spec.yaml
 
 `
 
 	flagSet := flag.NewFlagSet("apply", flag.ExitOnError)
-	flags := newBatchExecuteFlags(flagSet, batchDefaultCacheDir(), batchDefaultTempDirPrefix())
+	flags := newBatchExecuteFlags(flagSet, false, batchDefaultCacheDir(), batchDefaultTempDirPrefix())
 
 	handler := func(args []string) error {
 		if err := flagSet.Parse(args); err != nil {
 			return err
 		}
 
-		if len(flagSet.Args()) != 0 {
-			return cmderrors.Usage("additional arguments not allowed")
+		file, err := getBatchSpecFile(flagSet, &flags.file)
+		if err != nil {
+			return err
 		}
 
 		ctx, cancel := contextCancelOnInterrupt(context.Background())
@@ -50,15 +55,13 @@ Examples:
 			execUI = &ui.TUI{Out: out}
 		}
 
-		err := executeBatchSpec(ctx, executeBatchSpecOpts{
+		if err = executeBatchSpec(ctx, execUI, executeBatchSpecOpts{
 			flags:  flags,
 			client: cfg.apiClient(flags.api, flagSet.Output()),
+			file:   file,
 
 			applyBatchSpec: true,
-
-			ui: execUI,
-		})
-		if err != nil {
+		}); err != nil {
 			return cmderrors.ExitCode(1, nil)
 		}
 

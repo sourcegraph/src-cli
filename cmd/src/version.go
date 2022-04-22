@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 
 	"github.com/sourcegraph/src-cli/internal/api"
@@ -23,10 +23,16 @@ Examples:
 
 	flagSet := flag.NewFlagSet("version", flag.ExitOnError)
 
-	var apiFlags = api.NewFlags(flagSet)
+	var (
+		clientOnly = flagSet.Bool("client-only", false, "If true, only the client version will be printed.")
+		apiFlags   = api.NewFlags(flagSet)
+	)
 
 	handler := func(args []string) error {
 		fmt.Printf("Current version: %s\n", version.BuildTag)
+		if clientOnly != nil && *clientOnly {
+			return nil
+		}
 
 		client := cfg.apiClient(apiFlags, flagSet.Output())
 		recommendedVersion, err := getRecommendedVersion(context.Background(), client)
@@ -66,7 +72,7 @@ func getRecommendedVersion(ctx context.Context, client api.Client) (string, erro
 	}
 	defer resp.Body.Close()
 
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return "", err
 	}

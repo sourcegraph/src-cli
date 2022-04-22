@@ -4,9 +4,13 @@ import (
 	"context"
 	"runtime"
 
-	"github.com/sourcegraph/src-cli/internal/batches"
-	"github.com/sourcegraph/src-cli/internal/batches/git"
+	batcheslib "github.com/sourcegraph/sourcegraph/lib/batches"
+	"github.com/sourcegraph/sourcegraph/lib/batches/git"
+	"github.com/sourcegraph/sourcegraph/lib/errors"
+
+	"github.com/sourcegraph/src-cli/internal/batches/docker"
 	"github.com/sourcegraph/src-cli/internal/batches/graphql"
+	"github.com/sourcegraph/src-cli/internal/batches/repozip"
 )
 
 // Creator implementations are used to create workspaces, which manage
@@ -14,7 +18,7 @@ import (
 // responsible for ultimately generating a diff.
 type Creator interface {
 	// Create creates a new workspace for the given repository and archive file.
-	Create(ctx context.Context, repo *graphql.Repository, steps []batches.Step, archive batches.RepoZip) (Workspace, error)
+	Create(ctx context.Context, repo *graphql.Repository, steps []batcheslib.Step, archive repozip.Archive) (Workspace, error)
 
 	// Type returns the CreatorType of the Creator.
 	Type() CreatorType
@@ -57,25 +61,32 @@ const (
 	CreatorTypeVolume
 )
 
-func NewCreator(ctx context.Context, preference, cacheDir, tempDir string, steps []batches.Step) Creator {
+func NewCreator(ctx context.Context, preference, cacheDir, tempDir string, images map[string]docker.Image) Creator {
 	var workspaceType CreatorType
 	if preference == "volume" {
 		workspaceType = CreatorTypeVolume
 	} else if preference == "bind" {
 		workspaceType = CreatorTypeBind
 	} else {
-		workspaceType = BestCreatorType(ctx, steps)
+		workspaceType = BestCreatorType(ctx, images)
 	}
 
+	ensureImage := func(_ context.Context, container string) (docker.Image, error) {
+		img, ok := images[container]
+		if !ok {
+			return nil, errors.Errorf("image %q not found", container)
+		}
+		return img, nil
+	}
 	if workspaceType == CreatorTypeVolume {
-		return &dockerVolumeWorkspaceCreator{tempDir: tempDir}
+		return &dockerVolumeWorkspaceCreator{tempDir: tempDir, EnsureImage: ensureImage}
 	}
 	return &dockerBindWorkspaceCreator{Dir: cacheDir}
 }
 
 // BestCreatorType determines the correct workspace creator type to use based
 // on the environment and batch change to be executed.
-func BestCreatorType(ctx context.Context, steps []batches.Step) CreatorType {
+func BestCreatorType(ctx context.Context, images map[string]docker.Image) CreatorType {
 	// The basic theory here is that we have two options: bind and volume. Bind
 	// is battle tested and always safe, but can be slow on non-Linux platforms
 	// because bind mounts are slow. Volume is faster on those platforms, but
@@ -84,18 +95,21 @@ func BestCreatorType(ctx context.Context, steps []batches.Step) CreatorType {
 	// if you have a batch change with steps that run as UID 1000 and then UID
 	// 2000, you'll get errors when the second step tries to write.
 
-	// For the time being, we're only going to consider volume mode on Intel
-	// macOS.
-	if runtime.GOOS != "darwin" || runtime.GOARCH != "amd64" {
+	// NOTE: For the time being, we're only going to consider volume mode on Intel or M1
+	// macOS. As we've generally not observed many issues from users using volume mode, and
+	// it is the faster of the options on non-Linux platforms (and only a touch slower on
+	// Linux itself), we should consider making it the default in the future for the sake of
+	// consistency.
+	if runtime.GOOS != "darwin" || (runtime.GOARCH != "amd64" && runtime.GOARCH != "arm64") {
 		return CreatorTypeBind
 	}
 
-	return detectBestCreatorType(ctx, steps)
+	return detectBestCreatorType(ctx, images)
 }
 
-func detectBestCreatorType(ctx context.Context, steps []batches.Step) CreatorType {
+func detectBestCreatorType(ctx context.Context, images map[string]docker.Image) CreatorType {
 	// OK, so we're interested in volume mode, but we need to take its
-	// shortcomings around mixed user environments into account.
+	// shortcomings around mixed user environments on Linux into account.
 	//
 	// To do that, let's iterate over the Docker images that are going to be
 	// used and get their default UID. This admittedly only gets us so far —
@@ -112,8 +126,8 @@ func detectBestCreatorType(ctx context.Context, steps []batches.Step) CreatorTyp
 	// but let's keep it simple for now.
 	var uid *int
 
-	for _, step := range steps {
-		ug, err := step.ImageUIDGID(ctx)
+	for _, image := range images {
+		ug, err := image.UIDGID(ctx)
 		if err != nil {
 			// An error here likely indicates that `id` isn't available on the
 			// path. That's OK: let's not make any assumptions at this point

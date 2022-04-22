@@ -1,10 +1,9 @@
 package graphql
 
 import (
-	"crypto/sha256"
-	"encoding/base64"
 	"sort"
-	"strings"
+
+	"github.com/sourcegraph/src-cli/internal/batches/util"
 )
 
 const RepositoryFieldsFragment = `
@@ -58,17 +57,10 @@ func (r *Repository) HasBranch() bool {
 
 func (r *Repository) BaseRef() string {
 	if r.Branch.Name != "" {
-		return ensurePrefix(r.Branch.Name)
+		return util.EnsureRefPrefix(r.Branch.Name)
 	}
 
-	return r.DefaultBranch.Name
-}
-
-func ensurePrefix(rev string) string {
-	if strings.HasPrefix(rev, "refs/heads/") {
-		return rev
-	}
-	return "refs/heads/" + rev
+	return util.EnsureRefPrefix(r.DefaultBranch.Name)
 }
 
 func (r *Repository) Rev() string {
@@ -79,30 +71,11 @@ func (r *Repository) Rev() string {
 	return r.DefaultBranch.Target.OID
 }
 
-func (r *Repository) Slug() string {
-	return strings.ReplaceAll(r.Name, "/", "-") + "-" + r.Rev()
-}
-
-func (r *Repository) SlugForPath(path string) string {
-	name := r.Name
-	if path != "" {
-		// Since path can contain os.PathSeparator or other characters that
-		// don't translate well between Windows and Unix systems, we hash it.
-		hash := sha256.Sum256([]byte(path))
-		name = name + "-" + base64.RawURLEncoding.EncodeToString(hash[:32])
+func (r *Repository) SortedFileMatches() []string {
+	matches := make([]string, 0, len(r.FileMatches))
+	for path := range r.FileMatches {
+		matches = append(matches, path)
 	}
-	return strings.ReplaceAll(name, "/", "-") + "-" + r.Rev()
+	sort.Strings(matches)
+	return matches
 }
-
-func (r *Repository) SearchResultPaths() (list fileMatchPathList) {
-	var files []string
-	for f := range r.FileMatches {
-		files = append(files, f)
-	}
-	sort.Strings(files)
-	return fileMatchPathList(files)
-}
-
-type fileMatchPathList []string
-
-func (f fileMatchPathList) String() string { return strings.Join(f, " ") }

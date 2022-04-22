@@ -4,18 +4,26 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
-	"io/ioutil"
+	"html/template"
+	"os"
+	"os/exec"
 	"path"
-	"regexp"
 	"strings"
+	"sync"
 
-	"github.com/pkg/errors"
+	"github.com/grafana/regexp"
+
+	batcheslib "github.com/sourcegraph/sourcegraph/lib/batches"
+	onlib "github.com/sourcegraph/sourcegraph/lib/batches/on"
+	templatelib "github.com/sourcegraph/sourcegraph/lib/batches/template"
+	"github.com/sourcegraph/sourcegraph/lib/errors"
+
 	"github.com/sourcegraph/src-cli/internal/api"
 	"github.com/sourcegraph/src-cli/internal/batches"
 	"github.com/sourcegraph/src-cli/internal/batches/docker"
 	"github.com/sourcegraph/src-cli/internal/batches/executor"
 	"github.com/sourcegraph/src-cli/internal/batches/graphql"
+	"github.com/sourcegraph/src-cli/internal/batches/repozip"
 )
 
 type Service struct {
@@ -23,7 +31,7 @@ type Service struct {
 	allowIgnored     bool
 	client           api.Client
 	features         batches.FeatureFlags
-	imageCache       *docker.ImageCache
+	imageCache       docker.ImageCache
 }
 
 type Opts struct {
@@ -45,12 +53,20 @@ func New(opts *Opts) *Service {
 	}
 }
 
+// The reason we ask for batchChanges here is to surface errors about trying to use batch
+// changes in an unsupported environment sooner, since the version check is typically the
+// first thing we do.
 const sourcegraphVersionQuery = `query SourcegraphVersion {
 	site {
-	  productVersion
+		productVersion
 	}
-  }
-  `
+	batchChanges(first: 1) {
+		nodes {
+			id
+		}
+	}
+}
+`
 
 // getSourcegraphVersion queries the Sourcegraph GraphQL API to get the
 // current version of the Sourcegraph instance.
@@ -123,7 +139,7 @@ mutation CreateChangesetSpec($spec: String!) {
 }
 `
 
-func (svc *Service) CreateChangesetSpec(ctx context.Context, spec *batches.ChangesetSpec) (graphql.ChangesetSpecID, error) {
+func (svc *Service) CreateChangesetSpec(ctx context.Context, spec *batcheslib.ChangesetSpec) (graphql.ChangesetSpecID, error) {
 	raw, err := json.Marshal(spec)
 	if err != nil {
 		return "", errors.Wrap(err, "marshalling changeset spec JSON")
@@ -143,30 +159,108 @@ func (svc *Service) CreateChangesetSpec(ctx context.Context, spec *batches.Chang
 	return graphql.ChangesetSpecID(result.CreateChangesetSpec.ID), nil
 }
 
-// SetDockerImages updates the steps within the batch spec to include the exact
-// content digest to be used when running each step, and ensures that all Docker
-// images are available, including any required by the service itself.
+// EnsureDockerImages iterates over the steps within the batch spec to ensure the
+// images exist and to determine the exact content digest to be used when running
+// each step, including any required by the service itself.
 //
-// Progress information is reported back to the given progress function: perc
-// will be a value between 0.0 and 1.0, inclusive.
-func (svc *Service) SetDockerImages(ctx context.Context, spec *batches.BatchSpec, progress func(perc float64)) error {
-	total := len(spec.Steps) + 1
-	progress(0)
-
-	// TODO: this _really_ should be parallelised, since the image cache takes
-	// care to only pull the same image once.
-	for i := range spec.Steps {
-		img, err := svc.EnsureImage(ctx, spec.Steps[i].Container)
-		if err != nil {
-			return err
-		}
-		spec.Steps[i].SetImage(img)
-
-		progress(float64(i) / float64(total))
+// Progress information is reported back to the given progress function.
+func (svc *Service) EnsureDockerImages(
+	ctx context.Context,
+	steps []batcheslib.Step,
+	parallelism int,
+	progress func(done, total int),
+) (map[string]docker.Image, error) {
+	// Figure out the image names used in the batch spec.
+	names := map[string]struct{}{}
+	for i := range steps {
+		names[steps[i].Container] = struct{}{}
 	}
 
-	progress(1)
-	return nil
+	total := len(names)
+	progress(0, total)
+
+	// Set up the channels that will be used in the parallel goroutines handling
+	// the pulls.
+	type image struct {
+		name  string
+		image docker.Image
+		err   error
+	}
+	complete := make(chan image)
+	inputs := make(chan string, total)
+
+	// Set up a worker context that we can use to terminate the workers if an
+	// error occurs.
+	workerCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	// Spawn worker goroutines to call EnsureImage on each image name.
+	if parallelism < 1 {
+		parallelism = 1
+	}
+	if parallelism > total {
+		parallelism = total
+	}
+	var wg sync.WaitGroup
+	for i := 0; i < parallelism; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for {
+				select {
+				case <-workerCtx.Done():
+					// If the worker context has been cancelled, then we just want to
+					// return immediately, rather than continuing to read from inputs.
+					return
+				case name, more := <-inputs:
+					if !more {
+						return
+					}
+					img, err := svc.EnsureImage(workerCtx, name)
+					select {
+					case <-workerCtx.Done():
+						return
+					case complete <- image{
+						name:  name,
+						image: img,
+						err:   err,
+					}:
+						// All good; let's move onto the next input.
+					}
+				}
+			}
+		}()
+	}
+
+	go func() {
+		wg.Wait()
+		close(complete)
+	}()
+
+	// Send the image names to the worker goroutines.
+	go func() {
+		for name := range names {
+			inputs <- name
+		}
+		close(inputs)
+	}()
+
+	// Receive the results of the image pulls and build the return value.
+	i := 0
+	images := make(map[string]docker.Image)
+	for image := range complete {
+		if image.err != nil {
+			// If EnsureImage errored, then we'll early return here and let the
+			// worker context clean things up.
+			return nil, image.err
+		}
+
+		images[image.name] = image.image
+		i += 1
+		progress(i, total)
+	}
+
+	return images, nil
 }
 
 func (svc *Service) EnsureImage(ctx context.Context, name string) (docker.Image, error) {
@@ -179,38 +273,55 @@ func (svc *Service) EnsureImage(ctx context.Context, name string) (docker.Image,
 	return img, nil
 }
 
-func (svc *Service) BuildTasks(ctx context.Context, repos []*graphql.Repository, spec *batches.BatchSpec) ([]*executor.Task, error) {
-	builder, err := executor.NewTaskBuilder(spec, svc)
-	if err != nil {
-		return nil, err
-	}
+func (svc *Service) DetermineWorkspaces(ctx context.Context, repos []*graphql.Repository, spec *batcheslib.BatchSpec) ([]RepoWorkspace, error) {
+	return findWorkspaces(ctx, spec, svc, repos)
+}
 
-	return builder.BuildAll(ctx, repos)
+func (svc *Service) BuildTasks(ctx context.Context, attributes *templatelib.BatchChangeAttributes, workspaces []RepoWorkspace) []*executor.Task {
+	return buildTasks(ctx, attributes, workspaces)
 }
 
 func (svc *Service) NewCoordinator(opts executor.NewCoordinatorOpts) *executor.Coordinator {
-	opts.ResolveRepoName = svc.resolveRepositoryName
-	opts.Client = svc.client
+	opts.RepoArchiveRegistry = repozip.NewArchiveRegistry(svc.client, opts.CacheDir, opts.CleanArchives)
 	opts.Features = svc.features
+	opts.EnsureImage = svc.EnsureImage
 
 	return executor.NewCoordinator(opts)
 }
 
-func (svc *Service) ValidateChangesetSpecs(repos []*graphql.Repository, specs []*batches.ChangesetSpec) error {
+func (svc *Service) CreateImportChangesetSpecs(ctx context.Context, batchSpec *batcheslib.BatchSpec) ([]*batcheslib.ChangesetSpec, error) {
+	return batcheslib.BuildImportChangesetSpecs(ctx, batchSpec.ImportChangesets, func(ctx context.Context, repoNames []string) (_ map[string]string, errs error) {
+		repoNameIDs := map[string]string{}
+		for _, name := range repoNames {
+			repo, err := svc.resolveRepositoryName(ctx, name)
+			if err != nil {
+				wrapped := errors.Wrapf(err, "resolving repository name %q", name)
+				errs = errors.Append(errs, wrapped)
+				continue
+			}
+			repoNameIDs[name] = repo.ID
+		}
+		return repoNameIDs, errs
+	})
+}
+
+// ValidateChangesetSpecs validates that among all branch changesets there are no
+// duplicates in branch names in a single repo.
+func (svc *Service) ValidateChangesetSpecs(repos []*graphql.Repository, specs []*batcheslib.ChangesetSpec) error {
 	repoByID := make(map[string]*graphql.Repository, len(repos))
 	for _, repo := range repos {
 		repoByID[repo.ID] = repo
 	}
 
-	byRepoAndBranch := make(map[string]map[string][]*batches.ChangesetSpec)
+	byRepoAndBranch := make(map[string]map[string][]*batcheslib.ChangesetSpec)
 	for _, spec := range specs {
 		// We don't need to validate imported changesets, as they can
 		// never have a critical branch name overlap.
-		if spec.ExternalChangeset != nil {
+		if spec.Type() == batcheslib.ChangesetSpecDescriptionTypeExisting {
 			continue
 		}
 		if _, ok := byRepoAndBranch[spec.HeadRepository]; !ok {
-			byRepoAndBranch[spec.HeadRepository] = make(map[string][]*batches.ChangesetSpec)
+			byRepoAndBranch[spec.HeadRepository] = make(map[string][]*batcheslib.ChangesetSpec)
 		}
 
 		byRepoAndBranch[spec.HeadRepository][spec.HeadRef] = append(byRepoAndBranch[spec.HeadRepository][spec.HeadRef], spec)
@@ -260,27 +371,104 @@ func (e *duplicateBranchesErr) Error() string {
 	return out.String()
 }
 
-func (svc *Service) ParseBatchSpec(in io.Reader) (*batches.BatchSpec, string, error) {
-	data, err := ioutil.ReadAll(in)
+func (svc *Service) ParseBatchSpec(data []byte) (*batcheslib.BatchSpec, error) {
+	spec, err := batcheslib.ParseBatchSpec(data, batcheslib.ParseBatchSpecOptions{
+		AllowArrayEnvironments: svc.features.AllowArrayEnvironments,
+		AllowTransformChanges:  svc.features.AllowTransformChanges,
+		AllowConditionalExec:   svc.features.AllowConditionalExec,
+	})
 	if err != nil {
-		return nil, "", errors.Wrap(err, "reading batch spec")
+		return nil, errors.Wrap(err, "parsing batch spec")
+	}
+	return spec, nil
+}
+
+const exampleSpecTmpl = `name: NAME-OF-YOUR-BATCH-CHANGE
+description: DESCRIPTION-OF-YOUR-BATCH-CHANGE
+
+# "on" specifies on which repositories to execute the "steps".
+on:
+  # Example: find all repositories that contain a README.md file.
+  - repositoriesMatchingQuery: file:README.md
+
+# "steps" are run in each repository. Each step is run in a Docker container
+# with the repository as the working directory. Once complete, each
+# repository's resulting diff is captured.
+steps:
+  # Example: append "Hello World" to every README.md
+  - run: echo "Hello World" | tee -a $(find -name README.md)
+    container: alpine:3
+
+# "changesetTemplate" describes the changeset (e.g., GitHub pull request) that
+# will be created for each repository.
+changesetTemplate:
+  title: Hello World
+  body: This adds Hello World to the README
+
+  branch: BRANCH-NAME-IN-EACH-REPOSITORY # Push the commit to this branch.
+
+  commit:
+    author:
+      name: {{ .Author.Name }}
+      email: {{ .Author.Email }}
+    message: Append Hello World to all README.md files
+`
+
+const exampleSpecPublishFlagTmpl = `
+  # Change published to true once you're ready to create changesets on the code host.
+  published: false
+`
+
+func (svc *Service) GenerateExampleSpec(ctx context.Context, fileName string) error {
+	// Try to create file. Bail out, if it already exists.
+	f, err := os.OpenFile(fileName, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
+	if err != nil {
+		if os.IsExist(err) {
+			return fmt.Errorf("file %s already exists", fileName)
+		}
+		return errors.Wrapf(err, "failed to create file %s", fileName)
+	}
+	defer f.Close()
+
+	t := exampleSpecTmpl
+	if !svc.features.AllowOptionalPublished {
+		t += exampleSpecPublishFlagTmpl
+	}
+	tmpl, err := template.New("").Parse(t)
+	if err != nil {
+		return err
 	}
 
-	spec, err := batches.ParseBatchSpec(data, svc.features)
-	if err != nil {
-		return nil, "", errors.Wrap(err, "parsing batch spec")
+	author := batcheslib.GitCommitAuthor{
+		Name:  "Sourcegraph",
+		Email: "batch-changes@sourcegraph.com",
 	}
-	return spec, string(data), nil
+	// Try to get better default values from git, ignore any errors.
+	gitAuthorName, err1 := getGitConfig("user.name")
+	gitAuthorEmail, err2 := getGitConfig("user.email")
+	if err1 == nil && err2 == nil && gitAuthorName != "" && gitAuthorEmail != "" {
+		author.Name = gitAuthorName
+		author.Email = gitAuthorEmail
+	}
+
+	err = tmpl.Execute(f, map[string]interface{}{"Author": author})
+	if err != nil {
+		return errors.Wrap(err, "failed to write batch spec to file")
+	}
+
+	return nil
 }
 
 const namespaceQuery = `
 query NamespaceQuery($name: String!) {
     user(username: $name) {
         id
+        url
     }
 
     organization(name: $name) {
         id
+        url
     }
 }
 `
@@ -289,104 +477,130 @@ const usernameQuery = `
 query GetCurrentUserID {
     currentUser {
         id
+        url
     }
 }
 `
 
-func (svc *Service) ResolveNamespace(ctx context.Context, namespace string) (string, error) {
+type Namespace struct {
+	ID  string
+	URL string
+}
+
+func (svc *Service) ResolveNamespace(ctx context.Context, namespace string) (Namespace, error) {
 	if namespace == "" {
 		// if no namespace is provided, default to logged in user as namespace
 		var resp struct {
 			Data struct {
 				CurrentUser struct {
-					ID string `json:"id"`
+					ID  string `json:"id"`
+					URL string `json:"url"`
 				} `json:"currentUser"`
 			} `json:"data"`
 		}
 		if ok, err := svc.client.NewRequest(usernameQuery, nil).DoRaw(ctx, &resp); err != nil || !ok {
-			return "", errors.WithMessage(err, "failed to resolve namespace: no user logged in")
+			return Namespace{}, errors.WithMessage(err, "failed to resolve namespace: no user logged in")
 		}
 
 		if resp.Data.CurrentUser.ID == "" {
-			return "", errors.New("cannot resolve current user")
+			return Namespace{}, errors.New("cannot resolve current user")
 		}
-		return resp.Data.CurrentUser.ID, nil
+		return Namespace{
+			ID:  resp.Data.CurrentUser.ID,
+			URL: resp.Data.CurrentUser.URL,
+		}, nil
 	}
 
 	var result struct {
 		Data struct {
-			User         *struct{ ID string }
-			Organization *struct{ ID string }
+			User *struct {
+				ID  string
+				URL string
+			}
+			Organization *struct {
+				ID  string
+				URL string
+			}
 		}
 		Errors []interface{}
 	}
 	if ok, err := svc.client.NewRequest(namespaceQuery, map[string]interface{}{
 		"name": namespace,
 	}).DoRaw(ctx, &result); err != nil || !ok {
-		return "", err
+		return Namespace{}, err
 	}
 
 	if result.Data.User != nil {
-		return result.Data.User.ID, nil
+		return Namespace{
+			ID:  result.Data.User.ID,
+			URL: result.Data.User.URL,
+		}, nil
 	}
 	if result.Data.Organization != nil {
-		return result.Data.Organization.ID, nil
+		return Namespace{
+			ID:  result.Data.Organization.ID,
+			URL: result.Data.Organization.URL,
+		}, nil
 	}
-	return "", fmt.Errorf("failed to resolve namespace %q: no user or organization found", namespace)
+	return Namespace{}, fmt.Errorf("failed to resolve namespace %q: no user or organization found", namespace)
 }
 
-func (svc *Service) ResolveRepositories(ctx context.Context, spec *batches.BatchSpec) ([]*graphql.Repository, error) {
-	seen := map[string]*graphql.Repository{}
+func (svc *Service) ResolveRepositories(ctx context.Context, spec *batcheslib.BatchSpec) ([]*graphql.Repository, error) {
+	agg := onlib.NewRepoRevisionAggregator()
 	unsupported := batches.UnsupportedRepoSet{}
 	ignored := batches.IgnoredRepoSet{}
 
 	// TODO: this could be trivially parallelised in the future.
 	for _, on := range spec.On {
-		repos, err := svc.ResolveRepositoriesOn(ctx, &on)
+		repos, ruleType, err := svc.ResolveRepositoriesOn(ctx, &on)
 		if err != nil {
 			return nil, errors.Wrapf(err, "resolving %q", on.String())
 		}
 
+		result := agg.NewRuleRevisions(ruleType)
+		reposWithBranch := make([]*graphql.Repository, 0, len(repos))
+		for _, repo := range repos {
+			if !repo.HasBranch() {
+				continue
+			}
+			reposWithBranch = append(reposWithBranch, repo)
+		}
+
 		var repoBatchIgnores map[*graphql.Repository][]string
 		if !svc.allowIgnored {
-			repoBatchIgnores, err = svc.FindDirectoriesInRepos(ctx, ".batchignore", repos...)
+			repoBatchIgnores, err = svc.FindDirectoriesInRepos(ctx, ".batchignore", reposWithBranch...)
 			if err != nil {
 				return nil, err
 			}
 		}
 
-		for _, repo := range repos {
-			if !repo.HasBranch() {
-				continue
+		for _, repo := range reposWithBranch {
+			result.AddRepoRevision(repo.ID, repo)
+
+			switch st := strings.ToLower(repo.ExternalRepository.ServiceType); st {
+			case "github", "gitlab", "bitbucketserver":
+			case "bitbucketcloud":
+				if svc.features.BitbucketCloud {
+					break
+				}
+				fallthrough
+			default:
+				if !svc.allowUnsupported {
+					unsupported.Append(repo)
+				}
 			}
 
-			if other, ok := seen[repo.ID]; !ok {
-				seen[repo.ID] = repo
-
-				switch st := strings.ToLower(repo.ExternalRepository.ServiceType); st {
-				case "github", "gitlab", "bitbucketserver":
-				default:
-					if !svc.allowUnsupported {
-						unsupported.Append(repo)
-					}
+			if !svc.allowIgnored {
+				if locations, ok := repoBatchIgnores[repo]; ok && len(locations) > 0 {
+					ignored.Append(repo)
 				}
-
-				if !svc.allowIgnored {
-					if locations, ok := repoBatchIgnores[repo]; ok && len(locations) > 0 {
-						ignored.Append(repo)
-					}
-				}
-			} else {
-				// If we've already seen this repository, we overwrite the
-				// Commit/Branch fields with the latest value we have
-				other.Commit = repo.Commit
-				other.Branch = repo.Branch
 			}
 		}
 	}
 
-	final := make([]*graphql.Repository, 0, len(seen))
-	for _, repo := range seen {
+	final := []*graphql.Repository{}
+	for _, rev := range agg.Revisions() {
+		repo := rev.(*graphql.Repository)
 		if !unsupported.Includes(repo) && !ignored.Includes(repo) {
 			final = append(final, repo)
 		}
@@ -403,26 +617,40 @@ func (svc *Service) ResolveRepositories(ctx context.Context, spec *batches.Batch
 	return final, nil
 }
 
-func (svc *Service) ResolveRepositoriesOn(ctx context.Context, on *batches.OnQueryOrRepository) ([]*graphql.Repository, error) {
+func (svc *Service) ResolveRepositoriesOn(ctx context.Context, on *batcheslib.OnQueryOrRepository) ([]*graphql.Repository, onlib.RepositoryRuleType, error) {
 	if on.RepositoriesMatchingQuery != "" {
-		return svc.resolveRepositorySearch(ctx, on.RepositoriesMatchingQuery)
-	} else if on.Repository != "" && on.Branch != "" {
-		repo, err := svc.resolveRepositoryNameAndBranch(ctx, on.Repository, on.Branch)
-		if err != nil {
-			return nil, err
-		}
-		return []*graphql.Repository{repo}, nil
+		repo, err := svc.resolveRepositorySearch(ctx, on.RepositoriesMatchingQuery)
+		return repo, onlib.RepositoryRuleTypeQuery, err
 	} else if on.Repository != "" {
-		repo, err := svc.resolveRepositoryName(ctx, on.Repository)
+		branches, err := on.GetBranches()
 		if err != nil {
-			return nil, err
+			return nil, onlib.RepositoryRuleTypeExplicit, err
 		}
-		return []*graphql.Repository{repo}, nil
+
+		if len(branches) > 0 {
+			repos := make([]*graphql.Repository, len(branches))
+			for i, branch := range branches {
+				repo, err := svc.resolveRepositoryNameAndBranch(ctx, on.Repository, branch)
+				if err != nil {
+					return nil, onlib.RepositoryRuleTypeExplicit, err
+				}
+
+				repos[i] = repo
+			}
+
+			return repos, onlib.RepositoryRuleTypeExplicit, nil
+		} else {
+			repo, err := svc.resolveRepositoryName(ctx, on.Repository)
+			if err != nil {
+				return nil, onlib.RepositoryRuleTypeExplicit, err
+			}
+			return []*graphql.Repository{repo}, onlib.RepositoryRuleTypeExplicit, nil
+		}
 	}
 
 	// This shouldn't happen on any batch spec that has passed validation, but,
 	// alas, software.
-	return nil, ErrMalformedOnQueryOrRepository
+	return nil, onlib.RepositoryRuleTypeExplicit, ErrMalformedOnQueryOrRepository
 }
 
 const repositoryNameQuery = `
@@ -532,26 +760,25 @@ func (svc *Service) resolveRepositorySearch(ctx context.Context, query string) (
 	return repos, nil
 }
 
-const findDirectoryQuery = `
-query DirectoriesContainingFile($query: String!) {
-    search(query: $query, version: V2) {
-        results {
-            results {
-                __typename
-                ... on FileMatch {
-                    file { path }
-                }
-            }
-        }
-    }
-}
-`
-
 // findDirectoriesResult maps the name of the GraphQL query to its results. The
 // name is the repository's ID.
 type findDirectoriesResult map[string]struct {
 	Results struct{ Results []searchResult }
 }
+
+const searchQueryTmpl = `%s: search(query: %q, version: V2) {
+	results {
+		results {
+			__typename
+			... on FileMatch {
+				file { path }
+			}
+		}
+	}
+}
+`
+
+const findDirectoriesInReposBatchSize = 50
 
 // FindDirectoriesInRepos returns a map of repositories and the locations of
 // files matching the given file name in the repository.
@@ -559,8 +786,6 @@ type findDirectoriesResult map[string]struct {
 // No "/" at the beginning.
 // A dot (".") represents the root directory.
 func (svc *Service) FindDirectoriesInRepos(ctx context.Context, fileName string, repos ...*graphql.Repository) (map[*graphql.Repository][]string, error) {
-	const batchSize = 50
-
 	// Build up unique identifiers that are safe to use as GraphQL query aliases.
 	reposByQueryID := map[string]*graphql.Repository{}
 	queryIDByRepo := map[*graphql.Repository]string{}
@@ -571,23 +796,11 @@ func (svc *Service) FindDirectoriesInRepos(ctx context.Context, fileName string,
 	}
 
 	findInBatch := func(batch []*graphql.Repository, results map[*graphql.Repository][]string) error {
-		const searchQueryTmpl = `%s: search(query: %q, version: V2) {
-        results {
-            results {
-                __typename
-                ... on FileMatch {
-                    file { path }
-                }
-            }
-        }
-	}
-`
-
 		var a strings.Builder
-		a.WriteString("query DirectoriesContainingFile() {\n")
+		a.WriteString("query DirectoriesContainingFile {\n")
 
 		for _, repo := range batch {
-			query := fmt.Sprintf(`file:(^|/)%s$ repo:^%s$ type:path count:99999`, regexp.QuoteMeta(fileName), regexp.QuoteMeta(repo.Name))
+			query := fmt.Sprintf(`file:(^|/)%s$ repo:^%s$@%s type:path count:99999`, regexp.QuoteMeta(fileName), regexp.QuoteMeta(repo.Name), repo.Rev())
 
 			a.WriteString(fmt.Sprintf(searchQueryTmpl, queryIDByRepo[repo], query))
 		}
@@ -615,11 +828,16 @@ func (svc *Service) FindDirectoriesInRepos(ctx context.Context, fileName string,
 
 			var dirs []string
 			for f := range files {
+				dir := path.Dir(f)
+				// "." means the path is root, but in the executor we use "" to signify root.
+				if dir == "." {
+					dir = ""
+				}
 				// We use path.Dir and not filepath.Dir here, because while
 				// src-cli might be executed on Windows, we need the paths to
 				// be Unix paths, since they will be used inside Docker
 				// containers.
-				dirs = append(dirs, path.Dir(f))
+				dirs = append(dirs, dir)
 			}
 
 			results[repo] = dirs
@@ -630,12 +848,12 @@ func (svc *Service) FindDirectoriesInRepos(ctx context.Context, fileName string,
 
 	results := make(map[*graphql.Repository][]string)
 
-	for start := 0; start < len(repos); start += batchSize {
+	for start := 0; start < len(repos); start += findDirectoriesInReposBatchSize {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
 
-		end := start + batchSize
+		end := start + findDirectoriesInReposBatchSize
 		if end > len(repos) {
 			end = len(repos)
 		}
@@ -701,4 +919,13 @@ func (sr *searchResult) UnmarshalJSON(data []byte) error {
 	default:
 		return errors.Errorf("unknown GraphQL type %q", tn.Typename)
 	}
+}
+
+func getGitConfig(attribute string) (string, error) {
+	cmd := exec.Command("git", "config", "--get", attribute)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(out)), nil
 }

@@ -2,7 +2,7 @@ package main
 
 import (
 	"flag"
-	"io/ioutil"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -42,12 +42,12 @@ var event = []streaming.EventMatch{
 		Path:       "path/to/file",
 		Repository: "org/repo",
 		Branches:   nil,
-		Version:    "",
+		Commit:     "",
 		LineMatches: []streaming.EventLineMatch{
 			{
-				Line:             "foo bar",
+				Line:             "foo bar foo",
 				LineNumber:       4,
-				OffsetAndLengths: [][2]int32{{4, 3}},
+				OffsetAndLengths: [][2]int32{{0, 3}, {8, 3}},
 			},
 		},
 	},
@@ -61,7 +61,7 @@ var event = []streaming.EventMatch{
 		Path:       "path/to/file",
 		Repository: "org/repo",
 		Branches:   []string{},
-		Version:    "",
+		Commit:     "",
 		Symbols: []streaming.Symbol{
 			{
 				URL:           "github.com/sourcegraph/sourcegraph/-/blob/cmd/frontend/graphqlbackend/search_results.go#L1591:26-1591:35",
@@ -147,11 +147,11 @@ func TestSearchStream(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			got, err := ioutil.ReadAll(r)
+			got, err := io.ReadAll(r)
 			if err != nil {
 				t.Fatal(err)
 			}
-			want, err := ioutil.ReadFile(c.want)
+			want, err := os.ReadFile(c.want)
 			if err != nil {
 				t.Fatal(err)
 			}

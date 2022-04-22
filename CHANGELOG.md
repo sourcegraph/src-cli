@@ -13,11 +13,230 @@ All notable changes to `src-cli` are documented in this file.
 
 ### Added
 
+- `src lsif upload` now supports the `-gitlab-token` flag. [#721](https://github.com/sourcegraph/src-cli/pull/721)
+- Batch Changes can be applied to Bitbucket Cloud when `src` is used with Sourcegraph 3.40 or later. [#725](https://github.com/sourcegraph/src-cli/pull/725)
+
 ### Changed
 
 ### Fixed
 
 ### Removed
+
+## 3.39.0
+
+### Added
+
+- Added `login` text to command text menu and ordered alphabetically [#713](https://github.com/sourcegraph/src-cli/pull/713)
+
+### Fixed
+
+- `src extensions copy` now removes the `url` property from extension manifests that points to the sourcegraph.com extension bundle, enabling use for air-gapped instances.
+
+## 3.38.0
+
+### Changed
+
+- Batch Changes: Step results are now also cached when the overall execution fails. [#709](https://github.com/sourcegraph/src-cli/pull/709)
+
+## 3.37.0
+
+No noteworthy changes, mechanical release to match Sourcegraph release.
+
+## 3.36.4
+
+### Added
+
+- A new `src batch remote` command has been added to run a batch spec on a Sourcegraph instance that has Server Side Batch Changes enabled. [#671](https://github.com/sourcegraph/src-cli/pull/671)
+
+### Changed
+
+- Migrated to [`grafana/regexp`](https://github.com/grafana/regexp) to match our usage in Sourcegraph proper. [#694](https://github.com/sourcegraph/src-cli/pull/694)
+
+### Fixed
+
+- A bug in 3.36.3 caused `src batch apply` to no longer accept a file provided with `-f`. This has been fixed. [#695](https://github.com/sourcegraph/src-cli/pull/695)
+
+## 3.36.3
+
+### Changed
+
+- `src batch` commands no longer require `-f` to read from a file. Additionally, running a `src batch` command that requires a batch spec file without a `-f` option from the terminal will now generate an error instead of waiting indefinitely for a batch spec on standard input; however, piping in a batch spec will still work as expected. [#687](https://github.com/sourcegraph/src-cli/pull/687)
+- Pulling container images now occurs in parallel, with the number of concurrent downloads being controlled by the `-j` flag. [#17577](https://github.com/sourcegraph/sourcegraph/issues/17577)
+
+### Fixed
+
+- `src batch [preview|apply]` will now check that the target Sourcegraph instance supports batch changes before doing any other work and exit early in the case that it does not.
+
+## 3.36.2
+
+### Changed
+
+- `src validate` can now execute default validation checks (add external service, clone repo, search repo, search non-indexed branch of that repo, remove external service) for Sourcegraph instance when no validation file is specified as well as continue to support JSON and YAML file validation files.
+
+### Fixed
+
+- `src batch preview` and `src batch apply` could erroneously return exit code 0 and no warning when the execution actually failed.
+
+## 3.36.1
+
+### Changed
+
+- `src exec` now allows the `files:` property. (internal use only)
+
+## 3.36.0
+
+_This version is the same as 3.35.3, just retagged for the upcoming 3.36.0 release of Sourcegraph._
+
+## 3.35.3
+
+### Fixed
+
+- Certain Batch Changes features that previously would not work on prerelease versions of Sourcegraph will now work as expected again.
+
+## 3.35.2
+
+### Fixed
+
+- `src batch validate` and `src batch repos` now accept `-allow-unsupported` and `-force-override-ignore` and don't fail on specs using `files` anymore.
+
+## 3.35.1
+
+### Changed
+
+- `src validate` has been updated to work with Sourcegraph 3.35's changed CSRF behaviour. [#673](https://github.com/sourcegraph/src-cli/pull/673)
+
+## 3.35.0
+
+### Added
+
+- Individual batch changes can publish multiple changesets to the same repository by specifying multiple target branches using the [`on.branches`](https://docs.sourcegraph.com/batch_changes/references/batch_spec_yaml_reference#on-repository) attribute. [#25228](https://github.com/sourcegraph/sourcegraph/issues/25228)
+
+### Changed
+
+- `src batch [preview|apply]` will now use the faster volume workspace by default for macOS systems using arm64 processors (aka "Apple Silicon")
+
+### Fixed
+
+- Excess newlines in between outputs in logfiles written when `--keep-logs` is used have been fixed. [#665](https://github.com/sourcegraph/src-cli/pull/665)
+- `src` would sometimes panic when Ctrl-C was pressed while executing batch change steps due to a bug in the library used to render the execution progress bars. This has been fixed. [🤘 #666](https://github.com/sourcegraph/src-cli/pull/666)
+- In batch changes, when using `workspaces` src would incorrectly treat `in` not being set as _don't match anything_. This is fixed and it matches everything like `*`. [#664](https://github.com/sourcegraph/src-cli/pull/664)
+
+## 3.34.1
+
+### Added
+
+- For internal use only: Allow exec mode to read step cache files from the current working directory.
+
+### Fixed
+
+- For internal use only: Fix an off-by-one error in the JSON log UI.
+
+## 3.34.0
+
+### Added
+
+- Bare repositories can now be served with `src serve-git`. Thanks to [Andreas Rammhold](https://github.com/andir) for the contribution! [#639](https://github.com/sourcegraph/src-cli/pull/639)
+
+## 3.33.8
+
+### Fixed
+
+- For internal use only: Switch to single workspaces only in payload.
+
+## 3.33.7
+
+### Added
+
+- A `-client-only` flag has been added to `src version`. When set, only the local src-cli's version will be printed and no attempt is made to fetch the recommended version from the configured Sourcegraph server.
+
+## 3.33.6
+
+### Added
+
+- Requests to Sourcegraph will now include the operating system and architecture `src` is running on by default. To disable this, set the `SRC_DISABLE_USER_AGENT_TELEMETRY` environment variable to any non-empty string, or provide the `-user-agent-telemetry=false` flag on the command line. [#15769](https://github.com/sourcegraph/sourcegraph/issues/15769)
+
+## 3.33.5
+
+### Fixed
+
+- `src search` will not fail anymore on systems where the pager `less` is not installed. [#644](https://github.com/sourcegraph/src-cli/pull/644)
+
+## 3.33.4
+
+- For internal use only: always log uploading changesets event.
+
+## 3.33.3
+
+### Fixed
+
+- Removed debug output that could lead to glitches in the `src batch [preview|apply]` TUI.
+
+## 3.33.2
+
+### Changed
+
+- For internal use only: `src batch exec` does not evaluate `importChangesets` in batch specs anymore, since that's already done server-side.
+
+## 3.33.1
+
+### Fixed
+
+- Fixes a nil-panic that could be caused when `src batch [preview|apply]` would encounter a repository that was currently being cloned or is empty.
+
+## 3.33.0
+
+### Fixed
+
+- Importing changesets won't fail validation when uploading to Sourcegraph 3.33.
+
+## 3.32.1
+
+### Fixed
+
+- Fixes an issue where src-cli would panic when importing existing changesets.
+
+## 3.32.0
+
+### Added
+
+- For internal use only: the `src batch exec` command executes the provided batch spec in the given workspaces.
+
+### Changed
+
+- For internal use only: when `src batch [preview|apply|exec]` are executed in `-text-only` mode, command output on stdout/stderr will be logged in the same message, with each line prefixed accordingly. [#619](https://github.com/sourcegraph/src-cli/pull/619)
+
+### Fixed
+
+- `src batch repos` failed with a template error in src-cli 3.31.1 and 3.32.0. This has been fixed. [#625](https://github.com/sourcegraph/src-cli/pull/625)
+- The `src campaign` and `src campaigns` commands have been removed in favor of `src batch`. [#626](https://github.com/sourcegraph/src-cli/pull/626)
+
+## 3.31.1
+
+### Changed
+
+- For internal use only: JSON log UI has been extended.
+
+### Fixed
+
+- `src search -stream` displayed the number of lines that contain matches instead of the number of matches.
+- For internal use only: the `EXECUTING_TASKS` JSON log line now always contains an array of `tasks` instead of possibly having `null` as the `tasks` value.
+- src-cli is now built using Go version 1.17.
+
+## 3.31.0
+
+### Changed
+
+- `src batch new` now omits the publish flag, if the Sourcegraph instance supports publish from GUI.
+
+## 3.30.5
+
+### Added
+
+- `src batch validate` now accepts the standard flags used to control communication with Sourcegraph: `-dump-requests`, `-get-curl`, `-insecure-skip-verify`, and `-trace`. [#577](https://github.com/sourcegraph/src-cli/pull/577)
+
+### Fixed
+
+- `src batch validate` would fail to validate batch specs that use features that depend on specific versions of Sourcegraph, such as workspaces. This has been fixed. [#576](https://github.com/sourcegraph/src-cli/issues/576)
 
 ## 3.30.4
 

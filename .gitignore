@@ -4,3 +4,5 @@ cmd/src/*.zip
 release
 ./vendor
 .idea
+.env
+.envrc

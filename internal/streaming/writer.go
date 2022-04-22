@@ -2,10 +2,11 @@ package streaming
 
 import (
 	"encoding/json"
-	"errors"
 	"io"
 	"net/http"
 	"time"
+
+	"github.com/sourcegraph/sourcegraph/lib/errors"
 )
 
 type WriterStat struct {

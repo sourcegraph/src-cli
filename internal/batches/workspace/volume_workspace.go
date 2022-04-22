@@ -6,28 +6,34 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"sort"
 	"strings"
 
-	"github.com/pkg/errors"
+	"github.com/sourcegraph/sourcegraph/lib/errors"
 
-	"github.com/sourcegraph/src-cli/internal/batches"
+	batcheslib "github.com/sourcegraph/sourcegraph/lib/batches"
+	"github.com/sourcegraph/sourcegraph/lib/batches/git"
+
 	"github.com/sourcegraph/src-cli/internal/batches/docker"
-	"github.com/sourcegraph/src-cli/internal/batches/git"
 	"github.com/sourcegraph/src-cli/internal/batches/graphql"
+	"github.com/sourcegraph/src-cli/internal/batches/repozip"
 	"github.com/sourcegraph/src-cli/internal/exec"
 	"github.com/sourcegraph/src-cli/internal/version"
 )
 
-type dockerVolumeWorkspaceCreator struct{ tempDir string }
+type imageEnsurer func(ctx context.Context, image string) (docker.Image, error)
+
+type dockerVolumeWorkspaceCreator struct {
+	tempDir     string
+	EnsureImage imageEnsurer
+}
 
 var _ Creator = &dockerVolumeWorkspaceCreator{}
 
 func (wc *dockerVolumeWorkspaceCreator) Type() CreatorType { return CreatorTypeVolume }
 
-func (wc *dockerVolumeWorkspaceCreator) Create(ctx context.Context, repo *graphql.Repository, steps []batches.Step, archive batches.RepoZip) (Workspace, error) {
+func (wc *dockerVolumeWorkspaceCreator) Create(ctx context.Context, repo *graphql.Repository, steps []batcheslib.Step, archive repozip.Archive) (Workspace, error) {
 	volume, err := wc.createVolume(ctx)
 	if err != nil {
 		return nil, errors.Wrap(err, "creating Docker volume")
@@ -37,7 +43,11 @@ func (wc *dockerVolumeWorkspaceCreator) Create(ctx context.Context, repo *graphq
 	ug := docker.UIDGID{}
 	if len(steps) > 0 {
 		var err error
-		if ug, err = steps[0].ImageUIDGID(ctx); err != nil {
+		img, err := wc.EnsureImage(ctx, steps[0].Container)
+		if err != nil {
+			return nil, err
+		}
+		if ug, err = img.UIDGID(ctx); err != nil {
 			return nil, errors.Wrap(err, "getting container UID and GID")
 		}
 	}
@@ -302,7 +312,7 @@ func init() {
 // container started from the dockerWorkspaceImage, then run it and return the
 // output.
 func (w *dockerVolumeWorkspace) runScript(ctx context.Context, target, script string) ([]byte, error) {
-	f, err := ioutil.TempFile(w.tempDir, "src-run-*")
+	f, err := os.CreateTemp(w.tempDir, "src-run-*")
 	if err != nil {
 		return nil, errors.Wrap(err, "creating run script")
 	}

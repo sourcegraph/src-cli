@@ -4,21 +4,23 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"flag"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"os"
 	"strings"
 	"text/template"
 	"time"
 
+	"github.com/sourcegraph/sourcegraph/lib/errors"
+
 	jsoniter "github.com/json-iterator/go"
 	"github.com/mattn/go-isatty"
+	"gopkg.in/yaml.v3"
+
 	"github.com/sourcegraph/src-cli/internal/api"
 	"github.com/sourcegraph/src-cli/internal/cmderrors"
-	"gopkg.in/yaml.v3"
 )
 
 type validationSpec struct {
@@ -31,9 +33,9 @@ type validationSpec struct {
 	WaitRepoCloned struct {
 		Repo                     string `yaml:"repo"`
 		MaxTries                 int    `yaml:"maxTries"`
-		SleepBetweenTriesSeconds int    `yaml:"sleepBetweenTriesSecond"`
+		SleepBetweenTriesSeconds int    `yaml:"sleepBetweenTriesSeconds"`
 	} `yaml:"waitRepoCloned"`
-	SearchQuery     string `yaml:"searchQuery"`
+	SearchQuery     []string `yaml:"searchQuery"`
 	ExternalService struct {
 		Kind           string                 `yaml:"kind"`
 		DisplayName    string                 `yaml:"displayName"`
@@ -47,6 +49,28 @@ type validator struct {
 	apiClient api.Client
 }
 
+const defaultVspec = `{
+	"externalService": {
+		"config": {
+			"url": "https://github.com",
+			"token": "{{ .github_token }}",
+			"orgs": [],
+			"repos": [
+				"gorilla/mux"
+			]
+		},
+		"kind": "GITHUB",
+		"displayName": "footest",
+		"deleteWhenDone": true
+	},
+	"waitRepoCloned": {
+		"repo": "github.com/gorilla/mux",
+		"maxTries": 5,
+		"sleepBetweenTriesSeconds": 5
+	},
+	"searchQuery": ["repo:^github.com/gorilla/mux$ Router", "repo:^github.com/gorilla/mux$@v1.8.0 Router"]
+}`
+
 func init() {
 	usage := `'src validate' is a tool that validates a Sourcegraph instance.
 
@@ -57,6 +81,10 @@ Usage:
 	src validate [options] src-validate.yml
 or
     cat src-validate.yml | src validate [options]
+
+if user is authenticated, user can also run default checks
+
+	src validate [options]
 
 Please visit https://docs.sourcegraph.com/admin/validation for documentation of the validate command.
 `
@@ -86,25 +114,34 @@ Please visit https://docs.sourcegraph.com/admin/validation for documentation of 
 
 		var script []byte
 		var isYaml bool
+		var isJSON bool
 
 		var err error
 		if len(flagSet.Args()) == 1 {
 			filename := flagSet.Arg(0)
-			script, err = ioutil.ReadFile(filename)
+			script, err = os.ReadFile(filename)
 			if err != nil {
 				return err
 			}
 			if strings.HasSuffix(filename, ".yaml") || strings.HasSuffix(filename, ".yml") {
 				isYaml = true
 			}
+			if strings.HasSuffix(filename, ".json") {
+				isJSON = true
+			}
 		}
 		if !isatty.IsTerminal(os.Stdin.Fd()) {
 			// stdin is a pipe not a terminal
-			script, err = ioutil.ReadAll(os.Stdin)
+			script, err = io.ReadAll(os.Stdin)
 			if err != nil {
 				return err
 			}
 			isYaml = true
+		}
+
+		if !isYaml && !isJSON {
+			script = []byte(defaultVspec)
+
 		}
 
 		ctxm := vd.parseKVPairs(*contextFlag, ",")
@@ -121,6 +158,7 @@ Please visit https://docs.sourcegraph.com/admin/validation for documentation of 
 		}
 
 		return vd.validate(script, ctxm, isYaml)
+
 	}
 
 	commands = append(commands, &command{
@@ -145,7 +183,7 @@ func (vd *validator) parseKVPairs(val string, pairSep string) map[string]string 
 }
 
 func (vd *validator) readSecrets(path string) (map[string]string, error) {
-	bs, err := ioutil.ReadFile(path)
+	bs, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
@@ -196,32 +234,44 @@ func (vd *validator) validate(script []byte, scriptContext map[string]string, is
 		if err != nil {
 			return err
 		}
+		fmt.Printf("External Service %s is being added \n", vspec.ExternalService.DisplayName)
 
 		defer func() {
 			if extSvcID != "" && vspec.ExternalService.DeleteWhenDone {
 				_ = vd.deleteExternalService(extSvcID)
+				fmt.Printf("External Service %s has been removed \n", vspec.ExternalService.DisplayName)
+				fmt.Println("Validation Completed")
+
 			}
 		}()
 	}
 
 	if vspec.WaitRepoCloned.Repo != "" {
+		fmt.Printf("repo %s clonining has began \n", vspec.WaitRepoCloned.Repo)
+
 		cloned, err := vd.waitRepoCloned(vspec.WaitRepoCloned.Repo, vspec.WaitRepoCloned.SleepBetweenTriesSeconds,
 			vspec.WaitRepoCloned.MaxTries)
 		if err != nil {
 			return err
 		}
 		if !cloned {
-			return fmt.Errorf("repo %s didn't clone", vspec.WaitRepoCloned.Repo)
+			return fmt.Errorf("repo %s didn't clone \n", vspec.WaitRepoCloned.Repo)
 		}
+
+		fmt.Printf("repo %s clonining was successful \n", vspec.WaitRepoCloned.Repo)
+
 	}
 
-	if vspec.SearchQuery != "" {
-		matchCount, err := vd.searchMatchCount(vspec.SearchQuery)
-		if err != nil {
-			return err
-		}
-		if matchCount == 0 {
-			return fmt.Errorf("search query %s returned no results", vspec.SearchQuery)
+	if vspec.SearchQuery != nil {
+		for i := 0; i < len(vspec.SearchQuery); i++ {
+			matchCount, err := vd.searchMatchCount(vspec.SearchQuery[i])
+			if err != nil {
+				return err
+			}
+			if matchCount == 0 {
+				return fmt.Errorf("search query %s returned no results \n", vspec.SearchQuery[i])
+			}
+			fmt.Printf("search query '%s' was successful \n", vspec.SearchQuery[i])
 		}
 	}
 
@@ -413,10 +463,7 @@ func (vd *validator) createAccessToken(username string) (string, error) {
 // SiteAdminInit initializes the instance with given admin account.
 // It returns an authenticated client as the admin for doing e2e testing.
 func (vd *validator) siteAdminInit(baseURL, email, username, password string) (*vdClient, error) {
-	client, err := vd.newClient(baseURL)
-	if err != nil {
-		return nil, err
-	}
+	client := vd.newClient(baseURL)
 
 	var request = struct {
 		Email    string `json:"email"`
@@ -427,7 +474,7 @@ func (vd *validator) siteAdminInit(baseURL, email, username, password string) (*
 		Username: username,
 		Password: password,
 	}
-	err = client.authenticate("/-/site-init", request)
+	err := client.authenticate("/-/site-init", request)
 	if err != nil {
 		return nil, err
 	}
@@ -438,10 +485,7 @@ func (vd *validator) siteAdminInit(baseURL, email, username, password string) (*
 // SignIn performs the sign in with given user credentials.
 // It returns an authenticated client as the user for doing e2e testing.
 func (vd *validator) signIn(baseURL string, email, password string) (*vdClient, error) {
-	client, err := vd.newClient(baseURL)
-	if err != nil {
-		return nil, err
-	}
+	client := vd.newClient(baseURL)
 
 	var request = struct {
 		Email    string `json:"email"`
@@ -450,7 +494,7 @@ func (vd *validator) signIn(baseURL string, email, password string) (*vdClient, 
 		Email:    email,
 		Password: password,
 	}
-	err = client.authenticate("/-/sign-in", request)
+	err := client.authenticate("/-/sign-in", request)
 	if err != nil {
 		return nil, err
 	}
@@ -458,68 +502,21 @@ func (vd *validator) signIn(baseURL string, email, password string) (*vdClient, 
 	return client, nil
 }
 
-// extractCSRFToken extracts CSRF token from HTML response body.
-func (vd *validator) extractCSRFToken(body string) string {
-	anchor := `X-Csrf-Token":"`
-	i := strings.Index(body, anchor)
-	if i == -1 {
-		return ""
-	}
-
-	j := strings.Index(body[i+len(anchor):], `","`)
-	if j == -1 {
-		return ""
-	}
-
-	return body[i+len(anchor) : i+len(anchor)+j]
-}
-
 // Client is an authenticated client for a Sourcegraph user for doing e2e testing.
 // The user may or may not be a site admin depends on how the client is instantiated.
 // It works by simulating how the browser would send HTTP requests to the server.
 type vdClient struct {
 	baseURL       string
-	csrfToken     string
-	csrfCookie    *http.Cookie
 	sessionCookie *http.Cookie
 
 	userID string
 }
 
-// newClient instantiates a new client by performing a GET request then obtains the
-// CSRF token and cookie from its response.
-func (vd *validator) newClient(baseURL string) (*vdClient, error) {
-	resp, err := http.Get(baseURL)
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	p, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-
-	csrfToken := vd.extractCSRFToken(string(p))
-	if csrfToken == "" {
-		return nil, err
-	}
-	var csrfCookie *http.Cookie
-	for _, cookie := range resp.Cookies() {
-		if cookie.Name == "sg_csrf_token" {
-			csrfCookie = cookie
-			break
-		}
-	}
-	if csrfCookie == nil {
-		return nil, errors.New(`"sg_csrf_token" cookie not found`)
-	}
-
+// newClient instantiates a new client.
+func (vd *validator) newClient(baseURL string) *vdClient {
 	return &vdClient{
-		baseURL:    baseURL,
-		csrfToken:  csrfToken,
-		csrfCookie: csrfCookie,
-	}, nil
+		baseURL: baseURL,
+	}
 }
 
 // authenticate is used to send a HTTP POST request to an URL that is able to authenticate
@@ -536,8 +533,6 @@ func (c *vdClient) authenticate(path string, body interface{}) error {
 		return err
 	}
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-Csrf-Token", c.csrfToken)
-	req.AddCookie(c.csrfCookie)
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -546,7 +541,7 @@ func (c *vdClient) authenticate(path string, body interface{}) error {
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
-		p, err := ioutil.ReadAll(resp.Body)
+		p, err := io.ReadAll(resp.Body)
 		if err != nil {
 			return err
 		}
@@ -641,7 +636,6 @@ func (c *vdClient) graphQL(token, query string, variables map[string]interface{}
 		// NOTE: We use this header to protect from CSRF attacks of HTTP API,
 		// see https://sourcegraph.com/github.com/sourcegraph/sourcegraph/-/blob/cmd/frontend/internal/cli/http.go#L41-42
 		req.Header.Set("X-Requested-With", "Sourcegraph")
-		req.AddCookie(c.csrfCookie)
 		req.AddCookie(c.sessionCookie)
 	}
 
@@ -652,7 +646,7 @@ func (c *vdClient) graphQL(token, query string, variables map[string]interface{}
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
-		p, err := ioutil.ReadAll(resp.Body)
+		p, err := io.ReadAll(resp.Body)
 		if err != nil {
 			return err
 		}

@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"context"
 	"fmt"
 	"sort"
 	"strings"
@@ -8,9 +9,12 @@ import (
 	"time"
 
 	"github.com/sourcegraph/go-diff/diff"
-	"github.com/sourcegraph/sourcegraph/lib/output"
-	"github.com/sourcegraph/src-cli/internal/batches"
+
 	"github.com/sourcegraph/src-cli/internal/batches/executor"
+
+	batcheslib "github.com/sourcegraph/sourcegraph/lib/batches"
+	"github.com/sourcegraph/sourcegraph/lib/batches/git"
+	"github.com/sourcegraph/sourcegraph/lib/output"
 )
 
 type taskStatus struct {
@@ -145,6 +149,9 @@ func (ui *taskExecTUI) Start(tasks []*executor.Task) {
 func (ui *taskExecTUI) Success() {
 	ui.progress.Complete()
 }
+func (ui *taskExecTUI) Failed(err error) {
+	// noop right now
+}
 
 func (ui *taskExecTUI) useFreeStatusBar(ts *taskStatus) (bar int, found bool) {
 	for i := 0; i < ui.numStatusBars; i++ {
@@ -215,6 +222,31 @@ func (ui *taskExecTUI) TaskCurrentlyExecuting(task *executor.Task, message strin
 	ui.progress.StatusBarUpdatef(bar, ts.String())
 }
 
+func (ui *taskExecTUI) StepsExecutionUI(task *executor.Task) executor.StepsExecutionUI {
+	ui.mu.Lock()
+	defer ui.mu.Unlock()
+
+	ts, ok := ui.statuses[task]
+	if !ok {
+		ui.out.Verbose("warning: task not found in internal 'statuses'")
+		return executor.NoopStepsExecUI{}
+	}
+
+	bar, found := ui.findStatusBar(ts)
+	if !found {
+		ui.out.Verbose("warning: no free status bar found to display task status")
+		return executor.NoopStepsExecUI{}
+	}
+
+	return &stepsExecTUI{
+		task: task,
+		updateStatusBar: func(message string) {
+			ts.currentlyExecuting = message
+			ui.progress.StatusBarUpdatef(bar, ts.String())
+		},
+	}
+}
+
 func (ui *taskExecTUI) TaskFinished(task *executor.Task, err error) {
 	ui.mu.Lock()
 	defer ui.mu.Unlock()
@@ -249,7 +281,7 @@ func (ui *taskExecTUI) TaskFinished(task *executor.Task, err error) {
 	delete(ui.statusBars, bar)
 }
 
-func (ui *taskExecTUI) TaskChangesetSpecsBuilt(task *executor.Task, specs []*batches.ChangesetSpec) {
+func (ui *taskExecTUI) TaskChangesetSpecsBuilt(task *executor.Task, specs []*batcheslib.ChangesetSpec) {
 	if !ui.verbose {
 		return
 	}
@@ -395,4 +427,59 @@ func diffStatDiagram(stat diff.Stat) string {
 		output.StyleLinesDeleted, strings.Repeat("-", int(deleted)),
 		output.StyleReset,
 	)
+}
+
+type stepsExecTUI struct {
+	task            *executor.Task
+	updateStatusBar func(string)
+}
+
+func (ui stepsExecTUI) ArchiveDownloadStarted() {
+	ui.updateStatusBar("Downloading archive")
+}
+func (ui stepsExecTUI) ArchiveDownloadFinished(err error) {}
+func (ui stepsExecTUI) WorkspaceInitializationStarted() {
+	ui.updateStatusBar("Initializing workspace")
+}
+func (ui stepsExecTUI) WorkspaceInitializationFinished() {}
+func (ui stepsExecTUI) SkippingStepsUpto(startStep int) {
+	switch startStep {
+	case 1:
+		ui.updateStatusBar("Skipping step 1. Found cached result.")
+	default:
+		ui.updateStatusBar(fmt.Sprintf("Skipping steps 1 to %d. Found cached results.", startStep))
+	}
+}
+
+func (ui stepsExecTUI) StepSkipped(step int) {
+	ui.updateStatusBar(fmt.Sprintf("Skipping step %d", step))
+}
+func (ui stepsExecTUI) StepPreparingStart(step int) {
+	ui.updateStatusBar(fmt.Sprintf("Preparing step %d", step))
+}
+func (ui stepsExecTUI) StepPreparingSuccess(step int) {
+	// noop right now
+}
+func (ui stepsExecTUI) StepPreparingFailed(step int, err error) {
+	// noop right now
+}
+func (ui stepsExecTUI) StepStarted(step int, runScript string, _ map[string]string) {
+	ui.updateStatusBar(runScript)
+}
+
+func (ui stepsExecTUI) StepOutputWriter(ctx context.Context, task *executor.Task, step int) executor.StepOutputWriter {
+	return executor.NoopStepOutputWriter{}
+}
+
+func (ui stepsExecTUI) CalculatingDiffStarted() {
+	ui.updateStatusBar("Calculating diff")
+}
+func (ui stepsExecTUI) CalculatingDiffFinished() {
+	// noop right now
+}
+func (ui stepsExecTUI) StepFinished(idx int, diff string, changes *git.Changes, outputs map[string]interface{}) {
+	// noop right now
+}
+func (ui stepsExecTUI) StepFailed(idx int, err error, exitCode int) {
+	// noop right now
 }

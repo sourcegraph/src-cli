@@ -3,15 +3,17 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"flag"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"os"
 	"strings"
 
+	"github.com/sourcegraph/sourcegraph/lib/errors"
+
 	isatty "github.com/mattn/go-isatty"
 	"github.com/sourcegraph/jsonx"
+
 	"github.com/sourcegraph/src-cli/internal/api"
 	"github.com/sourcegraph/src-cli/internal/cmderrors"
 )
@@ -71,14 +73,14 @@ Examples:
 		// Determine if we are updating the JSON configuration or not.
 		var updateJSON []byte
 		if len(flagSet.Args()) == 1 {
-			updateJSON, err = ioutil.ReadFile(flagSet.Arg(0))
+			updateJSON, err = os.ReadFile(flagSet.Arg(0))
 			if err != nil {
 				return err
 			}
 		}
 		if !isatty.IsTerminal(os.Stdin.Fd()) {
 			// stdin is a pipe not a terminal
-			updateJSON, err = ioutil.ReadAll(os.Stdin)
+			updateJSON, err = io.ReadAll(os.Stdin)
 			if err != nil {
 				return err
 			}

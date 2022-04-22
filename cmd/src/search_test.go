@@ -3,13 +3,13 @@ package main
 import (
 	"bytes"
 	"encoding/json"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"testing"
+
+	"github.com/grafana/regexp"
 )
 
 var _ = func() bool {
@@ -29,7 +29,7 @@ func TestSearchOutput(t *testing.T) {
 	tests := map[string]*testT{}
 
 	dataDir := "testdata/search_formatting"
-	infos, err := ioutil.ReadDir(dataDir)
+	infos, err := os.ReadDir(dataDir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -50,7 +50,7 @@ func TestSearchOutput(t *testing.T) {
 			tests[testName] = &testT{}
 		}
 
-		data, err := ioutil.ReadFile(path)
+		data, err := os.ReadFile(path)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -74,7 +74,7 @@ func TestSearchOutput(t *testing.T) {
 		if tst.want == nil {
 			// Create the initial (empty) .want.txt file.
 			wantFile := filepath.Join(dataDir, testName+".want.txt")
-			if err := ioutil.WriteFile(wantFile, nil, 0600); err != nil {
+			if err := os.WriteFile(wantFile, nil, 0600); err != nil {
 				t.Fatal(err)
 			}
 			tmp := ""
@@ -100,7 +100,7 @@ func TestSearchOutput(t *testing.T) {
 				gotFile := filepath.Join(dataDir, testName+".got.txt")
 				wantFile := filepath.Join(dataDir, testName+".want.txt")
 
-				err := ioutil.WriteFile(gotFile, []byte(got), 0600)
+				err := os.WriteFile(gotFile, []byte(got), 0600)
 				if err != nil {
 					t.Fatal(err)
 				}

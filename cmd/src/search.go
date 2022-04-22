@@ -9,16 +9,18 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	"regexp"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/grafana/regexp"
+
 	isatty "github.com/mattn/go-isatty"
+	"jaytaylor.com/html2text"
+
 	"github.com/sourcegraph/src-cli/internal/api"
 	"github.com/sourcegraph/src-cli/internal/cmderrors"
 	"github.com/sourcegraph/src-cli/internal/streaming"
-	"jaytaylor.com/html2text"
 )
 
 var dateRegex = regexp.MustCompile(`(\w{4}-\w{2}-\w{2})`)
@@ -47,6 +49,12 @@ Other tips:
   Force color output on (not on by default when piped to other programs) by setting COLOR=t
 
   Query syntax: https://about.sourcegraph.com/docs/search/query-syntax/
+
+  Be careful with search strings including negation: a search with an initial
+  negated term may be parsed as a flag rather than as a search string. You can
+  use -- to ensure that src parses this correctly, eg:
+
+    	$ src search -- '-repo:github.com/foo/bar error'
 `
 
 	flagSet := flag.NewFlagSet("search", flag.ExitOnError)
@@ -85,34 +93,40 @@ Other tips:
 		queryString := flagSet.Arg(0)
 
 		// For pagination, pipe our own output to 'less -R'
-		if *lessFlag && !*jsonFlag && isatty.IsTerminal(os.Stdout.Fd()) {
-			cmdPath, err := os.Executable()
-			if err != nil {
-				return err
-			}
+		if *lessFlag && !*jsonFlag {
+			// But first we check whether we can use `less`. (Instead of
+			// combining the conditions here into one, we use a 2nd conditional
+			// so we don't need to do `exec.LookPath` if flags disable `less`)
+			_, err := exec.LookPath("less")
+			if err == nil && isatty.IsTerminal(os.Stdout.Fd()) {
+				cmdPath, err := os.Executable()
+				if err != nil {
+					return err
+				}
 
-			srcCmd := exec.Command(cmdPath, append([]string{"search"}, args...)...)
+				srcCmd := exec.Command(cmdPath, append([]string{"search"}, args...)...)
 
-			// Because we do not want the default "no color when piping" behavior to take place.
-			srcCmd.Env = envSetDefault(os.Environ(), "COLOR", "t")
+				// Because we do not want the default "no color when piping" behavior to take place.
+				srcCmd.Env = envSetDefault(os.Environ(), "COLOR", "t")
 
-			srcStderr, err := srcCmd.StderrPipe()
-			if err != nil {
-				return err
-			}
-			srcStdout, err := srcCmd.StdoutPipe()
-			if err != nil {
-				return err
-			}
-			if err := srcCmd.Start(); err != nil {
-				return err
-			}
+				srcStderr, err := srcCmd.StderrPipe()
+				if err != nil {
+					return err
+				}
+				srcStdout, err := srcCmd.StdoutPipe()
+				if err != nil {
+					return err
+				}
+				if err := srcCmd.Start(); err != nil {
+					return err
+				}
 
-			lessCmd := exec.Command("less", "-R")
-			lessCmd.Stdin = io.MultiReader(srcStdout, srcStderr)
-			lessCmd.Stderr = os.Stderr
-			lessCmd.Stdout = os.Stdout
-			return lessCmd.Run()
+				lessCmd := exec.Command("less", "-R")
+				lessCmd.Stdin = io.MultiReader(srcStdout, srcStderr)
+				lessCmd.Stderr = os.Stderr
+				lessCmd.Stdout = os.Stdout
+				return lessCmd.Run()
+			}
 		}
 
 		client := cfg.apiClient(apiFlags, flagSet.Output())
@@ -390,11 +404,11 @@ func searchHighlightDiffPreview(diffPreview interface{}) string {
 		}
 
 		// Replace our start-of-match token with the color we wish.
-		line = strings.Replace(line, uniqueStartOfMatchToken, ansiColors["search-match"], -1)
+		line = strings.ReplaceAll(line, uniqueStartOfMatchToken, ansiColors["search-match"])
 
 		// Replace our end-of-match token with the color terminator,
 		// and start all colors that were previously started to the left.
-		line = strings.Replace(line, uniqueEndOfMatchToken, ansiColors["nc"]+strings.Join(left, ""), -1)
+		line = strings.ReplaceAll(line, uniqueEndOfMatchToken, ansiColors["nc"]+strings.Join(left, ""))
 
 		final = append(final, line)
 	}

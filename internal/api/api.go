@@ -8,14 +8,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"os"
+	"runtime"
 	"strings"
 
 	ioaux "github.com/jig/teereadcloser"
 	"github.com/kballard/go-shellquote"
 	"github.com/mattn/go-isatty"
+	"github.com/sourcegraph/src-cli/internal/version"
 )
 
 // Client instances provide methods to create API requests.
@@ -162,6 +163,11 @@ func (c *client) createHTTPRequest(ctx context.Context, method, p string, body i
 	if err != nil {
 		return nil, err
 	}
+	if c.opts.Flags.UserAgentTelemetry() {
+		req.Header.Set("User-Agent", fmt.Sprintf("src-cli/%s %s %s", version.BuildTag, runtime.GOOS, runtime.GOARCH))
+	} else {
+		req.Header.Set("User-Agent", "src-cli/"+version.BuildTag)
+	}
 	if c.opts.AccessToken != "" {
 		req.Header.Set("Authorization", "token "+c.opts.AccessToken)
 	}
@@ -248,7 +254,7 @@ func (r *request) do(ctx context.Context, result interface{}) (bool, error) {
 			fmt.Println("See https://github.com/sourcegraph/src-cli#readme")
 			fmt.Println("")
 		}
-		body, err := ioutil.ReadAll(resp.Body)
+		body, err := io.ReadAll(resp.Body)
 		if err != nil {
 			return false, err
 		}

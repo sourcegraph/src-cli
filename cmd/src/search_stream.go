@@ -7,20 +7,17 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	"regexp"
 	"strconv"
 	"strings"
 	"text/template"
+
+	"github.com/grafana/regexp"
 
 	"github.com/sourcegraph/src-cli/internal/api"
 	"github.com/sourcegraph/src-cli/internal/streaming"
 )
 
-var labelRegexp *regexp.Regexp
-
-func init() {
-	labelRegexp, _ = regexp.Compile("(?:\\[)(.*?)(?:])")
-}
+var labelRegexp = regexp.MustCompile(`(?:\[)(.*?)(?:])`)
 
 func streamSearch(query string, opts streaming.Opts, client api.Client, w io.Writer) error {
 	var d streaming.Decoder
@@ -106,7 +103,6 @@ func textDecoder(query string, t *template.Template, w io.Writer) streaming.Deco
 			if err != nil {
 				logError(fmt.Sprintf("error when executing template: %s\n", err))
 			}
-			return
 		},
 		OnError: func(eventError *streaming.EventError) {
 			fmt.Printf("ERR: %s", eventError.Message)
@@ -230,7 +226,7 @@ const streamingTemplate = `
 	{{- color "search-repository"}}{{.Repository}}{{color "nc" -}}
 	{{- " › " -}}
 	{{- color "search-filename"}}{{.Path}}{{color "nc" -}}
-	{{- color "success"}}{{matchOrMatches (len .LineMatches)}}{{color "nc" -}}
+	{{- color "success"}}{{matchOrMatches (countMatches .LineMatches)}}{{color "nc" -}}
 	{{- "\n" -}}
 	{{- color "search-border"}}{{"--------------------------------------------------------------------------------\n"}}{{color "nc"}}
 	
@@ -375,6 +371,14 @@ var streamSearchTemplateFuncs = map[string]interface{}{
 		}
 		return fmt.Sprintf(" (%d matches)", i)
 	},
+
+	"countMatches": func(lineMatches []streaming.EventLineMatch) int {
+		count := 0
+		for _, l := range lineMatches {
+			count += len(l.OffsetAndLengths)
+		}
+		return count
+	},
 }
 
 func streamSearchHighlightDiffPreview(diffPreview string, highlights []highlight) string {
@@ -426,11 +430,11 @@ func streamSearchHighlightDiffPreview(diffPreview string, highlights []highlight
 		}
 
 		// Replace our start-of-match token with the color we wish.
-		line = strings.Replace(line, uniqueStartOfMatchToken, ansiColors["search-match"], -1)
+		line = strings.ReplaceAll(line, uniqueStartOfMatchToken, ansiColors["search-match"])
 
 		// Replace our end-of-match token with the color terminator,
 		// and start all colors that were previously started to the left.
-		line = strings.Replace(line, uniqueEndOfMatchToken, ansiColors["nc"]+strings.Join(left, ""), -1)
+		line = strings.ReplaceAll(line, uniqueEndOfMatchToken, ansiColors["nc"]+strings.Join(left, ""))
 
 		final = append(final, line)
 	}
@@ -438,9 +442,9 @@ func streamSearchHighlightDiffPreview(diffPreview string, highlights []highlight
 }
 
 func stripMarkdownMarkers(content string) string {
-	content = strings.TrimLeft(content, "```COMMIT_EDITMSG\n")
-	content = strings.TrimLeft(content, "```diff\n")
-	return strings.TrimRight(content, "\n```")
+	content = strings.TrimPrefix(content, "```COMMIT_EDITMSG\n")
+	content = strings.TrimPrefix(content, "```diff\n")
+	return strings.TrimSuffix(content, "\n```")
 }
 
 // convertMatchToHighlights converts a FileMatch m to a highlight data type.
@@ -465,5 +469,5 @@ func streamConvertMatchToHighlights(m streaming.EventLineMatch, isPreview bool) 
 }
 
 func logError(msg string) {
-	_, _ = fmt.Fprintf(os.Stderr, msg)
+	_, _ = fmt.Fprint(os.Stderr, msg)
 }

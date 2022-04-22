@@ -3,15 +3,15 @@ package workspace
 import (
 	"archive/zip"
 	"context"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/sourcegraph/src-cli/internal/batches"
+
 	"github.com/sourcegraph/src-cli/internal/batches/graphql"
+	"github.com/sourcegraph/src-cli/internal/batches/repozip"
 )
 
 var repo = &graphql.Repository{
@@ -21,7 +21,7 @@ var repo = &graphql.Repository{
 }
 
 func zipUpFiles(t *testing.T, dir string, files map[string]string) string {
-	f, err := ioutil.TempFile(dir, "repo-zip-*")
+	f, err := os.CreateTemp(dir, "repo-zip-*")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -44,19 +44,9 @@ func zipUpFiles(t *testing.T, dir string, files map[string]string) string {
 	return archivePath
 }
 
-func workspaceTmpDir(t *testing.T) string {
-	testTempDir, err := ioutil.TempDir("", "bind-workspace-test-*")
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { os.Remove(testTempDir) })
-
-	return testTempDir
-}
-
 func TestDockerBindWorkspaceCreator_Create(t *testing.T) {
 	// Create a zip file for all the other tests to use.
-	fakeFilesTmpDir := workspaceTmpDir(t)
+	fakeFilesTmpDir := t.TempDir()
 	filesInZip := map[string]string{
 		"README.md": "# Welcome to the README\n",
 	}
@@ -69,7 +59,7 @@ func TestDockerBindWorkspaceCreator_Create(t *testing.T) {
 	}
 	additionalFilePaths := map[string]string{}
 	for name, content := range additionalFiles {
-		f, err := ioutil.TempFile(fakeFilesTmpDir, name+"-*")
+		f, err := os.CreateTemp(fakeFilesTmpDir, name+"-*")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -85,7 +75,7 @@ func TestDockerBindWorkspaceCreator_Create(t *testing.T) {
 	}
 
 	t.Run("success", func(t *testing.T) {
-		testTempDir := workspaceTmpDir(t)
+		testTempDir := t.TempDir()
 
 		archive := &fakeRepoArchive{mockPath: archivePath}
 		creator := &dockerBindWorkspaceCreator{Dir: testTempDir}
@@ -105,10 +95,10 @@ func TestDockerBindWorkspaceCreator_Create(t *testing.T) {
 	})
 
 	t.Run("failure", func(t *testing.T) {
-		testTempDir := workspaceTmpDir(t)
+		testTempDir := t.TempDir()
 
 		// Create an empty file (which is therefore a bad zip file).
-		badZip, err := ioutil.TempFile(testTempDir, "bad-zip-*")
+		badZip, err := os.CreateTemp(testTempDir, "bad-zip-*")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -125,7 +115,7 @@ func TestDockerBindWorkspaceCreator_Create(t *testing.T) {
 	})
 
 	t.Run("additional files", func(t *testing.T) {
-		testTempDir := workspaceTmpDir(t)
+		testTempDir := t.TempDir()
 
 		archive := &fakeRepoArchive{
 			mockPath:                archivePath,
@@ -158,7 +148,7 @@ func TestDockerBindWorkspaceCreator_Create(t *testing.T) {
 
 func TestDockerBindWorkspace_ApplyDiff(t *testing.T) {
 	// Create a zip file for all the other tests to use.
-	fakeFilesTmpDir := workspaceTmpDir(t)
+	fakeFilesTmpDir := t.TempDir()
 	filesInZip := map[string]string{
 		"README.md": "# Welcome to the README\n",
 	}
@@ -187,7 +177,7 @@ index 0000000..7bb2542
 			"README.md":    "# Welcome to the README\n\nThis is a new line\n",
 			"new-file.txt": "check this out. this is a new file.\nwritten on a computer. what a blast.\n",
 		}
-		testTempDir := workspaceTmpDir(t)
+		testTempDir := t.TempDir()
 
 		archive := &fakeRepoArchive{mockPath: archivePath}
 		creator := &dockerBindWorkspaceCreator{Dir: testTempDir}
@@ -214,7 +204,7 @@ index 0000000..7bb2542
 	t.Run("failure", func(t *testing.T) {
 		diff := `lol this is not a diff but the computer doesn't know it yet, watch`
 
-		testTempDir := workspaceTmpDir(t)
+		testTempDir := t.TempDir()
 
 		archive := &fakeRepoArchive{mockPath: archivePath}
 		creator := &dockerBindWorkspaceCreator{Dir: testTempDir}
@@ -236,7 +226,6 @@ func TestMkdirAll(t *testing.T) {
 
 	// Create a shared workspace.
 	base := mustCreateWorkspace(t)
-	defer os.RemoveAll(base)
 
 	t.Run("directory exists", func(t *testing.T) {
 		if err := os.MkdirAll(filepath.Join(base, "exist"), 0755); err != nil {
@@ -287,7 +276,6 @@ func TestMkdirAll(t *testing.T) {
 func TestEnsureAll(t *testing.T) {
 	// Create a workspace.
 	base := mustCreateWorkspace(t)
-	defer os.RemoveAll(base)
 
 	// Create three nested directories with 0700 permissions. We'll use Chmod
 	// explicitly to avoid any umask issues.
@@ -326,10 +314,7 @@ func TestEnsureAll(t *testing.T) {
 }
 
 func mustCreateWorkspace(t *testing.T) string {
-	base, err := ioutil.TempDir("", "")
-	if err != nil {
-		t.Fatal(err)
-	}
+	base := t.TempDir()
 
 	// We'll explicitly set the base workspace to 0700 so we have a known
 	// environment for testing.
@@ -374,7 +359,7 @@ func readWorkspaceFiles(workspace Workspace) (map[string]string, error) {
 			return nil
 		}
 
-		content, err := ioutil.ReadFile(path)
+		content, err := os.ReadFile(path)
 		if err != nil {
 			return err
 		}
@@ -395,16 +380,16 @@ func readWorkspaceFiles(workspace Workspace) (map[string]string, error) {
 	return files, err
 }
 
-var _ batches.RepoZip = &fakeRepoArchive{}
+var _ repozip.Archive = &fakeRepoArchive{}
 
 type fakeRepoArchive struct {
 	mockPath                string
 	mockAdditionalFilePaths map[string]string
 }
 
-func (f *fakeRepoArchive) Fetch(context.Context) error { return nil }
-func (f *fakeRepoArchive) Close() error                { return nil }
-func (f *fakeRepoArchive) Path() string                { return f.mockPath }
+func (f *fakeRepoArchive) Ensure(context.Context) error { return nil }
+func (f *fakeRepoArchive) Close() error                 { return nil }
+func (f *fakeRepoArchive) Path() string                 { return f.mockPath }
 func (f *fakeRepoArchive) AdditionalFilePaths() map[string]string {
 	if f.mockAdditionalFilePaths != nil {
 		return f.mockAdditionalFilePaths

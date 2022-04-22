@@ -1,10 +1,13 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 
 	"github.com/sourcegraph/sourcegraph/lib/output"
+
+	"github.com/sourcegraph/src-cli/internal/api"
 	"github.com/sourcegraph/src-cli/internal/batches/service"
 	"github.com/sourcegraph/src-cli/internal/batches/ui"
 	"github.com/sourcegraph/src-cli/internal/cmderrors"
@@ -16,18 +19,36 @@ func init() {
 
 Usage:
 
-    src batch validate -f FILE
+    src batch validate [-f] FILE
 
 Examples:
+
+    $ src batch validate batch.spec.yaml
 
     $ src batch validate -f batch.spec.yaml
 
 `
 
 	flagSet := flag.NewFlagSet("validate", flag.ExitOnError)
-	fileFlag := flagSet.String("f", "", "The batch spec file to read.")
+	apiFlags := api.NewFlags(flagSet)
+	fileFlag := flagSet.String("f", "", "The batch spec file to read, or - to read from standard input.")
+
+	var (
+		allowUnsupported bool
+		allowIgnored     bool
+	)
+	flagSet.BoolVar(
+		&allowUnsupported, "allow-unsupported", false,
+		"Allow unsupported code hosts.",
+	)
+	flagSet.BoolVar(
+		&allowIgnored, "force-override-ignore", false,
+		"Do not ignore repositories that have a .batchignore file.",
+	)
 
 	handler := func(args []string) error {
+		ctx := context.Background()
+
 		if err := flagSet.Parse(args); err != nil {
 			return err
 		}
@@ -36,11 +57,26 @@ Examples:
 			return cmderrors.Usage("additional arguments not allowed")
 		}
 
-		svc := service.New(&service.Opts{})
-
 		out := output.NewOutput(flagSet.Output(), output.OutputOpts{Verbose: *verbose})
-		if _, _, err := batchParseSpec(fileFlag, svc); err != nil {
-			(&ui.TUI{Out: out}).ParsingBatchSpecFailure(err)
+		ui := &ui.TUI{Out: out}
+		svc := service.New(&service.Opts{
+			Client:           cfg.apiClient(apiFlags, flagSet.Output()),
+			AllowUnsupported: allowUnsupported,
+			AllowIgnored:     allowIgnored,
+		})
+
+		if err := svc.DetermineFeatureFlags(ctx); err != nil {
+			ui.ExecutionError(err)
+			return err
+		}
+
+		file, err := getBatchSpecFile(flagSet, fileFlag)
+		if err != nil {
+			return err
+		}
+
+		if _, _, err := parseBatchSpec(file, svc); err != nil {
+			ui.ParsingBatchSpecFailure(err)
 			return err
 		}
 

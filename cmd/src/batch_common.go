@@ -13,8 +13,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hashicorp/go-multierror"
-	"github.com/pkg/errors"
+	"github.com/mattn/go-isatty"
+	"github.com/sourcegraph/sourcegraph/lib/errors"
+
+	batcheslib "github.com/sourcegraph/sourcegraph/lib/batches"
+	"github.com/sourcegraph/sourcegraph/lib/batches/template"
+
 	"github.com/sourcegraph/src-cli/internal/api"
 	"github.com/sourcegraph/src-cli/internal/batches"
 	"github.com/sourcegraph/src-cli/internal/batches/executor"
@@ -25,73 +29,94 @@ import (
 	"github.com/sourcegraph/src-cli/internal/cmderrors"
 )
 
-type batchExecuteFlags struct {
+// batchExecutionFlags are common to batch changes that are executed both
+// locally and remotely.
+type batchExecutionFlags struct {
 	allowUnsupported bool
 	allowIgnored     bool
 	api              *api.Flags
-	apply            bool
-	cacheDir         string
-	tempDir          string
 	clearCache       bool
-	file             string
-	keepLogs         bool
 	namespace        string
-	parallelism      int
-	timeout          time.Duration
-	workspace        string
-	cleanArchives    bool
-	skipErrors       bool
+}
+
+func newBatchExecutionFlags(flagSet *flag.FlagSet) *batchExecutionFlags {
+	bef := &batchExecutionFlags{
+		api: api.NewFlags(flagSet),
+	}
+
+	flagSet.BoolVar(
+		&bef.allowUnsupported, "allow-unsupported", false,
+		"Allow unsupported code hosts.",
+	)
+	flagSet.BoolVar(
+		&bef.clearCache, "clear-cache", false,
+		"If true, clears the execution cache and executes all steps anew.",
+	)
+	flagSet.BoolVar(
+		&bef.allowIgnored, "force-override-ignore", false,
+		"Do not ignore repositories that have a .batchignore file.",
+	)
+	flagSet.StringVar(
+		&bef.namespace, "namespace", "",
+		"The user or organization namespace to place the batch change within. Default is the currently authenticated user.",
+	)
+	flagSet.StringVar(&bef.namespace, "n", "", "Alias for -namespace.")
+
+	return bef
+}
+
+// batchExecuteFlags are used when executing batch changes locally.
+type batchExecuteFlags struct {
+	*batchExecutionFlags
+
+	apply         bool
+	cacheDir      string
+	tempDir       string
+	file          string
+	keepLogs      bool
+	parallelism   int
+	timeout       time.Duration
+	workspace     string
+	cleanArchives bool
+	skipErrors    bool
 
 	// EXPERIMENTAL
 	textOnly bool
 }
 
-func newBatchExecuteFlags(flagSet *flag.FlagSet, cacheDir, tempDir string) *batchExecuteFlags {
+func newBatchExecuteFlags(flagSet *flag.FlagSet, workspaceExecution bool, cacheDir, tempDir string) *batchExecuteFlags {
 	caf := &batchExecuteFlags{
-		api: api.NewFlags(flagSet),
+		batchExecutionFlags: newBatchExecutionFlags(flagSet),
 	}
 
-	flagSet.BoolVar(
-		&caf.textOnly, "text-only", false,
-		"INTERNAL USE ONLY. EXPERIMENTAL. Switches off the TUI to only print JSON lines.",
-	)
-	flagSet.BoolVar(
-		&caf.allowUnsupported, "allow-unsupported", false,
-		"Allow unsupported code hosts.",
-	)
-	flagSet.BoolVar(
-		&caf.allowIgnored, "force-override-ignore", false,
-		"Do not ignore repositories that have a .batchignore file.",
-	)
-	flagSet.BoolVar(
-		&caf.apply, "apply", false,
-		"Ignored.",
-	)
+	if !workspaceExecution {
+		flagSet.BoolVar(
+			&caf.textOnly, "text-only", false,
+			"INTERNAL USE ONLY. EXPERIMENTAL. Switches off the TUI to only print JSON lines.",
+		)
+		flagSet.BoolVar(
+			&caf.apply, "apply", false,
+			"Ignored.",
+		)
+		flagSet.BoolVar(
+			&caf.keepLogs, "keep-logs", false,
+			"Retain logs after executing steps.",
+		)
+	}
+
 	flagSet.StringVar(
 		&caf.cacheDir, "cache", cacheDir,
 		"Directory for caching results and repository archives.",
-	)
-	flagSet.BoolVar(
-		&caf.clearCache, "clear-cache", false,
-		"If true, clears the execution cache and executes all steps anew.",
 	)
 	flagSet.StringVar(
 		&caf.tempDir, "tmp", tempDir,
 		"Directory for storing temporary data, such as log files. Default is /tmp. Can also be set with environment variable SRC_BATCH_TMP_DIR; if both are set, this flag will be used and not the environment variable.",
 	)
+
 	flagSet.StringVar(
 		&caf.file, "f", "",
-		"The batch spec file to read.",
+		"The batch spec file to read, or - to read from standard input.",
 	)
-	flagSet.BoolVar(
-		&caf.keepLogs, "keep-logs", false,
-		"Retain logs after executing steps.",
-	)
-	flagSet.StringVar(
-		&caf.namespace, "namespace", "",
-		"The user or organization namespace to place the batch change within. Default is the currently authenticated user.",
-	)
-	flagSet.StringVar(&caf.namespace, "n", "", "Alias for -namespace.")
 
 	flagSet.IntVar(
 		&caf.parallelism, "j", runtime.GOMAXPROCS(0),
@@ -118,6 +143,23 @@ func newBatchExecuteFlags(flagSet *flag.FlagSet, cacheDir, tempDir string) *batc
 	flagSet.BoolVar(verbose, "v", false, "print verbose output")
 
 	return caf
+}
+
+var errAdditionalArguments = cmderrors.Usage("additional arguments not allowed")
+
+func getBatchSpecFile(flagSet *flag.FlagSet, fileFlag *string) (string, error) {
+	if fileFlag == nil || *fileFlag != "" {
+		if flagSet.NArg() != 0 {
+			return "", errAdditionalArguments
+		}
+		if fileFlag == nil {
+			return "", nil
+		}
+		return *fileFlag, nil
+	} else if flagSet.NArg() > 1 {
+		return "", errAdditionalArguments
+	}
+	return flagSet.Arg(0), nil
 }
 
 func batchDefaultCacheDir() string {
@@ -169,14 +211,31 @@ func batchDefaultTempDirPrefix() string {
 	return os.TempDir()
 }
 
-func batchOpenFileFlag(flag *string) (io.ReadCloser, error) {
-	if flag == nil || *flag == "" || *flag == "-" {
+func batchOpenFileFlag(flag string) (io.ReadCloser, error) {
+	if flag == "" || flag == "-" {
+		if flag != "-" {
+			// If the flag wasn't set, we want to check stdin. If it's not a TTY,
+			// then we'll assume that we always want to read from it. If it is a TTY,
+			// then we'll briefly pause to see if data is getting piped in, otherwise
+			// we'll error out, because it's likely that the user forgot the `-f` on
+			// the command line.
+			fd := os.Stdin.Fd()
+			if isatty.IsTerminal(fd) {
+				has, err := ui.HasInput(os.Stdin.Fd(), 250*time.Millisecond)
+				if err != nil {
+					return nil, errors.Wrap(err, "checking for input on stdin")
+				} else if !has {
+					return nil, errors.New("-f specified, but no input was detected on stdin; did you forget to pipe a batch spec in?")
+				}
+			}
+		}
+
 		return os.Stdin, nil
 	}
 
-	file, err := os.Open(*flag)
+	file, err := os.Open(flag)
 	if err != nil {
-		return nil, errors.Wrapf(err, "cannot open file %q", *flag)
+		return nil, errors.Wrapf(err, "cannot open file %s", flag)
 	}
 	return file, nil
 }
@@ -185,8 +244,7 @@ type executeBatchSpecOpts struct {
 	flags *batchExecuteFlags
 
 	applyBatchSpec bool
-
-	ui ui.ExecUI
+	file           string
 
 	client api.Client
 }
@@ -194,10 +252,10 @@ type executeBatchSpecOpts struct {
 // executeBatchSpec performs all the steps required to upload the batch spec to
 // Sourcegraph, including execution as needed and applying the resulting batch
 // spec if specified.
-func executeBatchSpec(ctx context.Context, opts executeBatchSpecOpts) (err error) {
+func executeBatchSpec(ctx context.Context, ui ui.ExecUI, opts executeBatchSpecOpts) (err error) {
 	defer func() {
 		if err != nil {
-			opts.ui.ExecutionError(err)
+			ui.ExecutionError(err)
 		}
 	}()
 
@@ -220,11 +278,12 @@ func executeBatchSpec(ctx context.Context, opts executeBatchSpecOpts) (err error
 	}
 
 	// Parse flags and build up our service and executor options.
-	opts.ui.ParsingBatchSpec()
-	batchSpec, rawSpec, err := batchParseSpec(&opts.flags.file, svc)
+	ui.ParsingBatchSpec()
+	batchSpec, rawSpec, err := parseBatchSpec(opts.file, svc)
 	if err != nil {
-		if merr, ok := err.(*multierror.Error); ok {
-			opts.ui.ParsingBatchSpecFailure(merr)
+		var multiErr errors.MultiError
+		if errors.As(err, &multiErr) {
+			ui.ParsingBatchSpecFailure(multiErr)
 			return cmderrors.ExitCode(2, nil)
 		} else {
 			// This shouldn't happen; let's just punt and let the normal
@@ -232,58 +291,65 @@ func executeBatchSpec(ctx context.Context, opts executeBatchSpecOpts) (err error
 			return err
 		}
 	}
-	opts.ui.ParsingBatchSpecSuccess()
+	ui.ParsingBatchSpecSuccess()
 
-	opts.ui.ResolvingNamespace()
+	ui.ResolvingNamespace()
 	namespace, err := svc.ResolveNamespace(ctx, opts.flags.namespace)
 	if err != nil {
 		return err
 	}
-	opts.ui.ResolvingNamespaceSuccess(namespace)
+	ui.ResolvingNamespaceSuccess(namespace.ID)
 
-	opts.ui.PreparingContainerImages()
-	err = svc.SetDockerImages(ctx, batchSpec, opts.ui.PreparingContainerImagesProgress)
-	if err != nil {
-		return err
-	}
-	opts.ui.PreparingContainerImagesSuccess()
+	var workspaceCreator workspace.Creator
 
-	opts.ui.DeterminingWorkspaceCreatorType()
-	workspaceCreator := workspace.NewCreator(ctx, opts.flags.workspace, opts.flags.cacheDir, opts.flags.tempDir, batchSpec.Steps)
-	if workspaceCreator.Type() == workspace.CreatorTypeVolume {
-		_, err = svc.EnsureImage(ctx, workspace.DockerVolumeWorkspaceImage)
+	if len(batchSpec.Steps) > 0 {
+		ui.PreparingContainerImages()
+		images, err := svc.EnsureDockerImages(
+			ctx, batchSpec.Steps, opts.flags.parallelism,
+			ui.PreparingContainerImagesProgress,
+		)
 		if err != nil {
 			return err
 		}
-	}
-	opts.ui.DeterminingWorkspaceCreatorTypeSuccess(workspaceCreator.Type())
+		ui.PreparingContainerImagesSuccess()
 
-	opts.ui.ResolvingRepositories()
+		ui.DeterminingWorkspaceCreatorType()
+		workspaceCreator = workspace.NewCreator(ctx, opts.flags.workspace, opts.flags.cacheDir, opts.flags.tempDir, images)
+		if workspaceCreator.Type() == workspace.CreatorTypeVolume {
+			_, err = svc.EnsureImage(ctx, workspace.DockerVolumeWorkspaceImage)
+			if err != nil {
+				return err
+			}
+		}
+		ui.DeterminingWorkspaceCreatorTypeSuccess(workspaceCreator.Type())
+	}
+
+	ui.ResolvingRepositories()
 	repos, err := svc.ResolveRepositories(ctx, batchSpec)
 	if err != nil {
 		if repoSet, ok := err.(batches.UnsupportedRepoSet); ok {
-			opts.ui.ResolvingRepositoriesDone(repos, repoSet, nil)
+			ui.ResolvingRepositoriesDone(repos, repoSet, nil)
 		} else if repoSet, ok := err.(batches.IgnoredRepoSet); ok {
-			opts.ui.ResolvingRepositoriesDone(repos, nil, repoSet)
+			ui.ResolvingRepositoriesDone(repos, nil, repoSet)
 		} else {
 			return errors.Wrap(err, "resolving repositories")
 		}
 	} else {
-		opts.ui.ResolvingRepositoriesDone(repos, nil, nil)
+		ui.ResolvingRepositoriesDone(repos, nil, nil)
 	}
 
-	opts.ui.DeterminingWorkspaces()
-	tasks, err := svc.BuildTasks(ctx, repos, batchSpec)
+	ui.DeterminingWorkspaces()
+	workspaces, err := svc.DetermineWorkspaces(ctx, repos, batchSpec)
 	if err != nil {
 		return err
 	}
-	opts.ui.DeterminingWorkspacesSuccess(len(tasks))
+	ui.DeterminingWorkspacesSuccess(len(workspaces))
 
 	// EXECUTION OF TASKS
 	coord := svc.NewCoordinator(executor.NewCoordinatorOpts{
 		Creator:       workspaceCreator,
 		CacheDir:      opts.flags.cacheDir,
-		ClearCache:    opts.flags.clearCache,
+		Cache:         executor.NewDiskCache(opts.flags.cacheDir),
 		SkipErrors:    opts.flags.skipErrors,
 		CleanArchives: opts.flags.cleanArchives,
 		Parallelism:   opts.flags.parallelism,
@@ -292,28 +358,63 @@ func executeBatchSpec(ctx context.Context, opts executeBatchSpecOpts) (err error
 		TempDir:       opts.flags.tempDir,
 	})
 
-	opts.ui.CheckingCache()
-	uncachedTasks, cachedSpecs, err := coord.CheckCache(ctx, tasks)
-	if err != nil {
-		return err
+	ui.CheckingCache()
+	tasks := svc.BuildTasks(
+		ctx,
+		&template.BatchChangeAttributes{
+			Name:        batchSpec.Name,
+			Description: batchSpec.Description,
+		},
+		workspaces,
+	)
+	var (
+		specs         []*batcheslib.ChangesetSpec
+		uncachedTasks []*executor.Task
+	)
+	if opts.flags.clearCache {
+		coord.ClearCache(ctx, tasks)
+		uncachedTasks = tasks
+	} else {
+		// Check the cache for completely cached executions.
+		uncachedTasks, specs, err = coord.CheckCache(ctx, batchSpec, tasks)
+		if err != nil {
+			return err
+		}
 	}
-	opts.ui.CheckingCacheSuccess(len(cachedSpecs), len(uncachedTasks))
+	ui.CheckingCacheSuccess(len(specs), len(uncachedTasks))
 
-	taskExecUI := opts.ui.ExecutingTasks(*verbose, opts.flags.parallelism)
-	freshSpecs, logFiles, err := coord.Execute(ctx, uncachedTasks, batchSpec, taskExecUI)
+	taskExecUI := ui.ExecutingTasks(*verbose, opts.flags.parallelism)
+	freshSpecs, logFiles, execErr := coord.ExecuteAndBuildSpecs(ctx, batchSpec, uncachedTasks, taskExecUI)
+	// Add external changeset specs.
+	importedSpecs, importErr := svc.CreateImportChangesetSpecs(ctx, batchSpec)
+	if execErr != nil {
+		err = errors.Append(err, execErr)
+	}
+	if importErr != nil {
+		err = errors.Append(err, importErr)
+	}
 	if err != nil && !opts.flags.skipErrors {
 		return err
 	}
-	taskExecUI.Success()
-	if err != nil && opts.flags.skipErrors {
-		opts.ui.ExecutingTasksSkippingErrors(err)
+	if err == nil || opts.flags.skipErrors {
+		if err == nil {
+			taskExecUI.Success()
+		} else {
+			ui.ExecutingTasksSkippingErrors(err)
+		}
+	} else {
+		if err != nil {
+			taskExecUI.Failed(err)
+			return err
+		}
 	}
 
 	if len(logFiles) > 0 && opts.flags.keepLogs {
-		opts.ui.LogFilesKept(logFiles)
+		ui.LogFilesKept(logFiles)
 	}
 
-	specs := append(cachedSpecs, freshSpecs...)
+	specs = append(specs, freshSpecs...)
+	specs = append(specs, importedSpecs...)
 
 	err = svc.ValidateChangesetSpecs(repos, specs)
 	if err != nil {
@@ -323,7 +424,7 @@ func executeBatchSpec(ctx context.Context, opts executeBatchSpecOpts) (err error
 	ids := make([]graphql.ChangesetSpecID, len(specs))
 
 	if len(specs) > 0 {
-		opts.ui.UploadingChangesetSpecs(len(specs))
+		ui.UploadingChangesetSpecs(len(specs))
 
 		for i, spec := range specs {
 			id, err := svc.CreateChangesetSpec(ctx, spec)
@@ -331,48 +432,53 @@ func executeBatchSpec(ctx context.Context, opts executeBatchSpecOpts) (err error
 				return err
 			}
 			ids[i] = id
-			opts.ui.UploadingChangesetSpecsProgress(i+1, len(specs))
+			ui.UploadingChangesetSpecsProgress(i+1, len(specs))
 		}
 
-		opts.ui.UploadingChangesetSpecsSuccess()
-	} else {
-		if len(repos) == 0 {
-			opts.ui.NoChangesetSpecs()
-		}
+		ui.UploadingChangesetSpecsSuccess(ids)
+	} else if len(repos) == 0 {
+		ui.NoChangesetSpecs()
 	}
 
-	opts.ui.CreatingBatchSpec()
-	id, url, err := svc.CreateBatchSpec(ctx, namespace, rawSpec, ids)
-	opts.ui.CreatingBatchSpecSuccess()
+	ui.CreatingBatchSpec()
+	id, url, err := svc.CreateBatchSpec(ctx, namespace.ID, rawSpec, ids)
 	if err != nil {
-		return opts.ui.CreatingBatchSpecError(err)
+		return ui.CreatingBatchSpecError(err)
+	}
+	previewURL := cfg.Endpoint + url
+	ui.CreatingBatchSpecSuccess(previewURL)
+
+	if !opts.applyBatchSpec {
+		ui.PreviewBatchSpec(previewURL)
+		return
 	}
 
-	if opts.applyBatchSpec {
-		opts.ui.ApplyingBatchSpec()
-		batch, err := svc.ApplyBatchChange(ctx, id)
-		if err != nil {
-			return err
-		}
-		opts.ui.ApplyingBatchSpecSuccess(cfg.Endpoint + batch.URL)
-
-	} else {
-		opts.ui.PreviewBatchSpec(cfg.Endpoint + url)
+	ui.ApplyingBatchSpec()
+	batch, err := svc.ApplyBatchChange(ctx, id)
+	if err != nil {
+		return err
 	}
+	ui.ApplyingBatchSpecSuccess(cfg.Endpoint + batch.URL)
 
 	return nil
 }
 
-// batchParseSpec parses and validates the given batch spec. If the spec has
+// parseBatchSpec parses and validates the given batch spec. If the spec has
 // validation errors, they are returned.
-func batchParseSpec(file *string, svc *service.Service) (*batches.BatchSpec, string, error) {
+func parseBatchSpec(file string, svc *service.Service) (*batcheslib.BatchSpec, string, error) {
 	f, err := batchOpenFileFlag(file)
 	if err != nil {
 		return nil, "", err
 	}
 	defer f.Close()
 
-	return svc.ParseBatchSpec(f)
+	data, err := io.ReadAll(f)
+	if err != nil {
+		return nil, "", errors.Wrap(err, "reading batch spec")
+	}
+
+	spec, err := svc.ParseBatchSpec(data)
+	return spec, string(data), err
 }
 
 func checkExecutable(cmd string, args ...string) error {

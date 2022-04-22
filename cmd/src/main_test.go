@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -154,12 +153,8 @@ func TestReadConfig(t *testing.T) {
 			setEnv("SRC_ACCESS_TOKEN", test.envToken)
 			setEnv("SRC_ENDPOINT", test.envEndpoint)
 
-			tmpDir, err := ioutil.TempDir("", "")
-			if err != nil {
-				t.Fatal(err)
-			}
+			tmpDir := t.TempDir()
 			testHomeDir = tmpDir
-			t.Cleanup(func() { os.RemoveAll(tmpDir) })
 
 			if test.flagEndpoint != "" {
 				val := test.flagEndpoint
@@ -176,7 +171,7 @@ func TestReadConfig(t *testing.T) {
 					t.Fatal(err)
 				}
 				filePath := filepath.Join(tmpDir, "config.json")
-				err = ioutil.WriteFile(filePath, data, 0600)
+				err = os.WriteFile(filePath, data, 0600)
 				if err != nil {
 					t.Fatal(err)
 				}

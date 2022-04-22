@@ -5,7 +5,7 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/pkg/errors"
+	"github.com/sourcegraph/sourcegraph/lib/errors"
 )
 
 func runGitCmd(ctx context.Context, dir string, args ...string) ([]byte, error) {

@@ -3,18 +3,18 @@ package workspace
 import (
 	"bytes"
 	"context"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/pkg/errors"
+	"github.com/sourcegraph/sourcegraph/lib/errors"
 
-	"github.com/sourcegraph/src-cli/internal/batches"
+	batcheslib "github.com/sourcegraph/sourcegraph/lib/batches"
+	"github.com/sourcegraph/sourcegraph/lib/batches/git"
+
 	"github.com/sourcegraph/src-cli/internal/batches/docker"
-	"github.com/sourcegraph/src-cli/internal/batches/git"
 	"github.com/sourcegraph/src-cli/internal/batches/graphql"
 	"github.com/sourcegraph/src-cli/internal/batches/mock"
 	"github.com/sourcegraph/src-cli/internal/exec/expect"
@@ -28,7 +28,7 @@ func TestVolumeWorkspaceCreator(t *testing.T) {
 
 	// Create an empty file. It doesn't matter that it's an invalid zip, since
 	// we're mocking the unzip command anyway.
-	f, err := ioutil.TempFile(os.TempDir(), "volume-workspace-*")
+	f, err := os.CreateTemp(os.TempDir(), "volume-workspace-*")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -58,16 +58,11 @@ func TestVolumeWorkspaceCreator(t *testing.T) {
 		DefaultBranch: &graphql.Branch{Name: "main"},
 	}
 
-	stepWithImage := func(image docker.Image) batches.Step {
-		s := batches.Step{}
-		s.SetImage(image)
-		return s
-	}
-
 	for name, tc := range map[string]struct {
 		archive      *fakeRepoArchive
 		expectations []*expect.Expectation
-		steps        []batches.Step
+		steps        []batcheslib.Step
+		imageEnsurer imageEnsurer
 		wantErr      bool
 	}{
 		"no steps": {
@@ -104,7 +99,8 @@ func TestVolumeWorkspaceCreator(t *testing.T) {
 					"sh", "/run.sh",
 				),
 			},
-			steps: []batches.Step{},
+			steps:        []batcheslib.Step{},
+			imageEnsurer: func(_ context.Context, _ string) (docker.Image, error) { return nil, nil },
 		},
 		"one root:root step": {
 			expectations: []*expect.Expectation{
@@ -140,8 +136,11 @@ func TestVolumeWorkspaceCreator(t *testing.T) {
 					"sh", "/run.sh",
 				),
 			},
-			steps: []batches.Step{
-				stepWithImage(&mock.Image{UidGid: docker.Root}),
+			steps: []batcheslib.Step{
+				{},
+			},
+			imageEnsurer: func(_ context.Context, _ string) (docker.Image, error) {
+				return &mock.Image{UidGid: docker.Root}, nil
 			},
 		},
 		"one user:user step": {
@@ -178,8 +177,11 @@ func TestVolumeWorkspaceCreator(t *testing.T) {
 					"sh", "/run.sh",
 				),
 			},
-			steps: []batches.Step{
-				stepWithImage(&mock.Image{UidGid: docker.UIDGID{UID: 1, GID: 2}}),
+			steps: []batcheslib.Step{
+				{},
+			},
+			imageEnsurer: func(_ context.Context, _ string) (docker.Image, error) {
+				return &mock.Image{UidGid: docker.UIDGID{UID: 1, GID: 2}}, nil
 			},
 		},
 		"docker volume create failure": {
@@ -189,8 +191,11 @@ func TestVolumeWorkspaceCreator(t *testing.T) {
 					"docker", "volume", "create",
 				),
 			},
-			steps: []batches.Step{
-				stepWithImage(&mock.Image{UidGid: docker.Root}),
+			steps: []batcheslib.Step{
+				{},
+			},
+			imageEnsurer: func(_ context.Context, _ string) (docker.Image, error) {
+				return &mock.Image{UidGid: docker.Root}, nil
 			},
 			wantErr: true,
 		},
@@ -209,8 +214,11 @@ func TestVolumeWorkspaceCreator(t *testing.T) {
 					"sh", "-c", "touch /work/*; chown -R 0:0 /work",
 				),
 			},
-			steps: []batches.Step{
-				stepWithImage(&mock.Image{UidGid: docker.Root}),
+			steps: []batcheslib.Step{
+				{},
+			},
+			imageEnsurer: func(_ context.Context, _ string) (docker.Image, error) {
+				return &mock.Image{UidGid: docker.Root}, nil
 			},
 			wantErr: true,
 		},
@@ -248,8 +256,11 @@ func TestVolumeWorkspaceCreator(t *testing.T) {
 					"sh", "/run.sh",
 				),
 			},
-			steps: []batches.Step{
-				stepWithImage(&mock.Image{UidGid: docker.Root}),
+			steps: []batcheslib.Step{
+				{},
+			},
+			imageEnsurer: func(_ context.Context, _ string) (docker.Image, error) {
+				return &mock.Image{UidGid: docker.Root}, nil
 			},
 			wantErr: true,
 		},
@@ -278,8 +289,11 @@ func TestVolumeWorkspaceCreator(t *testing.T) {
 					"sh", "-c", "unzip /tmp/zip; rm /work/*",
 				),
 			},
-			steps: []batches.Step{
-				stepWithImage(&mock.Image{UidGid: docker.Root}),
+			steps: []batcheslib.Step{
+				{},
+			},
+			imageEnsurer: func(_ context.Context, _ string) (docker.Image, error) {
+				return &mock.Image{UidGid: docker.Root}, nil
 			},
 			wantErr: true,
 		},
@@ -329,8 +343,11 @@ func TestVolumeWorkspaceCreator(t *testing.T) {
 					"sh", "/run.sh",
 				),
 			},
-			steps: []batches.Step{
-				stepWithImage(&mock.Image{UidGid: docker.Root}),
+			steps: []batcheslib.Step{
+				{},
+			},
+			imageEnsurer: func(_ context.Context, _ string) (docker.Image, error) {
+				return &mock.Image{UidGid: docker.Root}, nil
 			},
 		},
 	} {
@@ -341,6 +358,7 @@ func TestVolumeWorkspaceCreator(t *testing.T) {
 				a = tc.archive
 			}
 
+			wc.EnsureImage = tc.imageEnsurer
 			w, err := wc.Create(ctx, repo, tc.steps, a)
 			if tc.wantErr {
 				if err == nil {
@@ -625,7 +643,7 @@ func TestVolumeWorkspace_runScript(t *testing.T) {
 				// mount options. Let's go get it!
 				values := strings.Split(arg[6], ",")
 				source := strings.SplitN(values[1], "=", 2)
-				have, err := ioutil.ReadFile(source[1])
+				have, err := os.ReadFile(source[1])
 				if err != nil {
 					return errors.Errorf("error reading temporary file %q: %v", source[1], err)
 				}

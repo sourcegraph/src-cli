@@ -1,3 +1,4 @@
+//go:build !windows
 // +build !windows
 
 package workspace
@@ -7,7 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/pkg/errors"
+	"github.com/sourcegraph/sourcegraph/lib/errors"
 )
 
 func TestMkdirAllStatError(t *testing.T) {
@@ -16,7 +17,6 @@ func TestMkdirAllStatError(t *testing.T) {
 
 	// Create a shared workspace.
 	base := mustCreateWorkspace(t)
-	defer os.RemoveAll(base)
 
 	// We'll create a directory and a file within it, remove the execute bit on
 	// the directory, and then stat() the file to cause a failure.
@@ -33,6 +33,12 @@ func TestMkdirAllStatError(t *testing.T) {
 	if err := os.Chmod(filepath.Join(base, "locked"), 0600); err != nil {
 		t.Fatal(err)
 	}
+	// Add the execute bit back to the directory so "base" can be cleaned up
+	t.Cleanup(func() {
+		if err := os.Chmod(filepath.Join(base, "locked"), 0700); err != nil {
+			t.Fatal(err)
+		}
+	})
 
 	err = mkdirAll(base, "locked/file", 0750)
 	if err == nil {
@@ -40,7 +46,6 @@ func TestMkdirAllStatError(t *testing.T) {
 	} else if _, ok := err.(errPathExistsAsFile); ok {
 		t.Errorf("unexpected error of type %T: %v", err, err)
 	}
-
 }
 
 func mustHavePerm(t *testing.T, path string, want os.FileMode) error {

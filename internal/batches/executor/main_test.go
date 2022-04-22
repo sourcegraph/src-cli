@@ -1,8 +1,9 @@
 package executor
 
 import (
-	"github.com/sourcegraph/batch-change-utils/overridable"
-	"github.com/sourcegraph/src-cli/internal/batches"
+	batcheslib "github.com/sourcegraph/sourcegraph/lib/batches"
+	"github.com/sourcegraph/sourcegraph/lib/batches/overridable"
+
 	"github.com/sourcegraph/src-cli/internal/batches/graphql"
 )
 
@@ -27,13 +28,13 @@ var testRepo2 = &graphql.Repository{
 
 var testPublished = overridable.FromBoolOrString(false)
 
-var testChangesetTemplate = &batches.ChangesetTemplate{
+var testChangesetTemplate = &batcheslib.ChangesetTemplate{
 	Title:  "commit title",
 	Body:   "commit body",
 	Branch: "commit-branch",
-	Commit: batches.ExpandedGitCommitDescription{
+	Commit: batcheslib.ExpandedGitCommitDescription{
 		Message: "commit msg",
-		Author: &batches.GitCommitAuthor{
+		Author: &batcheslib.GitCommitAuthor{
 			Name:  "Tester",
 			Email: "tester@example.com",
 		},

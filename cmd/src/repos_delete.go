@@ -5,8 +5,8 @@ import (
 	"flag"
 	"fmt"
 
-	multierror "github.com/hashicorp/go-multierror"
-	"github.com/pkg/errors"
+	"github.com/sourcegraph/sourcegraph/lib/errors"
+
 	"github.com/sourcegraph/src-cli/internal/api"
 )
 
@@ -59,15 +59,15 @@ Examples:
 		ctx := context.Background()
 		client := cfg.apiClient(apiFlags, flagSet.Output())
 
-		var errs *multierror.Error
+		var errs errors.MultiError
 		for _, repoName := range flagSet.Args() {
 			err := deleteRepository(ctx, client, repoName)
 			if err != nil {
 				err = errors.Wrapf(err, "Failed to delete repository %q", repoName)
-				errs = multierror.Append(errs, err)
+				errs = errors.Append(errs, err)
 			}
 		}
-		return errs.ErrorOrNil()
+		return errs
 	}
 
 	// Register the command.

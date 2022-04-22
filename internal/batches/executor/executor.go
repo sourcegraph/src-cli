@@ -8,10 +8,14 @@ import (
 	"time"
 
 	"github.com/neelance/parallel"
-	"github.com/pkg/errors"
-	"github.com/sourcegraph/src-cli/internal/batches"
+	"github.com/sourcegraph/sourcegraph/lib/errors"
+
 	"github.com/sourcegraph/src-cli/internal/batches/log"
+	"github.com/sourcegraph/src-cli/internal/batches/repozip"
+	"github.com/sourcegraph/src-cli/internal/batches/util"
 	"github.com/sourcegraph/src-cli/internal/batches/workspace"
+
+	"github.com/sourcegraph/sourcegraph/lib/batches/execution"
 )
 
 type TaskExecutionErr struct {
@@ -43,21 +47,22 @@ func (e TaskExecutionErr) StatusText() string {
 // taskResult is a combination of a Task and the result of its execution.
 type taskResult struct {
 	task        *Task
-	result      executionResult
-	stepResults []stepExecutionResult
+	result      execution.Result
+	stepResults []execution.AfterStepResult
 }
 
 type newExecutorOpts struct {
 	// Dependencies
-	Creator workspace.Creator
-	Fetcher batches.RepoFetcher
-	Logger  log.LogManager
+	Creator             workspace.Creator
+	RepoArchiveRegistry repozip.ArchiveRegistry
+	EnsureImage         imageEnsurer
+	Logger              log.LogManager
 
 	// Config
-	AutoAuthorDetails bool
-	Parallelism       int
-	Timeout           time.Duration
-	TempDir           string
+	Parallelism          int
+	Timeout              time.Duration
+	TempDir              string
+	WriteStepCacheResult func(ctx context.Context, stepResult execution.AfterStepResult, task *Task) error
 }
 
 type executor struct {
@@ -142,7 +147,7 @@ func (x *executor) do(ctx context.Context, task *Task, ui TaskExecutionUI) (err 
 	ui.TaskStarted(task)
 
 	// Let's set up our logging.
-	log, err := x.opts.Logger.AddTask(task.Repository.SlugForPath(task.Path))
+	log, err := x.opts.Logger.AddTask(util.SlugForPathInRepo(task.Repository.Name, task.Repository.Rev(), task.Path))
 	if err != nil {
 		return errors.Wrap(err, "creating log file")
 	}
@@ -158,8 +163,8 @@ func (x *executor) do(ctx context.Context, task *Task, ui TaskExecutionUI) (err 
 		log.Close()
 	}()
 
-	// Now checkout the archive
-	task.Archive = x.opts.Fetcher.Checkout(task.Repository, task.ArchivePathToFetch())
+	// Now checkout the archive.
+	task.Archive = x.opts.RepoArchiveRegistry.Checkout(repozip.RepoRevision{RepoName: task.Repository.Name, Commit: task.Repository.Rev()}, task.ArchivePathToFetch())
 
 	// Set up our timeout.
 	runCtx, cancel := context.WithTimeout(ctx, x.opts.Timeout)
@@ -167,13 +172,14 @@ func (x *executor) do(ctx context.Context, task *Task, ui TaskExecutionUI) (err 
 
 	// Actually execute the steps.
 	opts := &executionOpts{
-		task:    task,
-		logger:  log,
-		wc:      x.opts.Creator,
-		tempDir: x.opts.TempDir,
-		reportProgress: func(currentlyExecuting string) {
-			ui.TaskCurrentlyExecuting(task, currentlyExecuting)
-		},
+		task:        task,
+		logger:      log,
+		wc:          x.opts.Creator,
+		ensureImage: x.opts.EnsureImage,
+		tempDir:     x.opts.TempDir,
+
+		ui:                   ui.StepsExecutionUI(task),
+		writeStepCacheResult: x.opts.WriteStepCacheResult,
 	}
 
 	result, stepResults, err := runSteps(runCtx, opts)
@@ -188,8 +194,7 @@ func (x *executor) do(ctx context.Context, task *Task, ui TaskExecutionUI) (err 
 
 	return nil
 }
-
-func (x *executor) addResult(task *Task, result executionResult, stepResults []stepExecutionResult) {
+func (x *executor) addResult(task *Task, result execution.Result, stepResults []execution.AfterStepResult) {
 	x.resultsMu.Lock()
 	defer x.resultsMu.Unlock()
 
