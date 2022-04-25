@@ -57,8 +57,8 @@ Examples:
 func handleLSIFUpload(args []string) error {
 	ctx := context.Background()
 
-	err := parseAndValidateLSIFUploadFlags(args)
 	out := lsifUploadOutput()
+	err := parseAndValidateLSIFUploadFlags(args, out)
 	if !lsifUploadFlags.json {
 		if out != nil {
 			printInferredArguments(out)

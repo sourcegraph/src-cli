@@ -7,7 +7,11 @@ import (
 	"strings"
 
 	"github.com/sourcegraph/sourcegraph/lib/errors"
+	"github.com/sourcegraph/sourcegraph/lib/output"
+	"google.golang.org/protobuf/proto"
 
+	"github.com/sourcegraph/sourcegraph/lib/codeintel/lsif/protocol/reader"
+	"github.com/sourcegraph/sourcegraph/lib/codeintel/lsiftyped"
 	"github.com/sourcegraph/sourcegraph/lib/codeintel/upload"
 
 	"github.com/sourcegraph/src-cli/internal/api"
@@ -84,7 +88,7 @@ func init() {
 //
 // On success, the global lsifUploadFlags object will be populated with valid values. An
 // error is returned on failure.
-func parseAndValidateLSIFUploadFlags(args []string) error {
+func parseAndValidateLSIFUploadFlags(args []string, out *output.Output) error {
 	if err := lsifUploadFlagSet.Parse(args); err != nil {
 		return err
 	}
@@ -102,6 +106,10 @@ func parseAndValidateLSIFUploadFlags(args []string) error {
 	// and maybe we'll use some in the future
 	lsifUploadFlags.apiFlags = api.NewFlags(apiClientFlagSet)
 	if err := apiClientFlagSet.Parse(insecureSkipVerifyFlag); err != nil {
+		return err
+	}
+
+	if err := handleLSIFTyped(out); err != nil {
 		return err
 	}
 
@@ -127,6 +135,66 @@ func parseAndValidateLSIFUploadFlags(args []string) error {
 type argumentInferenceError struct {
 	argument string
 	err      error
+}
+
+func handleLSIFTyped(out *output.Output) error {
+	if strings.HasSuffix(lsifUploadFlags.file, ".lsif-typed") {
+		// The user explicitly passed in a -file flag that points to an LSIF Typed index.
+		inputFile := lsifUploadFlags.file
+		outputFile := strings.TrimSuffix(inputFile, "-typed")
+		lsifUploadFlags.file = outputFile
+		return convertLSIFTypedToLSIFGraph(out, inputFile, outputFile)
+	}
+
+	if _, err := os.Stat(lsifUploadFlags.file); err == nil {
+		// Do nothing, the provided -flag flag points to an existing
+		// file that does not have the file extension `*.lsif-typed`.
+		return nil
+	}
+
+	lsifTypedFile := lsifUploadFlags.file + "-typed"
+	if _, err := os.Stat(lsifTypedFile); os.IsNotExist(err) {
+		// The inferred path of the sibling `*.lsif-typed` file does not exist.
+		return nil
+	}
+
+	// The provided -file flag points to an `*.lsif` file that doesn't exist
+	// so we convert the sibling `*.lsif-typed` file (which we confirmed exists).
+	return convertLSIFTypedToLSIFGraph(out, lsifTypedFile, lsifUploadFlags.file)
+}
+
+// Reads the LSIF Typed encoded input file and writes the corresponding LSIF
+// Graph encoded output file.
+func convertLSIFTypedToLSIFGraph(out *output.Output, inputFile, outputFile string) error {
+	out.Writef("%s  Converting %s into %s", output.EmojiInfo, inputFile, outputFile)
+	tmp, err := os.Create(outputFile)
+	if err != nil {
+		return err
+	}
+	defer tmp.Close()
+
+	data, err := os.ReadFile(inputFile)
+	if err != nil {
+		panic(err)
+	}
+	index := lsiftyped.Index{}
+	err = proto.Unmarshal(data, &index)
+	if err != nil {
+		panic(errors.Wrapf(err, "failed to parse protobuf file '%s'", inputFile))
+	}
+	els, err := reader.ConvertTypedIndexToGraphIndex(&index)
+	if err != nil {
+		panic(errors.Wrapf(err, "failed reader.ConvertTypedIndexToGraphIndex"))
+	}
+	err = reader.WriteNDJSON(reader.ElementsToJsonElements(els), tmp)
+	if err != nil {
+		panic(err)
+	}
+	err = tmp.Close()
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 // inferMissingLSIFUploadFlags updates the flags values which were not explicitly
