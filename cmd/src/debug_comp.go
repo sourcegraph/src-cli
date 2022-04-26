@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"os/exec"
+	"path"
 	"strings"
 	"sync"
 	"unicode"
@@ -208,19 +209,31 @@ func getContainers(ctx context.Context) ([]string, error) {
 }
 
 func getContainerLog(ctx context.Context, container, baseDir string) *archiveFile {
-	f := &archiveFile{name: baseDir + "/docker/containers/" + container + "/" + container + ".log"}
-	f.data, f.err = exec.CommandContext(ctx, "docker", "container", "logs", container).CombinedOutput()
-	return f
+	return archiveFileFromCommand(ctx, baseDir, path.Join("/docker/containers/", container, container)+".log", "docker", "container", "logs", container)
 }
+
+//func getContainerLog(ctx context.Context, container, baseDir string) *archiveFile {
+//	f := &archiveFile{name: baseDir + "/docker/containers/" + container + "/" + container + ".log"}
+//	f.data, f.err = exec.CommandContext(ctx, "docker", "container", "logs", container).CombinedOutput()
+//	return f
+//}
 
 func getInspect(ctx context.Context, container, baseDir string) *archiveFile {
-	f := &archiveFile{name: baseDir + "/docker/containers/" + container + "/inspect-" + container + ".txt"}
-	f.data, f.err = exec.CommandContext(ctx, "docker", "container", "inspect", container).CombinedOutput()
-	return f
+	return archiveFileFromCommand(ctx, baseDir, path.Join("/docker/containers/", container, "/inspect-"+container)+".txt", "docker", "container", "inspect", container)
 }
 
+//func getInspect(ctx context.Context, container, baseDir string) *archiveFile {
+//	f := &archiveFile{name: baseDir + "/docker/containers/" + container + "/inspect-" + container + ".txt"}
+//	f.data, f.err = exec.CommandContext(ctx, "docker", "container", "inspect", container).CombinedOutput()
+//	return f
+//}
+
 func getStats(ctx context.Context, baseDir string) *archiveFile {
-	f := &archiveFile{name: baseDir + "/docker/stats.txt"}
-	f.data, f.err = exec.CommandContext(ctx, "docker", "container", "stats", "--no-stream").CombinedOutput()
-	return f
+	return archiveFileFromCommand(ctx, baseDir, "/docker/stats.txt", "docker", "container", "stats", "--no-stream")
 }
+
+//func getStats(ctx context.Context, baseDir string) *archiveFile {
+//	f := &archiveFile{name: baseDir + "/docker/stats.txt"}
+//	f.data, f.err = exec.CommandContext(ctx, "docker", "container", "stats", "--no-stream").CombinedOutput()
+//	return f
+//}
