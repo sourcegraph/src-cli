@@ -671,7 +671,9 @@ func (svc *Service) resolveRepositoryName(ctx context.Context, name string) (*gr
 		return nil, err
 	}
 	if result.Repository == nil {
-		return nil, errors.New("no repository found")
+
+		// no repository found: double-check your spelling and make sure to specify the repository in the format <>
+		return nil, errors.New("no repository found: did you check spelling and specify the repository in the format \"codehost.com/owner/repo-name\"? ")
 	}
 	return result.Repository, nil
 }
