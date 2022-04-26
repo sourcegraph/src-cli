@@ -1,11 +1,14 @@
 package main
 
 import (
+	"archive/zip"
 	"context"
 	"flag"
 	"fmt"
 	"log"
+	"os/exec"
 	"strings"
+	"sync"
 	"unicode"
 
 	"github.com/sourcegraph/src-cli/internal/cmderrors"
@@ -94,4 +97,130 @@ Examples:
 			fmt.Println(usage)
 		},
 	})
+}
+
+/*
+Docker functions
+TODO: handle for single container/server instance
+*/
+
+func archiveDocker(ctx context.Context, zw *zip.Writer, verbose, configs bool, baseDir string) error {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	containers, err := getContainers(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get docker containers: %w", err)
+	}
+
+	if verbose {
+		log.Printf("getting docker data for %d containers...\n", len(containers))
+	}
+
+	// setup channel for slice of archive function outputs
+	ch := make(chan *archiveFile)
+	wg := sync.WaitGroup{}
+
+	// start goroutine to run docker container stats --no-stream
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		ch <- getStats(ctx, baseDir)
+	}()
+
+	// start goroutine to run docker container logs <container>
+	for _, container := range containers {
+		wg.Add(1)
+		go func(container string) {
+			defer wg.Done()
+			ch <- getLog(ctx, container, baseDir)
+		}(container)
+	}
+
+	// start goroutine to run docker container inspect <container>
+	for _, container := range containers {
+		wg.Add(1)
+		go func(container string) {
+			defer wg.Done()
+			ch <- getInspect(ctx, container, baseDir)
+		}(container)
+	}
+
+	// start goroutine to get configs
+	if configs == true {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			ch <- getExternalServicesConfig(ctx, baseDir)
+		}()
+
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			ch <- getSiteConfig(ctx, baseDir)
+		}()
+	}
+
+	// close channel when wait group goroutines have completed
+	go func() {
+		wg.Wait()
+		close(ch)
+	}()
+
+	for f := range ch {
+		if f.err != nil {
+			return fmt.Errorf("aborting due to error on %s: %v\noutput: %s", f.name, f.err, f.data)
+		}
+
+		if verbose {
+			log.Printf("archiving file %q with %d bytes", f.name, len(f.data))
+		}
+
+		zf, err := zw.Create(f.name)
+		if err != nil {
+			return fmt.Errorf("failed to create %s: %w", f.name, err)
+		}
+
+		_, err = zf.Write(f.data)
+		if err != nil {
+			return fmt.Errorf("failed to write to %s: %w", f.name, err)
+		}
+	}
+
+	return nil
+}
+
+func getContainers(ctx context.Context) ([]string, error) {
+	c, err := exec.CommandContext(ctx, "docker", "container", "ls", "--format", "{{.Names}} {{.Networks}}").Output()
+	if err != nil {
+		fmt.Errorf("failed to get container names with error: %w", err)
+	}
+	s := string(c)
+	preprocessed := strings.Split(strings.TrimSpace(s), "\n")
+	containers := []string{}
+	for _, container := range preprocessed {
+		tmpStr := strings.Split(container, " ")
+		if tmpStr[1] == "docker-compose_sourcegraph" {
+			containers = append(containers, tmpStr[0])
+		}
+	}
+	return containers, err
+}
+
+func getLog(ctx context.Context, container, baseDir string) *archiveFile {
+	f := &archiveFile{name: baseDir + "/docker/containers/" + container + "/" + container + ".log"}
+	f.data, f.err = exec.CommandContext(ctx, "docker", "container", "logs", container).CombinedOutput()
+	return f
+}
+
+func getInspect(ctx context.Context, container, baseDir string) *archiveFile {
+	f := &archiveFile{name: baseDir + "/docker/containers/" + container + "/inspect-" + container + ".txt"}
+	f.data, f.err = exec.CommandContext(ctx, "docker", "container", "inspect", container).CombinedOutput()
+	return f
+}
+
+func getStats(ctx context.Context, baseDir string) *archiveFile {
+	f := &archiveFile{name: baseDir + "/docker/stats.txt"}
+	f.data, f.err = exec.CommandContext(ctx, "docker", "container", "stats", "--no-stream").CombinedOutput()
+	return f
 }
