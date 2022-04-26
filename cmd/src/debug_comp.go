@@ -133,7 +133,7 @@ func archiveDocker(ctx context.Context, zw *zip.Writer, verbose, configs bool, b
 		wg.Add(1)
 		go func(container string) {
 			defer wg.Done()
-			ch <- getLog(ctx, container, baseDir)
+			ch <- getContainerLog(ctx, container, baseDir)
 		}(container)
 	}
 
@@ -207,7 +207,7 @@ func getContainers(ctx context.Context) ([]string, error) {
 	return containers, err
 }
 
-func getLog(ctx context.Context, container, baseDir string) *archiveFile {
+func getContainerLog(ctx context.Context, container, baseDir string) *archiveFile {
 	f := &archiveFile{name: baseDir + "/docker/containers/" + container + "/" + container + ".log"}
 	f.data, f.err = exec.CommandContext(ctx, "docker", "container", "logs", container).CombinedOutput()
 	return f

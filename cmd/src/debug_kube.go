@@ -9,13 +9,13 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path"
 	"strings"
 	"sync"
 	"unicode"
 
 	"golang.org/x/sync/semaphore"
 
-	"github.com/sourcegraph/sourcegraph/lib/errors"
 	"github.com/sourcegraph/src-cli/internal/cmderrors"
 	"github.com/sourcegraph/src-cli/internal/exec"
 )
@@ -187,7 +187,7 @@ func archiveKube(ctx context.Context, zw *zip.Writer, verbose, configs bool, nam
 				}
 				defer semaphore.Release(1)
 				defer wg.Done()
-				ch <- getContainerLog(ctx, pod, container, namespace, baseDir)
+				ch <- getPodLog(ctx, pod, container, namespace, baseDir)
 			}(pod.Metadata.Name, container.Name)
 		}
 	}
@@ -204,7 +204,7 @@ func archiveKube(ctx context.Context, zw *zip.Writer, verbose, configs bool, nam
 				}
 				defer semaphore.Release(1)
 				defer wg.Done()
-				f := getPastContainerLog(ctx, pod, container, namespace, baseDir)
+				f := getPastPodLog(ctx, pod, container, namespace, baseDir)
 				if f.err == nil {
 					ch <- f
 				} else {
@@ -318,49 +318,77 @@ func getPods(ctx context.Context, namespace string) (podList, error) {
 }
 
 func getEvents(ctx context.Context, namespace, baseDir string) *archiveFile {
-	f := &archiveFile{name: baseDir + "/kubectl/events.txt"}
-	f.data, f.err = exec.CommandContext(ctx, "kubectl", "-n", namespace, "get", "events").CombinedOutput()
-	return f
+	return archiveFileFromCommand(ctx, baseDir, "/kubectl/events.txt", "kubectl", "-n", namespace, "get", "events")
 }
+
+//func getEvents(ctx context.Context, namespace, baseDir string) *archiveFile {
+//	f := &archiveFile{name: baseDir + "/kubectl/events.txt"}
+//	f.data, f.err = exec.CommandContext(ctx, "kubectl", "-n", namespace, "get", "events").CombinedOutput()
+//	return f
+//}
 
 func getPV(ctx context.Context, namespace, baseDir string) *archiveFile {
-	f := &archiveFile{name: baseDir + "/kubectl/persistent-volumes.txt"}
-	f.data, f.err = exec.CommandContext(ctx, "kubectl", "-n", namespace, "get", "pv").CombinedOutput()
-	return f
+	return archiveFileFromCommand(ctx, baseDir, "/kubectl/persistent-volumes.txt", "kubectl", "-n", namespace, "get", "pv")
 }
+
+//func getPV(ctx context.Context, namespace, baseDir string) *archiveFile {
+//	f := &archiveFile{name: baseDir + "/kubectl/persistent-volumes.txt"}
+//	f.data, f.err = exec.CommandContext(ctx, "kubectl", "-n", namespace, "get", "pv").CombinedOutput()
+//	return f
+//}
 
 func getPVC(ctx context.Context, namespace, baseDir string) *archiveFile {
-	f := &archiveFile{name: baseDir + "/kubectl/persistent-volume-claims.txt"}
-	f.data, f.err = exec.CommandContext(ctx, "kubectl", "-n", namespace, "get", "pvc").CombinedOutput()
-	return f
+	return archiveFileFromCommand(ctx, baseDir, "/kubectl/persistent-volume-claims.txt", "kubectl", "-n", namespace, "get", "pvc")
 }
+
+//func getPVC(ctx context.Context, namespace, baseDir string) *archiveFile {
+//	f := &archiveFile{name: baseDir + "/kubectl/persistent-volume-claims.txt"}
+//	f.data, f.err = exec.CommandContext(ctx, "kubectl", "-n", namespace, "get", "pvc").CombinedOutput()
+//	return f
+//}
 
 // get kubectl logs for pod containers
-func getContainerLog(ctx context.Context, podName, containerName, namespace, baseDir string) *archiveFile {
-	f := &archiveFile{name: baseDir + "/kubectl/pods/" + podName + "/" + containerName + ".log"}
-	f.data, f.err = exec.CommandContext(ctx, "kubectl", "-n", namespace, "logs", podName, "-c", containerName).CombinedOutput()
-	return f
+func getPodLog(ctx context.Context, podName, containerName, namespace, baseDir string) *archiveFile {
+	return archiveFileFromCommand(ctx, baseDir, path.Join("/kubectl/pods/", podName, containerName)+".log", "kubectl", "-n", namespace, "logs", podName, "-c", containerName)
 }
+
+//func getPodLog(ctx context.Context, podName, containerName, namespace, baseDir string) *archiveFile {
+//	f := &archiveFile{name: baseDir + "/kubectl/pods/" + podName + "/" + containerName + ".log"}
+//	f.data, f.err = exec.CommandContext(ctx, "kubectl", "-n", namespace, "logs", podName, "-c", containerName).CombinedOutput()
+//	return f
+//}
 
 // get kubectl logs for past container
-func getPastContainerLog(ctx context.Context, podName, containerName, namespace, baseDir string) *archiveFile {
-	f := &archiveFile{name: baseDir + "/kubectl/pods/" + podName + "/" + "prev-" + containerName + ".log"}
-	cmdStr := []string{"kubectl", "-n", namespace, "logs", "--previous", podName, "-c", containerName}
-	f.data, f.err = exec.CommandContext(ctx, "kubectl", "-n", namespace, "logs", "--previous", podName, "-c", containerName).CombinedOutput()
-	if f.err != nil {
-		f.err = errors.Wrapf(f.err, "executing command: %s: received error: %s", cmdStr, f.data)
-	}
-	return f
+func getPastPodLog(ctx context.Context, podName, containerName, namespace, baseDir string) *archiveFile {
+	return archiveFileFromCommand(ctx, baseDir, path.Join("/kubectl/pods/", podName, "prev-"+containerName)+".log", "kubectl", "-n", namespace, "logs", "--previous", podName, "-c", containerName)
 }
+
+//func getPastPodLog(ctx context.Context, podName, containerName, namespace, baseDir string) *archiveFile {
+//	f := &archiveFile{name: baseDir + "/kubectl/pods/" + podName + "/" + "prev-" + containerName + ".log"}
+//	cmdStr := []string{"kubectl", "-n", namespace, "logs", "--previous", podName, "-c", containerName}
+//	f.data, f.err = exec.CommandContext(ctx, "kubectl", "-n", namespace, "logs", "--previous", podName, "-c", containerName).CombinedOutput()
+//	if f.err != nil {
+//		f.err = errors.Wrapf(f.err, "executing command: %s: received error: %s", cmdStr, f.data)
+//	}
+//	return f
+//}
 
 func getDescribe(ctx context.Context, podName, namespace, baseDir string) *archiveFile {
-	f := &archiveFile{name: baseDir + "/kubectl/pods/" + podName + "/describe-" + podName + ".txt"}
-	f.data, f.err = exec.CommandContext(ctx, "kubectl", "-n", namespace, "describe", "pod", podName).CombinedOutput()
-	return f
+	return archiveFileFromCommand(ctx, baseDir, path.Join("/kubectl/pods/", podName, "/describe-"+podName)+".txt", "kubectl", "-n", namespace, "describe", "pod", podName)
 }
 
+//func getDescribe(ctx context.Context, podName, namespace, baseDir string) *archiveFile {
+//	f := &archiveFile{name: baseDir + "/kubectl/pods/" + podName + "/describe-" + podName + ".txt"}
+//	f.data, f.err = exec.CommandContext(ctx, "kubectl", "-n", namespace, "describe", "pod", podName).CombinedOutput()
+//	return f
+//}
+
 func getManifest(ctx context.Context, podName, namespace, baseDir string) *archiveFile {
-	f := &archiveFile{name: baseDir + "/kubectl/pods/" + podName + "/manifest-" + podName + ".yaml"}
-	f.data, f.err = exec.CommandContext(ctx, "kubectl", "-n", namespace, "get", "pod", podName, "-o", "yaml").CombinedOutput()
-	return f
+	return archiveFileFromCommand(ctx, baseDir, path.Join("/kubectl/pods/", podName, "/manifest-"+podName)+".yaml", "kubectl", "-n", namespace, "get", "pod", podName, "-o", "yaml")
 }
+
+//func getManifest(ctx context.Context, podName, namespace, baseDir string) *archiveFile {
+//	f := &archiveFile{name: baseDir + "/kubectl/pods/" + podName + "/manifest-" + podName + ".yaml"}
+//	f.data, f.err = exec.CommandContext(ctx, "kubectl", "-n", namespace, "get", "pod", podName, "-o", "yaml").CombinedOutput()
+//	return f
+//}

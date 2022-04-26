@@ -94,8 +94,13 @@ func getExternalServicesConfig(ctx context.Context, baseDir string) *archiveFile
 // TODO: correctly format json output before writing to zip
 func getSiteConfig(ctx context.Context, baseDir string) *archiveFile {
 	const siteConfigStr = `query { site { configuration { effectiveContents } } }`
-	f := &archiveFile{name: baseDir + "/config/siteConfig.json"}
-	f.data, f.err = exec.CommandContext(ctx, os.Args[0], "api", "-query", siteConfigStr).CombinedOutput()
-
-	return f
+	return archiveFileFromCommand(ctx, baseDir, "/config/siteConfig.json", os.Args[0], "api", "-query", siteConfigStr)
 }
+
+//func getSiteConfig(ctx context.Context, baseDir string) *archiveFile {
+//	const siteConfigStr = `query { site { configuration { effectiveContents } } }`
+//	f := &archiveFile{name: baseDir + "/config/siteConfig.json"}
+//	f.data, f.err = exec.CommandContext(ctx, os.Args[0], "api", "-query", siteConfigStr).CombinedOutput()
+//
+//	return f
+//}
