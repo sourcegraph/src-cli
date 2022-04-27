@@ -42,7 +42,6 @@ func createTempLsifTypedFile(t *testing.T) (string, string) {
 		os.Remove(tmp.Name())
 		os.Remove(tmpGraph)
 	})
-
 	return tmp.Name(), tmpGraph
 }
 
