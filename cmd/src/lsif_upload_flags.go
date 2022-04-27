@@ -88,10 +88,12 @@ func init() {
 //
 // On success, the global lsifUploadFlags object will be populated with valid values. An
 // error is returned on failure.
-func parseAndValidateLSIFUploadFlags(args []string, out *output.Output) error {
+func parseAndValidateLSIFUploadFlags(args []string) (*output.Output, error) {
 	if err := lsifUploadFlagSet.Parse(args); err != nil {
-		return err
+		return nil, err
 	}
+
+	out := lsifUploadOutput()
 
 	// extract only the -insecure-skip-verify flag so we dont get 'flag provided but not defined'
 	var insecureSkipVerifyFlag []string
@@ -106,15 +108,15 @@ func parseAndValidateLSIFUploadFlags(args []string, out *output.Output) error {
 	// and maybe we'll use some in the future
 	lsifUploadFlags.apiFlags = api.NewFlags(apiClientFlagSet)
 	if err := apiClientFlagSet.Parse(insecureSkipVerifyFlag); err != nil {
-		return err
+		return nil, err
 	}
 
 	if err := handleLSIFTyped(out); err != nil {
-		return err
+		return nil, err
 	}
 
 	if inferenceErrors := inferMissingLSIFUploadFlags(); len(inferenceErrors) > 0 {
-		return errorWithHint{
+		return nil, errorWithHint{
 			err: inferenceErrors[0].err, hint: strings.Join([]string{
 				fmt.Sprintf(
 					"Unable to determine %s from environment. Check your working directory or supply -%s={value} explicitly",
@@ -126,10 +128,26 @@ func parseAndValidateLSIFUploadFlags(args []string, out *output.Output) error {
 	}
 
 	if err := validateLSIFUploadFlags(); err != nil {
-		return err
+		return nil, err
 	}
 
-	return nil
+	return out, nil
+}
+
+// lsifUploadOutput returns an output object that should be used to print the progres
+// of requests made during this upload. If -json, -no-progress, or -trace>0 is given,
+// then no output object is defined.
+//
+// For -no-progress and -trace>0 conditions, emergency loggers will be used to display
+// inferred arguments and the URL at which processing status is shown.
+func lsifUploadOutput() (out *output.Output) {
+	if lsifUploadFlags.json || lsifUploadFlags.noProgress || lsifUploadFlags.verbosity > 0 {
+		return nil
+	}
+
+	return output.NewOutput(flag.CommandLine.Output(), output.OutputOpts{
+		Verbose: true,
+	})
 }
 
 type argumentInferenceError struct {
