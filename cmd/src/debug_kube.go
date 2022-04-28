@@ -63,7 +63,7 @@ Examples:
 		}
 		// declare basedir for archive file structure
 		var baseDir string
-		if strings.HasSuffix(base, ".zip") == false {
+		if !strings.HasSuffix(base, ".zip") {
 			baseDir = base
 			base = base + ".zip"
 		} else {
@@ -217,10 +217,8 @@ func archiveKube(ctx context.Context, zw *zip.Writer, verbose, configs bool, nam
 				f := getPastPodLog(ctx, pod, container, namespace, baseDir)
 				if f.err == nil {
 					ch <- f
-				} else {
-					if verbose {
-						fmt.Printf("Could not gather --previous pod logs for: %s \nExited with err: %s\n", pod, f.err)
-					}
+				} else if verbose {
+					fmt.Printf("Could not gather --previous pod logs for: %s \nExited with err: %s\n", pod, f.err)
 				}
 			}(pod.Metadata.Name, container.Name)
 		}

@@ -46,7 +46,7 @@ Examples:
 		}
 		// declare basedir for archive file structure
 		var baseDir string
-		if strings.HasSuffix(base, ".zip") == false {
+		if !strings.HasSuffix(base, ".zip") {
 			baseDir = base
 			base = base + ".zip"
 		} else {
