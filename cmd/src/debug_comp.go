@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"log"
 	"os/exec"
-	"path"
+	"path/filepath"
 	"strings"
 	"sync"
 	"unicode"
@@ -218,7 +218,7 @@ func getContainers(ctx context.Context) ([]string, error) {
 func getPs(ctx context.Context, baseDir string) *archiveFile {
 	return archiveFileFromCommand(
 		ctx,
-		path.Join(baseDir, "/docker/docker-ps")+".txt",
+		filepath.Join(baseDir, "/docker/docker-ps")+".txt",
 		"docker", "ps",
 	)
 }
@@ -226,7 +226,7 @@ func getPs(ctx context.Context, baseDir string) *archiveFile {
 func getContainerLog(ctx context.Context, container, baseDir string) *archiveFile {
 	return archiveFileFromCommand(
 		ctx,
-		path.Join(baseDir, "/docker/containers/", container, container)+".log",
+		filepath.Join(baseDir, "/docker/containers/", container, container)+".log",
 		"docker", "container", "logs", container,
 	)
 }
@@ -240,7 +240,7 @@ func getContainerLog(ctx context.Context, container, baseDir string) *archiveFil
 func getInspect(ctx context.Context, container, baseDir string) *archiveFile {
 	return archiveFileFromCommand(
 		ctx,
-		path.Join(baseDir, "/docker/containers/", container, "/inspect-"+container)+".txt",
+		filepath.Join(baseDir, "/docker/containers/", container, "/inspect-"+container)+".txt",
 		"docker", "container", "inspect", container,
 	)
 }
@@ -254,7 +254,7 @@ func getInspect(ctx context.Context, container, baseDir string) *archiveFile {
 func getStats(ctx context.Context, baseDir string) *archiveFile {
 	return archiveFileFromCommand(
 		ctx,
-		path.Join(baseDir, "/docker/stats")+".txt",
+		filepath.Join(baseDir, "/docker/stats")+".txt",
 		"docker", "container", "stats", "--no-stream",
 	)
 }

@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"path"
+	"path/filepath"
 	"strings"
 	"sync"
 	"unicode"
@@ -330,7 +330,7 @@ func selectPods(ctx context.Context, namespace string) (podList, error) {
 func getPods(ctx context.Context, namespace, baseDir string) *archiveFile {
 	return archiveFileFromCommand(
 		ctx,
-		path.Join(baseDir, "/kubectl/getPods.txt"),
+		filepath.Join(baseDir, "/kubectl/getPods.txt"),
 		"kubectl", "-n", namespace, "get", "pods", "-o", "wide",
 	)
 }
@@ -338,7 +338,7 @@ func getPods(ctx context.Context, namespace, baseDir string) *archiveFile {
 func getEvents(ctx context.Context, namespace, baseDir string) *archiveFile {
 	return archiveFileFromCommand(
 		ctx,
-		path.Join(baseDir, "/kubectl/events.txt"),
+		filepath.Join(baseDir, "/kubectl/events.txt"),
 		"kubectl", "-n", namespace, "get", "events",
 	)
 }
@@ -352,7 +352,7 @@ func getEvents(ctx context.Context, namespace, baseDir string) *archiveFile {
 func getPV(ctx context.Context, namespace, baseDir string) *archiveFile {
 	return archiveFileFromCommand(
 		ctx,
-		path.Join(baseDir, "/kubectl/persistent-volumes.txt"),
+		filepath.Join(baseDir, "/kubectl/persistent-volumes.txt"),
 		"kubectl", "-n", namespace, "get", "pv",
 	)
 }
@@ -366,7 +366,7 @@ func getPV(ctx context.Context, namespace, baseDir string) *archiveFile {
 func getPVC(ctx context.Context, namespace, baseDir string) *archiveFile {
 	return archiveFileFromCommand(
 		ctx,
-		path.Join(baseDir, "/kubectl/persistent-volume-claims.txt"),
+		filepath.Join(baseDir, "/kubectl/persistent-volume-claims.txt"),
 		"kubectl", "-n", namespace, "get", "pvc",
 	)
 }
@@ -381,7 +381,7 @@ func getPVC(ctx context.Context, namespace, baseDir string) *archiveFile {
 func getPodLog(ctx context.Context, podName, containerName, namespace, baseDir string) *archiveFile {
 	return archiveFileFromCommand(
 		ctx,
-		path.Join(baseDir, "/kubectl/pods/", podName, containerName)+".log",
+		filepath.Join(baseDir, "/kubectl/pods/", podName, containerName)+".log",
 		"kubectl", "-n", namespace, "logs", podName, "-c", containerName,
 	)
 }
@@ -396,7 +396,7 @@ func getPodLog(ctx context.Context, podName, containerName, namespace, baseDir s
 func getPastPodLog(ctx context.Context, podName, containerName, namespace, baseDir string) *archiveFile {
 	return archiveFileFromCommand(
 		ctx,
-		path.Join(baseDir, "/kubectl/pods/", podName, "prev-"+containerName)+".log",
+		filepath.Join(baseDir, "/kubectl/pods/", podName, "prev-"+containerName)+".log",
 		"kubectl", "-n", namespace, "logs", "--previous", podName, "-c", containerName,
 	)
 }
@@ -414,7 +414,7 @@ func getPastPodLog(ctx context.Context, podName, containerName, namespace, baseD
 func getDescribe(ctx context.Context, podName, namespace, baseDir string) *archiveFile {
 	return archiveFileFromCommand(
 		ctx,
-		path.Join(baseDir, "/kubectl/pods/", podName, "/describe-"+podName)+".txt",
+		filepath.Join(baseDir, "/kubectl/pods/", podName, "/describe-"+podName)+".txt",
 		"kubectl", "-n", namespace, "describe", "pod", podName,
 	)
 }
@@ -428,7 +428,7 @@ func getDescribe(ctx context.Context, podName, namespace, baseDir string) *archi
 func getManifest(ctx context.Context, podName, namespace, baseDir string) *archiveFile {
 	return archiveFileFromCommand(
 		ctx,
-		path.Join(baseDir, "/kubectl/pods/", podName, "/manifest-"+podName)+".yaml",
+		filepath.Join(baseDir, "/kubectl/pods/", podName, "/manifest-"+podName)+".yaml",
 		"kubectl", "-n", namespace, "get", "pod", podName, "-o", "yaml",
 	)
 }
