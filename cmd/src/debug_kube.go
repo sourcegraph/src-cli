@@ -147,7 +147,7 @@ func archiveKube(ctx context.Context, zw *zip.Writer, verbose, configs bool, nam
 	wg.Add(1)
 	go func() {
 		if err := semaphore.Acquire(ctx, 1); err != nil {
-			// return err
+			return
 		}
 		defer semaphore.Release(1)
 		defer wg.Done()
@@ -158,7 +158,7 @@ func archiveKube(ctx context.Context, zw *zip.Writer, verbose, configs bool, nam
 	wg.Add(1)
 	go func() {
 		if err := semaphore.Acquire(ctx, 1); err != nil {
-			// return err
+			return
 		}
 		defer semaphore.Release(1)
 		defer wg.Done()
@@ -169,7 +169,7 @@ func archiveKube(ctx context.Context, zw *zip.Writer, verbose, configs bool, nam
 	wg.Add(1)
 	go func() {
 		if err := semaphore.Acquire(ctx, 1); err != nil {
-			// return err
+			return
 		}
 		defer semaphore.Release(1)
 		defer wg.Done()
@@ -180,7 +180,7 @@ func archiveKube(ctx context.Context, zw *zip.Writer, verbose, configs bool, nam
 	wg.Add(1)
 	go func() {
 		if err := semaphore.Acquire(ctx, 1); err != nil {
-			// return err
+			return
 		}
 		defer semaphore.Release(1)
 		defer wg.Done()
@@ -193,7 +193,7 @@ func archiveKube(ctx context.Context, zw *zip.Writer, verbose, configs bool, nam
 			wg.Add(1)
 			go func(pod, container string) {
 				if err := semaphore.Acquire(ctx, 1); err != nil {
-					// return err
+					return
 				}
 				defer semaphore.Release(1)
 				defer wg.Done()
@@ -210,7 +210,7 @@ func archiveKube(ctx context.Context, zw *zip.Writer, verbose, configs bool, nam
 			wg.Add(1)
 			go func(pod, container string) {
 				if err := semaphore.Acquire(ctx, 1); err != nil {
-					// return err
+					return
 				}
 				defer semaphore.Release(1)
 				defer wg.Done()
@@ -231,7 +231,7 @@ func archiveKube(ctx context.Context, zw *zip.Writer, verbose, configs bool, nam
 		wg.Add(1)
 		go func(pod string) {
 			if err := semaphore.Acquire(ctx, 1); err != nil {
-				// return err
+				return
 			}
 			defer semaphore.Release(1)
 			defer wg.Done()
@@ -244,7 +244,7 @@ func archiveKube(ctx context.Context, zw *zip.Writer, verbose, configs bool, nam
 		wg.Add(1)
 		go func(pod string) {
 			if err := semaphore.Acquire(ctx, 1); err != nil {
-				// return err
+				return
 			}
 			defer semaphore.Release(1)
 			defer wg.Done()
@@ -257,7 +257,7 @@ func archiveKube(ctx context.Context, zw *zip.Writer, verbose, configs bool, nam
 		wg.Add(1)
 		go func() {
 			if err := semaphore.Acquire(ctx, 1); err != nil {
-				// return err
+				return
 			}
 			defer semaphore.Release(1)
 			defer wg.Done()
@@ -267,7 +267,7 @@ func archiveKube(ctx context.Context, zw *zip.Writer, verbose, configs bool, nam
 		wg.Add(1)
 		go func() {
 			if err := semaphore.Acquire(ctx, 1); err != nil {
-				// return err
+				return
 			}
 			defer semaphore.Release(1)
 			defer wg.Done()
