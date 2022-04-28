@@ -53,7 +53,7 @@ Examples:
 		}
 		// declare basedir for archive file structure
 		var baseDir string
-		if strings.HasSuffix(base, ".zip") == false {
+		if !strings.HasSuffix(base, ".zip") {
 			baseDir = base
 			base = base + ".zip"
 		} else {
@@ -62,6 +62,9 @@ Examples:
 
 		ctx := context.Background()
 		containers, err := getContainers(ctx)
+		if err != nil {
+			fmt.Errorf("failed to get containers for subcommand with err: %v", err)
+		}
 
 		log.Printf("Archiving docker-cli data for %d containers\n SRC_ENDPOINT: %v\n Output filename: %v", len(containers), cfg.Endpoint, base)
 
@@ -155,7 +158,7 @@ func archiveDocker(ctx context.Context, zw *zip.Writer, verbose, configs bool, b
 	}
 
 	// start goroutine to get configs
-	if configs == true {
+	if configs {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()

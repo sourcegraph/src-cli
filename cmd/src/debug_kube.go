@@ -253,7 +253,7 @@ func archiveKube(ctx context.Context, zw *zip.Writer, verbose, configs bool, nam
 	}
 
 	// start goroutine to get external service config
-	if configs == true {
+	if configs {
 		wg.Add(1)
 		go func() {
 			if err := semaphore.Acquire(ctx, 1); err != nil {
@@ -311,15 +311,19 @@ func selectPods(ctx context.Context, namespace string) (podList, error) {
 	var podsBuff bytes.Buffer
 
 	// Get all pod names as json
-	getPods := exec.CommandContext(ctx, "kubectl", "-n", namespace, "get", "pods", "-l", "deploy=sourcegraph", "-o=json")
-	getPods.Stdout = &podsBuff
-	getPods.Stderr = os.Stderr
-	err := getPods.Run()
-
-	//Declare struct to format decode from podList
-	var pods podList
+	podsCmd := exec.CommandContext(
+		ctx,
+		"kubectl", "-n", namespace, "get", "pods", "-l", "deploy=sourcegraph", "-o=json",
+	)
+	podsCmd.Stdout = &podsBuff
+	podsCmd.Stderr = os.Stderr
+	err := podsCmd.Run()
+	if err != nil {
+		fmt.Errorf("failed to aquire pods for subcommands with err: %v", err)
+	}
 
 	//Decode json from podList
+	var pods podList
 	if err := json.NewDecoder(&podsBuff).Decode(&pods); err != nil {
 		fmt.Errorf("failed to unmarshall get pods json: %w", err)
 	}
