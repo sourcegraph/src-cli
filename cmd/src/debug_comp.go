@@ -122,6 +122,13 @@ func archiveDocker(ctx context.Context, zw *zip.Writer, verbose, configs bool, b
 	ch := make(chan *archiveFile)
 	wg := sync.WaitGroup{}
 
+	// start goroutine to run docker ps -o wide
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		ch <- getPs(ctx, baseDir)
+	}()
+
 	// start goroutine to run docker container stats --no-stream
 	wg.Add(1)
 	go func() {
@@ -208,8 +215,20 @@ func getContainers(ctx context.Context) ([]string, error) {
 	return containers, err
 }
 
+func getPs(ctx context.Context, baseDir string) *archiveFile {
+	return archiveFileFromCommand(
+		ctx,
+		path.Join(baseDir, "/docker/docker-ps")+".txt",
+		"docker", "ps",
+	)
+}
+
 func getContainerLog(ctx context.Context, container, baseDir string) *archiveFile {
-	return archiveFileFromCommand(ctx, baseDir, path.Join("/docker/containers/", container, container)+".log", "docker", "container", "logs", container)
+	return archiveFileFromCommand(
+		ctx,
+		path.Join(baseDir, "/docker/containers/", container, container)+".log",
+		"docker", "container", "logs", container,
+	)
 }
 
 //func getContainerLog(ctx context.Context, container, baseDir string) *archiveFile {
@@ -219,7 +238,11 @@ func getContainerLog(ctx context.Context, container, baseDir string) *archiveFil
 //}
 
 func getInspect(ctx context.Context, container, baseDir string) *archiveFile {
-	return archiveFileFromCommand(ctx, baseDir, path.Join("/docker/containers/", container, "/inspect-"+container)+".txt", "docker", "container", "inspect", container)
+	return archiveFileFromCommand(
+		ctx,
+		path.Join(baseDir, "/docker/containers/", container, "/inspect-"+container)+".txt",
+		"docker", "container", "inspect", container,
+	)
 }
 
 //func getInspect(ctx context.Context, container, baseDir string) *archiveFile {
@@ -229,7 +252,11 @@ func getInspect(ctx context.Context, container, baseDir string) *archiveFile {
 //}
 
 func getStats(ctx context.Context, baseDir string) *archiveFile {
-	return archiveFileFromCommand(ctx, baseDir, "/docker/stats.txt", "docker", "container", "stats", "--no-stream")
+	return archiveFileFromCommand(
+		ctx,
+		path.Join(baseDir, "/docker/stats")+".txt",
+		"docker", "container", "stats", "--no-stream",
+	)
 }
 
 //func getStats(ctx context.Context, baseDir string) *archiveFile {

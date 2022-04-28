@@ -5,7 +5,7 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"path/filepath"
+	"path"
 	"strings"
 	"syscall"
 
@@ -25,8 +25,8 @@ type archiveFile struct {
 	err  error
 }
 
-func archiveFileFromCommand(ctx context.Context, baseDir, path, cmd string, args ...string) *archiveFile {
-	f := &archiveFile{name: filepath.Join(baseDir, path)}
+func archiveFileFromCommand(ctx context.Context, path, cmd string, args ...string) *archiveFile {
+	f := &archiveFile{name: path}
 	f.data, f.err = exec.CommandContext(ctx, cmd, args...).CombinedOutput()
 	if f.err != nil {
 		f.err = errors.Wrapf(f.err, "executing command: %s %s: received error: %s", cmd, strings.Join(args, " "), f.data)
@@ -78,7 +78,11 @@ func setupDebug(base string) (*os.File, *zip.Writer, context.Context, error) {
 //and then returns an archiveFile to be consumed
 func getExternalServicesConfig(ctx context.Context, baseDir string) *archiveFile {
 	const fmtStr = `{{range .Nodes}}{{.id}} | {{.kind}} | {{.displayName}}{{"\n"}}{{.config}}{{"\n---\n"}}{{end}}`
-	return archiveFileFromCommand(ctx, baseDir, "/config/external_services.txt", os.Args[0], "extsvc", "list", "-f", fmtStr)
+	return archiveFileFromCommand(
+		ctx,
+		path.Join(baseDir, "/config/external_services.txt"),
+		os.Args[0], "extsvc", "list", "-f", fmtStr,
+	)
 }
 
 //func getExternalServicesConfig(ctx context.Context, baseDir string) *archiveFile {
@@ -94,7 +98,10 @@ func getExternalServicesConfig(ctx context.Context, baseDir string) *archiveFile
 // TODO: correctly format json output before writing to zip
 func getSiteConfig(ctx context.Context, baseDir string) *archiveFile {
 	const siteConfigStr = `query { site { configuration { effectiveContents } } }`
-	return archiveFileFromCommand(ctx, baseDir, "/config/siteConfig.json", os.Args[0], "api", "-query", siteConfigStr)
+	return archiveFileFromCommand(ctx,
+		path.Join(baseDir, "/config/siteConfig.json"),
+		os.Args[0], "api", "-query", siteConfigStr,
+	)
 }
 
 //func getSiteConfig(ctx context.Context, baseDir string) *archiveFile {
