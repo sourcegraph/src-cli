@@ -343,12 +343,6 @@ func getEvents(ctx context.Context, namespace, baseDir string) *archiveFile {
 	)
 }
 
-//func getEvents(ctx context.Context, namespace, baseDir string) *archiveFile {
-//	f := &archiveFile{name: baseDir + "/kubectl/events.txt"}
-//	f.data, f.err = exec.CommandContext(ctx, "kubectl", "-n", namespace, "get", "events").CombinedOutput()
-//	return f
-//}
-
 func getPV(ctx context.Context, namespace, baseDir string) *archiveFile {
 	return archiveFileFromCommand(
 		ctx,
@@ -357,12 +351,6 @@ func getPV(ctx context.Context, namespace, baseDir string) *archiveFile {
 	)
 }
 
-//func getPV(ctx context.Context, namespace, baseDir string) *archiveFile {
-//	f := &archiveFile{name: baseDir + "/kubectl/persistent-volumes.txt"}
-//	f.data, f.err = exec.CommandContext(ctx, "kubectl", "-n", namespace, "get", "pv").CombinedOutput()
-//	return f
-//}
-
 func getPVC(ctx context.Context, namespace, baseDir string) *archiveFile {
 	return archiveFileFromCommand(
 		ctx,
@@ -370,12 +358,6 @@ func getPVC(ctx context.Context, namespace, baseDir string) *archiveFile {
 		"kubectl", "-n", namespace, "get", "pvc",
 	)
 }
-
-//func getPVC(ctx context.Context, namespace, baseDir string) *archiveFile {
-//	f := &archiveFile{name: baseDir + "/kubectl/persistent-volume-claims.txt"}
-//	f.data, f.err = exec.CommandContext(ctx, "kubectl", "-n", namespace, "get", "pvc").CombinedOutput()
-//	return f
-//}
 
 // get kubectl logs for pod containers
 func getPodLog(ctx context.Context, podName, containerName, namespace, baseDir string) *archiveFile {
@@ -386,12 +368,6 @@ func getPodLog(ctx context.Context, podName, containerName, namespace, baseDir s
 	)
 }
 
-//func getPodLog(ctx context.Context, podName, containerName, namespace, baseDir string) *archiveFile {
-//	f := &archiveFile{name: baseDir + "/kubectl/pods/" + podName + "/" + containerName + ".log"}
-//	f.data, f.err = exec.CommandContext(ctx, "kubectl", "-n", namespace, "logs", podName, "-c", containerName).CombinedOutput()
-//	return f
-//}
-
 // get kubectl logs for past container
 func getPastPodLog(ctx context.Context, podName, containerName, namespace, baseDir string) *archiveFile {
 	return archiveFileFromCommand(
@@ -401,16 +377,6 @@ func getPastPodLog(ctx context.Context, podName, containerName, namespace, baseD
 	)
 }
 
-//func getPastPodLog(ctx context.Context, podName, containerName, namespace, baseDir string) *archiveFile {
-//	f := &archiveFile{name: baseDir + "/kubectl/pods/" + podName + "/" + "prev-" + containerName + ".log"}
-//	cmdStr := []string{"kubectl", "-n", namespace, "logs", "--previous", podName, "-c", containerName}
-//	f.data, f.err = exec.CommandContext(ctx, "kubectl", "-n", namespace, "logs", "--previous", podName, "-c", containerName).CombinedOutput()
-//	if f.err != nil {
-//		f.err = errors.Wrapf(f.err, "executing command: %s: received error: %s", cmdStr, f.data)
-//	}
-//	return f
-//}
-
 func getDescribe(ctx context.Context, podName, namespace, baseDir string) *archiveFile {
 	return archiveFileFromCommand(
 		ctx,
@@ -419,12 +385,6 @@ func getDescribe(ctx context.Context, podName, namespace, baseDir string) *archi
 	)
 }
 
-//func getDescribe(ctx context.Context, podName, namespace, baseDir string) *archiveFile {
-//	f := &archiveFile{name: baseDir + "/kubectl/pods/" + podName + "/describe-" + podName + ".txt"}
-//	f.data, f.err = exec.CommandContext(ctx, "kubectl", "-n", namespace, "describe", "pod", podName).CombinedOutput()
-//	return f
-//}
-
 func getManifest(ctx context.Context, podName, namespace, baseDir string) *archiveFile {
 	return archiveFileFromCommand(
 		ctx,
@@ -432,9 +392,3 @@ func getManifest(ctx context.Context, podName, namespace, baseDir string) *archi
 		"kubectl", "-n", namespace, "get", "pod", podName, "-o", "yaml",
 	)
 }
-
-//func getManifest(ctx context.Context, podName, namespace, baseDir string) *archiveFile {
-//	f := &archiveFile{name: baseDir + "/kubectl/pods/" + podName + "/manifest-" + podName + ".yaml"}
-//	f.data, f.err = exec.CommandContext(ctx, "kubectl", "-n", namespace, "get", "pod", podName, "-o", "yaml").CombinedOutput()
-//	return f
-//}
