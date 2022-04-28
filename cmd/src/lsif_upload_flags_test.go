@@ -2,7 +2,7 @@ package main
 
 import (
 	"os"
-	"strings"
+	"path/filepath"
 	"testing"
 
 	"github.com/sourcegraph/sourcegraph/lib/codeintel/lsiftyped"
@@ -30,19 +30,15 @@ func exampleLsifTypedBytes(t *testing.T) []byte {
 	return bytes
 }
 
-func createTempLsifTypedFile(t *testing.T) (string, string) {
-	tmp, err := os.CreateTemp("", "*.lsif-typed")
+func createTempLsifTypedFile(t *testing.T) (typedFile, graphFile string) {
+	dir := t.TempDir()
+	typedFile = filepath.Join(dir, "dump.lsif-typed")
+	graphFile = filepath.Join(dir, "dump.lsif")
+	err := os.WriteFile(typedFile, exampleLsifTypedBytes(t), 0755)
 	if err != nil {
 		t.Fatal(err)
 	}
-	tmp.Write(exampleLsifTypedBytes(t))
-	tmp.Close()
-	tmpGraph := strings.TrimSuffix(tmp.Name(), "-typed")
-	t.Cleanup(func() {
-		os.Remove(tmp.Name())
-		os.Remove(tmpGraph)
-	})
-	return tmp.Name(), tmpGraph
+	return typedFile, graphFile
 }
 
 func assertLsifGraphOutput(t *testing.T, lsifGraphFile, expectedGraphString string) {
