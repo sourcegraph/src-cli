@@ -11,6 +11,8 @@ import (
 	"strings"
 	"sync"
 
+	"golang.org/x/sync/semaphore"
+
 	"github.com/sourcegraph/src-cli/internal/cmderrors"
 )
 
@@ -116,10 +118,15 @@ func archiveDocker(ctx context.Context, zw *zip.Writer, verbose, configs bool, b
 	// setup channel for slice of archive function outputs
 	ch := make(chan *archiveFile)
 	wg := sync.WaitGroup{}
+	semaphore := semaphore.NewWeighted(8)
 
 	// start goroutine to run docker ps -o wide
 	wg.Add(1)
 	go func() {
+		if err := semaphore.Acquire(ctx, 1); err != nil {
+			return
+		}
+		defer semaphore.Release(1)
 		defer wg.Done()
 		ch <- getPs(ctx, baseDir)
 	}()
@@ -127,6 +134,10 @@ func archiveDocker(ctx context.Context, zw *zip.Writer, verbose, configs bool, b
 	// start goroutine to run docker container stats --no-stream
 	wg.Add(1)
 	go func() {
+		if err := semaphore.Acquire(ctx, 1); err != nil {
+			return
+		}
+		defer semaphore.Release(1)
 		defer wg.Done()
 		ch <- getStats(ctx, baseDir)
 	}()
@@ -135,6 +146,10 @@ func archiveDocker(ctx context.Context, zw *zip.Writer, verbose, configs bool, b
 	for _, container := range containers {
 		wg.Add(1)
 		go func(container string) {
+			if err := semaphore.Acquire(ctx, 1); err != nil {
+				return
+			}
+			defer semaphore.Release(1)
 			defer wg.Done()
 			ch <- getContainerLog(ctx, container, baseDir)
 		}(container)
@@ -144,6 +159,10 @@ func archiveDocker(ctx context.Context, zw *zip.Writer, verbose, configs bool, b
 	for _, container := range containers {
 		wg.Add(1)
 		go func(container string) {
+			if err := semaphore.Acquire(ctx, 1); err != nil {
+				return
+			}
+			defer semaphore.Release(1)
 			defer wg.Done()
 			ch <- getInspect(ctx, container, baseDir)
 		}(container)
@@ -153,12 +172,20 @@ func archiveDocker(ctx context.Context, zw *zip.Writer, verbose, configs bool, b
 	if configs {
 		wg.Add(1)
 		go func() {
+			if err := semaphore.Acquire(ctx, 1); err != nil {
+				return
+			}
+			defer semaphore.Release(1)
 			defer wg.Done()
 			ch <- getExternalServicesConfig(ctx, baseDir)
 		}()
 
 		wg.Add(1)
 		go func() {
+			if err := semaphore.Acquire(ctx, 1); err != nil {
+				return
+			}
+			defer semaphore.Release(1)
 			defer wg.Done()
 			ch <- getSiteConfig(ctx, baseDir)
 		}()
