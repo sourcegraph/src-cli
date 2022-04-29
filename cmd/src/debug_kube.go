@@ -11,7 +11,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
+
+	"golang.org/x/sync/errgroup"
 
 	"golang.org/x/sync/semaphore"
 
@@ -134,64 +135,62 @@ func archiveKube(ctx context.Context, zw *zip.Writer, verbose, configs bool, nam
 
 	// setup channel for slice of archive function outputs, as well as throttling semaphore
 	ch := make(chan *archiveFile)
-	wg := sync.WaitGroup{}
+	g, ctx := errgroup.WithContext(ctx)
 	semaphore := semaphore.NewWeighted(8)
 
-	wg.Add(1)
-	go func() {
+	// create goroutine to get pods
+	g.Go(func() error {
 		if err := semaphore.Acquire(ctx, 1); err != nil {
-			return
+			return err
 		}
 		defer semaphore.Release(1)
-		defer wg.Done()
 		ch <- getPods(ctx, namespace, baseDir)
-	}()
+		return nil
+	})
 
 	// create goroutine to get kubectl events
-	wg.Add(1)
-	go func() {
+	g.Go(func() error {
 		if err := semaphore.Acquire(ctx, 1); err != nil {
-			return
+			return err
 		}
 		defer semaphore.Release(1)
-		defer wg.Done()
 		ch <- getEvents(ctx, namespace, baseDir)
-	}()
+		return nil
+	})
 
 	// create goroutine to get persistent volumes
-	wg.Add(1)
-	go func() {
+	g.Go(func() error {
 		if err := semaphore.Acquire(ctx, 1); err != nil {
-			return
+			return err
 		}
 		defer semaphore.Release(1)
-		defer wg.Done()
 		ch <- getPV(ctx, namespace, baseDir)
-	}()
+		return nil
+	})
 
 	// create goroutine to get persistent volumes claim
-	wg.Add(1)
-	go func() {
+	g.Go(func() error {
 		if err := semaphore.Acquire(ctx, 1); err != nil {
-			return
+			return err
 		}
 		defer semaphore.Release(1)
-		defer wg.Done()
 		ch <- getPVC(ctx, namespace, baseDir)
-	}()
+		return nil
+	})
 
 	// start goroutine to run kubectl logs for each pod's container's
 	for _, pod := range pods.Items {
 		for _, container := range pod.Spec.Containers {
-			wg.Add(1)
-			go func(pod, container string) {
+			p := pod.Metadata.Name
+			c := container.Name
+			g.Go(func() error {
 				if err := semaphore.Acquire(ctx, 1); err != nil {
-					return
+					return err
 				}
 				defer semaphore.Release(1)
-				defer wg.Done()
-				ch <- getPodLog(ctx, pod, container, namespace, baseDir)
-			}(pod.Metadata.Name, container.Name)
+				ch <- getPodLog(ctx, p, c, namespace, baseDir)
+				return nil
+			})
 		}
 	}
 
@@ -200,75 +199,74 @@ func archiveKube(ctx context.Context, zw *zip.Writer, verbose, configs bool, nam
 	// TODO: It may be nice to store a list of pods for which --previous isn't collected, to be outputted with verbose flag
 	for _, pod := range pods.Items {
 		for _, container := range pod.Spec.Containers {
-			wg.Add(1)
-			go func(pod, container string) {
+			p := pod.Metadata.Name
+			c := container.Name
+			g.Go(func() error {
 				if err := semaphore.Acquire(ctx, 1); err != nil {
-					return
+					return err
 				}
 				defer semaphore.Release(1)
-				defer wg.Done()
-				f := getPastPodLog(ctx, pod, container, namespace, baseDir)
+				f := getPastPodLog(ctx, p, c, namespace, baseDir)
 				if f.err == nil {
 					ch <- f
 				} else if verbose {
-					fmt.Printf("Could not gather --previous pod logs for: %s \nExited with err: %s\n", pod, f.err)
+					fmt.Printf("Could not gather --previous pod logs for: %s \nExited with err: %s\n", p, f.err)
 				}
-			}(pod.Metadata.Name, container.Name)
+				return nil
+			})
 		}
 	}
 
 	// start goroutine for each pod to run kubectl describe pod
 	for _, pod := range pods.Items {
-		wg.Add(1)
-		go func(pod string) {
+		p := pod.Metadata.Name
+		g.Go(func() error {
 			if err := semaphore.Acquire(ctx, 1); err != nil {
-				return
+				return err
 			}
 			defer semaphore.Release(1)
-			defer wg.Done()
-			ch <- getDescribe(ctx, pod, namespace, baseDir)
-		}(pod.Metadata.Name)
+			ch <- getDescribe(ctx, p, namespace, baseDir)
+			return nil
+		})
 	}
 
 	// start goroutine for each pod to run kubectl get pod <pod> -o yaml
 	for _, pod := range pods.Items {
-		wg.Add(1)
-		go func(pod string) {
+		p := pod.Metadata.Name
+		g.Go(func() error {
 			if err := semaphore.Acquire(ctx, 1); err != nil {
-				return
+				return err
 			}
 			defer semaphore.Release(1)
-			defer wg.Done()
-			ch <- getManifest(ctx, pod, namespace, baseDir)
-		}(pod.Metadata.Name)
+			ch <- getManifest(ctx, p, namespace, baseDir)
+			return nil
+		})
 	}
 
 	// start goroutine to get external service config
 	if configs {
-		wg.Add(1)
-		go func() {
+		g.Go(func() error {
 			if err := semaphore.Acquire(ctx, 1); err != nil {
-				return
+				return err
 			}
 			defer semaphore.Release(1)
-			defer wg.Done()
 			ch <- getExternalServicesConfig(ctx, baseDir)
-		}()
+			return nil
+		})
 
-		wg.Add(1)
-		go func() {
+		g.Go(func() error {
 			if err := semaphore.Acquire(ctx, 1); err != nil {
-				return
+				return err
 			}
 			defer semaphore.Release(1)
-			defer wg.Done()
 			ch <- getSiteConfig(ctx, baseDir)
-		}()
+			return nil
+		})
 	}
 
 	// close channel when wait group goroutines have completed
 	go func() {
-		wg.Wait()
+		g.Wait()
 		close(ch)
 	}()
 
