@@ -9,7 +9,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"sync"
+
+	"golang.org/x/sync/errgroup"
 
 	"golang.org/x/sync/semaphore"
 
@@ -117,83 +118,79 @@ func archiveDocker(ctx context.Context, zw *zip.Writer, verbose, configs bool, b
 
 	// setup channel for slice of archive function outputs
 	ch := make(chan *archiveFile)
-	wg := sync.WaitGroup{}
+	g, ctx := errgroup.WithContext(ctx)
 	semaphore := semaphore.NewWeighted(8)
 
 	// start goroutine to run docker ps -o wide
-	wg.Add(1)
-	go func() {
+	g.Go(func() error {
 		if err := semaphore.Acquire(ctx, 1); err != nil {
-			return
+			return err
 		}
 		defer semaphore.Release(1)
-		defer wg.Done()
 		ch <- getPs(ctx, baseDir)
-	}()
+		return nil
+	})
 
 	// start goroutine to run docker container stats --no-stream
-	wg.Add(1)
-	go func() {
+	g.Go(func() error {
 		if err := semaphore.Acquire(ctx, 1); err != nil {
-			return
+			return err
 		}
 		defer semaphore.Release(1)
-		defer wg.Done()
 		ch <- getStats(ctx, baseDir)
-	}()
+		return nil
+	})
 
 	// start goroutine to run docker container logs <container>
 	for _, container := range containers {
-		wg.Add(1)
-		go func(container string) {
+		c := container
+		g.Go(func() error {
 			if err := semaphore.Acquire(ctx, 1); err != nil {
-				return
+				return err
 			}
 			defer semaphore.Release(1)
-			defer wg.Done()
-			ch <- getContainerLog(ctx, container, baseDir)
-		}(container)
+			ch <- getContainerLog(ctx, c, baseDir)
+			return nil
+		})
 	}
 
 	// start goroutine to run docker container inspect <container>
 	for _, container := range containers {
-		wg.Add(1)
-		go func(container string) {
+		c := container
+		g.Go(func() error {
 			if err := semaphore.Acquire(ctx, 1); err != nil {
-				return
+				return err
 			}
 			defer semaphore.Release(1)
-			defer wg.Done()
-			ch <- getInspect(ctx, container, baseDir)
-		}(container)
+			ch <- getInspect(ctx, c, baseDir)
+			return nil
+		})
 	}
 
 	// start goroutine to get configs
 	if configs {
-		wg.Add(1)
-		go func() {
+		g.Go(func() error {
 			if err := semaphore.Acquire(ctx, 1); err != nil {
-				return
+				return err
 			}
 			defer semaphore.Release(1)
-			defer wg.Done()
 			ch <- getExternalServicesConfig(ctx, baseDir)
-		}()
+			return nil
+		})
 
-		wg.Add(1)
-		go func() {
+		g.Go(func() error {
 			if err := semaphore.Acquire(ctx, 1); err != nil {
-				return
+				return err
 			}
 			defer semaphore.Release(1)
-			defer wg.Done()
 			ch <- getSiteConfig(ctx, baseDir)
-		}()
+			return nil
+		})
 	}
 
 	// close channel when wait group goroutines have completed
 	go func() {
-		wg.Wait()
+		g.Wait()
 		close(ch)
 	}()
 
