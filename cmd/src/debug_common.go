@@ -34,6 +34,19 @@ func archiveFileFromCommand(ctx context.Context, path, cmd string, args ...strin
 	return f
 }
 
+// This function prompts the user to confirm they want to run the command
+func verify(confirmationText string) (bool, error) {
+	input := ""
+	for strings.ToLower(input) != "y" && strings.ToLower(input) != "n" {
+		fmt.Printf("%s [y/N]: ", confirmationText)
+		if _, err := fmt.Scanln(&input); err != nil {
+			return false, err
+		}
+	}
+
+	return strings.ToLower(input) == "y", nil
+}
+
 // setOpenFileLimits increases the limit of open files to the given number. This is needed
 // when doings lots of concurrent network requests which establish open sockets.
 func setOpenFileLimits(n uint64) error {

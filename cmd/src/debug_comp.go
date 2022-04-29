@@ -10,7 +10,6 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
-	"unicode"
 
 	"github.com/sourcegraph/src-cli/internal/cmderrors"
 )
@@ -61,22 +60,15 @@ Examples:
 		}
 
 		ctx := context.Background()
+
+		//Gather data for safety check
 		containers, err := getContainers(ctx)
 		if err != nil {
 			fmt.Errorf("failed to get containers for subcommand with err: %v", err)
 		}
-
-		log.Printf("Archiving docker-cli data for %d containers\n SRC_ENDPOINT: %v\n Output filename: %v", len(containers), cfg.Endpoint, base)
-
-		var verify string
-		fmt.Print("Do you want to start writing to an archive? [y/n] ")
-		_, err = fmt.Scanln(&verify)
-		for unicode.ToLower(rune(verify[0])) != 'y' && unicode.ToLower(rune(verify[0])) != 'n' {
-			fmt.Println("Input must be string y or n")
-			_, err = fmt.Scanln(&verify)
-		}
-		if unicode.ToLower(rune(verify[0])) == 'n' {
-			fmt.Println("escaping")
+		// Safety check user knows what they are targeting with this debug command
+		log.Printf("This command will archive docker-cli data for %d containers\n SRC_ENDPOINT: %v\n Output filename: %v", len(containers), cfg.Endpoint, base)
+		if verified, _ := verify("Do you want to start writing to an archive?"); !verified {
 			return nil
 		}
 

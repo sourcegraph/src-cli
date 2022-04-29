@@ -12,7 +12,6 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
-	"unicode"
 
 	"golang.org/x/sync/semaphore"
 
@@ -72,6 +71,9 @@ Examples:
 
 		ctx := context.Background()
 
+		//TODO: improve formating to include 'ls' like pod listing for pods targeted.
+
+		// Gather data for safety check
 		pods, err := selectPods(ctx, namespace)
 		if err != nil {
 			return fmt.Errorf("failed to get pods: %w", err)
@@ -80,18 +82,9 @@ Examples:
 		if err != nil {
 			return fmt.Errorf("failed to get current-context: %w", err)
 		}
-		//TODO: improve formating to include 'ls' like pod listing for pods targeted.
+		// Safety check user knows what they've targeted with this command
 		log.Printf("Archiving kubectl data for %d pods\n SRC_ENDPOINT: %v\n Context: %s Namespace: %v\n Output filename: %v", len(pods.Items), cfg.Endpoint, kubectx, namespace, base)
-
-		var verify string
-		fmt.Print("Do you want to start writing to an archive? [y/n] ")
-		_, err = fmt.Scanln(&verify)
-		for unicode.ToLower(rune(verify[0])) != 'y' && unicode.ToLower(rune(verify[0])) != 'n' {
-			fmt.Println("Input must be string y or n")
-			_, err = fmt.Scanln(&verify)
-		}
-		if unicode.ToLower(rune(verify[0])) == 'n' {
-			fmt.Println("escaping")
+		if verified, _ := verify("Do you want to start writing to an archive?"); !verified {
 			return nil
 		}
 
