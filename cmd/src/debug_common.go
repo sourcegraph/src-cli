@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"context"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -83,6 +84,31 @@ func setupDebug(base string) (*os.File, *zip.Writer, context.Context, error) {
 	ctx := context.Background()
 
 	return out, zw, ctx, err
+}
+
+// write to archive all the outputs from kubectl call functions passed to buffer channel
+func writeChannelContentsToZip(zw *zip.Writer, ch <-chan *archiveFile, verbose bool) error {
+	for f := range ch {
+		if f.err != nil {
+			log.Printf("getting data for %s failed: %v\noutput: %s", f.name, f.err, f.data)
+			continue
+		}
+
+		if verbose {
+			log.Printf("archiving file %q with %d bytes", f.name, len(f.data))
+		}
+
+		zf, err := zw.Create(f.name)
+		if err != nil {
+			return fmt.Errorf("failed to create %s: %w", f.name, err)
+		}
+
+		_, err = zf.Write(f.data)
+		if err != nil {
+			return fmt.Errorf("failed to write to %s: %w", f.name, err)
+		}
+	}
+	return nil
 }
 
 // TODO: Currently external services and site configs are pulled using the src endpoints

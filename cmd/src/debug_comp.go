@@ -194,24 +194,9 @@ func archiveDocker(ctx context.Context, zw *zip.Writer, verbose, configs bool, b
 		close(ch)
 	}()
 
-	for f := range ch {
-		if f.err != nil {
-			return fmt.Errorf("aborting due to error on %s: %v\noutput: %s", f.name, f.err, f.data)
-		}
-
-		if verbose {
-			log.Printf("archiving file %q with %d bytes", f.name, len(f.data))
-		}
-
-		zf, err := zw.Create(f.name)
-		if err != nil {
-			return fmt.Errorf("failed to create %s: %w", f.name, err)
-		}
-
-		_, err = zf.Write(f.data)
-		if err != nil {
-			return fmt.Errorf("failed to write to %s: %w", f.name, err)
-		}
+	// Read binarys from channel and write to archive on host machine
+	if err := writeChannelContentsToZip(zw, ch, verbose); err != nil {
+		return fmt.Errorf("failed to write archives from channel: %w", err)
 	}
 
 	return nil
