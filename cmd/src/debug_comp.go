@@ -222,7 +222,7 @@ func getPs(ctx context.Context, baseDir string) *archiveFile {
 	return archiveFileFromCommand(
 		ctx,
 		filepath.Join(baseDir, "docker", "docker-ps.txt"),
-		"docker", "ps",
+		"docker", "ps", "--filter", "network=docker-compose_sourcegraph",
 	)
 }
 
