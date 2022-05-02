@@ -86,7 +86,7 @@ Examples:
 			return nil
 		}
 
-		err = archiveDocker(ctx, zw, *verbose, configs, baseDir)
+		err = archiveCompose(ctx, zw, *verbose, configs, baseDir)
 		if err != nil {
 			return cmderrors.ExitCode(1, nil)
 		}
@@ -106,7 +106,7 @@ Examples:
 Docker functions
 */
 
-func archiveDocker(ctx context.Context, zw *zip.Writer, verbose, configs bool, baseDir string) error {
+func archiveCompose(ctx context.Context, zw *zip.Writer, verbose, configs bool, baseDir string) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
