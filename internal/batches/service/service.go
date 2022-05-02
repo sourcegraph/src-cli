@@ -554,7 +554,7 @@ func (svc *Service) ResolveRepositories(ctx context.Context, spec *batcheslib.Ba
 	for _, on := range spec.On {
 		repos, ruleType, err := svc.ResolveRepositoriesOn(ctx, &on)
 		if err != nil {
-			return nil, errors.Wrapf(err, "resolving %q", on.String())
+			return nil, errors.Wrapf(err, on.String())
 		}
 
 		result := agg.NewRuleRevisions(ruleType)
@@ -673,10 +673,11 @@ func (svc *Service) resolveRepositoryName(ctx context.Context, name string) (*gr
 	if result.Repository == nil {
 
 		// no repository found: double-check your spelling and make sure to specify the repository in the format <>
-		return nil, errors.New("no repository found: did you check spelling and specify the repository in the format \"codehost.com/owner/repo-name\"? ")
+		return nil, errors.New("no repository found: did you check spelling and specify the repository in the format \"<codehost_url>/owner/repo-name\"? ")
 	}
 	return result.Repository, nil
 }
+
 
 func (svc *Service) resolveRepositoryNameAndBranch(ctx context.Context, name, branch string) (*graphql.Repository, error) {
 	var result struct{ Repository *graphql.Repository }
