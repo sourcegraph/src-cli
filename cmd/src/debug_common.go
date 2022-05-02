@@ -11,7 +11,6 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/sourcegraph/jsonx"
 	"github.com/sourcegraph/src-cli/internal/exec"
 
 	"github.com/sourcegraph/sourcegraph/lib/errors"
@@ -119,23 +118,20 @@ func getSiteConfig(ctx context.Context, baseDir string) *archiveFile {
 	}
 
 	var siteConfig struct {
-		Site struct {
-			Configuration struct {
-				EffectiveContents json.RawMessage
+		Data struct {
+			Site struct {
+				Configuration struct {
+					EffectiveContents string
+				}
 			}
 		}
 	}
 
-	normalized, errs := jsonx.Parse(string(siteConfig.Site.Configuration.EffectiveContents), jsonx.ParseOptions{
-		Comments:       true,
-		TrailingCommas: true,
-	})
-
-	if len(errs) > 0 {
-		f.err = errors.Errorf("failed to parse site config as JSONC: %v", errs)
+	f.err = json.Unmarshal(f.data, &siteConfig)
+	if f.err != nil {
 		return f
 	}
 
-	f.data = normalized
+	f.data = []byte(siteConfig.Data.Site.Configuration.EffectiveContents)
 	return f
 }
