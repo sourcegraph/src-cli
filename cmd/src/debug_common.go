@@ -3,6 +3,7 @@ package main
 import (
 	"archive/zip"
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"os"
@@ -10,8 +11,10 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/sourcegraph/sourcegraph/lib/errors"
+	"github.com/sourcegraph/jsonx"
 	"github.com/sourcegraph/src-cli/internal/exec"
+
+	"github.com/sourcegraph/sourcegraph/lib/errors"
 )
 
 /*
@@ -92,7 +95,7 @@ func writeChannelContentsToZip(zw *zip.Writer, ch <-chan *archiveFile, verbose b
 // TODO: Currently external services and site configs are pulled using the src endpoints
 
 // getExternalServicesConfig calls src extsvc list with the format flag -f,
-//and then returns an archiveFile to be consumed
+// and then returns an archiveFile to be consumed
 func getExternalServicesConfig(ctx context.Context, baseDir string) *archiveFile {
 	const fmtStr = `{{range .Nodes}}{{.id}} | {{.kind}} | {{.displayName}}{{"\n"}}{{.config}}{{"\n---\n"}}{{end}}`
 	return archiveFileFromCommand(
@@ -106,8 +109,33 @@ func getExternalServicesConfig(ctx context.Context, baseDir string) *archiveFile
 // TODO: correctly format json output before writing to zip
 func getSiteConfig(ctx context.Context, baseDir string) *archiveFile {
 	const siteConfigStr = `query { site { configuration { effectiveContents } } }`
-	return archiveFileFromCommand(ctx,
+	f := archiveFileFromCommand(ctx,
 		filepath.Join(baseDir, "config", "siteConfig.json"),
 		os.Args[0], "api", "-query", siteConfigStr,
 	)
+
+	if f.err != nil {
+		return f
+	}
+
+	var siteConfig struct {
+		Site struct {
+			Configuration struct {
+				EffectiveContents json.RawMessage
+			}
+		}
+	}
+
+	normalized, errs := jsonx.Parse(string(siteConfig.Site.Configuration.EffectiveContents), jsonx.ParseOptions{
+		Comments:       true,
+		TrailingCommas: true,
+	})
+
+	if len(errs) > 0 {
+		f.err = errors.Errorf("failed to parse site config as JSONC: %v", errs)
+		return f
+	}
+
+	f.data = normalized
+	return f
 }
