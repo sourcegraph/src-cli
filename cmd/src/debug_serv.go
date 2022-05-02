@@ -1,8 +1,11 @@
 package main
 
 import (
+	"archive/zip"
+	"context"
 	"flag"
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/sourcegraph/src-cli/internal/cmderrors"
@@ -53,11 +56,16 @@ Examples:
 			baseDir = strings.TrimSuffix(base, ".zip")
 		}
 
-		out, zw, ctx, err := setupDebug(base)
+		// init context
+		ctx := context.Background()
+		// open pipe to output file
+		out, err := os.OpenFile(base, os.O_CREATE|os.O_RDWR|os.O_EXCL, 0666)
 		if err != nil {
-			return fmt.Errorf("failed to open file: %w", err)
+			fmt.Errorf("failed to open file: %w", err)
 		}
 		defer out.Close()
+		// init zip writer
+		zw := zip.NewWriter(out)
 		defer zw.Close()
 
 		err = archiveDocker(ctx, zw, *verbose, configs, baseDir)

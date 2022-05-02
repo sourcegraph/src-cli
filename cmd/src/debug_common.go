@@ -64,28 +64,6 @@ func setOpenFileLimits(n uint64) error {
 	return syscall.Setrlimit(syscall.RLIMIT_NOFILE, &rlimit)
 }
 
-// setupDebug takes the name of a base directory and returns the file pipe, zip writer,
-// and context needed for later archive functions. Don't forget to defer close on these
-// after calling setupDebug!
-func setupDebug(base string) (*os.File, *zip.Writer, context.Context, error) {
-	// open pipe to output file
-	out, err := os.OpenFile(base, os.O_CREATE|os.O_RDWR|os.O_EXCL, 0666)
-	if err != nil {
-		return nil, nil, nil, fmt.Errorf("failed to open file: %w", err)
-	}
-	// increase limit of open files
-	err = setOpenFileLimits(64000)
-	if err != nil {
-		return nil, nil, nil, fmt.Errorf("failed to set open file limits: %w", err)
-	}
-	// init zip writer
-	zw := zip.NewWriter(out)
-	// init context
-	ctx := context.Background()
-
-	return out, zw, ctx, err
-}
-
 // write to archive all the outputs from kubectl call functions passed to buffer channel
 func writeChannelContentsToZip(zw *zip.Writer, ch <-chan *archiveFile, verbose bool) error {
 	for f := range ch {

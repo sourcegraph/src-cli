@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -62,7 +63,17 @@ Examples:
 			baseDir = strings.TrimSuffix(base, ".zip")
 		}
 
+		// init context
 		ctx := context.Background()
+		// open pipe to output file
+		out, err := os.OpenFile(base, os.O_CREATE|os.O_RDWR|os.O_EXCL, 0666)
+		if err != nil {
+			fmt.Errorf("failed to open file: %w", err)
+		}
+		defer out.Close()
+		// init zip writer
+		zw := zip.NewWriter(out)
+		defer zw.Close()
 
 		//Gather data for safety check
 		containers, err := getContainers(ctx)
@@ -74,13 +85,6 @@ Examples:
 		if verified, _ := verify("Do you want to start writing to an archive?"); !verified {
 			return nil
 		}
-
-		out, zw, ctx, err := setupDebug(base)
-		if err != nil {
-			return fmt.Errorf("failed to open file: %w", err)
-		}
-		defer out.Close()
-		defer zw.Close()
 
 		err = archiveDocker(ctx, zw, *verbose, configs, baseDir)
 		if err != nil {
@@ -226,6 +230,14 @@ func getPs(ctx context.Context, baseDir string) *archiveFile {
 	)
 }
 
+func getStats(ctx context.Context, baseDir string) *archiveFile {
+	return archiveFileFromCommand(
+		ctx,
+		filepath.Join(baseDir, "docker", "stats.txt"),
+		"docker", "container", "stats", "--no-stream",
+	)
+}
+
 func getContainerLog(ctx context.Context, container, baseDir string) *archiveFile {
 	return archiveFileFromCommand(
 		ctx,
@@ -239,13 +251,5 @@ func getInspect(ctx context.Context, container, baseDir string) *archiveFile {
 		ctx,
 		filepath.Join(baseDir, "docker", "containers", container, fmt.Sprintf("inspect-%v.txt", container)),
 		"docker", "container", "inspect", container,
-	)
-}
-
-func getStats(ctx context.Context, baseDir string) *archiveFile {
-	return archiveFileFromCommand(
-		ctx,
-		filepath.Join(baseDir, "docker", "stats.txt"),
-		"docker", "container", "stats", "--no-stream",
 	)
 }

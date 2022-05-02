@@ -70,7 +70,17 @@ Examples:
 			baseDir = strings.TrimSuffix(base, ".zip")
 		}
 
+		// init context
 		ctx := context.Background()
+		// open pipe to output file
+		out, err := os.OpenFile(base, os.O_CREATE|os.O_RDWR|os.O_EXCL, 0666)
+		if err != nil {
+			fmt.Errorf("failed to open file: %w", err)
+		}
+		defer out.Close()
+		// init zip writer
+		zw := zip.NewWriter(out)
+		defer zw.Close()
 
 		//TODO: improve formating to include 'ls' like pod listing for pods targeted.
 
@@ -88,13 +98,6 @@ Examples:
 		if verified, _ := verify("Do you want to start writing to an archive?"); !verified {
 			return nil
 		}
-
-		out, zw, ctx, err := setupDebug(base)
-		if err != nil {
-			return err
-		}
-		defer out.Close()
-		defer zw.Close()
 
 		err = archiveKube(ctx, zw, *verbose, configs, namespace, baseDir, pods)
 		if err != nil {
