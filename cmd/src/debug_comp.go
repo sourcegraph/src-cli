@@ -100,7 +100,6 @@ Examples:
 
 /*
 Docker functions
-TODO: handle for single container/server instance
 */
 
 func archiveDocker(ctx context.Context, zw *zip.Writer, verbose, configs bool, baseDir string) error {
@@ -194,7 +193,7 @@ func archiveDocker(ctx context.Context, zw *zip.Writer, verbose, configs bool, b
 		close(ch)
 	}()
 
-	// Read binarys from channel and write to archive on host machine
+	// Read binaries from channel and write to archive on host machine
 	if err := writeChannelContentsToZip(zw, ch, verbose); err != nil {
 		return fmt.Errorf("failed to write archives from channel: %w", err)
 	}
@@ -222,7 +221,7 @@ func getContainers(ctx context.Context) ([]string, error) {
 func getPs(ctx context.Context, baseDir string) *archiveFile {
 	return archiveFileFromCommand(
 		ctx,
-		filepath.Join(baseDir, "/docker/docker-ps")+".txt",
+		filepath.Join(baseDir, "docker", "docker-ps.txt"),
 		"docker", "ps",
 	)
 }
@@ -230,7 +229,7 @@ func getPs(ctx context.Context, baseDir string) *archiveFile {
 func getContainerLog(ctx context.Context, container, baseDir string) *archiveFile {
 	return archiveFileFromCommand(
 		ctx,
-		filepath.Join(baseDir, "/docker/containers/", container, container)+".log",
+		filepath.Join(baseDir, "docker", "containers", container, fmt.Sprintf("%v.log", container)),
 		"docker", "container", "logs", container,
 	)
 }
@@ -238,7 +237,7 @@ func getContainerLog(ctx context.Context, container, baseDir string) *archiveFil
 func getInspect(ctx context.Context, container, baseDir string) *archiveFile {
 	return archiveFileFromCommand(
 		ctx,
-		filepath.Join(baseDir, "/docker/containers/", container, "/inspect-"+container)+".txt",
+		filepath.Join(baseDir, "docker", "containers", container, fmt.Sprintf("inspect-%v.txt", container)),
 		"docker", "container", "inspect", container,
 	)
 }
@@ -246,7 +245,7 @@ func getInspect(ctx context.Context, container, baseDir string) *archiveFile {
 func getStats(ctx context.Context, baseDir string) *archiveFile {
 	return archiveFileFromCommand(
 		ctx,
-		filepath.Join(baseDir, "/docker/stats")+".txt",
+		filepath.Join(baseDir, "docker", "stats.txt"),
 		"docker", "container", "stats", "--no-stream",
 	)
 }

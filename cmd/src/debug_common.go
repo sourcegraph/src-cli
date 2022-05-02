@@ -119,7 +119,7 @@ func getExternalServicesConfig(ctx context.Context, baseDir string) *archiveFile
 	const fmtStr = `{{range .Nodes}}{{.id}} | {{.kind}} | {{.displayName}}{{"\n"}}{{.config}}{{"\n---\n"}}{{end}}`
 	return archiveFileFromCommand(
 		ctx,
-		filepath.Join(baseDir, "/config/external_services.txt"),
+		filepath.Join(baseDir, "config", "external_services.txt"),
 		os.Args[0], "extsvc", "list", "-f", fmtStr,
 	)
 }
@@ -129,7 +129,7 @@ func getExternalServicesConfig(ctx context.Context, baseDir string) *archiveFile
 func getSiteConfig(ctx context.Context, baseDir string) *archiveFile {
 	const siteConfigStr = `query { site { configuration { effectiveContents } } }`
 	return archiveFileFromCommand(ctx,
-		filepath.Join(baseDir, "/config/siteConfig.json"),
+		filepath.Join(baseDir, "config", "siteConfig.json"),
 		os.Args[0], "api", "-query", siteConfigStr,
 	)
 }
