@@ -9,7 +9,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"syscall"
 
 	"github.com/sourcegraph/src-cli/internal/exec"
 
@@ -48,22 +47,6 @@ func verify(confirmationText string) (bool, error) {
 	}
 
 	return strings.ToLower(input) == "y", nil
-}
-
-// setOpenFileLimits increases the limit of open files to the given number. This is needed
-// when doings lots of concurrent network requests which establish open sockets.
-func setOpenFileLimits(n uint64) error {
-
-	var rlimit syscall.Rlimit
-	err := syscall.Getrlimit(syscall.RLIMIT_NOFILE, &rlimit)
-	if err != nil {
-		return err
-	}
-
-	rlimit.Max = n
-	rlimit.Cur = n
-
-	return syscall.Setrlimit(syscall.RLIMIT_NOFILE, &rlimit)
 }
 
 // write all the outputs from an archive command passed on the channel to to the zip writer

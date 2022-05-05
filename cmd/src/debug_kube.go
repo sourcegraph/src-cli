@@ -141,42 +141,37 @@ func archiveKube(ctx context.Context, zw *zip.Writer, verbose, configs bool, nam
 	g, ctx := errgroup.WithContext(ctx)
 	semaphore := semaphore.NewWeighted(8)
 
+	run := func(f func() error) {
+		g.Go(func() error {
+			if err := semaphore.Acquire(ctx, 1); err != nil {
+				return err
+			}
+			defer semaphore.Release(1)
+
+			return f()
+		})
+	}
+
 	// create goroutine to get pods
-	g.Go(func() error {
-		if err := semaphore.Acquire(ctx, 1); err != nil {
-			return err
-		}
-		defer semaphore.Release(1)
+	run(func() error {
 		ch <- getPods(ctx, namespace, baseDir)
 		return nil
 	})
 
 	// create goroutine to get kubectl events
-	g.Go(func() error {
-		if err := semaphore.Acquire(ctx, 1); err != nil {
-			return err
-		}
-		defer semaphore.Release(1)
+	run(func() error {
 		ch <- getEvents(ctx, namespace, baseDir)
 		return nil
 	})
 
 	// create goroutine to get persistent volumes
-	g.Go(func() error {
-		if err := semaphore.Acquire(ctx, 1); err != nil {
-			return err
-		}
-		defer semaphore.Release(1)
+	run(func() error {
 		ch <- getPV(ctx, namespace, baseDir)
 		return nil
 	})
 
 	// create goroutine to get persistent volumes claim
-	g.Go(func() error {
-		if err := semaphore.Acquire(ctx, 1); err != nil {
-			return err
-		}
-		defer semaphore.Release(1)
+	run(func() error {
 		ch <- getPVC(ctx, namespace, baseDir)
 		return nil
 	})
@@ -186,11 +181,7 @@ func archiveKube(ctx context.Context, zw *zip.Writer, verbose, configs bool, nam
 		for _, container := range pod.Spec.Containers {
 			p := pod.Metadata.Name
 			c := container.Name
-			g.Go(func() error {
-				if err := semaphore.Acquire(ctx, 1); err != nil {
-					return err
-				}
-				defer semaphore.Release(1)
+			run(func() error {
 				ch <- getPodLog(ctx, p, c, namespace, baseDir)
 				return nil
 			})
@@ -204,11 +195,7 @@ func archiveKube(ctx context.Context, zw *zip.Writer, verbose, configs bool, nam
 		for _, container := range pod.Spec.Containers {
 			p := pod.Metadata.Name
 			c := container.Name
-			g.Go(func() error {
-				if err := semaphore.Acquire(ctx, 1); err != nil {
-					return err
-				}
-				defer semaphore.Release(1)
+			run(func() error {
 				f := getPastPodLog(ctx, p, c, namespace, baseDir)
 				if f.err == nil {
 					ch <- f
@@ -223,11 +210,7 @@ func archiveKube(ctx context.Context, zw *zip.Writer, verbose, configs bool, nam
 	// start goroutine for each pod to run kubectl describe pod
 	for _, pod := range pods.Items {
 		p := pod.Metadata.Name
-		g.Go(func() error {
-			if err := semaphore.Acquire(ctx, 1); err != nil {
-				return err
-			}
-			defer semaphore.Release(1)
+		run(func() error {
 			ch <- getDescribe(ctx, p, namespace, baseDir)
 			return nil
 		})
@@ -236,11 +219,7 @@ func archiveKube(ctx context.Context, zw *zip.Writer, verbose, configs bool, nam
 	// start goroutine for each pod to run kubectl get pod <pod> -o yaml
 	for _, pod := range pods.Items {
 		p := pod.Metadata.Name
-		g.Go(func() error {
-			if err := semaphore.Acquire(ctx, 1); err != nil {
-				return err
-			}
-			defer semaphore.Release(1)
+		run(func() error {
 			ch <- getManifest(ctx, p, namespace, baseDir)
 			return nil
 		})
@@ -248,20 +227,12 @@ func archiveKube(ctx context.Context, zw *zip.Writer, verbose, configs bool, nam
 
 	// start goroutine to get external service config
 	if configs {
-		g.Go(func() error {
-			if err := semaphore.Acquire(ctx, 1); err != nil {
-				return err
-			}
-			defer semaphore.Release(1)
+		run(func() error {
 			ch <- getExternalServicesConfig(ctx, baseDir)
 			return nil
 		})
 
-		g.Go(func() error {
-			if err := semaphore.Acquire(ctx, 1); err != nil {
-				return err
-			}
-			defer semaphore.Release(1)
+		run(func() error {
 			ch <- getSiteConfig(ctx, baseDir)
 			return nil
 		})

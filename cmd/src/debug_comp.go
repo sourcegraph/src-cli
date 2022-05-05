@@ -11,6 +11,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/sourcegraph/sourcegraph/lib/errors"
+
 	"golang.org/x/sync/errgroup"
 
 	"golang.org/x/sync/semaphore"
@@ -124,29 +126,25 @@ func archiveCompose(ctx context.Context, zw *zip.Writer, verbose, configs bool, 
 	g, ctx := errgroup.WithContext(ctx)
 	semaphore := semaphore.NewWeighted(8)
 
-	// start goroutine to run docker ps -o wide
 	run := func(f func() error) {
 		g.Go(func() error {
 			if err := semaphore.Acquire(ctx, 1); err != nil {
 				return err
 			}
 			defer semaphore.Release(1)
-		
+
 			return f()
-		}()
+		})
 	}
-	
+
+	// start goroutine to run docker ps -o wide
 	run(func() error {
 		ch <- getPs(ctx, baseDir)
 		return nil
 	})
 
 	// start goroutine to run docker container stats --no-stream
-	g.Go(func() error {
-		if err := semaphore.Acquire(ctx, 1); err != nil {
-			return err
-		}
-		defer semaphore.Release(1)
+	run(func() error {
 		ch <- getStats(ctx, baseDir)
 		return nil
 	})
@@ -154,45 +152,29 @@ func archiveCompose(ctx context.Context, zw *zip.Writer, verbose, configs bool, 
 	// start goroutine to run docker container logs <container>
 	for _, container := range containers {
 		container := container
-		g.Go(func() error {
-			if err := semaphore.Acquire(ctx, 1); err != nil {
-				return err
-			}
-			defer semaphore.Release(1)
-			ch <- getContainerLog(ctx, c, baseDir)
+		run(func() error {
+			ch <- getContainerLog(ctx, container, baseDir)
 			return nil
 		})
 	}
 
 	// start goroutine to run docker container inspect <container>
 	for _, container := range containers {
-		c := container
-		g.Go(func() error {
-			if err := semaphore.Acquire(ctx, 1); err != nil {
-				return err
-			}
-			defer semaphore.Release(1)
-			ch <- getInspect(ctx, c, baseDir)
+		container := container
+		run(func() error {
+			ch <- getInspect(ctx, container, baseDir)
 			return nil
 		})
 	}
 
 	// start goroutine to get configs
 	if configs {
-		g.Go(func() error {
-			if err := semaphore.Acquire(ctx, 1); err != nil {
-				return err
-			}
-			defer semaphore.Release(1)
+		run(func() error {
 			ch <- getExternalServicesConfig(ctx, baseDir)
 			return nil
 		})
 
-		g.Go(func() error {
-			if err := semaphore.Acquire(ctx, 1); err != nil {
-				return err
-			}
-			defer semaphore.Release(1)
+		run(func() error {
 			ch <- getSiteConfig(ctx, baseDir)
 			return nil
 		})
@@ -219,7 +201,7 @@ func getContainers(ctx context.Context) ([]string, error) {
 	}
 	s := string(c)
 	preprocessed := strings.Split(strings.TrimSpace(s), "\n")
-	containers := make(string, 0, len(preprocessed))
+	containers := make([]string, 0, len(preprocessed))
 	for _, container := range preprocessed {
 		tmpStr := strings.Split(container, " ")
 		if tmpStr[1] == "docker-compose_sourcegraph" {

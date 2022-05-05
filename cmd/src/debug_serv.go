@@ -109,52 +109,43 @@ func archiveServ(ctx context.Context, zw *zip.Writer, verbose, configs bool, con
 	g, ctx := errgroup.WithContext(ctx)
 	semaphore := semaphore.NewWeighted(8)
 
+	run := func(f func() error) {
+		g.Go(func() error {
+			if err := semaphore.Acquire(ctx, 1); err != nil {
+				return err
+			}
+			defer semaphore.Release(1)
+
+			return f()
+		})
+	}
+
 	// start goroutine to run docker ps -o wide
-	g.Go(func() error {
-		if err := semaphore.Acquire(ctx, 1); err != nil {
-			return err
-		}
-		defer semaphore.Release(1)
+	run(func() error {
 		ch <- getServLog(ctx, container, baseDir)
 		return nil
 	})
 
 	// start goroutine to run docker ps -o wide
-	g.Go(func() error {
-		if err := semaphore.Acquire(ctx, 1); err != nil {
-			return err
-		}
-		defer semaphore.Release(1)
+	run(func() error {
 		ch <- getServInspect(ctx, container, baseDir)
 		return nil
 	})
 
 	// start goroutine to run docker ps -o wide
-	g.Go(func() error {
-		if err := semaphore.Acquire(ctx, 1); err != nil {
-			return err
-		}
-		defer semaphore.Release(1)
+	run(func() error {
 		ch <- getServTop(ctx, container, baseDir)
 		return nil
 	})
 
 	// start goroutine to get configs
 	if configs {
-		g.Go(func() error {
-			if err := semaphore.Acquire(ctx, 1); err != nil {
-				return err
-			}
-			defer semaphore.Release(1)
+		run(func() error {
 			ch <- getExternalServicesConfig(ctx, baseDir)
 			return nil
 		})
 
-		g.Go(func() error {
-			if err := semaphore.Acquire(ctx, 1); err != nil {
-				return err
-			}
-			defer semaphore.Release(1)
+		run(func() error {
 			ch <- getSiteConfig(ctx, baseDir)
 			return nil
 		})
