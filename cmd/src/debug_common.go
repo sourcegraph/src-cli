@@ -66,7 +66,7 @@ func setOpenFileLimits(n uint64) error {
 	return syscall.Setrlimit(syscall.RLIMIT_NOFILE, &rlimit)
 }
 
-// write to archive all the outputs from kubectl call functions passed to buffer channel
+// write all the outputs from an archive command passed on the channel to to the zip writer
 func writeChannelContentsToZip(zw *zip.Writer, ch <-chan *archiveFile, verbose bool) error {
 	for f := range ch {
 		if f.err != nil {
@@ -83,8 +83,7 @@ func writeChannelContentsToZip(zw *zip.Writer, ch <-chan *archiveFile, verbose b
 			return fmt.Errorf("failed to create %s: %w", f.name, err)
 		}
 
-		_, err = zf.Write(f.data)
-		if err != nil {
+		if _, err := zf.Write(f.data); err != nil {
 			return fmt.Errorf("failed to write to %s: %w", f.name, err)
 		}
 	}

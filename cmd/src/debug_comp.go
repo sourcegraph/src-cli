@@ -125,11 +125,18 @@ func archiveCompose(ctx context.Context, zw *zip.Writer, verbose, configs bool, 
 	semaphore := semaphore.NewWeighted(8)
 
 	// start goroutine to run docker ps -o wide
-	g.Go(func() error {
-		if err := semaphore.Acquire(ctx, 1); err != nil {
-			return err
-		}
-		defer semaphore.Release(1)
+	run := func(f func() error) {
+		g.Go(func() error {
+			if err := semaphore.Acquire(ctx, 1); err != nil {
+				return err
+			}
+			defer semaphore.Release(1)
+		
+			return f()
+		}()
+	}
+	
+	run(func() error {
 		ch <- getPs(ctx, baseDir)
 		return nil
 	})
@@ -146,7 +153,7 @@ func archiveCompose(ctx context.Context, zw *zip.Writer, verbose, configs bool, 
 
 	// start goroutine to run docker container logs <container>
 	for _, container := range containers {
-		c := container
+		container := container
 		g.Go(func() error {
 			if err := semaphore.Acquire(ctx, 1); err != nil {
 				return err
@@ -199,7 +206,7 @@ func archiveCompose(ctx context.Context, zw *zip.Writer, verbose, configs bool, 
 
 	// Read binaries from channel and write to archive on host machine
 	if err := writeChannelContentsToZip(zw, ch, verbose); err != nil {
-		return fmt.Errorf("failed to write archives from channel: %w", err)
+		return errors.Wrap(err, "failed to write archives from channel")
 	}
 
 	return nil
@@ -212,7 +219,7 @@ func getContainers(ctx context.Context) ([]string, error) {
 	}
 	s := string(c)
 	preprocessed := strings.Split(strings.TrimSpace(s), "\n")
-	containers := []string{}
+	containers := make(string, 0, len(preprocessed))
 	for _, container := range preprocessed {
 		tmpStr := strings.Split(container, " ")
 		if tmpStr[1] == "docker-compose_sourcegraph" {
