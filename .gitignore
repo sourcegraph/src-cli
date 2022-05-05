@@ -1,6 +1,6 @@
-src
-cmd/src/src
-cmd/src/*.zip
+./src
+./cmd/src/src
+*.zip
 release
 ./vendor
 .idea
