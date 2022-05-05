@@ -15,12 +15,6 @@ import (
 	"github.com/sourcegraph/sourcegraph/lib/errors"
 )
 
-/*
-General Stuff
-TODO: file issue on the existence of OAuth signKey which needs to be redacted
-TODO: Create getSiteConfig function
-*/
-
 type archiveFile struct {
 	name string
 	data []byte
@@ -73,7 +67,11 @@ func writeChannelContentsToZip(zw *zip.Writer, ch <-chan *archiveFile, verbose b
 	return nil
 }
 
-// TODO: Currently external services and site configs are pulled using the src endpoints
+// TODO: Currently external services and site configs are pulled using the SRC_ENDPOINT env var,
+// if theres a way to validate that the env var is pointing at the same instance as the docker and kubectl commands,
+// it should be implemented.
+
+// TODO: file issue on the existence of OAuth signKey which needs to be redacted
 
 // getExternalServicesConfig calls src extsvc list with the format flag -f,
 // and then returns an archiveFile to be consumed
@@ -87,7 +85,6 @@ func getExternalServicesConfig(ctx context.Context, baseDir string) *archiveFile
 }
 
 // getSiteConfig calls src api -query=... to query the api for site config json
-// TODO: correctly format json output before writing to zip
 func getSiteConfig(ctx context.Context, baseDir string) *archiveFile {
 	const siteConfigStr = `query { site { configuration { effectiveContents } } }`
 	f := archiveFileFromCommand(ctx,

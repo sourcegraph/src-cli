@@ -22,30 +22,31 @@ import (
 
 func init() {
 	usage := `
-'src debug comp' mocks docker cli commands to gather information about a docker-compose Sourcegraph instance.
+'src debug compose' invokes docker cli diagnostic commands targeting a containers that are members of a docker-compose network, 
+writing an archive file from their returns. 
 
 Usage:
 
-    src debug comp [command options]
+    src debug compose [command options]
 
 Flags:
 
-	-o			Specify the name of the output zip archive.
-	-cfg		Include Sourcegraph configuration json. Defaults to true.
+	-o			    Specify the name of the output zip archive.
+	--no-configs		Don't include Sourcegraph configuration json.
 
 Examples:
 
-    $ src debug comp -o debug.zip
+    $ src debug compose -o debug.zip
 
-	$ src -v debug comp -cfg=false -o foo.zip
+	$ src -v debug compose -no-configs -o foo.zip
 
 `
 
-	flagSet := flag.NewFlagSet("comp", flag.ExitOnError)
+	flagSet := flag.NewFlagSet("compose", flag.ExitOnError)
 	var base string
-	var configs bool
-	flagSet.BoolVar(&configs, "cfg", true, "If true include Sourcegraph configuration files. Default value true.")
+	var noConfigs bool
 	flagSet.StringVar(&base, "o", "debug.zip", "The name of the output zip archive")
+	flagSet.BoolVar(&noConfigs, "no-configs", false, "If true include Sourcegraph configuration files. Default value true.")
 
 	handler := func(args []string) error {
 		if err := flagSet.Parse(args); err != nil {
@@ -88,7 +89,7 @@ Examples:
 			return nil
 		}
 
-		err = archiveCompose(ctx, zw, *verbose, configs, baseDir)
+		err = archiveCompose(ctx, zw, *verbose, noConfigs, baseDir)
 		if err != nil {
 			return cmderrors.ExitCode(1, nil)
 		}
@@ -104,11 +105,8 @@ Examples:
 	})
 }
 
-/*
-Docker functions
-*/
-
-func archiveCompose(ctx context.Context, zw *zip.Writer, verbose, configs bool, baseDir string) error {
+// writes archive of common docker cli commands
+func archiveCompose(ctx context.Context, zw *zip.Writer, verbose, noConfigs bool, baseDir string) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -168,7 +166,7 @@ func archiveCompose(ctx context.Context, zw *zip.Writer, verbose, configs bool, 
 	}
 
 	// start goroutine to get configs
-	if configs {
+	if !noConfigs {
 		run(func() error {
 			ch <- getExternalServicesConfig(ctx, baseDir)
 			return nil
@@ -194,6 +192,7 @@ func archiveCompose(ctx context.Context, zw *zip.Writer, verbose, configs bool, 
 	return nil
 }
 
+// Returns list of containers that are members of the docker-compose_sourcegraph
 func getContainers(ctx context.Context) ([]string, error) {
 	c, err := exec.CommandContext(ctx, "docker", "container", "ls", "--format", "{{.Names}} {{.Networks}}").Output()
 	if err != nil {
@@ -211,6 +210,7 @@ func getContainers(ctx context.Context) ([]string, error) {
 	return containers, err
 }
 
+// runs archiveFileFromCommand with args docker ps
 func getPs(ctx context.Context, baseDir string) *archiveFile {
 	return archiveFileFromCommand(
 		ctx,
@@ -219,6 +219,7 @@ func getPs(ctx context.Context, baseDir string) *archiveFile {
 	)
 }
 
+// runs archiveFileFromCommand with args docker container stats
 func getStats(ctx context.Context, baseDir string) *archiveFile {
 	return archiveFileFromCommand(
 		ctx,
@@ -227,6 +228,7 @@ func getStats(ctx context.Context, baseDir string) *archiveFile {
 	)
 }
 
+// runs archiveFileFromCommand with args docker container logs $CONTAINER
 func getContainerLog(ctx context.Context, container, baseDir string) *archiveFile {
 	return archiveFileFromCommand(
 		ctx,
@@ -235,6 +237,7 @@ func getContainerLog(ctx context.Context, container, baseDir string) *archiveFil
 	)
 }
 
+// runs archiveFileFromCommand with args docker container inspect $CONTAINER
 func getInspect(ctx context.Context, container, baseDir string) *archiveFile {
 	return archiveFileFromCommand(
 		ctx,

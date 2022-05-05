@@ -18,7 +18,8 @@ import (
 
 func init() {
 	usage := `
-'src debug serv' mocks docker cli commands to gather information about a Sourcegraph server instance. 
+'src debug server' invokes docker cli diagnostic commands targeting a Sourcegraph server container, 
+and writes an archive file from their returns. 
 
 Usage:
 
@@ -26,24 +27,24 @@ Usage:
 
 Flags:
 
-	-o			Specify the name of the output zip archive.
-	-cfg		Include Sourcegraph configuration json. Defaults to true.
+	-o			    Specify the name of the output zip archive.
+	-no-config		Don't include Sourcegraph configuration json.
 
 Examples:
 
-    $ src debug serv -c foo -o debug.zip
+    $ src debug server -c foo -o debug.zip
 
-	$ src -v debug serv -cfg=false -c ViktorVaughn -o foo.zip
+	$ src -v debug server --no-configs -c ViktorVaughn -o foo.zip
 
 `
 
-	flagSet := flag.NewFlagSet("serv", flag.ExitOnError)
+	flagSet := flag.NewFlagSet("server", flag.ExitOnError)
 	var base string
 	var container string
-	var configs bool
-	flagSet.BoolVar(&configs, "cfg", true, "If true include Sourcegraph configuration files. Default value true.")
+	var noConfigs bool
 	flagSet.StringVar(&base, "o", "debug.zip", "The name of the output zip archive")
 	flagSet.StringVar(&container, "c", "", "The container to target")
+	flagSet.BoolVar(&noConfigs, "no-configs", false, "If true include Sourcegraph configuration files. Default value true.")
 
 	handler := func(args []string) error {
 		if err := flagSet.Parse(args); err != nil {
@@ -55,7 +56,7 @@ Examples:
 			return fmt.Errorf("empty -o flag")
 		}
 		if container == "" {
-			return fmt.Errorf("empty -c flag, specifying a container is required")
+			return fmt.Errorf("empty -c flag, specify a container: src debug server -c foo")
 		}
 		// declare basedir for archive file structure
 		var baseDir string
@@ -84,7 +85,7 @@ Examples:
 			return nil
 		}
 
-		err = archiveServ(ctx, zw, *verbose, configs, container, baseDir)
+		err = archiveServ(ctx, zw, *verbose, noConfigs, container, baseDir)
 		if err != nil {
 			return cmderrors.ExitCode(1, nil)
 		}
@@ -100,7 +101,8 @@ Examples:
 	})
 }
 
-func archiveServ(ctx context.Context, zw *zip.Writer, verbose, configs bool, container, baseDir string) error {
+// Runs common docker cli commands on a single container
+func archiveServ(ctx context.Context, zw *zip.Writer, verbose, noConfigs bool, container, baseDir string) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -139,7 +141,7 @@ func archiveServ(ctx context.Context, zw *zip.Writer, verbose, configs bool, con
 	})
 
 	// start goroutine to get configs
-	if configs {
+	if !noConfigs {
 		run(func() error {
 			ch <- getExternalServicesConfig(ctx, baseDir)
 			return nil
@@ -165,6 +167,7 @@ func archiveServ(ctx context.Context, zw *zip.Writer, verbose, configs bool, con
 	return nil
 }
 
+// runs archiveFileFromCommand with args container logs $CONTAINER
 func getServLog(ctx context.Context, container, baseDir string) *archiveFile {
 	return archiveFileFromCommand(
 		ctx,
@@ -173,6 +176,7 @@ func getServLog(ctx context.Context, container, baseDir string) *archiveFile {
 	)
 }
 
+// runs archiveFileFromCommand with args container inspect $CONTAINER
 func getServInspect(ctx context.Context, container, baseDir string) *archiveFile {
 	return archiveFileFromCommand(
 		ctx,
@@ -181,6 +185,7 @@ func getServInspect(ctx context.Context, container, baseDir string) *archiveFile
 	)
 }
 
+// runs archiveFileFromCommand with args top $CONTAINER
 func getServTop(ctx context.Context, container, baseDir string) *archiveFile {
 	return archiveFileFromCommand(
 		ctx,

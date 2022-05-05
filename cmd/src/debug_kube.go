@@ -22,17 +22,16 @@ import (
 
 func init() {
 	usage := `
-'src debug kube' mocks kubectl commands to gather information about a kubernetes sourcegraph instance. 
-
+'src debug kube' invokes kubectl diagnostic commands targeting kubectl's current-context, writing returns to an archive.
 Usage:
 
     src debug kube [command options]
 
 Flags:
 
-	-o			Specify the name of the output zip archive.
-	-n			Specify the namespace passed to kubectl commands. If not specified the 'default' namespace is used.
-	-cfg		Include Sourcegraph configuration json. Defaults to true.
+	-o			    Specify the name of the output zip archive.
+	-n			    Specify the namespace passed to kubectl commands. If not specified the 'default' namespace is used.
+	--no-config		Don't include Sourcegraph configuration json.
 
 Examples:
 
@@ -40,17 +39,17 @@ Examples:
 
 	$ src -v debug kube -n ns-sourcegraph -o foo
 
-	$ src debug kube -cfg=false -o bar.zip
+	$ src debug kube -no-configs -o bar.zip
 
 `
 
 	flagSet := flag.NewFlagSet("kube", flag.ExitOnError)
 	var base string
 	var namespace string
-	var configs bool
-	flagSet.BoolVar(&configs, "cfg", true, "If true include Sourcegraph configuration files. Default value true.")
-	flagSet.StringVar(&namespace, "n", "default", "The namespace passed to kubectl commands, if not specified the 'default' namespace is used")
+	var noConfigs bool
 	flagSet.StringVar(&base, "o", "debug.zip", "The name of the output zip archive")
+	flagSet.StringVar(&namespace, "n", "default", "The namespace passed to kubectl commands, if not specified the 'default' namespace is used")
+	flagSet.BoolVar(&noConfigs, "no-configs", false, "If true include Sourcegraph configuration files. Default value true.")
 
 	handler := func(args []string) error {
 		if err := flagSet.Parse(args); err != nil {
@@ -82,8 +81,6 @@ Examples:
 		zw := zip.NewWriter(out)
 		defer zw.Close()
 
-		//TODO: improve formating to include 'ls' like pod listing for pods targeted.
-
 		// Gather data for safety check
 		pods, err := selectPods(ctx, namespace)
 		if err != nil {
@@ -99,7 +96,7 @@ Examples:
 			return nil
 		}
 
-		err = archiveKube(ctx, zw, *verbose, configs, namespace, baseDir, pods)
+		err = archiveKube(ctx, zw, *verbose, noConfigs, namespace, baseDir, pods)
 		if err != nil {
 			return cmderrors.ExitCode(1, err)
 		}
@@ -128,8 +125,8 @@ type podList struct {
 	}
 }
 
-// Run kubectl functions concurrently and archive results to zip file
-func archiveKube(ctx context.Context, zw *zip.Writer, verbose, configs bool, namespace, baseDir string, pods podList) error {
+// Runs common kubectl functions and archive results to zip file
+func archiveKube(ctx context.Context, zw *zip.Writer, verbose, noConfigs bool, namespace, baseDir string, pods podList) error {
 	// Create a context with a cancel function that we call when returning
 	// from archiveKube. This ensures we close all pending go-routines when returning
 	// early because of an error.
@@ -190,7 +187,6 @@ func archiveKube(ctx context.Context, zw *zip.Writer, verbose, configs bool, nam
 
 	// start goroutine to run kubectl logs --previous for each pod's container's
 	// won't write to zip on err, only passes bytes to channel if err not nil
-	// TODO: It may be nice to store a list of pods for which --previous isn't collected, to be outputted with verbose flag
 	for _, pod := range pods.Items {
 		for _, container := range pod.Spec.Containers {
 			p := pod.Metadata.Name
@@ -226,7 +222,7 @@ func archiveKube(ctx context.Context, zw *zip.Writer, verbose, configs bool, nam
 	}
 
 	// start goroutine to get external service config
-	if configs {
+	if !noConfigs {
 		run(func() error {
 			ch <- getExternalServicesConfig(ctx, baseDir)
 			return nil
@@ -252,6 +248,7 @@ func archiveKube(ctx context.Context, zw *zip.Writer, verbose, configs bool, nam
 	return nil
 }
 
+// Calls kubectl get pods and returns a list of pods to be processed
 func selectPods(ctx context.Context, namespace string) (podList, error) {
 	// Declare buffer type var for kubectl pipe
 	var podsBuff bytes.Buffer
@@ -277,6 +274,7 @@ func selectPods(ctx context.Context, namespace string) (podList, error) {
 	return pods, err
 }
 
+// runs archiveFileFromCommand with arg get pods
 func getPods(ctx context.Context, namespace, baseDir string) *archiveFile {
 	return archiveFileFromCommand(
 		ctx,
@@ -285,6 +283,7 @@ func getPods(ctx context.Context, namespace, baseDir string) *archiveFile {
 	)
 }
 
+// runs archiveFileFromCommand with arg get events
 func getEvents(ctx context.Context, namespace, baseDir string) *archiveFile {
 	return archiveFileFromCommand(
 		ctx,
@@ -293,6 +292,7 @@ func getEvents(ctx context.Context, namespace, baseDir string) *archiveFile {
 	)
 }
 
+// runs archiveFileFromCommand with arg get pv
 func getPV(ctx context.Context, namespace, baseDir string) *archiveFile {
 	return archiveFileFromCommand(
 		ctx,
@@ -301,6 +301,7 @@ func getPV(ctx context.Context, namespace, baseDir string) *archiveFile {
 	)
 }
 
+// runs archiveFileFromCommand with arg get pvc
 func getPVC(ctx context.Context, namespace, baseDir string) *archiveFile {
 	return archiveFileFromCommand(
 		ctx,
@@ -309,7 +310,7 @@ func getPVC(ctx context.Context, namespace, baseDir string) *archiveFile {
 	)
 }
 
-// get kubectl logs for pod containers
+// runs archiveFileFromCommand with arg logs $POD -c $CONTAINER
 func getPodLog(ctx context.Context, podName, containerName, namespace, baseDir string) *archiveFile {
 	return archiveFileFromCommand(
 		ctx,
@@ -318,7 +319,7 @@ func getPodLog(ctx context.Context, podName, containerName, namespace, baseDir s
 	)
 }
 
-// get kubectl logs for past container
+// runs archiveFileFromCommand with arg logs --previous $POD -c $CONTAINER
 func getPastPodLog(ctx context.Context, podName, containerName, namespace, baseDir string) *archiveFile {
 	return archiveFileFromCommand(
 		ctx,
@@ -327,6 +328,7 @@ func getPastPodLog(ctx context.Context, podName, containerName, namespace, baseD
 	)
 }
 
+// runs archiveFileFromCommand with arg describe pod $POD
 func getDescribe(ctx context.Context, podName, namespace, baseDir string) *archiveFile {
 	return archiveFileFromCommand(
 		ctx,
@@ -335,6 +337,7 @@ func getDescribe(ctx context.Context, podName, namespace, baseDir string) *archi
 	)
 }
 
+// runs archiveFileFromCommand with arg get pod $POD -o yaml
 func getManifest(ctx context.Context, podName, namespace, baseDir string) *archiveFile {
 	return archiveFileFromCommand(
 		ctx,
