@@ -109,8 +109,8 @@ func getSiteConfig(ctx context.Context, baseDir string) *archiveFile {
 		}
 	}
 
-	f.err = json.Unmarshal(f.data, &siteConfig)
-	if f.err != nil {
+	if err := json.Unmarshal(f.data, &siteConfig); err != nil {
+		f.err = err
 		return f
 	}
 
