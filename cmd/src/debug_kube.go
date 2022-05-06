@@ -181,14 +181,13 @@ func archiveKube(ctx context.Context, zw *zip.Writer, verbose, noConfigs bool, n
 		for _, container := range pod.Spec.Containers {
 			p := pod.Metadata.Name
 			c := container.Name
-			run(func() error {
+			run(func() *archiveFile {
 				f := getPastPodLog(ctx, p, c, namespace, baseDir)
-				if f.err == nil {
-					ch <- f
-				} else if verbose {
+				if f.err != nil {
 					fmt.Printf("Could not gather --previous pod logs for: %s \nExited with err: %s\n", p, f.err)
+					return nil
 				}
-				return nil
+				return f
 			})
 		}
 	}
