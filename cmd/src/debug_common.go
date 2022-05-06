@@ -44,14 +44,11 @@ func verify(confirmationText string) (bool, error) {
 }
 
 func processBaseDir(base string) (string, string) {
-	var baseDir string
 	if !strings.HasSuffix(base, ".zip") {
-		baseDir = base
-		base = base + ".zip"
-	} else {
-		baseDir = strings.TrimSuffix(base, ".zip")
+		return base + ".zip", base
 	}
-	return base, baseDir
+
+	return base, strings.TrimSuffix(base, ".zip")
 }
 
 // write all the outputs from an archive command passed on the channel to to the zip writer
