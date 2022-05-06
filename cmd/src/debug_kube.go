@@ -15,6 +15,7 @@ import (
 
 	"golang.org/x/sync/semaphore"
 
+	"github.com/sourcegraph/sourcegraph/lib/errors"
 	"github.com/sourcegraph/src-cli/internal/cmderrors"
 	"github.com/sourcegraph/src-cli/internal/exec"
 )
@@ -66,7 +67,7 @@ Examples:
 		// open pipe to output file
 		out, err := os.OpenFile(base, os.O_CREATE|os.O_RDWR|os.O_EXCL, 0666)
 		if err != nil {
-			fmt.Errorf("failed to open file: %w", err)
+			return errors.Wrapf(err, "failed to open file: %w", err)
 		}
 		defer out.Close()
 		// init zip writer
@@ -76,11 +77,11 @@ Examples:
 		// Gather data for safety check
 		pods, err := selectPods(ctx, namespace)
 		if err != nil {
-			return fmt.Errorf("failed to get pods: %w", err)
+			return errors.Wrapf(err, "failed to get pods: %w", err)
 		}
 		kubectx, err := exec.CommandContext(ctx, "kubectl", "config", "current-context").CombinedOutput()
 		if err != nil {
-			return fmt.Errorf("failed to get current-context: %w", err)
+			return errors.Wrapf(err, "failed to get current-context: %w", err)
 		}
 		// Safety check user knows what they've targeted with this command
 		log.Printf("Archiving kubectl data for %d pods\n SRC_ENDPOINT: %v\n Context: %s Namespace: %v\n Output filename: %v", len(pods.Items), cfg.Endpoint, kubectx, namespace, base)
@@ -234,7 +235,7 @@ func archiveKube(ctx context.Context, zw *zip.Writer, verbose, noConfigs bool, n
 
 	// Read binaries from channel and write to archive on host machine
 	if err := writeChannelContentsToZip(zw, ch, verbose); err != nil {
-		return fmt.Errorf("failed to write archives from channel: %w", err)
+		return errors.Wrapf(err, "failed to write archives from channel: %w", err)
 	}
 
 	return nil
@@ -254,13 +255,13 @@ func selectPods(ctx context.Context, namespace string) (podList, error) {
 	podsCmd.Stderr = os.Stderr
 	err := podsCmd.Run()
 	if err != nil {
-		fmt.Errorf("failed to aquire pods for subcommands with err: %v", err)
+		errors.Wrapf(err, "failed to aquire pods for subcommands with err: %v", err)
 	}
 
 	//Decode json from podList
 	var pods podList
 	if err := json.NewDecoder(&podsBuff).Decode(&pods); err != nil {
-		fmt.Errorf("failed to unmarshall get pods json: %w", err)
+		errors.Wrapf(err, "failed to unmarshall get pods json: %w", err)
 	}
 
 	return pods, err

@@ -57,11 +57,6 @@ func processBaseDir(base string) (string, string) {
 // write all the outputs from an archive command passed on the channel to to the zip writer
 func writeChannelContentsToZip(zw *zip.Writer, ch <-chan *archiveFile, verbose bool) error {
 	for f := range ch {
-		if f.err != nil {
-			log.Printf("getting data for %s failed: %v\noutput: %s", f.name, f.err, f.data)
-			continue
-		}
-
 		if verbose {
 			log.Printf("archiving file %q with %d bytes", f.name, len(f.data))
 		}
