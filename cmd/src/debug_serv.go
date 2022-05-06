@@ -23,16 +23,16 @@ and writes an archive file from their returns.
 
 Usage:
 
-    src debug serv [command options]
+	src debug serv [command options]
 
 Flags:
 
-	-o			    Specify the name of the output zip archive.
+	-o				Specify the name of the output zip archive.
 	-no-config		Don't include Sourcegraph configuration json.
 
 Examples:
 
-    $ src debug server -c foo -o debug.zip
+	$ src debug server -c foo -o debug.zip
 
 	$ src -v debug server --no-configs -c ViktorVaughn -o foo.zip
 
@@ -65,7 +65,7 @@ Examples:
 		// open pipe to output file
 		out, err := os.OpenFile(base, os.O_CREATE|os.O_RDWR|os.O_EXCL, 0666)
 		if err != nil {
-			return errors.Wrapf(err, "failed to open file: %w", err)
+			return errors.Wrapf(err, "failed to open file")
 		}
 		defer out.Close()
 		// init zip writer

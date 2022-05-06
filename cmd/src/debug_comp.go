@@ -27,16 +27,16 @@ writing an archive file from their returns.
 
 Usage:
 
-    src debug compose [command options]
+	src debug compose [command options]
 
 Flags:
 
-	-o			    Specify the name of the output zip archive.
+	-o					Specify the name of the output zip archive.
 	--no-configs		Don't include Sourcegraph configuration json.
 
 Examples:
 
-    $ src debug compose -o debug.zip
+	$ src debug compose -o debug.zip
 
 	$ src -v debug compose -no-configs -o foo.zip
 

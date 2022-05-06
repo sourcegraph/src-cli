@@ -25,17 +25,17 @@ func init() {
 'src debug kube' invokes kubectl diagnostic commands targeting kubectl's current-context, writing returns to an archive.
 Usage:
 
-    src debug kube [command options]
+	src debug kube [command options]
 
 Flags:
 
-	-o			    Specify the name of the output zip archive.
-	-n			    Specify the namespace passed to kubectl commands. If not specified the 'default' namespace is used.
+	-o				Specify the name of the output zip archive.
+	-n				Specify the namespace passed to kubectl commands. If not specified the 'default' namespace is used.
 	--no-config		Don't include Sourcegraph configuration json.
 
 Examples:
 
-    $ src debug kube -o debug.zip
+	$ src debug kube -o debug.zip
 
 	$ src -v debug kube -n ns-sourcegraph -o foo
 
