@@ -104,46 +104,35 @@ func archiveServ(ctx context.Context, zw *zip.Writer, verbose, noConfigs bool, c
 	g, ctx := errgroup.WithContext(ctx)
 	semaphore := semaphore.NewWeighted(8)
 
-	run := func(f func() error) {
+	run := func(f func() *archiveFile) {
 		g.Go(func() error {
 			if err := semaphore.Acquire(ctx, 1); err != nil {
 				return err
 			}
 			defer semaphore.Release(1)
 
-			return f()
+			if file := f(); file != nil {
+				ch <- file
+			}
+
+			return nil
 		})
 	}
 
 	// start goroutine to run docker ps -o wide
-	run(func() error {
-		ch <- getServLog(ctx, container, baseDir)
-		return nil
-	})
+	run(func() *archiveFile { return getServLog(ctx, container, baseDir) })
 
 	// start goroutine to run docker ps -o wide
-	run(func() error {
-		ch <- getServInspect(ctx, container, baseDir)
-		return nil
-	})
+	run(func() *archiveFile { return getServInspect(ctx, container, baseDir) })
 
 	// start goroutine to run docker ps -o wide
-	run(func() error {
-		ch <- getServTop(ctx, container, baseDir)
-		return nil
-	})
+	run(func() *archiveFile { return getServTop(ctx, container, baseDir) })
 
 	// start goroutine to get configs
 	if !noConfigs {
-		run(func() error {
-			ch <- getExternalServicesConfig(ctx, baseDir)
-			return nil
-		})
+		run(func() *archiveFile { return getExternalServicesConfig(ctx, baseDir) })
 
-		run(func() error {
-			ch <- getSiteConfig(ctx, baseDir)
-			return nil
-		})
+		run(func() *archiveFile { return getSiteConfig(ctx, baseDir) })
 	}
 
 	// close channel when wait group goroutines have completed

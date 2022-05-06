@@ -44,14 +44,11 @@ func verify(confirmationText string) (bool, error) {
 }
 
 func processBaseDir(base string) (string, string) {
-	var baseDir string
 	if !strings.HasSuffix(base, ".zip") {
-		baseDir = base
-		base = base + ".zip"
-	} else {
-		baseDir = strings.TrimSuffix(base, ".zip")
+		return base + ".zip", base
 	}
-	return base, baseDir
+
+	return base, strings.TrimSuffix(base, ".zip")
 }
 
 // write all the outputs from an archive command passed on the channel to to the zip writer
@@ -59,6 +56,10 @@ func writeChannelContentsToZip(zw *zip.Writer, ch <-chan *archiveFile, verbose b
 	for f := range ch {
 		if verbose {
 			log.Printf("archiving file %q with %d bytes", f.name, len(f.data))
+		}
+
+		if f.err != nil {
+			return f.err
 		}
 
 		zf, err := zw.Create(f.name)
@@ -112,8 +113,8 @@ func getSiteConfig(ctx context.Context, baseDir string) *archiveFile {
 		}
 	}
 
-	f.err = json.Unmarshal(f.data, &siteConfig)
-	if f.err != nil {
+	if err := json.Unmarshal(f.data, &siteConfig); err != nil {
+		f.err = err
 		return f
 	}
 

@@ -118,64 +118,50 @@ func archiveCompose(ctx context.Context, zw *zip.Writer, verbose, noConfigs bool
 	g, ctx := errgroup.WithContext(ctx)
 	semaphore := semaphore.NewWeighted(8)
 
-	run := func(f func() error) {
+	run := func(f func() *archiveFile) {
 		g.Go(func() error {
 			if err := semaphore.Acquire(ctx, 1); err != nil {
 				return err
 			}
 			defer semaphore.Release(1)
 
-			return f()
+			if file := f(); file != nil {
+				ch <- file
+			}
+
+			return nil
 		})
 	}
 
 	// start goroutine to run docker ps -o wide
-	run(func() error {
-		ch <- getPs(ctx, baseDir)
-		return nil
-	})
+	run(func() *archiveFile { return getPs(ctx, baseDir) })
 
 	// start goroutine to run docker container stats --no-stream
-	run(func() error {
-		ch <- getStats(ctx, baseDir)
-		return nil
-	})
+	run(func() *archiveFile { return getStats(ctx, baseDir) })
 
 	// start goroutine to run docker container logs <container>
 	for _, container := range containers {
 		container := container
-		run(func() error {
-			ch <- getContainerLog(ctx, container, baseDir)
-			return nil
-		})
+		run(func() *archiveFile { return getContainerLog(ctx, container, baseDir) })
 	}
 
 	// start goroutine to run docker container inspect <container>
 	for _, container := range containers {
 		container := container
-		run(func() error {
-			ch <- getInspect(ctx, container, baseDir)
-			return nil
-		})
+		run(func() *archiveFile { return getInspect(ctx, container, baseDir) })
 	}
 
 	// start goroutine to get configs
 	if !noConfigs {
-		run(func() error {
-			ch <- getExternalServicesConfig(ctx, baseDir)
-			return nil
-		})
+		run(func() *archiveFile { return getExternalServicesConfig(ctx, baseDir) })
 
-		run(func() error {
-			ch <- getSiteConfig(ctx, baseDir)
-			return nil
-		})
+		run(func() *archiveFile { return getSiteConfig(ctx, baseDir) })
 	}
 
 	// close channel when wait group goroutines have completed
 	go func() {
 		if err := g.Wait(); err != nil {
-			fmt.Printf("archiveCompose failed to open wait group: %v", err)
+			fmt.Printf("archiveCompose failed to open wait group: %s", err)
 		}
 		close(ch)
 	}()
@@ -199,7 +185,7 @@ func getContainers(ctx context.Context) ([]string, error) {
 	containers := make([]string, 0, len(preprocessed))
 	for _, container := range preprocessed {
 		tmpStr := strings.Split(container, " ")
-		if tmpStr[1] == "docker-compose_sourcegraph" {
+		if len(tmpStr) >= 2 && tmpStr[1] == "docker-compose_sourcegraph" {
 			containers = append(containers, tmpStr[0])
 		}
 	}

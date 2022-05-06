@@ -131,50 +131,39 @@ func archiveKube(ctx context.Context, zw *zip.Writer, verbose, noConfigs bool, n
 	g, ctx := errgroup.WithContext(ctx)
 	semaphore := semaphore.NewWeighted(8)
 
-	run := func(f func() error) {
+	run := func(f func() *archiveFile) {
 		g.Go(func() error {
 			if err := semaphore.Acquire(ctx, 1); err != nil {
 				return err
 			}
 			defer semaphore.Release(1)
 
-			return f()
+			if file := f(); file != nil {
+				ch <- file
+			}
+
+			return nil
 		})
 	}
 
 	// create goroutine to get pods
-	run(func() error {
-		ch <- getPods(ctx, namespace, baseDir)
-		return nil
-	})
+	run(func() *archiveFile { return getPods(ctx, namespace, baseDir) })
 
 	// create goroutine to get kubectl events
-	run(func() error {
-		ch <- getEvents(ctx, namespace, baseDir)
-		return nil
-	})
+	run(func() *archiveFile { return getEvents(ctx, namespace, baseDir) })
 
 	// create goroutine to get persistent volumes
-	run(func() error {
-		ch <- getPV(ctx, namespace, baseDir)
-		return nil
-	})
+	run(func() *archiveFile { return getPV(ctx, namespace, baseDir) })
 
 	// create goroutine to get persistent volumes claim
-	run(func() error {
-		ch <- getPVC(ctx, namespace, baseDir)
-		return nil
-	})
+	run(func() *archiveFile { return getPVC(ctx, namespace, baseDir) })
 
 	// start goroutine to run kubectl logs for each pod's container's
 	for _, pod := range pods.Items {
 		for _, container := range pod.Spec.Containers {
 			p := pod.Metadata.Name
 			c := container.Name
-			run(func() error {
-				ch <- getPodLog(ctx, p, c, namespace, baseDir)
-				return nil
-			})
+			run(func() *archiveFile { return getPodLog(ctx, p, c, namespace, baseDir) })
 		}
 	}
 
@@ -184,14 +173,15 @@ func archiveKube(ctx context.Context, zw *zip.Writer, verbose, noConfigs bool, n
 		for _, container := range pod.Spec.Containers {
 			p := pod.Metadata.Name
 			c := container.Name
-			run(func() error {
+			run(func() *archiveFile {
 				f := getPastPodLog(ctx, p, c, namespace, baseDir)
-				if f.err == nil {
-					ch <- f
-				} else if verbose {
-					fmt.Printf("Could not gather --previous pod logs for: %s \nExited with err: %s\n", p, f.err)
+				if f.err != nil {
+					if verbose {
+						fmt.Printf("Could not gather --previous pod logs for %s\n", p)
+					}
+					return nil
 				}
-				return nil
+				return f
 			})
 		}
 	}
@@ -199,32 +189,20 @@ func archiveKube(ctx context.Context, zw *zip.Writer, verbose, noConfigs bool, n
 	// start goroutine for each pod to run kubectl describe pod
 	for _, pod := range pods.Items {
 		p := pod.Metadata.Name
-		run(func() error {
-			ch <- getDescribe(ctx, p, namespace, baseDir)
-			return nil
-		})
+		run(func() *archiveFile { return getDescribe(ctx, p, namespace, baseDir) })
 	}
 
 	// start goroutine for each pod to run kubectl get pod <pod> -o yaml
 	for _, pod := range pods.Items {
 		p := pod.Metadata.Name
-		run(func() error {
-			ch <- getManifest(ctx, p, namespace, baseDir)
-			return nil
-		})
+		run(func() *archiveFile { return getManifest(ctx, p, namespace, baseDir) })
 	}
 
 	// start goroutine to get external service config
 	if !noConfigs {
-		run(func() error {
-			ch <- getExternalServicesConfig(ctx, baseDir)
-			return nil
-		})
+		run(func() *archiveFile { return getExternalServicesConfig(ctx, baseDir) })
 
-		run(func() error {
-			ch <- getSiteConfig(ctx, baseDir)
-			return nil
-		})
+		run(func() *archiveFile { return getSiteConfig(ctx, baseDir) })
 	}
 
 	// close channel when wait group goroutines have completed
