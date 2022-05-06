@@ -8,7 +8,6 @@ import (
 	"log"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
@@ -51,21 +50,14 @@ Examples:
 			return err
 		}
 
-		//validate required flags aren't empty
+		//process -o flag to get zipfile and base directory names, make sure container is targeted
 		if base == "" {
 			return fmt.Errorf("empty -o flag")
 		}
 		if container == "" {
 			return fmt.Errorf("empty -c flag, specify a container: src debug server -c foo")
 		}
-		// declare basedir for archive file structure
-		var baseDir string
-		if !strings.HasSuffix(base, ".zip") {
-			baseDir = base
-			base = base + ".zip"
-		} else {
-			baseDir = strings.TrimSuffix(base, ".zip")
-		}
+		base, baseDir := processBaseDir(base)
 
 		// init context
 		ctx := context.Background()

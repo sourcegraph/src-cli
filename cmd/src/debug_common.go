@@ -43,6 +43,17 @@ func verify(confirmationText string) (bool, error) {
 	return strings.ToLower(input) == "y", nil
 }
 
+func processBaseDir(base string) (string, string) {
+	var baseDir string
+	if !strings.HasSuffix(base, ".zip") {
+		baseDir = base
+		base = base + ".zip"
+	} else {
+		baseDir = strings.TrimSuffix(base, ".zip")
+	}
+	return base, baseDir
+}
+
 // write all the outputs from an archive command passed on the channel to to the zip writer
 func writeChannelContentsToZip(zw *zip.Writer, ch <-chan *archiveFile, verbose bool) error {
 	for f := range ch {
@@ -57,11 +68,11 @@ func writeChannelContentsToZip(zw *zip.Writer, ch <-chan *archiveFile, verbose b
 
 		zf, err := zw.Create(f.name)
 		if err != nil {
-			return fmt.Errorf("failed to create %s: %w", f.name, err)
+			return errors.Wrapf(err, "failed to create %s: %w", f.name, err)
 		}
 
 		if _, err := zf.Write(f.data); err != nil {
-			return fmt.Errorf("failed to write to %s: %w", f.name, err)
+			return errors.Wrapf(err, "failed to write to %s: %w", f.name, err)
 		}
 	}
 	return nil

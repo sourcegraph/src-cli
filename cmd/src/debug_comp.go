@@ -53,25 +53,19 @@ Examples:
 			return err
 		}
 
-		//validate out flag
+		// process -o flag to get zipfile and base directory names
 		if base == "" {
 			return fmt.Errorf("empty -o flag")
 		}
 		// declare basedir for archive file structure
-		var baseDir string
-		if !strings.HasSuffix(base, ".zip") {
-			baseDir = base
-			base = base + ".zip"
-		} else {
-			baseDir = strings.TrimSuffix(base, ".zip")
-		}
+		base, baseDir := processBaseDir(base)
 
 		// init context
 		ctx := context.Background()
 		// open pipe to output file
 		out, err := os.OpenFile(base, os.O_CREATE|os.O_RDWR|os.O_EXCL, 0666)
 		if err != nil {
-			fmt.Errorf("failed to open file: %w", err)
+			err = errors.Wrapf(err, "failed to open file: %w", err)
 		}
 		defer out.Close()
 		// init zip writer
