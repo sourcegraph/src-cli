@@ -131,14 +131,18 @@ func archiveKube(ctx context.Context, zw *zip.Writer, verbose, noConfigs bool, n
 	g, ctx := errgroup.WithContext(ctx)
 	semaphore := semaphore.NewWeighted(8)
 
-	run := func(f func() error) {
+	run := func(f func() *archiveFile) {
 		g.Go(func() error {
 			if err := semaphore.Acquire(ctx, 1); err != nil {
 				return err
 			}
 			defer semaphore.Release(1)
 
-			return f()
+			if file := f(); if file != nil {
+				ch <- file
+			}
+
+			return nil
 		})
 	}
 
