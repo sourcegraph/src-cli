@@ -228,7 +228,7 @@ func getStats(ctx context.Context, baseDir string) *archiveFile {
 func getContainerLog(ctx context.Context, container, baseDir string) *archiveFile {
 	return archiveFileFromCommand(
 		ctx,
-		filepath.Join(baseDir, "docker", "containers", container, fmt.Sprintf("%v.log", container)),
+		filepath.Join(baseDir, "docker", "containers", container, fmt.Sprintf("%s.log", container)),
 		"docker", "container", "logs", container,
 	)
 }
@@ -237,7 +237,7 @@ func getContainerLog(ctx context.Context, container, baseDir string) *archiveFil
 func getInspect(ctx context.Context, container, baseDir string) *archiveFile {
 	return archiveFileFromCommand(
 		ctx,
-		filepath.Join(baseDir, "docker", "containers", container, fmt.Sprintf("inspect-%v.txt", container)),
+		filepath.Join(baseDir, "docker", "containers", container, fmt.Sprintf("inspect-%s.txt", container)),
 		"docker", "container", "inspect", container,
 	)
 }

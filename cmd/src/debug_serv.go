@@ -73,7 +73,7 @@ Examples:
 		defer zw.Close()
 
 		// Safety check user knows what they are targeting with this debug command
-		log.Printf("This command will archive docker-cli data for container: %v\n SRC_ENDPOINT: %v\n Output filename: %v", container, cfg.Endpoint, base)
+		log.Printf("This command will archive docker-cli data for container: %s\n SRC_ENDPOINT: %s\n Output filename: %s", container, cfg.Endpoint, base)
 		if verified, _ := verify("Do you want to start writing to an archive?"); !verified {
 			return nil
 		}
@@ -164,7 +164,7 @@ func archiveServ(ctx context.Context, zw *zip.Writer, verbose, noConfigs bool, c
 func getServLog(ctx context.Context, container, baseDir string) *archiveFile {
 	return archiveFileFromCommand(
 		ctx,
-		filepath.Join(baseDir, fmt.Sprintf("%v.log", container)),
+		filepath.Join(baseDir, fmt.Sprintf("%s.log", container)),
 		"docker", "container", "logs", container,
 	)
 }
@@ -173,7 +173,7 @@ func getServLog(ctx context.Context, container, baseDir string) *archiveFile {
 func getServInspect(ctx context.Context, container, baseDir string) *archiveFile {
 	return archiveFileFromCommand(
 		ctx,
-		filepath.Join(baseDir, fmt.Sprintf("inspect-%v.txt", container)),
+		filepath.Join(baseDir, fmt.Sprintf("inspect-%s.txt", container)),
 		"docker", "container", "inspect", container,
 	)
 }
@@ -182,7 +182,7 @@ func getServInspect(ctx context.Context, container, baseDir string) *archiveFile
 func getServTop(ctx context.Context, container, baseDir string) *archiveFile {
 	return archiveFileFromCommand(
 		ctx,
-		filepath.Join(baseDir, fmt.Sprintf("top-%v.txt", container)),
+		filepath.Join(baseDir, fmt.Sprintf("top-%s.txt", container)),
 		"docker", "top", container,
 	)
 }

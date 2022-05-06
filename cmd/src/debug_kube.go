@@ -307,7 +307,7 @@ func getPVC(ctx context.Context, namespace, baseDir string) *archiveFile {
 func getPodLog(ctx context.Context, podName, containerName, namespace, baseDir string) *archiveFile {
 	return archiveFileFromCommand(
 		ctx,
-		filepath.Join(baseDir, "kubectl", "pods", podName, fmt.Sprintf("%v.log", containerName)),
+		filepath.Join(baseDir, "kubectl", "pods", podName, fmt.Sprintf("%s.log", containerName)),
 		"kubectl", "-n", namespace, "logs", podName, "-c", containerName,
 	)
 }
@@ -316,7 +316,7 @@ func getPodLog(ctx context.Context, podName, containerName, namespace, baseDir s
 func getPastPodLog(ctx context.Context, podName, containerName, namespace, baseDir string) *archiveFile {
 	return archiveFileFromCommand(
 		ctx,
-		filepath.Join(baseDir, "kubectl", "pods", podName, fmt.Sprintf("prev-%v.log", containerName)),
+		filepath.Join(baseDir, "kubectl", "pods", podName, fmt.Sprintf("prev-%s.log", containerName)),
 		"kubectl", "-n", namespace, "logs", "--previous", podName, "-c", containerName,
 	)
 }
@@ -325,7 +325,7 @@ func getPastPodLog(ctx context.Context, podName, containerName, namespace, baseD
 func getDescribe(ctx context.Context, podName, namespace, baseDir string) *archiveFile {
 	return archiveFileFromCommand(
 		ctx,
-		filepath.Join(baseDir, "kubectl", "pods", podName, fmt.Sprintf("describe-%v.txt", podName)),
+		filepath.Join(baseDir, "kubectl", "pods", podName, fmt.Sprintf("describe-%s.txt", podName)),
 		"kubectl", "-n", namespace, "describe", "pod", podName,
 	)
 }
@@ -334,7 +334,7 @@ func getDescribe(ctx context.Context, podName, namespace, baseDir string) *archi
 func getManifest(ctx context.Context, podName, namespace, baseDir string) *archiveFile {
 	return archiveFileFromCommand(
 		ctx,
-		filepath.Join(baseDir, "kubectl", "pods", podName, fmt.Sprintf("manifest-%v.yaml", podName)),
+		filepath.Join(baseDir, "kubectl", "pods", podName, fmt.Sprintf("manifest-%s.yaml", podName)),
 		"kubectl", "-n", namespace, "get", "pod", podName, "-o", "yaml",
 	)
 }
