@@ -143,10 +143,7 @@ func archiveKube(ctx context.Context, zw *zip.Writer, verbose, noConfigs bool, n
 	}
 
 	// create goroutine to get pods
-	run(func() error {
-		ch <- getPods(ctx, namespace, baseDir)
-		return nil
-	})
+	run(func() *archiveFile { return getPods(ctx, namespace, baseDir) })
 
 	// create goroutine to get kubectl events
 	run(func() error {
