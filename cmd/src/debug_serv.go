@@ -13,7 +13,6 @@ import (
 	"golang.org/x/sync/semaphore"
 
 	"github.com/sourcegraph/sourcegraph/lib/errors"
-	"github.com/sourcegraph/src-cli/internal/cmderrors"
 )
 
 func init() {
@@ -65,7 +64,7 @@ Examples:
 		// open pipe to output file
 		out, err := os.OpenFile(base, os.O_CREATE|os.O_RDWR|os.O_EXCL, 0666)
 		if err != nil {
-			return errors.Wrapf(err, "failed to open file")
+			return errors.Wrapf(err, "failed to open file %q", base)
 		}
 		defer out.Close()
 		// init zip writer
@@ -80,7 +79,7 @@ Examples:
 
 		err = archiveServ(ctx, zw, *verbose, noConfigs, container, baseDir)
 		if err != nil {
-			return cmderrors.ExitCode(1, err)
+			return err
 		}
 		return nil
 	}
@@ -137,13 +136,16 @@ func archiveServ(ctx context.Context, zw *zip.Writer, verbose, noConfigs bool, c
 
 	// close channel when wait group goroutines have completed
 	go func() {
-		g.Wait()
+		if err := g.Wait(); err != nil {
+			fmt.Printf("archiveServ failed to open wait group: %s\n", err)
+			os.Exit(1)
+		}
 		close(ch)
 	}()
 
 	// Read binaries from channel and write to archive on host machine
 	if err := writeChannelContentsToZip(zw, ch, verbose); err != nil {
-		return errors.Wrapf(err, "failed to write archives from channel: %w", err)
+		return errors.Wrap(err, "failed to write archives from channel")
 	}
 
 	return nil

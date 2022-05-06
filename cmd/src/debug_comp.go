@@ -16,8 +16,6 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"golang.org/x/sync/semaphore"
-
-	"github.com/sourcegraph/src-cli/internal/cmderrors"
 )
 
 func init() {
@@ -65,7 +63,7 @@ Examples:
 		// open pipe to output file
 		out, err := os.OpenFile(base, os.O_CREATE|os.O_RDWR|os.O_EXCL, 0666)
 		if err != nil {
-			return errors.Wrapf(err, "failed to open file: %w", err)
+			return errors.Wrap(err, "failed to open file")
 		}
 		defer out.Close()
 		// init zip writer
@@ -75,7 +73,7 @@ Examples:
 		//Gather data for safety check
 		containers, err := getContainers(ctx)
 		if err != nil {
-			return errors.Wrapf(err, "failed to get containers for subcommand with err: %v", err)
+			return errors.Wrap(err, "failed to get containers for subcommand with err")
 		}
 		// Safety check user knows what they are targeting with this debug command
 		log.Printf("This command will archive docker-cli data for %d containers\n SRC_ENDPOINT: %v\n Output filename: %v", len(containers), cfg.Endpoint, base)
@@ -85,7 +83,7 @@ Examples:
 
 		err = archiveCompose(ctx, zw, *verbose, noConfigs, baseDir)
 		if err != nil {
-			return cmderrors.ExitCode(1, nil)
+			return err
 		}
 		return nil
 	}
@@ -106,7 +104,7 @@ func archiveCompose(ctx context.Context, zw *zip.Writer, verbose, noConfigs bool
 
 	containers, err := getContainers(ctx)
 	if err != nil {
-		return errors.Wrapf(err, "failed to get docker containers: %w", err)
+		return errors.Wrap(err, "failed to get docker containers")
 	}
 
 	if verbose {
@@ -161,7 +159,8 @@ func archiveCompose(ctx context.Context, zw *zip.Writer, verbose, noConfigs bool
 	// close channel when wait group goroutines have completed
 	go func() {
 		if err := g.Wait(); err != nil {
-			fmt.Printf("archiveCompose failed to open wait group: %s", err)
+			fmt.Printf("archiveCompose failed to open wait group: %s\n", err)
+			os.Exit(1)
 		}
 		close(ch)
 	}()
@@ -178,7 +177,7 @@ func archiveCompose(ctx context.Context, zw *zip.Writer, verbose, noConfigs bool
 func getContainers(ctx context.Context) ([]string, error) {
 	c, err := exec.CommandContext(ctx, "docker", "container", "ls", "--format", "{{.Names}} {{.Networks}}").Output()
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to get container names with error: %w", err)
+		return nil, errors.Wrapf(err, "failed to get container names with error")
 	}
 	s := string(c)
 	preprocessed := strings.Split(strings.TrimSpace(s), "\n")

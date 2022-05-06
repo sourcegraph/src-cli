@@ -64,11 +64,11 @@ func writeChannelContentsToZip(zw *zip.Writer, ch <-chan *archiveFile, verbose b
 
 		zf, err := zw.Create(f.name)
 		if err != nil {
-			return errors.Wrapf(err, "failed to create %s: %w", f.name, err)
+			return errors.Wrapf(err, "failed to create %q", f.name)
 		}
 
 		if _, err := zf.Write(f.data); err != nil {
-			return errors.Wrapf(err, "failed to write to %s: %w", f.name, err)
+			return errors.Wrapf(err, "failed to write to %q", f.name)
 		}
 	}
 	return nil

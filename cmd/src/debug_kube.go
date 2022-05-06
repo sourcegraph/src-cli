@@ -16,7 +16,6 @@ import (
 	"golang.org/x/sync/semaphore"
 
 	"github.com/sourcegraph/sourcegraph/lib/errors"
-	"github.com/sourcegraph/src-cli/internal/cmderrors"
 	"github.com/sourcegraph/src-cli/internal/exec"
 )
 
@@ -58,7 +57,7 @@ Examples:
 
 		// process -o flag to get zipfile and base directory names
 		if base == "" {
-			return fmt.Errorf("empty -o flag")
+			return errors.New("empty -o flag")
 		}
 		base, baseDir := processBaseDir(base)
 
@@ -67,7 +66,7 @@ Examples:
 		// open pipe to output file
 		out, err := os.OpenFile(base, os.O_CREATE|os.O_RDWR|os.O_EXCL, 0666)
 		if err != nil {
-			return errors.Wrapf(err, "failed to open file: %w", err)
+			return errors.Wrapf(err, "failed to open file %q", base)
 		}
 		defer out.Close()
 		// init zip writer
@@ -77,11 +76,11 @@ Examples:
 		// Gather data for safety check
 		pods, err := selectPods(ctx, namespace)
 		if err != nil {
-			return errors.Wrapf(err, "failed to get pods: %w", err)
+			return errors.Wrap(err, "failed to get pods")
 		}
 		kubectx, err := exec.CommandContext(ctx, "kubectl", "config", "current-context").CombinedOutput()
 		if err != nil {
-			return errors.Wrapf(err, "failed to get current-context: %w", err)
+			return errors.Wrapf(err, "failed to get current-context")
 		}
 		// Safety check user knows what they've targeted with this command
 		log.Printf("Archiving kubectl data for %d pods\n SRC_ENDPOINT: %v\n Context: %s Namespace: %v\n Output filename: %v", len(pods.Items), cfg.Endpoint, kubectx, namespace, base)
@@ -91,7 +90,7 @@ Examples:
 
 		err = archiveKube(ctx, zw, *verbose, noConfigs, namespace, baseDir, pods)
 		if err != nil {
-			return cmderrors.ExitCode(1, err)
+			return err
 		}
 		return nil
 	}
@@ -207,13 +206,16 @@ func archiveKube(ctx context.Context, zw *zip.Writer, verbose, noConfigs bool, n
 
 	// close channel when wait group goroutines have completed
 	go func() {
-		g.Wait()
+		if err := g.Wait(); err != nil {
+			fmt.Printf("archiveKube failed to open wait group: %s\n", err)
+			os.Exit(1)
+		}
 		close(ch)
 	}()
 
 	// Read binaries from channel and write to archive on host machine
 	if err := writeChannelContentsToZip(zw, ch, verbose); err != nil {
-		return errors.Wrapf(err, "failed to write archives from channel: %w", err)
+		return errors.Wrap(err, "failed to write archives from channel")
 	}
 
 	return nil
@@ -233,13 +235,13 @@ func selectPods(ctx context.Context, namespace string) (podList, error) {
 	podsCmd.Stderr = os.Stderr
 	err := podsCmd.Run()
 	if err != nil {
-		errors.Wrapf(err, "failed to aquire pods for subcommands with err: %v", err)
+		errors.Wrap(err, "failed to aquire pods for subcommands with err")
 	}
 
 	//Decode json from podList
 	var pods podList
 	if err := json.NewDecoder(&podsBuff).Decode(&pods); err != nil {
-		errors.Wrapf(err, "failed to unmarshall get pods json: %w", err)
+		errors.Wrap(err, "failed to unmarshall get pods json")
 	}
 
 	return pods, err
