@@ -199,7 +199,7 @@ func getContainers(ctx context.Context) ([]string, error) {
 	containers := make([]string, 0, len(preprocessed))
 	for _, container := range preprocessed {
 		tmpStr := strings.Split(container, " ")
-		if tmpStr[1] == "docker-compose_sourcegraph" {
+		if len(tmpStr) >= 2 && tmpStr[1] == "docker-compose_sourcegraph" {
 			containers = append(containers, tmpStr[0])
 		}
 	}
