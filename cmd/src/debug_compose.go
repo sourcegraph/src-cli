@@ -12,9 +12,7 @@ import (
 	"strings"
 
 	"github.com/sourcegraph/sourcegraph/lib/errors"
-
 	"golang.org/x/sync/errgroup"
-
 	"golang.org/x/sync/semaphore"
 )
 

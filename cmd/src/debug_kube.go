@@ -11,11 +11,10 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/sourcegraph/sourcegraph/lib/errors"
 	"golang.org/x/sync/errgroup"
-
 	"golang.org/x/sync/semaphore"
 
-	"github.com/sourcegraph/sourcegraph/lib/errors"
 	"github.com/sourcegraph/src-cli/internal/exec"
 )
 
