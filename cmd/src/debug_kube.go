@@ -10,6 +10,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"runtime"
 
 	"github.com/sourcegraph/sourcegraph/lib/errors"
 	"golang.org/x/sync/errgroup"
@@ -127,7 +128,7 @@ func archiveKube(ctx context.Context, zw *zip.Writer, verbose, archiveConfigs bo
 	// setup channel for slice of archive function outputs, as well as throttling semaphore
 	ch := make(chan *archiveFile)
 	g, ctx := errgroup.WithContext(ctx)
-	semaphore := semaphore.NewWeighted(8)
+	semaphore := semaphore.NewWeighted(int64(runtime.GOMAXPROCS(0)))
 
 	run := func(f func() *archiveFile) {
 		g.Go(func() error {

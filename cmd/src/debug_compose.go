@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/sourcegraph/sourcegraph/lib/errors"
@@ -112,7 +113,7 @@ func archiveCompose(ctx context.Context, zw *zip.Writer, verbose, archiveConfigs
 	// setup channel for slice of archive function outputs
 	ch := make(chan *archiveFile)
 	g, ctx := errgroup.WithContext(ctx)
-	semaphore := semaphore.NewWeighted(8)
+	semaphore := semaphore.NewWeighted(int64(runtime.GOMAXPROCS(0)))
 
 	run := func(f func() *archiveFile) {
 		g.Go(func() error {
