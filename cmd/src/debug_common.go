@@ -30,7 +30,7 @@ func archiveFileFromCommand(ctx context.Context, path, cmd string, args ...strin
 	return f
 }
 
-// This function prompts the user to confirm they want to run the command
+// verify prompts the user to confirm they want to run the command
 func verify(confirmationText string) (bool, error) {
 	input := ""
 	for strings.ToLower(input) != "y" && strings.ToLower(input) != "n" {
