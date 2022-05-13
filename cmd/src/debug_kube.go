@@ -240,7 +240,7 @@ func selectPods(ctx context.Context, namespace string) (podList, error) {
 
 	//Decode json from podList
 	var pods podList
-	if err := json.NewDecoder(&podsBuff).Decode(&pods); err != nil {
+	if err := json.Unmarshal(podsBuff.Bytes(), &pods); err != nil {
 		errors.Wrap(err, "failed to unmarshall get pods json")
 	}
 
