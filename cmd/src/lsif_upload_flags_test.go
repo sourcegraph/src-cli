@@ -91,6 +91,8 @@ func TestReplaceExtension(t *testing.T) {
 }
 
 func TestReplaceBaseName(t *testing.T) {
-	require.Panics(t, func() { replaceBaseName("mydir", "dir1/file") })
-	require.Equal(t, "a/d.e", replaceBaseName("a/b.c", "d.e"))
+	require.Panics(t, func() { replaceBaseName("mydir", filepath.Join("dir", "file")) })
+
+	require.Equal(t, filepath.Join("a", "d.e"),
+		replaceBaseName(filepath.Join("a", "b.c"), "d.e"))
 }
