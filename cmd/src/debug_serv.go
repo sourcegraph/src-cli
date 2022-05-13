@@ -22,7 +22,7 @@ and writes an archive file from their returns.
 
 Usage:
 
-	src debug serv [command options]
+	src debug server [command options]
 
 Flags:
 
