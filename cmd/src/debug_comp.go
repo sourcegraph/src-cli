@@ -20,7 +20,7 @@ import (
 
 func init() {
 	usage := `
-'src debug compose' invokes docker cli diagnostic commands targeting a containers that are members of a docker-compose network, 
+'src debug compose' invokes docker cli diagnostic commands targeting a set of containers that are members of a docker-compose network, 
 writing an archive file from their returns. 
 
 Usage:
