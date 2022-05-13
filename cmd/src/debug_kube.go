@@ -22,6 +22,7 @@ import (
 func init() {
 	usage := `
 'src debug kube' invokes kubectl diagnostic commands targeting kubectl's current-context, writing returns to an archive.
+
 Usage:
 
 	src debug kube [command options]
