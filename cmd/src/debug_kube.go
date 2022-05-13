@@ -45,10 +45,10 @@ Examples:
 	flagSet := flag.NewFlagSet("kube", flag.ExitOnError)
 	var base string
 	var namespace string
-	var noConfigs bool
+	var excludeConfigs bool
 	flagSet.StringVar(&base, "o", "debug.zip", "The name of the output zip archive")
 	flagSet.StringVar(&namespace, "n", "default", "The namespace passed to kubectl commands, if not specified the 'default' namespace is used")
-	flagSet.BoolVar(&noConfigs, "no-configs", false, "If true include Sourcegraph configuration files. Default value true.")
+	flagSet.BoolVar(&excludeConfigs, "no-configs", false, "If true, include Sourcegraph configuration files. Defaults to false.")
 
 	handler := func(args []string) error {
 		if err := flagSet.Parse(args); err != nil {
@@ -88,7 +88,7 @@ Examples:
 			return nil
 		}
 
-		err = archiveKube(ctx, zw, *verbose, noConfigs, namespace, baseDir, pods)
+		err = archiveKube(ctx, zw, *verbose, !excludeConfigs, namespace, baseDir, pods)
 		if err != nil {
 			return err
 		}
@@ -118,7 +118,7 @@ type podList struct {
 }
 
 // Runs common kubectl functions and archive results to zip file
-func archiveKube(ctx context.Context, zw *zip.Writer, verbose, noConfigs bool, namespace, baseDir string, pods podList) error {
+func archiveKube(ctx context.Context, zw *zip.Writer, verbose, archiveConfigs bool, namespace, baseDir string, pods podList) error {
 	// Create a context with a cancel function that we call when returning
 	// from archiveKube. This ensures we close all pending go-routines when returning
 	// early because of an error.
@@ -198,7 +198,7 @@ func archiveKube(ctx context.Context, zw *zip.Writer, verbose, noConfigs bool, n
 	}
 
 	// start goroutine to get external service config
-	if !noConfigs {
+	if archiveConfigs {
 		run(func() *archiveFile { return getExternalServicesConfig(ctx, baseDir) })
 
 		run(func() *archiveFile { return getSiteConfig(ctx, baseDir) })
