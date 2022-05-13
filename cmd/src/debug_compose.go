@@ -42,7 +42,7 @@ Examples:
 	var base string
 	var excludeConfigs bool
 	flagSet.StringVar(&base, "o", "debug.zip", "The name of the output zip archive")
-	flagSet.BoolVar(&excludeConfigs, "no-configs", false, "If true, include Sourcegraph configuration files. Defaults to false.")
+	flagSet.BoolVar(&excludeConfigs, "no-configs", false, "If true, exclude Sourcegraph configuration files. Defaults to false.")
 
 	handler := func(args []string) error {
 		if err := flagSet.Parse(args); err != nil {
