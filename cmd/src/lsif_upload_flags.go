@@ -160,6 +160,8 @@ func handleLSIFTyped(out *output.Output) error {
 		// The user explicitly passed in a -file flag that points to an LSIF Typed index.
 		inputFile := lsifUploadFlags.file
 		outputFile := strings.TrimSuffix(inputFile, "-typed")
+		// HACK: Modify the flags to point to the output file, because
+		// that field of the flags is read when performing the upload.
 		lsifUploadFlags.file = outputFile
 		return convertLSIFTypedToLSIFGraph(out, inputFile, outputFile)
 	}
