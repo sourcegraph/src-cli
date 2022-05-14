@@ -8,19 +8,11 @@ import (
 var lsifCommands commander
 
 func init() {
-	usage := `'src lsif' is a tool that manages LSIF data on a Sourcegraph instance.
+	usage := `[DEPRECATED] 'src lsif' is a tool that manages LSIF data on a Sourcegraph instance.
 
-Usage:
-
-	src lsif command [command options]
-
-The commands are:
-
-	upload     uploads an LSIF dump file
-
-Use "src lsif [command] -h" for more information about a command.
+Earlier, 'src lsif' had a single 'upload' subcommand. That is now exposed as
+a top-level subcommand 'src upload'. To see help text, use 'src upload -h'.
 `
-
 	flagSet := flag.NewFlagSet("lsif", flag.ExitOnError)
 	handler := func(args []string) error {
 		lsifCommands.run(flagSet, "src lsif", usage, args)

@@ -111,9 +111,12 @@ Is your Sourcegraph instance behind a custom auth proxy? See [auth proxy configu
  - `src config` - manage global, org, and user settings
  - `src extsvc` - manage external services (repository configuration)
  - `src extensions` - manage extensions
- - `src lsif` - manages LSIF data
+ - `src lsif` - manages LSIF data (DEPRECATED: use `src upload` instead)
  - `src serve-git` - serves your local git repositories over HTTP for Sourcegraph to pull
+ - `src upload` - upload a [SCIP][] or LSIF index
  - `src version` - check version and guaranteed-compatible version for your Sourcegraph instance
+
+[SCIP]: https://github.com/sourcegraph/scip
 
 Run `src -h` and `src <subcommand> -h` for more detailed usage information.
 

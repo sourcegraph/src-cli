@@ -55,15 +55,15 @@ func assertLSIFOutput(t *testing.T, lsifFile, expectedLSIFString string) {
 	if obtained != expectedLSIFString {
 		t.Fatalf("unexpected LSIF output %s", obtained)
 	}
-	if lsifFile != lsifUploadFlags.file {
-		t.Fatalf("unexpected lsifUploadFlag.file value %s, expected %s", lsifUploadFlags.file, lsifFile)
+	if lsifFile != uploadFlags.file {
+		t.Fatalf("unexpected lsifUploadFlag.file value %s, expected %s", uploadFlags.file, lsifFile)
 	}
 }
 
 func TestImplicitlyConvertSCIPIntoLSIF(t *testing.T) {
 	for _, filename := range []string{"index.scip", "dump.scip", "dump.lsif-typed"} {
 		_, lsifFile := createTempSCIPFile(t, filename)
-		lsifUploadFlags.file = lsifFile
+		uploadFlags.file = lsifFile
 		assertLSIFOutput(t, lsifFile, exampleLSIFString)
 	}
 }
@@ -71,7 +71,7 @@ func TestImplicitlyConvertSCIPIntoLSIF(t *testing.T) {
 func TestImplicitlyIgnoreSCIP(t *testing.T) {
 	for _, filename := range []string{"index.scip", "dump.scip", "dump.lsif-typed"} {
 		_, lsifFile := createTempSCIPFile(t, filename)
-		lsifUploadFlags.file = lsifFile
+		uploadFlags.file = lsifFile
 		os.WriteFile(lsifFile, []byte("hello world"), 0755)
 		assertLSIFOutput(t, lsifFile, "hello world")
 	}
@@ -80,7 +80,7 @@ func TestImplicitlyIgnoreSCIP(t *testing.T) {
 func TestExplicitlyConvertSCIPIntoGraph(t *testing.T) {
 	for _, filename := range []string{"index.scip", "dump.scip", "dump.lsif-typed"} {
 		scipFile, lsifFile := createTempSCIPFile(t, filename)
-		lsifUploadFlags.file = scipFile
+		uploadFlags.file = scipFile
 		assertLSIFOutput(t, lsifFile, exampleLSIFString)
 	}
 }

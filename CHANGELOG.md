@@ -13,7 +13,8 @@ All notable changes to `src-cli` are documented in this file.
 
 ### Added
 - New command `src debug`. [#731](https://github.com/sourcegraph/src-cli/pull/731)
-- `src lsif upload` now supports the `-gitlab-token` flag. [#721](https://github.com/sourcegraph/src-cli/pull/721)
+- `src upload` is now a top-level command, replacing `src lsif upload`. [#745](https://github.com/sourcegraph/src-cli/pull/745)
+- `src upload` supports a `-gitlab-token` flag. [#721](https://github.com/sourcegraph/src-cli/pull/721)
 - Batch Changes can be applied to Bitbucket Cloud when `src` is used with Sourcegraph 3.40 or later. [#725](https://github.com/sourcegraph/src-cli/pull/725)
 
 ### Changed

@@ -38,11 +38,12 @@ The commands are:
 	extensions,ext  manages extensions (experimental)
 	extsvc          manages external services
 	login           authenticate to a Sourcegraph instance with your user credentials
-	lsif            manages LSIF data
+	lsif            manages LSIF data (deprecated: use 'upload')
 	orgs,org        manages organizations
 	repos,repo      manages repositories
 	search          search for results on Sourcegraph
 	serve-git       serves your local git repositories over HTTP for Sourcegraph to pull
+	upload          upload an index to a Sourcegraph instance
 	users,user      manages users
 	version         display and compare the src-cli version against the recommended version for your instance
 
