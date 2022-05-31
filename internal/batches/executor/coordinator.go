@@ -23,7 +23,7 @@ type taskExecutor interface {
 	Wait(context.Context) ([]taskResult, error)
 }
 
-// Coordinates coordinates the execution of Tasks. It makes use of an executor,
+// Coordinator coordinates the execution of Tasks. It makes use of an executor,
 // checks the ExecutionCache whether execution is necessary, builds
 // batcheslib.ChangesetSpecs out of the executionResults.
 type Coordinator struct {
