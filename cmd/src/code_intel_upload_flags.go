@@ -8,12 +8,13 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/sourcegraph/sourcegraph/lib/errors"
-	"github.com/sourcegraph/sourcegraph/lib/output"
 	"google.golang.org/protobuf/proto"
 
+	"github.com/sourcegraph/sourcegraph/lib/errors"
+	"github.com/sourcegraph/sourcegraph/lib/output"
+
 	"github.com/sourcegraph/scip/bindings/go/scip"
-	"github.com/sourcegraph/sourcegraph/lib/codeintel/lsif/protocol/reader"
+
 	"github.com/sourcegraph/sourcegraph/lib/codeintel/upload"
 
 	"github.com/sourcegraph/src-cli/internal/api"
@@ -241,7 +242,7 @@ func convertSCIPToLSIFGraph(out *output.Output, inputFile, outputFile string) er
 	if err != nil {
 		panic(errors.Wrapf(err, "failed reader.ConvertTypedIndexToGraphIndex"))
 	}
-	err = reader.WriteNDJSON(reader.ElementsToJsonElements(els), tmp)
+	err = scip.WriteNDJSON(scip.ElementsToJsonElements(els), tmp)
 	if err != nil {
 		panic(err)
 	}
