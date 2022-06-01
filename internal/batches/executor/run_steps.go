@@ -51,11 +51,11 @@ func runSteps(ctx context.Context, opts *executionOpts) (result execution.Result
 	defer opts.task.Archive.Close()
 
 	opts.ui.WorkspaceInitializationStarted()
-	workspace, err := opts.wc.Create(ctx, opts.task.Repository, opts.task.Steps, opts.task.Archive)
+	ws, err := opts.wc.Create(ctx, opts.task.Repository, opts.task.Steps, opts.task.Archive)
 	if err != nil {
 		return execution.Result{}, nil, errors.Wrap(err, "creating workspace")
 	}
-	defer workspace.Close(ctx)
+	defer ws.Close(ctx)
 	opts.ui.WorkspaceInitializationFinished()
 
 	var (
@@ -119,7 +119,7 @@ func runSteps(ctx context.Context, opts *executionOpts) (result execution.Result
 			stepContext.Steps.Changes = previousStepResult.Files
 			stepContext.Outputs = opts.task.CachedResult.Outputs
 
-			if err := workspace.ApplyDiff(ctx, []byte(opts.task.CachedResult.Diff)); err != nil {
+			if err := ws.ApplyDiff(ctx, []byte(opts.task.CachedResult.Diff)); err != nil {
 				return execResult, nil, errors.Wrap(err, "getting changed files in step")
 			}
 		}
@@ -142,7 +142,7 @@ func runSteps(ctx context.Context, opts *executionOpts) (result execution.Result
 		if err != nil {
 			return execResult, nil, err
 		}
-		stdoutBuffer, stderrBuffer, err := executeSingleStep(ctx, opts, workspace, i, step, digest, &stepContext)
+		stdoutBuffer, stderrBuffer, err := executeSingleStep(ctx, opts, ws, i, step, digest, &stepContext)
 		defer func() {
 			if err != nil {
 				exitCode := -1
@@ -157,7 +157,7 @@ func runSteps(ctx context.Context, opts *executionOpts) (result execution.Result
 			return execResult, nil, err
 		}
 
-		changes, err := workspace.Changes(ctx)
+		changes, err := ws.Changes(ctx)
 		if err != nil {
 			return execResult, nil, errors.Wrap(err, "getting changed files in step")
 		}
@@ -172,7 +172,7 @@ func runSteps(ctx context.Context, opts *executionOpts) (result execution.Result
 		}
 
 		// Get the current diff and store that away as the per-step result.
-		stepDiff, err := workspace.Diff(ctx)
+		stepDiff, err := ws.Diff(ctx)
 		if err != nil {
 			return execResult, nil, errors.Wrap(err, "getting diff produced by step")
 		}
@@ -198,7 +198,7 @@ func runSteps(ctx context.Context, opts *executionOpts) (result execution.Result
 	}
 
 	opts.ui.CalculatingDiffStarted()
-	diffOut, err := workspace.Diff(ctx)
+	diffOut, err := ws.Diff(ctx)
 	if err != nil {
 		return execResult, nil, errors.Wrap(err, "git diff failed")
 	}
