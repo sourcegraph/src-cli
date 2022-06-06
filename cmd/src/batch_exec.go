@@ -6,9 +6,12 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"net/http"
 
 	"github.com/sourcegraph/sourcegraph/lib/errors"
 
+	"github.com/sourcegraph/src-cli/internal/api"
+	"github.com/sourcegraph/src-cli/internal/batches/docker"
 	"github.com/sourcegraph/src-cli/internal/batches/executor"
 	"github.com/sourcegraph/src-cli/internal/batches/graphql"
 	"github.com/sourcegraph/src-cli/internal/batches/service"
@@ -53,7 +56,7 @@ Examples:
 
 		err := executeBatchSpecInWorkspaces(ctx, &ui.JSONLines{}, executeBatchSpecOpts{
 			flags:  flags,
-			client: cfg.apiClient(flags.api, flagSet.Output()),
+			client: &deadClient{},
 		})
 		if err != nil {
 			return cmderrors.ExitCode(1, nil)
@@ -80,15 +83,20 @@ func executeBatchSpecInWorkspaces(ctx context.Context, ui *ui.JSONLines, opts ex
 		}
 	}()
 
+	if opts.flags.sourcegraphVersion == "" {
+		return errors.New("missing sourcegraph-version flag")
+	}
+
 	svc := service.New(&service.Opts{
 		AllowUnsupported: opts.flags.allowUnsupported,
 		AllowIgnored:     opts.flags.allowIgnored,
 		Client:           opts.client,
 	})
-	if err := svc.DetermineFeatureFlags(ctx); err != nil {
+	if err := svc.SetFeatureFlagsForRelease(opts.flags.sourcegraphVersion); err != nil {
 		return err
 	}
 
+	// TODO: Do we need these checks in the controlled executors environment?
 	if err := checkExecutable("git", "version"); err != nil {
 		return err
 	}
@@ -107,20 +115,30 @@ func executeBatchSpecInWorkspaces(ctx context.Context, ui *ui.JSONLines, opts ex
 	// we can convert it to a RepoWorkspace and build a task only for that one.
 	repoWorkspace := convertWorkspace(input)
 
-	var workspaceCreator workspace.Creator
+	if len(repoWorkspace.Steps) == 0 {
+		return errors.New("invalid execution, no steps to process")
+	}
 
-	if len(input.Steps) > 0 {
+	var (
+		workspaceCreator workspace.Creator
+		images           map[string]docker.Image
+	)
+
+	{
 		ui.PreparingContainerImages()
-		images, err := svc.EnsureDockerImages(
-			ctx, input.Steps, opts.flags.parallelism,
+		images, err = svc.EnsureDockerImages(
+			ctx, repoWorkspace.Steps, opts.flags.parallelism,
 			ui.PreparingContainerImagesProgress,
 		)
 		if err != nil {
 			return err
 		}
 		ui.PreparingContainerImagesSuccess()
+	}
 
+	{
 		ui.DeterminingWorkspaceCreatorType()
+		// TODO: When workspace is always set explicitly, we won't need `images`.
 		workspaceCreator = workspace.NewCreator(ctx, opts.flags.workspace, opts.flags.cacheDir, opts.flags.tempDir, images)
 		if workspaceCreator.Type() == workspace.CreatorTypeVolume {
 			_, err = svc.EnsureImage(ctx, workspace.DockerVolumeWorkspaceImage)
@@ -131,18 +149,25 @@ func executeBatchSpecInWorkspaces(ctx context.Context, ui *ui.JSONLines, opts ex
 		ui.DeterminingWorkspaceCreatorTypeSuccess(workspaceCreator.Type())
 	}
 
-	// EXECUTION OF TASKS
+	// EXECUTION OF TASK
 	coord := svc.NewCoordinator(executor.NewCoordinatorOpts{
-		Creator:       workspaceCreator,
-		CacheDir:      opts.flags.cacheDir,
-		Cache:         &executor.ServerSideCache{Writer: ui},
-		SkipErrors:    opts.flags.skipErrors,
-		CleanArchives: opts.flags.cleanArchives,
+		Creator: workspaceCreator,
+		// TODO: Shouldn't this be set always?
+		CacheDir: opts.flags.cacheDir,
+		Cache:    &executor.ServerSideCache{Writer: ui},
+		// We never want to skip errors on this level.
+		SkipErrors: false,
+		// This doesn't matter in SSBC, the disk is always wiped.
+		// TODO: Or does it? What about dev.
+		CleanArchives: false,
 		Parallelism:   opts.flags.parallelism,
-		Timeout:       opts.flags.timeout,
-		KeepLogs:      opts.flags.keepLogs,
-		TempDir:       opts.flags.tempDir,
-	})
+		// TODO: Should be slightly less than the executor timeout. Can we somehow read that?
+		Timeout: opts.flags.timeout,
+		// TODO: Not required?
+		KeepLogs: opts.flags.keepLogs,
+		// TODO: This is only used for a cidfile and for keep logs, should we remove it?
+		TempDir: opts.flags.tempDir,
+	}, true)
 
 	// `src batch exec` uses server-side caching for changeset specs, so we
 	// only need to call `CheckStepResultsCache` to make sure that per-step cache entries
@@ -154,19 +179,12 @@ func executeBatchSpecInWorkspaces(ctx context.Context, ui *ui.JSONLines, opts ex
 
 	taskExecUI := ui.ExecutingTasks(*verbose, opts.flags.parallelism)
 	err = coord.Execute(ctx, tasks, taskExecUI)
-	if err == nil || opts.flags.skipErrors {
-		if err == nil {
-			taskExecUI.Success()
-		} else {
-			ui.ExecutingTasksSkippingErrors(err)
-		}
-	} else {
-		if err != nil {
-			taskExecUI.Failed(err)
-			return err
-		}
+	if err != nil {
+		taskExecUI.Failed(err)
+		return err
 	}
 
+	taskExecUI.Success()
 	return nil
 }
 
@@ -213,4 +231,27 @@ func convertWorkspace(w batcheslib.WorkspacesExecutionInput) service.RepoWorkspa
 		Steps:              w.Steps,
 		OnlyFetchWorkspace: w.OnlyFetchWorkspace,
 	}
+}
+
+type deadClient struct{}
+
+var _ api.Client = &deadClient{}
+
+func (c *deadClient) NewQuery(query string) api.Request {
+	panic("dead client invoked")
+}
+func (c *deadClient) NewRequest(query string, vars map[string]interface{}) api.Request {
+	panic("dead client invoked")
+}
+func (c *deadClient) NewGzippedRequest(query string, vars map[string]interface{}) api.Request {
+	panic("dead client invoked")
+}
+func (c *deadClient) NewGzippedQuery(query string) api.Request {
+	panic("dead client invoked")
+}
+func (c *deadClient) NewHTTPRequest(ctx context.Context, method, path string, body io.Reader) (*http.Request, error) {
+	panic("dead client invoked")
+}
+func (c *deadClient) Do(req *http.Request) (*http.Response, error) {
+	panic("dead client invoked")
 }

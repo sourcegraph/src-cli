@@ -82,6 +82,8 @@ type batchExecuteFlags struct {
 
 	// EXPERIMENTAL
 	textOnly bool
+
+	sourcegraphVersion string
 }
 
 func newBatchExecuteFlags(flagSet *flag.FlagSet, workspaceExecution bool, cacheDir, tempDir string) *batchExecuteFlags {
@@ -102,6 +104,8 @@ func newBatchExecuteFlags(flagSet *flag.FlagSet, workspaceExecution bool, cacheD
 			&caf.keepLogs, "keep-logs", false,
 			"Retain logs after executing steps.",
 		)
+	} else {
+		flagSet.StringVar(&caf.sourcegraphVersion, "sourcegraph-version", "", "Sourcegraph backend version. Needs to be passed to the exec method.")
 	}
 
 	flagSet.StringVar(
@@ -356,7 +360,7 @@ func executeBatchSpec(ctx context.Context, ui ui.ExecUI, opts executeBatchSpecOp
 		Timeout:       opts.flags.timeout,
 		KeepLogs:      opts.flags.keepLogs,
 		TempDir:       opts.flags.tempDir,
-	})
+	}, false)
 
 	ui.CheckingCache()
 	tasks := svc.BuildTasks(

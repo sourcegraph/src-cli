@@ -97,6 +97,10 @@ func (svc *Service) DetermineFeatureFlags(ctx context.Context) error {
 	return svc.features.SetFromVersion(version)
 }
 
+func (svc *Service) SetFeatureFlagsForRelease(release string) error {
+	return svc.features.SetFromVersion(release)
+}
+
 // TODO(campaigns-deprecation): this shim can be removed in Sourcegraph 4.0.
 func (svc *Service) newOperations() graphql.Operations {
 	return graphql.NewOperations(
@@ -281,8 +285,12 @@ func (svc *Service) BuildTasks(ctx context.Context, attributes *templatelib.Batc
 	return buildTasks(ctx, attributes, workspaces)
 }
 
-func (svc *Service) NewCoordinator(opts executor.NewCoordinatorOpts) *executor.Coordinator {
-	opts.RepoArchiveRegistry = repozip.NewArchiveRegistry(svc.client, opts.CacheDir, opts.CleanArchives)
+func (svc *Service) NewCoordinator(opts executor.NewCoordinatorOpts, noArchive bool) *executor.Coordinator {
+	if noArchive {
+		opts.RepoArchiveRegistry = repozip.NewNoopRegistry()
+	} else {
+		opts.RepoArchiveRegistry = repozip.NewArchiveRegistry(svc.client, opts.CacheDir, opts.CleanArchives)
+	}
 	opts.Features = svc.features
 	opts.EnsureImage = svc.EnsureImage
 

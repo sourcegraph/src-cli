@@ -71,14 +71,14 @@ func NewCreator(ctx context.Context, preference, cacheDir, tempDir string, image
 		workspaceType = BestCreatorType(ctx, images)
 	}
 
-	ensureImage := func(_ context.Context, container string) (docker.Image, error) {
-		img, ok := images[container]
-		if !ok {
-			return nil, errors.Errorf("image %q not found", container)
-		}
-		return img, nil
-	}
 	if workspaceType == CreatorTypeVolume {
+		ensureImage := func(_ context.Context, container string) (docker.Image, error) {
+			img, ok := images[container]
+			if !ok {
+				return nil, errors.Errorf("image %q not found", container)
+			}
+			return img, nil
+		}
 		return &dockerVolumeWorkspaceCreator{tempDir: tempDir, EnsureImage: ensureImage}
 	}
 	return &dockerBindWorkspaceCreator{Dir: cacheDir}
