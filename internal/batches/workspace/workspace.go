@@ -59,6 +59,7 @@ type CreatorType int
 const (
 	CreatorTypeBind CreatorType = iota
 	CreatorTypeVolume
+	CreatorTypeExecutor
 )
 
 func NewCreator(ctx context.Context, preference, cacheDir, tempDir string, images map[string]docker.Image) Creator {
@@ -67,6 +68,8 @@ func NewCreator(ctx context.Context, preference, cacheDir, tempDir string, image
 		workspaceType = CreatorTypeVolume
 	} else if preference == "bind" {
 		workspaceType = CreatorTypeBind
+	} else if preference == "executor" {
+		workspaceType = CreatorTypeExecutor
 	} else {
 		workspaceType = BestCreatorType(ctx, images)
 	}
@@ -80,6 +83,8 @@ func NewCreator(ctx context.Context, preference, cacheDir, tempDir string, image
 			return img, nil
 		}
 		return &dockerVolumeWorkspaceCreator{tempDir: tempDir, EnsureImage: ensureImage}
+	} else if workspaceType == CreatorTypeExecutor {
+		return &executorWorkspaceCreator{Dir: cacheDir}
 	}
 	return &dockerBindWorkspaceCreator{Dir: cacheDir}
 }

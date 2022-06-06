@@ -120,8 +120,7 @@ func executeBatchSpecInWorkspaces(ctx context.Context, ui *ui.JSONLines, opts ex
 	}
 
 	var (
-		workspaceCreator workspace.Creator
-		images           map[string]docker.Image
+		images map[string]docker.Image
 	)
 
 	{
@@ -136,22 +135,9 @@ func executeBatchSpecInWorkspaces(ctx context.Context, ui *ui.JSONLines, opts ex
 		ui.PreparingContainerImagesSuccess()
 	}
 
-	{
-		ui.DeterminingWorkspaceCreatorType()
-		// TODO: When workspace is always set explicitly, we won't need `images`.
-		workspaceCreator = workspace.NewCreator(ctx, opts.flags.workspace, opts.flags.cacheDir, opts.flags.tempDir, images)
-		if workspaceCreator.Type() == workspace.CreatorTypeVolume {
-			_, err = svc.EnsureImage(ctx, workspace.DockerVolumeWorkspaceImage)
-			if err != nil {
-				return err
-			}
-		}
-		ui.DeterminingWorkspaceCreatorTypeSuccess(workspaceCreator.Type())
-	}
-
 	// EXECUTION OF TASK
 	coord := svc.NewCoordinator(executor.NewCoordinatorOpts{
-		Creator: workspaceCreator,
+		Creator: workspace.NewCreator(ctx, "executor", opts.flags.cacheDir, opts.flags.tempDir, images),
 		// TODO: Shouldn't this be set always?
 		CacheDir: opts.flags.cacheDir,
 		Cache:    &executor.ServerSideCache{Writer: ui},

@@ -42,13 +42,13 @@ type executionOpts struct {
 }
 
 func runSteps(ctx context.Context, opts *executionOpts) (result execution.Result, stepResults []execution.AfterStepResult, err error) {
-	// opts.ui.ArchiveDownloadStarted()
-	// err = opts.task.Archive.Ensure(ctx)
-	// opts.ui.ArchiveDownloadFinished(err)
-	// if err != nil {
-	// 	return execution.Result{}, nil, errors.Wrap(err, "fetching repo")
-	// }
-	// defer opts.task.Archive.Close()
+	opts.ui.ArchiveDownloadStarted()
+	err = opts.task.Archive.Ensure(ctx)
+	opts.ui.ArchiveDownloadFinished(err)
+	if err != nil {
+		return execution.Result{}, nil, errors.Wrap(err, "fetching repo")
+	}
+	defer opts.task.Archive.Close()
 
 	opts.ui.WorkspaceInitializationStarted()
 	workspace, err := opts.wc.Create(ctx, opts.task.Repository, opts.task.Steps, opts.task.Archive)
