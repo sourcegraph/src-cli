@@ -9,11 +9,13 @@ import (
 	"os/exec"
 	"os/signal"
 	"path"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"time"
 
 	"github.com/mattn/go-isatty"
+
 	"github.com/sourcegraph/sourcegraph/lib/errors"
 
 	batcheslib "github.com/sourcegraph/sourcegraph/lib/batches"
@@ -477,7 +479,13 @@ func parseBatchSpec(file string, svc *service.Service) (*batcheslib.BatchSpec, s
 		return nil, "", errors.Wrap(err, "reading batch spec")
 	}
 
-	spec, err := svc.ParseBatchSpec(data)
+	p, err := filepath.Abs(file)
+	if err != nil {
+		return nil, "", errors.Wrap(err, "batch spec path")
+	}
+	dir, _ := filepath.Split(p)
+
+	spec, err := svc.ParseBatchSpec(dir, data)
 	return spec, string(data), err
 }
 
