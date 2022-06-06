@@ -75,6 +75,7 @@ type batchExecuteFlags struct {
 	file          string
 	keepLogs      bool
 	parallelism   int
+	retries       int
 	timeout       time.Duration
 	workspace     string
 	cleanArchives bool
@@ -121,6 +122,10 @@ func newBatchExecuteFlags(flagSet *flag.FlagSet, workspaceExecution bool, cacheD
 	flagSet.IntVar(
 		&caf.parallelism, "j", runtime.GOMAXPROCS(0),
 		"The maximum number of parallel jobs. Default is GOMAXPROCS.",
+	)
+	flagSet.IntVar(
+		&caf.retries, "retries", 5,
+		"The maximum number of retries that will be made when sending a changeset spec.",
 	)
 	flagSet.DurationVar(
 		&caf.timeout, "timeout", 60*time.Minute,
@@ -427,7 +432,7 @@ func executeBatchSpec(ctx context.Context, ui ui.ExecUI, opts executeBatchSpecOp
 		ui.UploadingChangesetSpecs(len(specs))
 
 		for i, spec := range specs {
-			id, err := svc.CreateChangesetSpec(ctx, spec)
+			id, err := svc.CreateChangesetSpec(ctx, spec, opts.flags.retries)
 			if err != nil {
 				return err
 			}

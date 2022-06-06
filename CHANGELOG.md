@@ -15,6 +15,8 @@ All notable changes to `src-cli` are documented in this file.
 
 ### Changed
 
+- Uploading changeset specs from `src batch apply` and `src batch preview` will now retry up to 5 times by default before failing. This can be controlled through the `-retries` flag. [#30431](https://github.com/sourcegraph/sourcegraph/issues/30431)
+
 ### Fixed
 
 ### Removed
