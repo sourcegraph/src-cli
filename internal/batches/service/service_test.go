@@ -717,7 +717,7 @@ func TestService_ParseBatchSpec(t *testing.T) {
 		batchSpecDir string
 		rawSpec      string
 		expectedSpec *batcheslib.BatchSpec
-		wantedErr    error
+		expectedErr  error
 	}{
 		{
 			name: "simple spec",
@@ -734,7 +734,7 @@ name: test-spec
 description: A test spec
 some-new-field: Foo bar
 `,
-			wantedErr: errors.New("parsing batch spec: Additional property some-new-field is not allowed"),
+			expectedErr: errors.New("parsing batch spec: Additional property some-new-field is not allowed"),
 		},
 		{
 			name:         "mount absolute file",
@@ -931,7 +931,7 @@ changesetTemplate:
   commit:
     message: Test
 `,
-			wantedErr: errors.New("parsing batch spec: step 1 mount path /this/path/does/not/exist/sample.sh does not exist"),
+			expectedErr: errors.New("parsing batch spec: step 1 mount path /this/path/does/not/exist/sample.sh does not exist"),
 		},
 		{
 			name:         "mount path not subdirectory of spec",
@@ -952,14 +952,14 @@ changesetTemplate:
   commit:
     message: Test
 `, tempOutsideDir),
-			wantedErr: errors.New("parsing batch spec: step 1 mount path is not in the same directory or subdirectory as the batch spec"),
+			expectedErr: errors.New("parsing batch spec: step 1 mount path is not in the same directory or subdirectory as the batch spec"),
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			spec, err := svc.ParseBatchSpec(test.batchSpecDir, []byte(test.rawSpec))
-			if test.wantedErr != nil {
-				assert.Equal(t, test.wantedErr.Error(), err.Error())
+			if test.expectedErr != nil {
+				assert.Equal(t, test.expectedErr.Error(), err.Error())
 			} else {
 				assert.NoError(t, err)
 				assert.Equal(t, test.expectedSpec, spec)
