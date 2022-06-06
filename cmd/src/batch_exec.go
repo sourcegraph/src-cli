@@ -139,8 +139,10 @@ func executeBatchSpecInWorkspaces(ctx context.Context, ui *ui.JSONLines, opts ex
 	coord := svc.NewCoordinator(executor.NewCoordinatorOpts{
 		Creator: workspace.NewCreator(ctx, "executor", opts.flags.cacheDir, opts.flags.tempDir, images),
 		// TODO: Shouldn't this be set always?
+		// Answer: Not required. It's only used for the repo archive cache dir and we don't do repo archives here.
 		CacheDir: opts.flags.cacheDir,
-		Cache:    &executor.ServerSideCache{Writer: ui},
+		// TODO: Make sure cache dir is set.
+		Cache: &executor.ServerSideCache{CacheDir: opts.flags.cacheDir, Writer: ui},
 		// We never want to skip errors on this level.
 		SkipErrors: false,
 		// This doesn't matter in SSBC, the disk is always wiped.

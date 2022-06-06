@@ -286,14 +286,10 @@ type stepsExecutionJSONLines struct {
 const stepFlushDuration = 500 * time.Millisecond
 
 func (ui *stepsExecutionJSONLines) ArchiveDownloadStarted() {
-	logOperationStart(batcheslib.LogEventOperationTaskDownloadingArchive, &batcheslib.TaskDownloadingArchiveMetadata{TaskID: ui.linesTask.ID})
+	// We don't fetch archives in for executor mode.
 }
 func (ui *stepsExecutionJSONLines) ArchiveDownloadFinished(err error) {
-	if err != nil {
-		logOperationFailure(batcheslib.LogEventOperationTaskDownloadingArchive, &batcheslib.TaskDownloadingArchiveMetadata{TaskID: ui.linesTask.ID, Error: err.Error()})
-	} else {
-		logOperationSuccess(batcheslib.LogEventOperationTaskDownloadingArchive, &batcheslib.TaskDownloadingArchiveMetadata{TaskID: ui.linesTask.ID})
-	}
+	// We don't fetch archives in for executor mode.
 }
 
 func (ui *stepsExecutionJSONLines) WorkspaceInitializationStarted() {
