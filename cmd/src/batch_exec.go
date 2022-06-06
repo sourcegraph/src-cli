@@ -113,9 +113,15 @@ func executeBatchSpecInWorkspaces(ctx context.Context, ui *ui.JSONLines, opts ex
 
 	// Since we already know which workspace we want to execute the steps in,
 	// we can convert it to a RepoWorkspace and build a task only for that one.
-	repoWorkspace := convertWorkspace(input)
+	tasks := svc.BuildTasks(ctx, &input.BatchChangeAttributes, []service.RepoWorkspace{convertWorkspace(input)})
 
-	if len(repoWorkspace.Steps) == 0 {
+	if len(tasks) != 1 {
+		return errors.New("invalid input, didn't yield exactly one task")
+	}
+
+	task := tasks[0]
+
+	if len(task.Steps) == 0 {
 		return errors.New("invalid execution, no steps to process")
 	}
 
@@ -126,7 +132,7 @@ func executeBatchSpecInWorkspaces(ctx context.Context, ui *ui.JSONLines, opts ex
 	{
 		ui.PreparingContainerImages()
 		images, err = svc.EnsureDockerImages(
-			ctx, repoWorkspace.Steps, opts.flags.parallelism,
+			ctx, task.Steps, opts.flags.parallelism,
 			ui.PreparingContainerImagesProgress,
 		)
 		if err != nil {
@@ -160,7 +166,6 @@ func executeBatchSpecInWorkspaces(ctx context.Context, ui *ui.JSONLines, opts ex
 	// `src batch exec` uses server-side caching for changeset specs, so we
 	// only need to call `CheckStepResultsCache` to make sure that per-step cache entries
 	// are loaded and set on the tasks.
-	tasks := svc.BuildTasks(ctx, &input.BatchChangeAttributes, []service.RepoWorkspace{repoWorkspace})
 	if err := coord.CheckStepResultsCache(ctx, tasks); err != nil {
 		return err
 	}
