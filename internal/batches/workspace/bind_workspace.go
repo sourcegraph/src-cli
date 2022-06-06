@@ -28,22 +28,16 @@ var _ Creator = &dockerBindWorkspaceCreator{}
 func (wc *dockerBindWorkspaceCreator) Type() CreatorType { return CreatorTypeBind }
 
 func (wc *dockerBindWorkspaceCreator) Create(ctx context.Context, repo *graphql.Repository, steps []batcheslib.Step, archive repozip.Archive) (Workspace, error) {
-	wd, err := os.Getwd()
+	w, err := wc.unzipToWorkspace(ctx, repo, archive.Path())
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "unzipping the repository")
 	}
-	// dir := filepath.Join(wd, "repo")
-	return &dockerBindWorkspace{tempDir: wc.Dir, dir: wd}, nil
-	// w, err := wc.unzipToWorkspace(ctx, repo, archive.Path())
-	// if err != nil {
-	// 	return nil, errors.Wrap(err, "unzipping the repository")
-	// }
 
-	// if err := wc.copyToWorkspace(ctx, w, archive.AdditionalFilePaths()); err != nil {
-	// 	return nil, errors.Wrap(err, "copying additional files into workspace")
-	// }
+	if err := wc.copyToWorkspace(ctx, w, archive.AdditionalFilePaths()); err != nil {
+		return nil, errors.Wrap(err, "copying additional files into workspace")
+	}
 
-	// return w, errors.Wrap(wc.prepareGitRepo(ctx, w), "preparing local git repo")
+	return w, errors.Wrap(wc.prepareGitRepo(ctx, w), "preparing local git repo")
 }
 
 func (*dockerBindWorkspaceCreator) prepareGitRepo(ctx context.Context, w *dockerBindWorkspace) error {
