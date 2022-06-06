@@ -381,13 +381,13 @@ func (svc *Service) ParseBatchSpec(dir string, data []byte) (*batcheslib.BatchSp
 	if err != nil {
 		return nil, errors.Wrap(err, "parsing batch spec")
 	}
-	if err = handleMount(spec, dir); err != nil {
+	if err = handleMount(dir, spec); err != nil {
 		return nil, errors.Wrap(err, "parsing batch spec")
 	}
 	return spec, nil
 }
 
-func handleMount(spec *batcheslib.BatchSpec, dir string) error {
+func handleMount(dir string, spec *batcheslib.BatchSpec) error {
 	for i, step := range spec.Steps {
 		for j, mount := range step.Mount {
 			p := mount.Path
