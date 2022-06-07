@@ -931,7 +931,7 @@ changesetTemplate:
   commit:
     message: Test
 `,
-			expectedErr: errors.New("parsing batch spec: step 1 mount path /this/path/does/not/exist/sample.sh does not exist"),
+			expectedErr: errors.Newf("parsing batch spec: step 1 mount path %s/sample.sh does not exist", tempDir),
 		},
 		{
 			name:         "mount path not subdirectory of spec",
