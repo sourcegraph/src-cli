@@ -19,6 +19,12 @@ All notable changes to `src-cli` are documented in this file.
 
 ### Removed
 
+## 3.40.9
+
+### Added
+
+- A new [templating](https://docs.sourcegraph.com/campaigns/references/batch_spec_templating) variable, `batch_change_link` has been added for more control over where the "Created by Sourcegraph batch change ..." message appears in the published changeset description. [#491](https://github.com/sourcegraph/sourcegraph/pull/35319)
+
 ## 3.40.8
 
 ### Fixed
