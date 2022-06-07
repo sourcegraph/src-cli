@@ -8,13 +8,11 @@ import (
 	"path/filepath"
 	"strings"
 
-	"google.golang.org/protobuf/proto"
-
 	"github.com/sourcegraph/sourcegraph/lib/errors"
 	"github.com/sourcegraph/sourcegraph/lib/output"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/sourcegraph/scip/bindings/go/scip"
-
 	"github.com/sourcegraph/sourcegraph/lib/codeintel/upload"
 
 	"github.com/sourcegraph/src-cli/internal/api"

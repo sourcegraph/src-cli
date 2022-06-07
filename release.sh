@@ -5,11 +5,11 @@ set -euf -o pipefail
 read -p 'Have you read DEVELOPMENT.md? [y/N] ' -n 1 -r
 echo
 case "$REPLY" in
-    Y|y) ;;
-    *)
-        echo 'Please read the Releasing section of DEVELOPMENT.md before running this script.'
-        exit 1
-        ;;
+  Y | y) ;;
+  *)
+    echo 'Please read the Releasing section of DEVELOPMENT.md before running this script.'
+    exit 1
+    ;;
 esac
 
 if ! echo "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then

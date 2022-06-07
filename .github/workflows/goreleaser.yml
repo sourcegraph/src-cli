@@ -33,4 +33,23 @@ jobs:
         env:
           # Use separate access token, because we need a scope:repo token to publish the brew formula.
           GITHUB_TOKEN: ${{ secrets.GH_PAT }}
- 
+  npm:
+    runs-on: ubuntu-latest
+    needs: goreleaser
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 16
+          registry-url: 'https://registry.npmjs.org'
+      - run: echo "VERSION=${GITHUB_REF/refs\/tags\//}" >> $GITHUB_ENV
+      - run: echo "Releasing version ${{ env.version }}"
+      - run: yarn version --no-git-tag-version --new-version "${{ env.VERSION }}"
+        working-directory: npm-distribution
+      - run: npm publish --access public
+        working-directory: npm-distribution
+        env:
+          NODE_AUTH_TOKEN: ${{secrets.NPM_TOKEN}}
