@@ -915,14 +915,14 @@ changesetTemplate:
 		{
 			name:         "mount path does not exist",
 			batchSpecDir: tempDir,
-			rawSpec: `
+			rawSpec: fmt.Sprintf(`
 name: test-spec
 description: A test spec
 steps:
   - run: /tmp/sample.sh
     container: alpine:3
     mount:
-      - path: /this/path/does/not/exist/sample.sh
+      - path: %s
         mountpoint: /tmp
 changesetTemplate:
   title: Test Mount
@@ -930,8 +930,8 @@ changesetTemplate:
   branch: test
   commit:
     message: Test
-`,
-			expectedErr: errors.Newf("parsing batch spec: step 1 mount path /this/path/does/not/exist/sample.sh does not exist"),
+`, filepath.Join(tempDir, "does", "not", "exist", "sample.sh")),
+			expectedErr: errors.Newf("parsing batch spec: step 1 mount path %s does not exist", filepath.Join(tempDir, "does", "not", "exist", "sample.sh")),
 		},
 		{
 			name:         "mount path not subdirectory of spec",
