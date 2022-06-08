@@ -303,7 +303,7 @@ func executeSingleStep(
 		args = append(args, "--mount", fmt.Sprintf("type=bind,source=%s,target=%s,ro", source.Name(), target))
 	}
 
-	// mount any paths on the local system to the docker container
+	// Mount any paths on the local system to the docker container. The paths have already been validated during parsing
 	for _, mount := range step.Mount {
 		args = append(args, "--mount", fmt.Sprintf("type=bind,source=%s,target=%s,ro", mount.Path, mount.Mountpoint))
 	}
