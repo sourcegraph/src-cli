@@ -711,6 +711,8 @@ func TestService_ParseBatchSpec(t *testing.T) {
 	// create temp files/dirs that can be used by the tests
 	_, err := os.Create(filepath.Join(tempDir, "sample.sh"))
 	require.NoError(t, err)
+	_, err = os.Create(filepath.Join(tempDir, "another.sh"))
+	require.NoError(t, err)
 
 	tests := []struct {
 		name         string
@@ -913,6 +915,56 @@ changesetTemplate:
 			},
 		},
 		{
+			name:         "mount multiple files",
+			batchSpecDir: tempDir,
+			rawSpec: `
+name: test-spec
+description: A test spec
+steps:
+  - run: /tmp/sample.sh && /tmp/another.sh
+    container: alpine:3
+    mount:
+      - path: ./sample.sh
+        mountpoint: /tmp/sample.sh
+      - path: ./another.sh
+        mountpoint: /tmp/another.sh
+changesetTemplate:
+  title: Test Mount
+  body: Test a mounted path
+  branch: test
+  commit:
+    message: Test
+`,
+			expectedSpec: &batcheslib.BatchSpec{
+				Name:        "test-spec",
+				Description: "A test spec",
+				Steps: []batcheslib.Step{
+					{
+						Run:       "/tmp/sample.sh && /tmp/another.sh",
+						Container: "alpine:3",
+						Mount: []batcheslib.Mount{
+							{
+								Path:       filepath.Join(tempDir, "sample.sh"),
+								Mountpoint: "/tmp/sample.sh",
+							},
+							{
+								Path:       filepath.Join(tempDir, "another.sh"),
+								Mountpoint: "/tmp/another.sh",
+							},
+						},
+					},
+				},
+				ChangesetTemplate: &batcheslib.ChangesetTemplate{
+					Title:  "Test Mount",
+					Body:   "Test a mounted path",
+					Branch: "test",
+					Commit: batcheslib.ExpandedGitCommitDescription{
+						Message: "Test",
+					},
+				},
+			},
+		},
+		{
 			name:         "mount path does not exist",
 			batchSpecDir: tempDir,
 			rawSpec: fmt.Sprintf(`
@@ -931,7 +983,7 @@ changesetTemplate:
   commit:
     message: Test
 `, filepath.Join(tempDir, "does", "not", "exist", "sample.sh")),
-			expectedErr: errors.Newf("parsing batch spec: step 1 mount path %s does not exist", filepath.Join(tempDir, "does", "not", "exist", "sample.sh")),
+			expectedErr: errors.Newf("handling mount: step 1 mount path %s does not exist", filepath.Join(tempDir, "does", "not", "exist", "sample.sh")),
 		},
 		{
 			name:         "mount path not subdirectory of spec",
@@ -952,7 +1004,7 @@ changesetTemplate:
   commit:
     message: Test
 `, tempOutsideDir),
-			expectedErr: errors.New("parsing batch spec: step 1 mount path is not in the same directory or subdirectory as the batch spec"),
+			expectedErr: errors.New("handling mount: step 1 mount path is not in the same directory or subdirectory as the batch spec"),
 		},
 	}
 	for _, test := range tests {
