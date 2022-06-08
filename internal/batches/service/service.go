@@ -382,7 +382,7 @@ func (svc *Service) ParseBatchSpec(dir string, data []byte) (*batcheslib.BatchSp
 		return nil, errors.Wrap(err, "parsing batch spec")
 	}
 	if err = handleMount(dir, spec); err != nil {
-		return nil, errors.Wrap(err, "parsing batch spec")
+		return nil, errors.Wrap(err, "handling mount")
 	}
 	return spec, nil
 }
