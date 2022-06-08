@@ -381,15 +381,23 @@ func (svc *Service) ParseBatchSpec(dir string, data []byte) (*batcheslib.BatchSp
 	if err != nil {
 		return nil, errors.Wrap(err, "parsing batch spec")
 	}
-	if err = validateMountPaths(dir, spec); err != nil {
+	if err = validateMount(dir, spec); err != nil {
 		return nil, errors.Wrap(err, "handling mount")
 	}
 	return spec, nil
 }
 
-func validateMountPaths(batchSpecDir string, spec *batcheslib.BatchSpec) error {
+const invalidMountCharacters = ","
+
+func validateMount(batchSpecDir string, spec *batcheslib.BatchSpec) error {
 	for i, step := range spec.Steps {
 		for j, mount := range step.Mount {
+			if strings.Contains(mount.Path, invalidMountCharacters) {
+				return errors.Newf("step %d mount path contains invalid characters", i+1)
+			}
+			if strings.Contains(mount.Mountpoint, invalidMountCharacters) {
+				return errors.Newf("step %d mount mountpoint contains invalid characters", i+1)
+			}
 			p := mount.Path
 			if !filepath.IsAbs(p) {
 				// Try to build the absolute path since Docker will only mount absolute paths
