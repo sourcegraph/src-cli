@@ -479,13 +479,22 @@ func parseBatchSpec(file string, svc *service.Service) (*batcheslib.BatchSpec, s
 		return nil, "", errors.Wrap(err, "reading batch spec")
 	}
 
-	p, err := filepath.Abs(file)
-	if err != nil {
-		return nil, "", errors.Wrap(err, "batch spec path")
+	var workingDirectory string
+	// if the batch spec is being provided via standard input, set the working directory to the current directory
+	if file == "" || file == "-" {
+		workingDirectory, err = os.Getwd()
+		if err != nil {
+			return nil, "", errors.Wrap(err, "batch spec path")
+		}
+	} else {
+		p, err := filepath.Abs(file)
+		if err != nil {
+			return nil, "", errors.Wrap(err, "batch spec path")
+		}
+		workingDirectory = filepath.Dir(p)
 	}
-	dir := filepath.Dir(p)
 
-	spec, err := svc.ParseBatchSpec(dir, data)
+	spec, err := svc.ParseBatchSpec(workingDirectory, data)
 	return spec, string(data), err
 }
 
