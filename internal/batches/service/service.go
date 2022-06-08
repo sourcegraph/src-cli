@@ -372,7 +372,7 @@ func (e *duplicateBranchesErr) Error() string {
 	return out.String()
 }
 
-func (svc *Service) ParseBatchSpec(dir string, data []byte) (*batcheslib.BatchSpec, error) {
+func (svc *Service) ParseBatchSpec(dir string, data []byte, isRemote bool) (*batcheslib.BatchSpec, error) {
 	spec, err := batcheslib.ParseBatchSpec(data, batcheslib.ParseBatchSpecOptions{
 		AllowArrayEnvironments: svc.features.AllowArrayEnvironments,
 		AllowTransformChanges:  svc.features.AllowTransformChanges,
@@ -381,7 +381,7 @@ func (svc *Service) ParseBatchSpec(dir string, data []byte) (*batcheslib.BatchSp
 	if err != nil {
 		return nil, errors.Wrap(err, "parsing batch spec")
 	}
-	if err = validateMount(dir, spec); err != nil {
+	if err = validateMount(dir, spec, isRemote); err != nil {
 		return nil, errors.Wrap(err, "handling mount")
 	}
 	return spec, nil
@@ -389,9 +389,12 @@ func (svc *Service) ParseBatchSpec(dir string, data []byte) (*batcheslib.BatchSp
 
 const invalidMountCharacters = ","
 
-func validateMount(batchSpecDir string, spec *batcheslib.BatchSpec) error {
+func validateMount(batchSpecDir string, spec *batcheslib.BatchSpec, isRemote bool) error {
 	for i, step := range spec.Steps {
 		for j, mount := range step.Mount {
+			if isRemote {
+				return errors.New("mounts are not support for server-side processing")
+			}
 			if strings.Contains(mount.Path, invalidMountCharacters) {
 				return errors.Newf("step %d mount path contains invalid characters", i+1)
 			}

@@ -718,6 +718,7 @@ func TestService_ParseBatchSpec(t *testing.T) {
 		name         string
 		batchSpecDir string
 		rawSpec      string
+		isRemote     bool
 		expectedSpec *batcheslib.BatchSpec
 		expectedErr  error
 	}{
@@ -1048,10 +1049,32 @@ changesetTemplate:
 `,
 			expectedErr: errors.New("handling mount: step 1 mount mountpoint contains invalid characters"),
 		},
+		{
+			name:         "mount remote processing",
+			batchSpecDir: tempDir,
+			rawSpec: `
+name: test-spec
+description: A test spec
+steps:
+  - run: /tmp/foo,bar/sample.sh
+    container: alpine:3
+    mount:
+      - path: /valid/sample.sh
+        mountpoint: /tmp/foo,bar/sample.sh
+changesetTemplate:
+  title: Test Mount
+  body: Test a mounted path
+  branch: test
+  commit:
+    message: Test
+`,
+			isRemote:    true,
+			expectedErr: errors.New("handling mount: mounts are not support for server-side processing"),
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			spec, err := svc.ParseBatchSpec(test.batchSpecDir, []byte(test.rawSpec))
+			spec, err := svc.ParseBatchSpec(test.batchSpecDir, []byte(test.rawSpec), test.isRemote)
 			if test.expectedErr != nil {
 				assert.Equal(t, test.expectedErr.Error(), err.Error())
 			} else {
