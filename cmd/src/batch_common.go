@@ -349,15 +349,16 @@ func executeBatchSpec(ctx context.Context, ui ui.ExecUI, opts executeBatchSpecOp
 
 	// EXECUTION OF TASKS
 	coord := svc.NewCoordinator(executor.NewCoordinatorOpts{
-		Creator:       workspaceCreator,
-		CacheDir:      opts.flags.cacheDir,
-		Cache:         executor.NewDiskCache(opts.flags.cacheDir),
-		SkipErrors:    opts.flags.skipErrors,
-		CleanArchives: opts.flags.cleanArchives,
-		Parallelism:   opts.flags.parallelism,
-		Timeout:       opts.flags.timeout,
-		KeepLogs:      opts.flags.keepLogs,
-		TempDir:       opts.flags.tempDir,
+		Creator:         workspaceCreator,
+		CacheDir:        opts.flags.cacheDir,
+		Cache:           executor.NewDiskCache(opts.flags.cacheDir),
+		SkipErrors:      opts.flags.skipErrors,
+		CleanArchives:   opts.flags.cleanArchives,
+		Parallelism:     opts.flags.parallelism,
+		Timeout:         opts.flags.timeout,
+		KeepLogs:        opts.flags.keepLogs,
+		TempDir:         opts.flags.tempDir,
+		AllowPathMounts: true,
 	})
 
 	ui.CheckingCache()
