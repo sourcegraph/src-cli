@@ -261,6 +261,41 @@ func TestCoordinator_Execute(t *testing.T) {
 				}),
 			},
 		},
+		{
+			name: "skip cache for step mount",
+
+			tasks: []*Task{srcCLITask, sourcegraphTask},
+
+			batchSpec: &batcheslib.BatchSpec{
+				Name:              "my-batch-change",
+				Description:       "the description",
+				ChangesetTemplate: testChangesetTemplate,
+				Steps: []batcheslib.Step{
+					{
+						Run:   "echo foo",
+						Mount: []batcheslib.Mount{{Path: "/foo/bar/sample.sh", Mountpoint: "/tmp/sample.sh"}},
+					},
+				},
+			},
+
+			executor: &dummyExecutor{
+				results: []taskResult{
+					{task: srcCLITask, result: execution.Result{Diff: `dummydiff1`}},
+					{task: sourcegraphTask, result: execution.Result{Diff: `dummydiff2`}},
+				},
+			},
+			opts: NewCoordinatorOpts{Features: featuresAllEnabled()},
+
+			wantCacheEntries: 0,
+			wantSpecs: []*batcheslib.ChangesetSpec{
+				buildSpecFor(testRepo1, func(spec *batcheslib.ChangesetSpec) {
+					spec.Commits[0].Diff = `dummydiff1`
+				}),
+				buildSpecFor(testRepo2, func(spec *batcheslib.ChangesetSpec) {
+					spec.Commits[0].Diff = `dummydiff2`
+				}),
+			},
+		},
 	}
 
 	for _, tc := range tests {
