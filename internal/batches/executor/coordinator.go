@@ -248,7 +248,18 @@ func (c *Coordinator) writeExecutionCacheResult(ctx context.Context, taskResult 
 }
 
 func (c *Coordinator) writeCacheAndBuildSpecs(ctx context.Context, batchSpec *batcheslib.BatchSpec, taskResult taskResult, ui TaskExecutionUI) ([]*batcheslib.ChangesetSpec, error) {
-	c.writeExecutionCacheResult(ctx, taskResult, ui)
+	// Temporarily prevent writing to the cache when running a spec with a mount. Caching does not at the moment "know"
+	// when a file that is being mounted has changed. This causes the execution not to re-run if a mounted file changes.
+	hasMount := false
+	for _, step := range batchSpec.Steps {
+		if len(step.Mount) > 0 {
+			hasMount = true
+			break
+		}
+	}
+	if !hasMount {
+		c.writeExecutionCacheResult(ctx, taskResult, ui)
+	}
 
 	// If the steps didn't result in any diff, we don't need to create a
 	// changeset spec that's displayed to the user and send to the server.
