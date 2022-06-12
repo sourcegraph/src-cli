@@ -293,10 +293,10 @@ func (ui *stepsExecutionJSONLines) ArchiveDownloadFinished(err error) {
 }
 
 func (ui *stepsExecutionJSONLines) WorkspaceInitializationStarted() {
-	logOperationStart(batcheslib.LogEventOperationTaskInitializingWorkspace, &batcheslib.TaskInitializingWorkspaceMetadata{TaskID: ui.linesTask.ID})
+	// logOperationStart(batcheslib.LogEventOperationTaskInitializingWorkspace, &batcheslib.TaskInitializingWorkspaceMetadata{TaskID: ui.linesTask.ID})
 }
 func (ui *stepsExecutionJSONLines) WorkspaceInitializationFinished() {
-	logOperationSuccess(batcheslib.LogEventOperationTaskInitializingWorkspace, &batcheslib.TaskInitializingWorkspaceMetadata{TaskID: ui.linesTask.ID})
+	// logOperationSuccess(batcheslib.LogEventOperationTaskInitializingWorkspace, &batcheslib.TaskInitializingWorkspaceMetadata{TaskID: ui.linesTask.ID})
 }
 
 func (ui *stepsExecutionJSONLines) SkippingStepsUpto(startStep int) {
