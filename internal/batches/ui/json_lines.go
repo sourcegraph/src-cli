@@ -175,10 +175,11 @@ func (ui *JSONLines) ExecutionError(err error) {
 var _ executor.JSONCacheWriter = &JSONLines{}
 
 func (ui *JSONLines) WriteExecutionResult(key string, value execution.Result) {
-	logOperationSuccess(batcheslib.LogEventOperationCacheResult, &batcheslib.CacheResultMetadata{
-		Key:   key,
-		Value: value,
-	})
+	// Noop, we don't need execution results. Save some bandwidth :)
+	// logOperationSuccess(batcheslib.LogEventOperationCacheResult, &batcheslib.CacheResultMetadata{
+	// 	Key:   key,
+	// 	Value: value,
+	// })
 }
 
 func (ui *JSONLines) WriteAfterStepResult(key string, value execution.AfterStepResult) {
@@ -361,13 +362,6 @@ func (ui *stepsExecutionJSONLines) StepFailed(step int, err error, exitCode int)
 			ExitCode: exitCode,
 		},
 	)
-}
-
-func (ui *stepsExecutionJSONLines) CalculatingDiffStarted() {
-	logOperationStart(batcheslib.LogEventOperationTaskCalculatingDiff, &batcheslib.TaskCalculatingDiffMetadata{TaskID: ui.linesTask.ID})
-}
-func (ui *stepsExecutionJSONLines) CalculatingDiffFinished() {
-	logOperationSuccess(batcheslib.LogEventOperationTaskCalculatingDiff, &batcheslib.TaskCalculatingDiffMetadata{TaskID: ui.linesTask.ID})
 }
 
 func logOperationStart(op batcheslib.LogEventOperation, metadata interface{}) {
