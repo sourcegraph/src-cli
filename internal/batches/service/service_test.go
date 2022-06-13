@@ -1014,11 +1014,11 @@ changesetTemplate:
 name: test-spec
 description: A test spec
 steps:
-  - run: /tmp/foo,bar/sample.sh
+  - run: /tmp/foo/bar/sample.sh
     container: alpine:3
     mount:
       - path: /valid/sample.sh
-        mountpoint: /tmp/foo,bar/sample.sh
+        mountpoint: /tmp/foo/bar/sample.sh
 changesetTemplate:
   title: Test Mount
   body: Test a mounted path
