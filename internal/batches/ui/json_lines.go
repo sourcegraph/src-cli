@@ -175,11 +175,7 @@ func (ui *JSONLines) ExecutionError(err error) {
 var _ executor.JSONCacheWriter = &JSONLines{}
 
 func (ui *JSONLines) WriteExecutionResult(key string, value execution.Result) {
-	// Noop, we don't need execution results. Save some bandwidth :)
-	// logOperationSuccess(batcheslib.LogEventOperationCacheResult, &batcheslib.CacheResultMetadata{
-	// 	Key:   key,
-	// 	Value: value,
-	// })
+	// Noop, we don't need execution results.
 }
 
 func (ui *JSONLines) WriteAfterStepResult(key string, value execution.AfterStepResult) {
