@@ -25,9 +25,9 @@ func runGitCmd(ctx context.Context, dir string, args ...string) ([]byte, error) 
 		"GIT_COMMITTER_EMAIL=batch-changes@sourcegraph.com",
 	}
 	cmd.Dir = dir
-	out, err := cmd.CombinedOutput()
+	out, err := cmd.Output()
 	if err != nil {
-		return nil, errors.Wrapf(err, "'git %s' failed: %s", strings.Join(args, " "), out)
+		return nil, errors.Wrapf(err, "'git %s' failed: %s", strings.Join(args, " "), string(out))
 	}
 	return out, nil
 }
