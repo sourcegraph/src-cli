@@ -1008,48 +1008,6 @@ changesetTemplate:
 			expectedErr: errors.New("handling mount: step 1 mount path is not in the same directory or subdirectory as the batch spec"),
 		},
 		{
-			name:         "mount path contains comma",
-			batchSpecDir: tempDir,
-			rawSpec: `
-name: test-spec
-description: A test spec
-steps:
-  - run: /tmp/sample.sh
-    container: alpine:3
-    mount:
-      - path: /foo,bar/
-        mountpoint: /tmp
-changesetTemplate:
-  title: Test Mount
-  body: Test a mounted path
-  branch: test
-  commit:
-    message: Test
-`,
-			expectedErr: errors.New("handling mount: step 1 mount path contains invalid characters"),
-		},
-		{
-			name:         "mount mountpoint contains comma",
-			batchSpecDir: tempDir,
-			rawSpec: `
-name: test-spec
-description: A test spec
-steps:
-  - run: /tmp/foo,bar/sample.sh
-    container: alpine:3
-    mount:
-      - path: /valid/sample.sh
-        mountpoint: /tmp/foo,bar/sample.sh
-changesetTemplate:
-  title: Test Mount
-  body: Test a mounted path
-  branch: test
-  commit:
-    message: Test
-`,
-			expectedErr: errors.New("handling mount: step 1 mount mountpoint contains invalid characters"),
-		},
-		{
 			name:         "mount remote processing",
 			batchSpecDir: tempDir,
 			rawSpec: `

@@ -387,19 +387,11 @@ func (svc *Service) ParseBatchSpec(dir string, data []byte, isRemote bool) (*bat
 	return spec, nil
 }
 
-const invalidMountCharacters = ","
-
 func validateMount(batchSpecDir string, spec *batcheslib.BatchSpec, isRemote bool) error {
 	for i, step := range spec.Steps {
 		for j, mount := range step.Mount {
 			if isRemote {
 				return errors.New("mounts are not support for server-side processing")
-			}
-			if strings.Contains(mount.Path, invalidMountCharacters) {
-				return errors.Newf("step %d mount path contains invalid characters", i+1)
-			}
-			if strings.Contains(mount.Mountpoint, invalidMountCharacters) {
-				return errors.Newf("step %d mount mountpoint contains invalid characters", i+1)
 			}
 			p := mount.Path
 			if !filepath.IsAbs(p) {
