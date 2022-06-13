@@ -77,6 +77,12 @@ func NewCoordinator(opts NewCoordinatorOpts) *Coordinator {
 		TempDir:         opts.TempDir,
 		AllowPathMounts: opts.AllowPathMounts,
 		WriteStepCacheResult: func(ctx context.Context, stepResult execution.AfterStepResult, task *Task) error {
+			// Temporarily skip writing to the cache if a mount is present
+			for _, step := range task.Steps {
+				if len(step.Mount) > 0 {
+					return nil
+				}
+			}
 			cacheKey := task.cacheKey(globalEnv)
 			return writeToCache(ctx, opts.Cache, stepResult, task, cacheKey)
 		},
