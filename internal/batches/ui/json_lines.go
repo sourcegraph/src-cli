@@ -286,17 +286,17 @@ type stepsExecutionJSONLines struct {
 const stepFlushDuration = 500 * time.Millisecond
 
 func (ui *stepsExecutionJSONLines) ArchiveDownloadStarted() {
-	// We don't fetch archives in for executor mode.
+	// We don't fetch archives in executor mode.
 }
 func (ui *stepsExecutionJSONLines) ArchiveDownloadFinished(err error) {
-	// We don't fetch archives in for executor mode.
+	// We don't fetch archives in executor mode.
 }
 
 func (ui *stepsExecutionJSONLines) WorkspaceInitializationStarted() {
-	// logOperationStart(batcheslib.LogEventOperationTaskInitializingWorkspace, &batcheslib.TaskInitializingWorkspaceMetadata{TaskID: ui.linesTask.ID})
+	// No workspace initialization required for executor mode.
 }
 func (ui *stepsExecutionJSONLines) WorkspaceInitializationFinished() {
-	// logOperationSuccess(batcheslib.LogEventOperationTaskInitializingWorkspace, &batcheslib.TaskInitializingWorkspaceMetadata{TaskID: ui.linesTask.ID})
+	// No workspace initialization required for executor mode.
 }
 
 func (ui *stepsExecutionJSONLines) SkippingStepsUpto(startStep int) {

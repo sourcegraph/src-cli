@@ -351,8 +351,8 @@ github.com/sourcegraph/log v0.0.0-20220608183241-51d325291e9a h1:poxCcQH13nS9l4t
 github.com/sourcegraph/log v0.0.0-20220608183241-51d325291e9a/go.mod h1:A+9F6IicYvBbl2aT0R81lMraKcXjVfdfw352yPe2yJI=
 github.com/sourcegraph/scip v0.1.0 h1:kTs0CJaLQvcRZjg+HpGrcJPNX2Tx31+d6szWio3ZOkQ=
 github.com/sourcegraph/scip v0.1.0/go.mod h1:/AZ8RvsnRfeCZy232PJuVZqcl9f82fJnYwdWZeU2JCo=
-github.com/sourcegraph/sourcegraph/lib v0.0.0-20220613011229-8ea08b417562 h1:kjVyyvZO7Hw3/cVaTnQYghoBvsOrijspRD7S8e2LXts=
-github.com/sourcegraph/sourcegraph/lib v0.0.0-20220613011229-8ea08b417562/go.mod h1:RaBtTwfNRQvoRTEcbrKLesaEbWex/KblcPDd979zzww=
+github.com/sourcegraph/sourcegraph/lib v0.0.0-20220613222320-206d4eecfb5c h1:wSUewFY1Pok+bh6BQRoWjR+C0f+pnvozQYFEiiI58Eg=
+github.com/sourcegraph/sourcegraph/lib v0.0.0-20220613222320-206d4eecfb5c/go.mod h1:RaBtTwfNRQvoRTEcbrKLesaEbWex/KblcPDd979zzww=
 github.com/sourcegraph/yaml v1.0.1-0.20200714132230-56936252f152 h1:z/MpntplPaW6QW95pzcAR/72Z5TWDyDnSo0EOcyij9o=
 github.com/sourcegraph/yaml v1.0.1-0.20200714132230-56936252f152/go.mod h1:GIjDIg/heH5DOkXY3YJ/wNhfHsQHoXGjl8G8amsYQ1I=
 github.com/spf13/afero v1.1.2/go.mod h1:j4pytiNVoe2o6bmDsKpLACNPDBIoEAkihy7loJ1B0CQ=

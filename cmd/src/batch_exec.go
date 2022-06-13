@@ -14,6 +14,7 @@ import (
 	"github.com/sourcegraph/src-cli/internal/batches/docker"
 	"github.com/sourcegraph/src-cli/internal/batches/executor"
 	"github.com/sourcegraph/src-cli/internal/batches/graphql"
+	"github.com/sourcegraph/src-cli/internal/batches/repozip"
 	"github.com/sourcegraph/src-cli/internal/batches/service"
 	"github.com/sourcegraph/src-cli/internal/batches/ui"
 	"github.com/sourcegraph/src-cli/internal/batches/workspace"
@@ -142,26 +143,20 @@ func executeBatchSpecInWorkspaces(ctx context.Context, ui *ui.JSONLines, opts ex
 	}
 
 	// EXECUTION OF TASK
-	coord := svc.NewCoordinator(executor.NewCoordinatorOpts{
+	coord := svc.NewCoordinator(repozip.NewNoopRegistry(), executor.NewCoordinatorOpts{
 		Creator: workspace.NewCreator(ctx, "executor", opts.flags.cacheDir, opts.flags.tempDir, images),
-		// TODO: Shouldn't this be set always?
-		// Answer: Not required. It's only used for the repo archive cache dir and we don't do repo archives here.
-		CacheDir: opts.flags.cacheDir,
 		// TODO: Make sure cache dir is set.
 		Cache: &executor.ServerSideCache{CacheDir: opts.flags.cacheDir, Writer: ui},
 		// We never want to skip errors on this level.
-		SkipErrors: false,
-		// This doesn't matter in SSBC, the disk is always wiped.
-		// TODO: Or does it? What about dev.
-		CleanArchives: false,
-		Parallelism:   opts.flags.parallelism,
+		SkipErrors:  false,
+		Parallelism: opts.flags.parallelism,
 		// TODO: Should be slightly less than the executor timeout. Can we somehow read that?
 		Timeout: opts.flags.timeout,
 		// TODO: Not required?
 		KeepLogs: opts.flags.keepLogs,
 		// TODO: This is only used for a cidfile and for keep logs, should we remove it?
 		TempDir: opts.flags.tempDir,
-	}, true)
+	})
 
 	// `src batch exec` uses server-side caching for changeset specs, so we
 	// only need to call `CheckStepResultsCache` to make sure that per-step cache entries

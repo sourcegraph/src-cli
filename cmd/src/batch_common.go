@@ -23,6 +23,7 @@ import (
 	"github.com/sourcegraph/src-cli/internal/batches"
 	"github.com/sourcegraph/src-cli/internal/batches/executor"
 	"github.com/sourcegraph/src-cli/internal/batches/graphql"
+	"github.com/sourcegraph/src-cli/internal/batches/repozip"
 	"github.com/sourcegraph/src-cli/internal/batches/service"
 	"github.com/sourcegraph/src-cli/internal/batches/ui"
 	"github.com/sourcegraph/src-cli/internal/batches/workspace"
@@ -349,18 +350,21 @@ func executeBatchSpec(ctx context.Context, ui ui.ExecUI, opts executeBatchSpecOp
 	}
 	ui.DeterminingWorkspacesSuccess(len(workspaces))
 
+	archiveRegistry := repozip.NewArchiveRegistry(opts.client, opts.flags.cacheDir, opts.flags.cleanArchives)
+
 	// EXECUTION OF TASKS
-	coord := svc.NewCoordinator(executor.NewCoordinatorOpts{
-		Creator:       workspaceCreator,
-		CacheDir:      opts.flags.cacheDir,
-		Cache:         executor.NewDiskCache(opts.flags.cacheDir),
-		SkipErrors:    opts.flags.skipErrors,
-		CleanArchives: opts.flags.cleanArchives,
-		Parallelism:   opts.flags.parallelism,
-		Timeout:       opts.flags.timeout,
-		KeepLogs:      opts.flags.keepLogs,
-		TempDir:       opts.flags.tempDir,
-	}, false)
+	coord := svc.NewCoordinator(
+		archiveRegistry,
+		executor.NewCoordinatorOpts{
+			Creator:     workspaceCreator,
+			Cache:       executor.NewDiskCache(opts.flags.cacheDir),
+			SkipErrors:  opts.flags.skipErrors,
+			Parallelism: opts.flags.parallelism,
+			Timeout:     opts.flags.timeout,
+			KeepLogs:    opts.flags.keepLogs,
+			TempDir:     opts.flags.tempDir,
+		},
+	)
 
 	ui.CheckingCache()
 	tasks := svc.BuildTasks(

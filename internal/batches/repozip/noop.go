@@ -2,6 +2,9 @@ package repozip
 
 import "context"
 
+// NewNoopRegistry returns a registry that returns archives that don't perform
+// any operation. This is used in executor mode to disable fetching repo archives
+// in favor of cloning.
 func NewNoopRegistry() ArchiveRegistry {
 	return &noopArchiveRegistry{}
 }

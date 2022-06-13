@@ -45,19 +45,15 @@ type NewCoordinatorOpts struct {
 
 	// Everything that follows are either command-line flags or features.
 
-	// TODO: We could probably have a wrapper around flags and features,
-	// something like ExecutionArgs, that we can pass around
-	CacheDir   string
 	SkipErrors bool
 
 	// Used by batcheslib.BuildChangesetSpecs
 	Features batches.FeatureFlags
 
-	CleanArchives bool
-	Parallelism   int
-	Timeout       time.Duration
-	KeepLogs      bool
-	TempDir       string
+	Parallelism int
+	Timeout     time.Duration
+	KeepLogs    bool
+	TempDir     string
 }
 
 func NewCoordinator(opts NewCoordinatorOpts) *Coordinator {

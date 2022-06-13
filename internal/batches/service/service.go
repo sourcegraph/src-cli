@@ -285,12 +285,8 @@ func (svc *Service) BuildTasks(ctx context.Context, attributes *templatelib.Batc
 	return buildTasks(ctx, attributes, workspaces)
 }
 
-func (svc *Service) NewCoordinator(opts executor.NewCoordinatorOpts, noArchive bool) *executor.Coordinator {
-	if noArchive {
-		opts.RepoArchiveRegistry = repozip.NewNoopRegistry()
-	} else {
-		opts.RepoArchiveRegistry = repozip.NewArchiveRegistry(svc.client, opts.CacheDir, opts.CleanArchives)
-	}
+func (svc *Service) NewCoordinator(archiveRegistry repozip.ArchiveRegistry, opts executor.NewCoordinatorOpts) *executor.Coordinator {
+	opts.RepoArchiveRegistry = archiveRegistry
 	opts.Features = svc.features
 	opts.EnsureImage = svc.EnsureImage
 
