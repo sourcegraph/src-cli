@@ -11,7 +11,6 @@ import (
 	"github.com/sourcegraph/sourcegraph/lib/errors"
 
 	"github.com/sourcegraph/src-cli/internal/api"
-	"github.com/sourcegraph/src-cli/internal/batches/docker"
 	"github.com/sourcegraph/src-cli/internal/batches/executor"
 	"github.com/sourcegraph/src-cli/internal/batches/graphql"
 	"github.com/sourcegraph/src-cli/internal/batches/repozip"
@@ -89,15 +88,17 @@ func executeBatchSpecInWorkspaces(ctx context.Context, ui *ui.JSONLines, opts ex
 	}
 
 	svc := service.New(&service.Opts{
-		AllowUnsupported: opts.flags.allowUnsupported,
-		AllowIgnored:     opts.flags.allowIgnored,
-		Client:           opts.client,
+		// When this workspace made it to here, it's already been validated.
+		AllowUnsupported: true,
+		// When this workspace made it to here, it's already been validated.
+		AllowIgnored: true,
+		Client:       opts.client,
 	})
+
 	if err := svc.SetFeatureFlagsForRelease(opts.flags.sourcegraphVersion); err != nil {
 		return err
 	}
 
-	// TODO: Do we need these checks in the controlled executors environment?
 	if err := checkExecutable("git", "version"); err != nil {
 		return err
 	}
@@ -126,14 +127,12 @@ func executeBatchSpecInWorkspaces(ctx context.Context, ui *ui.JSONLines, opts ex
 		return errors.New("invalid execution, no steps to process")
 	}
 
-	var (
-		images map[string]docker.Image
-	)
-
 	{
 		ui.PreparingContainerImages()
-		images, err = svc.EnsureDockerImages(
-			ctx, task.Steps, opts.flags.parallelism,
+		_, err = svc.EnsureDockerImages(
+			ctx,
+			task.Steps,
+			opts.flags.parallelism,
 			ui.PreparingContainerImagesProgress,
 		)
 		if err != nil {
@@ -144,9 +143,8 @@ func executeBatchSpecInWorkspaces(ctx context.Context, ui *ui.JSONLines, opts ex
 
 	// EXECUTION OF TASK
 	coord := svc.NewCoordinator(repozip.NewNoopRegistry(), executor.NewCoordinatorOpts{
-		Creator: workspace.NewCreator(ctx, "executor", opts.flags.cacheDir, opts.flags.tempDir, images),
-		// TODO: Make sure cache dir is set.
-		Cache: &executor.ServerSideCache{CacheDir: opts.flags.cacheDir, Writer: ui},
+		Creator: workspace.NewExecutorWorkspaceCreator(opts.flags.tempDir, opts.flags.repoDir),
+		Cache:   &executor.ServerSideCache{CacheDir: opts.flags.cacheDir, Writer: ui},
 		// We never want to skip errors on this level.
 		SkipErrors:  false,
 		Parallelism: opts.flags.parallelism,
@@ -176,9 +174,7 @@ func executeBatchSpecInWorkspaces(ctx context.Context, ui *ui.JSONLines, opts ex
 	return nil
 }
 
-func loadWorkspaceExecutionInput(file string) (batcheslib.WorkspacesExecutionInput, error) {
-	var input batcheslib.WorkspacesExecutionInput
-
+func loadWorkspaceExecutionInput(file string) (input batcheslib.WorkspacesExecutionInput, err error) {
 	f, err := batchOpenFileFlag(file)
 	if err != nil {
 		return input, err

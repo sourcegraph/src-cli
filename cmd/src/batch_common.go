@@ -85,6 +85,7 @@ type batchExecuteFlags struct {
 	textOnly bool
 
 	sourcegraphVersion string
+	repoDir            string
 }
 
 func newBatchExecuteFlags(flagSet *flag.FlagSet, workspaceExecution bool, cacheDir, tempDir string) *batchExecuteFlags {
@@ -107,6 +108,7 @@ func newBatchExecuteFlags(flagSet *flag.FlagSet, workspaceExecution bool, cacheD
 		)
 	} else {
 		flagSet.StringVar(&caf.sourcegraphVersion, "sourcegraph-version", "", "Sourcegraph backend version. Needs to be passed to the exec method.")
+		flagSet.StringVar(&caf.repoDir, "repo", "", "Path of the checked out repo on disk. Needs to be passed to the exec method.")
 	}
 
 	flagSet.StringVar(
@@ -319,14 +321,15 @@ func executeBatchSpec(ctx context.Context, ui ui.ExecUI, opts executeBatchSpecOp
 		ui.PreparingContainerImagesSuccess()
 
 		ui.DeterminingWorkspaceCreatorType()
-		workspaceCreator = workspace.NewCreator(ctx, opts.flags.workspace, opts.flags.cacheDir, opts.flags.tempDir, images)
-		if workspaceCreator.Type() == workspace.CreatorTypeVolume {
+		var typ workspace.CreatorType
+		workspaceCreator, typ = workspace.NewCreator(ctx, opts.flags.workspace, opts.flags.cacheDir, opts.flags.tempDir, images)
+		if typ == workspace.CreatorTypeVolume {
 			_, err = svc.EnsureImage(ctx, workspace.DockerVolumeWorkspaceImage)
 			if err != nil {
 				return err
 			}
 		}
-		ui.DeterminingWorkspaceCreatorTypeSuccess(workspaceCreator.Type())
+		ui.DeterminingWorkspaceCreatorTypeSuccess(typ)
 	}
 
 	ui.ResolvingRepositories()

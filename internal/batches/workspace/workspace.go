@@ -19,9 +19,6 @@ import (
 type Creator interface {
 	// Create creates a new workspace for the given repository and archive file.
 	Create(ctx context.Context, repo *graphql.Repository, steps []batcheslib.Step, archive repozip.Archive) (Workspace, error)
-
-	// Type returns the CreatorType of the Creator.
-	Type() CreatorType
 }
 
 // Workspace implementations manage per-changeset storage when executing batch
@@ -59,17 +56,14 @@ type CreatorType int
 const (
 	CreatorTypeBind CreatorType = iota
 	CreatorTypeVolume
-	CreatorTypeExecutor
 )
 
-func NewCreator(ctx context.Context, preference, cacheDir, tempDir string, images map[string]docker.Image) Creator {
+func NewCreator(ctx context.Context, preference, cacheDir, tempDir string, images map[string]docker.Image) (Creator, CreatorType) {
 	var workspaceType CreatorType
 	if preference == "volume" {
 		workspaceType = CreatorTypeVolume
 	} else if preference == "bind" {
 		workspaceType = CreatorTypeBind
-	} else if preference == "executor" {
-		workspaceType = CreatorTypeExecutor
 	} else {
 		workspaceType = BestCreatorType(ctx, images)
 	}
@@ -82,11 +76,10 @@ func NewCreator(ctx context.Context, preference, cacheDir, tempDir string, image
 			}
 			return img, nil
 		}
-		return &dockerVolumeWorkspaceCreator{tempDir: tempDir, EnsureImage: ensureImage}
-	} else if workspaceType == CreatorTypeExecutor {
-		return &executorWorkspaceCreator{Dir: cacheDir}
+		return &dockerVolumeWorkspaceCreator{tempDir: tempDir, EnsureImage: ensureImage}, workspaceType
 	}
-	return &dockerBindWorkspaceCreator{Dir: cacheDir}
+
+	return &dockerBindWorkspaceCreator{Dir: cacheDir}, workspaceType
 }
 
 // BestCreatorType determines the correct workspace creator type to use based
