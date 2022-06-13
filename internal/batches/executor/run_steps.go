@@ -79,7 +79,6 @@ func runSteps(ctx context.Context, opts *executionOpts) (result execution.Result
 
 		// If we have cached results and don't need to execute any more steps,
 		// we can quit
-		// TODO: This doesn't consider statically skipped steps.
 		if lastStep == len(opts.task.Steps)-1 {
 			// Build the execution result from the step result.
 			changes, err := git.ChangesInDiff([]byte(opts.task.CachedResult.Diff))
