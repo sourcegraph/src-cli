@@ -134,7 +134,7 @@ func (w *dockerBindWorkspace) Changes(ctx context.Context) (*git.Changes, error)
 		return nil, errors.Wrap(err, "git add failed")
 	}
 
-	statusOut, err := runGitCmd(ctx, w.dir, "status", "--porcelain")
+	statusOut, err := runGitCmd(ctx, w.dir, "status", "--porcelain", "--no-ahead-behind")
 	if err != nil {
 		return nil, errors.Wrap(err, "git status failed")
 	}
