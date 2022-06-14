@@ -39,8 +39,9 @@ type executorModeFlags struct {
 	repoDir            string
 }
 
-func newExecutorModeFlags(flagSet *flag.FlagSet) (f executorModeFlags) {
-	flagSet.StringVar(&f.sourcegraphVersion, "sourcegraph-version", "", "Sourcegraph backend version.")
+func newExecutorModeFlags(flagSet *flag.FlagSet) (f *executorModeFlags) {
+	f = &executorModeFlags{}
+	flagSet.StringVar(&f.sourcegraphVersion, "sourcegraphVersion", "", "Sourcegraph backend version.")
 	flagSet.DurationVar(&f.timeout, "timeout", 60*time.Minute, "The maximum duration a single batch spec step can take.")
 	flagSet.StringVar(&f.file, "f", "", "The workspace execution input file to read.")
 	flagSet.StringVar(&f.tempDir, "tmp", "", "Directory for storing temporary data.")
@@ -50,9 +51,9 @@ func newExecutorModeFlags(flagSet *flag.FlagSet) (f executorModeFlags) {
 	return f
 }
 
-func validateExecutorModeFlags(f executorModeFlags) error {
+func validateExecutorModeFlags(f *executorModeFlags) error {
 	if f.sourcegraphVersion == "" {
-		return errors.New("sourcegraph-version parameter missing")
+		return errors.New("sourcegraphVersion parameter missing")
 	}
 	if f.file == "" {
 		return errors.New("input file parameter missing")
@@ -125,7 +126,7 @@ Examples:
 	})
 }
 
-func executeBatchSpecInWorkspaces(ctx context.Context, flags executorModeFlags) (err error) {
+func executeBatchSpecInWorkspaces(ctx context.Context, flags *executorModeFlags) (err error) {
 	ui := &ui.JSONLines{}
 	defer func() {
 		if err != nil {
@@ -135,13 +136,21 @@ func executeBatchSpecInWorkspaces(ctx context.Context, flags executorModeFlags) 
 
 	tempDir := flags.tempDir
 	if !filepath.IsAbs(tempDir) {
-		wd, err := os.Getwd()
+		tempDir, err = filepath.Abs(tempDir)
 		if err != nil {
-			return errors.Wrap(err, "getting working directory")
+			return errors.Wrap(err, "getting absolute path for temp dir")
 		}
-		tempDir = filepath.Join(wd, tempDir)
+
 		if err := os.Mkdir(tempDir, os.ModePerm); err != nil {
 			return errors.Wrap(err, "creating temp directory")
+		}
+	}
+
+	repoDir := flags.repoDir
+	if !filepath.IsAbs(repoDir) {
+		repoDir, err = filepath.Abs(repoDir)
+		if err != nil {
+			return errors.Wrap(err, "getting absolute path for repo dir")
 		}
 	}
 
@@ -206,7 +215,7 @@ func executeBatchSpecInWorkspaces(ctx context.Context, flags executorModeFlags) 
 		repozip.NewNoopRegistry(),
 		log.NewNoopManager(),
 		executor.NewCoordinatorOpts{
-			Creator:     workspace.NewExecutorWorkspaceCreator(tempDir, flags.repoDir),
+			Creator:     workspace.NewExecutorWorkspaceCreator(tempDir, repoDir),
 			Cache:       &executor.ServerSideCache{CacheDir: flags.cacheDir, Writer: ui},
 			Parallelism: 1,
 			// TODO: Should be slightly less than the executor timeout. Can we somehow read that?
