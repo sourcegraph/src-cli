@@ -9,15 +9,15 @@ import (
 	"github.com/sourcegraph/src-cli/internal/batches/repozip"
 )
 
-func NewExecutorWorkspaceCreator(tmpDir, repoDir string) Creator {
+func NewExecutorWorkspaceCreator(tempDir, repoDir string) Creator {
 	return &executorWorkspaceCreator{
-		TmpDir:  tmpDir,
+		TempDir: tempDir,
 		RepoDir: repoDir,
 	}
 }
 
 type executorWorkspaceCreator struct {
-	TmpDir  string
+	TempDir string
 	RepoDir string
 }
 
@@ -26,7 +26,7 @@ var _ Creator = &executorWorkspaceCreator{}
 func (wc *executorWorkspaceCreator) Create(ctx context.Context, repo *graphql.Repository, steps []batcheslib.Step, archive repozip.Archive) (Workspace, error) {
 	return &dockerBindExecutorWorkspace{
 		dockerBindWorkspace: dockerBindWorkspace{
-			tempDir: wc.TmpDir,
+			tempDir: wc.TempDir,
 			dir:     wc.RepoDir,
 		},
 	}, nil

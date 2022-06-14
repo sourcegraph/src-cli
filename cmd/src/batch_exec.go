@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/sourcegraph/sourcegraph/lib/errors"
@@ -131,6 +133,18 @@ func executeBatchSpecInWorkspaces(ctx context.Context, flags executorModeFlags) 
 		}
 	}()
 
+	tempDir := flags.tempDir
+	if !filepath.IsAbs(tempDir) {
+		wd, err := os.Getwd()
+		if err != nil {
+			return errors.Wrap(err, "getting working directory")
+		}
+		tempDir = filepath.Join(wd, tempDir)
+		if err := os.Mkdir(tempDir, os.ModePerm); err != nil {
+			return errors.Wrap(err, "creating temp directory")
+		}
+	}
+
 	svc := service.New(&service.Opts{
 		// When this workspace made it to here, it's already been validated.
 		AllowUnsupported: true,
@@ -192,12 +206,12 @@ func executeBatchSpecInWorkspaces(ctx context.Context, flags executorModeFlags) 
 		repozip.NewNoopRegistry(),
 		log.NewNoopManager(),
 		executor.NewCoordinatorOpts{
-			Creator:     workspace.NewExecutorWorkspaceCreator(flags.tempDir, flags.repoDir),
+			Creator:     workspace.NewExecutorWorkspaceCreator(tempDir, flags.repoDir),
 			Cache:       &executor.ServerSideCache{CacheDir: flags.cacheDir, Writer: ui},
 			Parallelism: 1,
 			// TODO: Should be slightly less than the executor timeout. Can we somehow read that?
 			Timeout: flags.timeout,
-			TempDir: flags.tempDir,
+			TempDir: tempDir,
 		},
 	)
 
