@@ -54,7 +54,6 @@ type NewCoordinatorOpts struct {
 }
 
 func NewCoordinator(opts NewCoordinatorOpts, logger log.LogManager) *Coordinator {
-
 	globalEnv := os.Environ()
 
 	exec := newExecutor(newExecutorOpts{
