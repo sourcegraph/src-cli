@@ -228,7 +228,7 @@ func TestCoordinator_Execute(t *testing.T) {
 		},
 		{
 			name: "skip errors",
-			opts: NewCoordinatorOpts{Features: featuresAllEnabled(), SkipErrors: true},
+			opts: NewCoordinatorOpts{Features: featuresAllEnabled()}, // , SkipErrors: true},
 
 			tasks: []*Task{srcCLITask, sourcegraphTask},
 

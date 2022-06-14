@@ -23,6 +23,7 @@ import (
 	"github.com/sourcegraph/src-cli/internal/batches"
 	"github.com/sourcegraph/src-cli/internal/batches/executor"
 	"github.com/sourcegraph/src-cli/internal/batches/graphql"
+	"github.com/sourcegraph/src-cli/internal/batches/log"
 	"github.com/sourcegraph/src-cli/internal/batches/repozip"
 	"github.com/sourcegraph/src-cli/internal/batches/service"
 	"github.com/sourcegraph/src-cli/internal/batches/ui"
@@ -358,13 +359,12 @@ func executeBatchSpec(ctx context.Context, ui ui.ExecUI, opts executeBatchSpecOp
 	// EXECUTION OF TASKS
 	coord := svc.NewCoordinator(
 		archiveRegistry,
+		log.NewDiskManager(opts.flags.tempDir, opts.flags.keepLogs),
 		executor.NewCoordinatorOpts{
 			Creator:     workspaceCreator,
 			Cache:       executor.NewDiskCache(opts.flags.cacheDir),
-			SkipErrors:  opts.flags.skipErrors,
 			Parallelism: opts.flags.parallelism,
 			Timeout:     opts.flags.timeout,
-			KeepLogs:    opts.flags.keepLogs,
 			TempDir:     opts.flags.tempDir,
 		},
 	)

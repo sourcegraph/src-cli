@@ -45,19 +45,15 @@ type NewCoordinatorOpts struct {
 
 	// Everything that follows are either command-line flags or features.
 
-	SkipErrors bool
-
 	// Used by batcheslib.BuildChangesetSpecs
 	Features batches.FeatureFlags
 
 	Parallelism int
 	Timeout     time.Duration
-	KeepLogs    bool
 	TempDir     string
 }
 
-func NewCoordinator(opts NewCoordinatorOpts) *Coordinator {
-	logManager := log.NewManager(opts.TempDir, opts.KeepLogs)
+func NewCoordinator(opts NewCoordinatorOpts, logger log.LogManager) *Coordinator {
 
 	globalEnv := os.Environ()
 
@@ -65,7 +61,7 @@ func NewCoordinator(opts NewCoordinatorOpts) *Coordinator {
 		RepoArchiveRegistry: opts.RepoArchiveRegistry,
 		EnsureImage:         opts.EnsureImage,
 		Creator:             opts.Creator,
-		Logger:              logManager,
+		Logger:              logger,
 
 		Parallelism: opts.Parallelism,
 		Timeout:     opts.Timeout,
@@ -80,7 +76,7 @@ func NewCoordinator(opts NewCoordinatorOpts) *Coordinator {
 		opts:       opts,
 		cache:      opts.Cache,
 		exec:       exec,
-		logManager: logManager,
+		logManager: logger,
 	}
 }
 
@@ -107,8 +103,7 @@ func (c *Coordinator) CheckCache(ctx context.Context, batchSpec *batcheslib.Batc
 
 // CheckStepResultsCache checks the cache for each Task, but only for cached
 // step results. This is used by `src batch exec` when executing server-side.
-func (c *Coordinator) CheckStepResultsCache(ctx context.Context, tasks []*Task) error {
-	globalEnv := os.Environ()
+func (c *Coordinator) CheckStepResultsCache(ctx context.Context, tasks []*Task, globalEnv []string) error {
 	for _, t := range tasks {
 		if err := c.loadCachedStepResults(ctx, t, globalEnv); err != nil {
 			return err

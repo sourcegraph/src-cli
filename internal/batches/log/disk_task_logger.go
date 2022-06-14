@@ -7,17 +7,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/sourcegraph/sourcegraph/lib/errors"
+	"github.com/pkg/errors"
 )
-
-type TaskLogger interface {
-	Close() error
-	Log(string)
-	Logf(string, ...interface{})
-	MarkErrored()
-	Path() string
-	PrefixWriter(prefix string) io.Writer
-}
 
 type FileTaskLogger struct {
 	f *os.File

@@ -23,6 +23,7 @@ import (
 	"github.com/sourcegraph/src-cli/internal/batches/docker"
 	"github.com/sourcegraph/src-cli/internal/batches/executor"
 	"github.com/sourcegraph/src-cli/internal/batches/graphql"
+	"github.com/sourcegraph/src-cli/internal/batches/log"
 	"github.com/sourcegraph/src-cli/internal/batches/repozip"
 )
 
@@ -285,12 +286,12 @@ func (svc *Service) BuildTasks(ctx context.Context, attributes *templatelib.Batc
 	return buildTasks(ctx, attributes, workspaces)
 }
 
-func (svc *Service) NewCoordinator(archiveRegistry repozip.ArchiveRegistry, opts executor.NewCoordinatorOpts) *executor.Coordinator {
+func (svc *Service) NewCoordinator(archiveRegistry repozip.ArchiveRegistry, logger log.LogManager, opts executor.NewCoordinatorOpts) *executor.Coordinator {
 	opts.RepoArchiveRegistry = archiveRegistry
 	opts.Features = svc.features
 	opts.EnsureImage = svc.EnsureImage
 
-	return executor.NewCoordinator(opts)
+	return executor.NewCoordinator(opts, logger)
 }
 
 func (svc *Service) CreateImportChangesetSpecs(ctx context.Context, batchSpec *batcheslib.BatchSpec) ([]*batcheslib.ChangesetSpec, error) {

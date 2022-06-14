@@ -13,6 +13,7 @@ import (
 	"github.com/sourcegraph/src-cli/internal/api"
 	"github.com/sourcegraph/src-cli/internal/batches/executor"
 	"github.com/sourcegraph/src-cli/internal/batches/graphql"
+	"github.com/sourcegraph/src-cli/internal/batches/log"
 	"github.com/sourcegraph/src-cli/internal/batches/repozip"
 	"github.com/sourcegraph/src-cli/internal/batches/service"
 	"github.com/sourcegraph/src-cli/internal/batches/ui"
@@ -20,6 +21,10 @@ import (
 	"github.com/sourcegraph/src-cli/internal/cmderrors"
 
 	batcheslib "github.com/sourcegraph/sourcegraph/lib/batches"
+)
+
+const (
+	execPullParallelism = 4
 )
 
 func init() {
@@ -132,7 +137,7 @@ func executeBatchSpecInWorkspaces(ctx context.Context, ui *ui.JSONLines, opts ex
 		_, err = svc.EnsureDockerImages(
 			ctx,
 			task.Steps,
-			opts.flags.parallelism,
+			execPullParallelism,
 			ui.PreparingContainerImagesProgress,
 		)
 		if err != nil {
@@ -141,29 +146,35 @@ func executeBatchSpecInWorkspaces(ctx context.Context, ui *ui.JSONLines, opts ex
 		ui.PreparingContainerImagesSuccess()
 	}
 
-	// EXECUTION OF TASK
-	coord := svc.NewCoordinator(repozip.NewNoopRegistry(), executor.NewCoordinatorOpts{
-		Creator: workspace.NewExecutorWorkspaceCreator(opts.flags.tempDir, opts.flags.repoDir),
-		Cache:   &executor.ServerSideCache{CacheDir: opts.flags.cacheDir, Writer: ui},
-		// We never want to skip errors on this level.
-		SkipErrors:  false,
-		Parallelism: opts.flags.parallelism,
-		// TODO: Should be slightly less than the executor timeout. Can we somehow read that?
-		Timeout: opts.flags.timeout,
-		// TODO: Not required?
-		KeepLogs: opts.flags.keepLogs,
-		// TODO: This is only used for a cidfile and for keep logs, should we remove it?
-		TempDir: opts.flags.tempDir,
-	})
+	coord := svc.NewCoordinator(
+		repozip.NewNoopRegistry(),
+		log.NewNoopManager(),
+		executor.NewCoordinatorOpts{
+			Creator:     workspace.NewExecutorWorkspaceCreator(opts.flags.tempDir, opts.flags.repoDir),
+			Cache:       &executor.ServerSideCache{CacheDir: opts.flags.cacheDir, Writer: ui},
+			Parallelism: 1,
+			// TODO: Should be slightly less than the executor timeout. Can we somehow read that?
+			Timeout: opts.flags.timeout,
+			// TODO: This is only used for a cidfile and for keep logs, should we remove it?
+			TempDir: opts.flags.tempDir,
+		},
+	)
 
 	// `src batch exec` uses server-side caching for changeset specs, so we
 	// only need to call `CheckStepResultsCache` to make sure that per-step cache entries
 	// are loaded and set on the tasks.
-	if err := coord.CheckStepResultsCache(ctx, tasks); err != nil {
+	if err := coord.CheckStepResultsCache(
+		ctx,
+		tasks,
+		// Don't expose the executor env, we don't allow env forwarding anyways.
+		[]string{},
+	); err != nil {
 		return err
 	}
 
-	taskExecUI := ui.ExecutingTasks(*verbose, opts.flags.parallelism)
+	// These arguments are unused in the json logs implementation, but the interface
+	// dictates them.
+	taskExecUI := ui.ExecutingTasks(false, 1)
 	err = coord.Execute(ctx, tasks, taskExecUI)
 	if err != nil {
 		taskExecUI.Failed(err)

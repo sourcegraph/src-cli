@@ -94,8 +94,8 @@ func (ui *JSONLines) CheckingCacheSuccess(cachedSpecsFound int, tasksToExecute i
 	})
 }
 
-func (ui *JSONLines) ExecutingTasks(verbose bool, parallelism int) executor.TaskExecutionUI {
-	return &taskExecutionJSONLines{verbose: verbose, parallelism: parallelism}
+func (ui *JSONLines) ExecutingTasks(_ bool, _ int) executor.TaskExecutionUI {
+	return &taskExecutionJSONLines{}
 }
 
 func (ui *JSONLines) ExecutingTasksSkippingErrors(err error) {
@@ -189,9 +189,6 @@ func (ui *JSONLines) WriteAfterStepResult(key string, value execution.AfterStepR
 }
 
 type taskExecutionJSONLines struct {
-	verbose     bool
-	parallelism int
-
 	linesTasks map[*executor.Task]batcheslib.JSONLinesTask
 }
 
