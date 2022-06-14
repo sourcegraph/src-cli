@@ -84,38 +84,33 @@ type batchExecuteFlags struct {
 
 	// EXPERIMENTAL
 	textOnly bool
-
-	sourcegraphVersion string
-	repoDir            string
 }
 
-func newBatchExecuteFlags(flagSet *flag.FlagSet, workspaceExecution bool, cacheDir, tempDir string) *batchExecuteFlags {
+func newBatchExecuteFlags(flagSet *flag.FlagSet, cacheDir, tempDir string) *batchExecuteFlags {
 	caf := &batchExecuteFlags{
 		batchExecutionFlags: newBatchExecutionFlags(flagSet),
 	}
 
-	if !workspaceExecution {
-		flagSet.BoolVar(
-			&caf.textOnly, "text-only", false,
-			"INTERNAL USE ONLY. EXPERIMENTAL. Switches off the TUI to only print JSON lines.",
-		)
-		flagSet.BoolVar(
-			&caf.apply, "apply", false,
-			"Ignored.",
-		)
-		flagSet.BoolVar(
-			&caf.keepLogs, "keep-logs", false,
-			"Retain logs after executing steps.",
-		)
-	} else {
-		flagSet.StringVar(&caf.sourcegraphVersion, "sourcegraph-version", "", "Sourcegraph backend version. Needs to be passed to the exec method.")
-		flagSet.StringVar(&caf.repoDir, "repo", "", "Path of the checked out repo on disk. Needs to be passed to the exec method.")
-	}
+	flagSet.BoolVar(
+		&caf.textOnly, "text-only", false,
+		"INTERNAL USE ONLY. EXPERIMENTAL. Switches off the TUI to only print JSON lines.",
+	)
+
+	flagSet.BoolVar(
+		&caf.apply, "apply", false,
+		"Ignored.",
+	)
+
+	flagSet.BoolVar(
+		&caf.keepLogs, "keep-logs", false,
+		"Retain logs after executing steps.",
+	)
 
 	flagSet.StringVar(
 		&caf.cacheDir, "cache", cacheDir,
 		"Directory for caching results and repository archives.",
 	)
+
 	flagSet.StringVar(
 		&caf.tempDir, "tmp", tempDir,
 		"Directory for storing temporary data, such as log files. Default is /tmp. Can also be set with environment variable SRC_BATCH_TMP_DIR; if both are set, this flag will be used and not the environment variable.",
@@ -130,14 +125,17 @@ func newBatchExecuteFlags(flagSet *flag.FlagSet, workspaceExecution bool, cacheD
 		&caf.parallelism, "j", runtime.GOMAXPROCS(0),
 		"The maximum number of parallel jobs. Default is GOMAXPROCS.",
 	)
+
 	flagSet.DurationVar(
 		&caf.timeout, "timeout", 60*time.Minute,
 		"The maximum duration a single batch spec step can take.",
 	)
+
 	flagSet.BoolVar(
 		&caf.cleanArchives, "clean-archives", true,
 		"If true, deletes downloaded repository archives after executing batch spec steps.",
 	)
+
 	flagSet.BoolVar(
 		&caf.skipErrors, "skip-errors", false,
 		"If true, errors encountered while executing steps in a repository won't stop the execution of the batch spec but only cause that repository to be skipped.",

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 
 	"github.com/sourcegraph/sourcegraph/lib/errors"
 
@@ -27,6 +28,46 @@ const (
 	execPullParallelism = 4
 )
 
+type executorModeFlags struct {
+	sourcegraphVersion string
+	timeout            time.Duration
+	file               string
+	tempDir            string
+	cacheDir           string
+	repoDir            string
+}
+
+func newExecutorModeFlags(flagSet *flag.FlagSet) (f executorModeFlags) {
+	flagSet.StringVar(&f.sourcegraphVersion, "sourcegraph-version", "", "Sourcegraph backend version.")
+	flagSet.DurationVar(&f.timeout, "timeout", 60*time.Minute, "The maximum duration a single batch spec step can take.")
+	flagSet.StringVar(&f.file, "f", "", "The workspace execution input file to read.")
+	flagSet.StringVar(&f.tempDir, "tmp", "", "Directory for storing temporary data.")
+	flagSet.StringVar(&f.cacheDir, "cache", "", "Directory to read cached results from.")
+	flagSet.StringVar(&f.repoDir, "repo", "", "Path of the checked out repo on disk.")
+
+	return f
+}
+
+func validateExecutorModeFlags(f executorModeFlags) error {
+	if f.sourcegraphVersion == "" {
+		return errors.New("sourcegraph-version parameter missing")
+	}
+	if f.file == "" {
+		return errors.New("input file parameter missing")
+	}
+	if f.tempDir == "" {
+		return errors.New("tempDir parameter missing")
+	}
+	if f.cacheDir == "" {
+		return errors.New("cacheDir parameter missing")
+	}
+	if f.repoDir == "" {
+		return errors.New("repoDir parameter missing")
+	}
+
+	return nil
+}
+
 func init() {
 	usage := `
 INTERNAL USE ONLY: 'src batch exec' executes the given raw batch spec in the given workspaces.
@@ -36,7 +77,7 @@ github.com/sourcegraph/sourcegraph/lib/batches.
 
 Usage:
 
-    src batch exec -f FILE [command options]
+    src batch exec -f FILE -repo DIR [command options]
 
 Examples:
 
@@ -45,7 +86,7 @@ Examples:
 `
 
 	flagSet := flag.NewFlagSet("exec", flag.ExitOnError)
-	flags := newBatchExecuteFlags(flagSet, true, batchDefaultCacheDir(), batchDefaultTempDirPrefix())
+	flags := newExecutorModeFlags(flagSet)
 
 	handler := func(args []string) error {
 		if err := flagSet.Parse(args); err != nil {
@@ -56,13 +97,14 @@ Examples:
 			return cmderrors.Usage("additional arguments not allowed")
 		}
 
+		if err := validateExecutorModeFlags(flags); err != nil {
+			return cmderrors.ExitCode(1, err)
+		}
+
 		ctx, cancel := contextCancelOnInterrupt(context.Background())
 		defer cancel()
 
-		err := executeBatchSpecInWorkspaces(ctx, &ui.JSONLines{}, executeBatchSpecOpts{
-			flags:  flags,
-			client: &deadClient{},
-		})
+		err := executeBatchSpecInWorkspaces(ctx, flags)
 		if err != nil {
 			return cmderrors.ExitCode(1, nil)
 		}
@@ -81,26 +123,26 @@ Examples:
 	})
 }
 
-func executeBatchSpecInWorkspaces(ctx context.Context, ui *ui.JSONLines, opts executeBatchSpecOpts) (err error) {
+func executeBatchSpecInWorkspaces(ctx context.Context, flags executorModeFlags) (err error) {
+	ui := &ui.JSONLines{}
 	defer func() {
 		if err != nil {
 			ui.ExecutionError(err)
 		}
 	}()
 
-	if opts.flags.sourcegraphVersion == "" {
-		return errors.New("missing sourcegraph-version flag")
-	}
-
 	svc := service.New(&service.Opts{
 		// When this workspace made it to here, it's already been validated.
 		AllowUnsupported: true,
 		// When this workspace made it to here, it's already been validated.
 		AllowIgnored: true,
-		Client:       opts.client,
+		// We don't want src to talk to the sg instance, if it would, this
+		// is a regression. Therefor, we have this dead client that kills the
+		// process when something should try to talk to src.
+		Client: &deadClient{},
 	})
 
-	if err := svc.SetFeatureFlagsForRelease(opts.flags.sourcegraphVersion); err != nil {
+	if err := svc.SetFeatureFlagsForRelease(flags.sourcegraphVersion); err != nil {
 		return err
 	}
 
@@ -113,7 +155,7 @@ func executeBatchSpecInWorkspaces(ctx context.Context, ui *ui.JSONLines, opts ex
 
 	// Read the input file that contains the raw spec and the workspaces in
 	// which to execute it.
-	input, err := loadWorkspaceExecutionInput(opts.flags.file)
+	input, err := loadWorkspaceExecutionInput(flags.file)
 	if err != nil {
 		return err
 	}
@@ -150,13 +192,12 @@ func executeBatchSpecInWorkspaces(ctx context.Context, ui *ui.JSONLines, opts ex
 		repozip.NewNoopRegistry(),
 		log.NewNoopManager(),
 		executor.NewCoordinatorOpts{
-			Creator:     workspace.NewExecutorWorkspaceCreator(opts.flags.tempDir, opts.flags.repoDir),
-			Cache:       &executor.ServerSideCache{CacheDir: opts.flags.cacheDir, Writer: ui},
+			Creator:     workspace.NewExecutorWorkspaceCreator(flags.tempDir, flags.repoDir),
+			Cache:       &executor.ServerSideCache{CacheDir: flags.cacheDir, Writer: ui},
 			Parallelism: 1,
 			// TODO: Should be slightly less than the executor timeout. Can we somehow read that?
-			Timeout: opts.flags.timeout,
-			// TODO: This is only used for a cidfile and for keep logs, should we remove it?
-			TempDir: opts.flags.tempDir,
+			Timeout: flags.timeout,
+			TempDir: flags.tempDir,
 		},
 	)
 
@@ -232,21 +273,23 @@ type deadClient struct{}
 
 var _ api.Client = &deadClient{}
 
+const deadClientPanicMsg = "Dead client invoked. This indicates a bug in src-cli in server-side execution, please report this."
+
 func (c *deadClient) NewQuery(query string) api.Request {
-	panic("dead client invoked")
+	panic(deadClientPanicMsg)
 }
 func (c *deadClient) NewRequest(query string, vars map[string]interface{}) api.Request {
-	panic("dead client invoked")
+	panic(deadClientPanicMsg)
 }
 func (c *deadClient) NewGzippedRequest(query string, vars map[string]interface{}) api.Request {
-	panic("dead client invoked")
+	panic(deadClientPanicMsg)
 }
 func (c *deadClient) NewGzippedQuery(query string) api.Request {
-	panic("dead client invoked")
+	panic(deadClientPanicMsg)
 }
 func (c *deadClient) NewHTTPRequest(ctx context.Context, method, path string, body io.Reader) (*http.Request, error) {
-	panic("dead client invoked")
+	panic(deadClientPanicMsg)
 }
 func (c *deadClient) Do(req *http.Request) (*http.Response, error) {
-	panic("dead client invoked")
+	panic(deadClientPanicMsg)
 }
