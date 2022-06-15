@@ -77,12 +77,6 @@ func NewCoordinator(opts NewCoordinatorOpts) *Coordinator {
 		TempDir:         opts.TempDir,
 		AllowPathMounts: opts.AllowPathMounts,
 		WriteStepCacheResult: func(ctx context.Context, stepResult execution.AfterStepResult, task *Task) error {
-			// Temporarily skip writing to the cache if a mount is present
-			for _, step := range task.Steps {
-				if len(step.Mount) > 0 {
-					return nil
-				}
-			}
 			cacheKey := task.cacheKey(globalEnv)
 			return writeToCache(ctx, opts.Cache, stepResult, task, cacheKey)
 		},
@@ -256,18 +250,7 @@ func (c *Coordinator) writeExecutionCacheResult(ctx context.Context, taskResult 
 }
 
 func (c *Coordinator) writeCacheAndBuildSpecs(ctx context.Context, batchSpec *batcheslib.BatchSpec, taskResult taskResult, ui TaskExecutionUI) ([]*batcheslib.ChangesetSpec, error) {
-	// Temporarily prevent writing to the cache when running a spec with a mount. Caching does not at the moment "know"
-	// when a file that is being mounted has changed. This causes the execution not to re-run if a mounted file changes.
-	hasMount := false
-	for _, step := range batchSpec.Steps {
-		if len(step.Mount) > 0 {
-			hasMount = true
-			break
-		}
-	}
-	if !hasMount {
-		c.writeExecutionCacheResult(ctx, taskResult, ui)
-	}
+	c.writeExecutionCacheResult(ctx, taskResult, ui)
 
 	// If the steps didn't result in any diff, we don't need to create a
 	// changeset spec that's displayed to the user and send to the server.
