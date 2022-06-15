@@ -90,7 +90,7 @@ func (image *image) Ensure(ctx context.Context) error {
 				out, err := exec.CommandContext(dctx, "docker", args...).CombinedOutput()
 				id := string(bytes.TrimSpace(out))
 
-				if errors.Is(err, context.DeadlineExceeded) {
+				if errors.IsDeadlineExceeded(err) || errors.IsDeadlineExceeded(dctx.Err()) {
 					return "", newFastCommandTimeoutError(dctx, args...)
 				} else if err != nil {
 					return "", err

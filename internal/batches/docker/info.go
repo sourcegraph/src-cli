@@ -23,7 +23,7 @@ func NCPU(ctx context.Context) (int, error) {
 
 	args := []string{"info", "--format", "{{ .NCPU }}"}
 	out, err := exec.CommandContext(dctx, "docker", args...).CombinedOutput()
-	if errors.Is(errors.Cause(err), context.DeadlineExceeded) {
+	if errors.IsDeadlineExceeded(err) || errors.IsDeadlineExceeded(dctx.Err()) {
 		return ncpu, newFastCommandTimeoutError(dctx, args...)
 	} else if err != nil {
 		return ncpu, err
