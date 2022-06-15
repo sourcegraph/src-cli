@@ -291,10 +291,9 @@ func executeSingleStep(
 
 	// Where should we execute the steps.run script?
 	scriptWorkDir := workDir
-	// TODO: This breaks scripts that use `search_result_paths`
-	// if opts.task.Path != "" {
-	// 	scriptWorkDir = workDir + "/" + opts.task.Path
-	// }
+	if opts.task.Path != "" {
+		scriptWorkDir = workDir + "/" + opts.task.Path
+	}
 
 	args := append([]string{
 		"run",
