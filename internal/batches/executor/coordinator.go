@@ -2,7 +2,6 @@ package executor
 
 import (
 	"context"
-	"os"
 	"time"
 
 	"github.com/sourcegraph/sourcegraph/lib/errors"
@@ -43,6 +42,8 @@ type NewCoordinatorOpts struct {
 	Cache               cache.Cache
 	RepoArchiveRegistry repozip.ArchiveRegistry
 
+	GlobalEnv []string
+
 	// Everything that follows are either command-line flags or features.
 
 	// Used by batcheslib.BuildChangesetSpecs
@@ -55,8 +56,6 @@ type NewCoordinatorOpts struct {
 }
 
 func NewCoordinator(opts NewCoordinatorOpts, logger log.LogManager) *Coordinator {
-	globalEnv := os.Environ()
-
 	exec := newExecutor(newExecutorOpts{
 		RepoArchiveRegistry: opts.RepoArchiveRegistry,
 		EnsureImage:         opts.EnsureImage,
@@ -67,6 +66,7 @@ func NewCoordinator(opts NewCoordinatorOpts, logger log.LogManager) *Coordinator
 		Timeout:         opts.Timeout,
 		TempDir:         opts.TempDir,
 		AllowPathMounts: opts.AllowPathMounts,
+		GlobalEnv:       opts.GlobalEnv,
 		WriteStepCacheResult: func(ctx context.Context, stepResult execution.AfterStepResult, task *Task) error {
 			// Temporarily skip writing to the cache if a mount is present
 			for _, step := range task.Steps {
@@ -74,7 +74,7 @@ func NewCoordinator(opts NewCoordinatorOpts, logger log.LogManager) *Coordinator
 					return nil
 				}
 			}
-			cacheKey := task.cacheKey(globalEnv)
+			cacheKey := task.cacheKey(opts.GlobalEnv)
 			return writeToCache(ctx, opts.Cache, stepResult, task, cacheKey)
 		},
 	})
@@ -120,10 +120,8 @@ func (c *Coordinator) CheckStepResultsCache(ctx context.Context, tasks []*Task, 
 }
 
 func (c *Coordinator) ClearCache(ctx context.Context, tasks []*Task) error {
-	globalEnv := os.Environ()
-
 	for _, task := range tasks {
-		cacheKey := task.cacheKey(globalEnv)
+		cacheKey := task.cacheKey(c.opts.GlobalEnv)
 		if err := c.cache.Clear(ctx, cacheKey); err != nil {
 			return errors.Wrapf(err, "clearing cache for %q", task.Repository.Name)
 		}
@@ -138,10 +136,8 @@ func (c *Coordinator) ClearCache(ctx context.Context, tasks []*Task) error {
 }
 
 func (c *Coordinator) checkCacheForTask(ctx context.Context, batchSpec *batcheslib.BatchSpec, task *Task) (specs []*batcheslib.ChangesetSpec, found bool, err error) {
-	globalEnv := os.Environ()
-
 	// Check if the task is cached.
-	cacheKey := task.cacheKey(globalEnv)
+	cacheKey := task.cacheKey(c.opts.GlobalEnv)
 
 	var result execution.Result
 	result, found, err = c.cache.Get(ctx, cacheKey)
@@ -152,7 +148,7 @@ func (c *Coordinator) checkCacheForTask(ctx context.Context, batchSpec *batchesl
 	if !found {
 		// If we are here, that means we didn't find anything in the cache for the
 		// complete task. So, what if we have cached results for the steps?
-		if err := c.loadCachedStepResults(ctx, task, globalEnv); err != nil {
+		if err := c.loadCachedStepResults(ctx, task, c.opts.GlobalEnv); err != nil {
 			return specs, false, err
 		}
 
@@ -236,8 +232,7 @@ func writeToCache(ctx context.Context, cache cache.Cache, stepResult execution.A
 
 func (c *Coordinator) writeExecutionCacheResult(ctx context.Context, taskResult taskResult, ui TaskExecutionUI) error {
 	// Add to the cache, even if no diff was produced.
-	globalEnv := os.Environ()
-	cacheKey := taskResult.task.cacheKey(globalEnv)
+	cacheKey := taskResult.task.cacheKey(c.opts.GlobalEnv)
 	if err := c.cache.Set(ctx, cacheKey, taskResult.result); err != nil {
 		return errors.Wrapf(err, "caching result for %q", taskResult.task.Repository.Name)
 	}

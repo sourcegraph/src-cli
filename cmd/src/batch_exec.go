@@ -221,6 +221,8 @@ func executeBatchSpecInWorkspaces(ctx context.Context, flags *executorModeFlags)
 			// TODO: Should be slightly less than the executor timeout. Can we somehow read that?
 			Timeout: flags.timeout,
 			TempDir: tempDir,
+			// Don't allow to read from env.
+			GlobalEnv: []string{},
 			// Temporarily prevent the ability to sending a batch spec with a mount for server-side processing.
 			AllowPathMounts: false,
 		},

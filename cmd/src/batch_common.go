@@ -366,6 +366,7 @@ func executeBatchSpec(ctx context.Context, ui ui.ExecUI, opts executeBatchSpecOp
 			Parallelism:     opts.flags.parallelism,
 			Timeout:         opts.flags.timeout,
 			TempDir:         opts.flags.tempDir,
+			GlobalEnv:       os.Environ(),
 			AllowPathMounts: true,
 		},
 	)
