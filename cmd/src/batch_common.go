@@ -123,7 +123,7 @@ func newBatchExecuteFlags(flagSet *flag.FlagSet, workspaceExecution bool, cacheD
 
 	flagSet.IntVar(
 		&caf.parallelism, "j", 0,
-		"The maximum number of parallel jobs. Default (or 0) is the number of CPU cores available to Docker, or GOMAXPROCS if Docker cannot report its number of cores.",
+		"The maximum number of parallel jobs. Default (or 0) is the number of CPU cores available to Docker.",
 	)
 	flagSet.DurationVar(
 		&caf.timeout, "timeout", 60*time.Minute,
@@ -544,19 +544,5 @@ func getBatchParallelism(ctx context.Context, flag int) (int, error) {
 		return flag, nil
 	}
 
-	ncpu, err := docker.NCPU(ctx)
-	var terr docker.TimeoutError
-	if errors.As(err, &terr) {
-		return 0, err
-	} else if err != nil {
-		// In the case of errors from Docker itself, we want to fall back to
-		// GOMAXPROCS, since it's possible Docker just doesn't have access to
-		// the CPU core count (either due to permissions, or being too old).
-		//
-		// It would obviously be better if we had a global logger available to
-		// log this.
-		return runtime.GOMAXPROCS(0), nil
-	}
-
-	return ncpu, nil
+	return docker.NCPU(ctx)
 }
