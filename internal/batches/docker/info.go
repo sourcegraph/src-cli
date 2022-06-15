@@ -28,7 +28,7 @@ func NCPU(ctx context.Context) (int, error) {
 
 	dcpu, err := strconv.Atoi(string(bytes.TrimSpace(out)))
 	if err != nil {
-		return 0, err
+		return 0, errors.Wrap(err, "parsing docker cpu count")
 	}
 
 	return dcpu, nil
