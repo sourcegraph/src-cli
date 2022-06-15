@@ -9,11 +9,13 @@ import (
 	"os/exec"
 	"os/signal"
 	"path"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"time"
 
 	"github.com/mattn/go-isatty"
+
 	"github.com/sourcegraph/sourcegraph/lib/errors"
 
 	batcheslib "github.com/sourcegraph/sourcegraph/lib/batches"
@@ -285,7 +287,7 @@ func executeBatchSpec(ctx context.Context, ui ui.ExecUI, opts executeBatchSpecOp
 
 	// Parse flags and build up our service and executor options.
 	ui.ParsingBatchSpec()
-	batchSpec, rawSpec, err := parseBatchSpec(opts.file, svc)
+	batchSpec, rawSpec, err := parseBatchSpec(opts.file, svc, false)
 	if err != nil {
 		var multiErr errors.MultiError
 		if errors.As(err, &multiErr) {
@@ -359,11 +361,12 @@ func executeBatchSpec(ctx context.Context, ui ui.ExecUI, opts executeBatchSpecOp
 		archiveRegistry,
 		log.NewDiskManager(opts.flags.tempDir, opts.flags.keepLogs),
 		executor.NewCoordinatorOpts{
-			Creator:     workspaceCreator,
-			Cache:       executor.NewDiskCache(opts.flags.cacheDir),
-			Parallelism: opts.flags.parallelism,
-			Timeout:     opts.flags.timeout,
-			TempDir:     opts.flags.tempDir,
+			Creator:         workspaceCreator,
+			Cache:           executor.NewDiskCache(opts.flags.cacheDir),
+			Parallelism:     opts.flags.parallelism,
+			Timeout:         opts.flags.timeout,
+			TempDir:         opts.flags.tempDir,
+			AllowPathMounts: true,
 		},
 	)
 
@@ -474,7 +477,10 @@ func executeBatchSpec(ctx context.Context, ui ui.ExecUI, opts executeBatchSpecOp
 
 // parseBatchSpec parses and validates the given batch spec. If the spec has
 // validation errors, they are returned.
-func parseBatchSpec(file string, svc *service.Service) (*batcheslib.BatchSpec, string, error) {
+//
+// isRemote argument is a temporary argument used to determine if the batch spec is being parsed for remote
+// (server-side) processing. Remote processing does not support mounts yet.
+func parseBatchSpec(file string, svc *service.Service, isRemote bool) (*batcheslib.BatchSpec, string, error) {
 	f, err := batchOpenFileFlag(file)
 	if err != nil {
 		return nil, "", err
@@ -486,7 +492,22 @@ func parseBatchSpec(file string, svc *service.Service) (*batcheslib.BatchSpec, s
 		return nil, "", errors.Wrap(err, "reading batch spec")
 	}
 
-	spec, err := svc.ParseBatchSpec(data)
+	var workingDirectory string
+	// if the batch spec is being provided via standard input, set the working directory to the current directory
+	if file == "" || file == "-" {
+		workingDirectory, err = os.Getwd()
+		if err != nil {
+			return nil, "", errors.Wrap(err, "batch spec path")
+		}
+	} else {
+		p, err := filepath.Abs(file)
+		if err != nil {
+			return nil, "", errors.Wrap(err, "batch spec path")
+		}
+		workingDirectory = filepath.Dir(p)
+	}
+
+	spec, err := svc.ParseBatchSpec(workingDirectory, data, isRemote)
 	return spec, string(data), err
 }
 

@@ -38,6 +38,8 @@ type executionOpts struct {
 
 	ui StepsExecutionUI
 
+	allowPathMounts bool
+
 	writeStepCacheResult func(ctx context.Context, stepResult execution.AfterStepResult, task *Task) error
 }
 
@@ -51,11 +53,11 @@ func runSteps(ctx context.Context, opts *executionOpts) (result execution.Result
 	defer opts.task.Archive.Close()
 
 	opts.ui.WorkspaceInitializationStarted()
-	workspace, err := opts.wc.Create(ctx, opts.task.Repository, opts.task.Steps, opts.task.Archive)
+	ws, err := opts.wc.Create(ctx, opts.task.Repository, opts.task.Steps, opts.task.Archive)
 	if err != nil {
 		return execution.Result{}, nil, errors.Wrap(err, "creating workspace")
 	}
-	defer workspace.Close(ctx)
+	defer ws.Close(ctx)
 	opts.ui.WorkspaceInitializationFinished()
 
 	var (
@@ -78,6 +80,7 @@ func runSteps(ctx context.Context, opts *executionOpts) (result execution.Result
 		// If we have cached results and don't need to execute any more steps,
 		// we can quit
 		if lastStep == len(opts.task.Steps)-1 {
+			// Build the execution result from the step result.
 			changes, err := git.ChangesInDiff([]byte(opts.task.CachedResult.Diff))
 			if err != nil {
 				return execResult, nil, errors.Wrap(err, "parsing cached step diff")
@@ -98,6 +101,8 @@ func runSteps(ctx context.Context, opts *executionOpts) (result execution.Result
 		)
 	}
 
+	var lastDiff string
+
 	for i := startStep; i < len(opts.task.Steps); i++ {
 		step := opts.task.Steps[i]
 
@@ -113,14 +118,18 @@ func runSteps(ctx context.Context, opts *executionOpts) (result execution.Result
 		}
 
 		if opts.task.CachedResultFound && i == startStep {
-			previousStepResult = opts.task.CachedResult.PreviousStepResult
+			previousStepResult = opts.task.CachedResult.StepResult
 
 			stepContext.PreviousStep = previousStepResult
 			stepContext.Steps.Changes = previousStepResult.Files
 			stepContext.Outputs = opts.task.CachedResult.Outputs
 
-			if err := workspace.ApplyDiff(ctx, []byte(opts.task.CachedResult.Diff)); err != nil {
-				return execResult, nil, errors.Wrap(err, "getting changed files in step")
+			// If the previous steps made any modifications in the workspace yet,
+			// apply them.
+			if opts.task.CachedResult.Diff != "" {
+				if err := ws.ApplyDiff(ctx, []byte(opts.task.CachedResult.Diff)); err != nil {
+					return execResult, nil, errors.Wrap(err, "applying diff of cache result")
+				}
 			}
 		}
 
@@ -142,7 +151,7 @@ func runSteps(ctx context.Context, opts *executionOpts) (result execution.Result
 		if err != nil {
 			return execResult, nil, err
 		}
-		stdoutBuffer, stderrBuffer, err := executeSingleStep(ctx, opts, workspace, i, step, digest, &stepContext)
+		stdoutBuffer, stderrBuffer, err := executeSingleStep(ctx, opts, ws, i, step, digest, &stepContext)
 		defer func() {
 			if err != nil {
 				exitCode := -1
@@ -157,12 +166,12 @@ func runSteps(ctx context.Context, opts *executionOpts) (result execution.Result
 			return execResult, nil, err
 		}
 
-		changes, err := workspace.Changes(ctx)
+		changes, err := ws.Changes(ctx)
 		if err != nil {
 			return execResult, nil, errors.Wrap(err, "getting changed files in step")
 		}
 
-		result := execution.StepResult{Files: changes, Stdout: &stdoutBuffer, Stderr: &stderrBuffer}
+		result := execution.StepResult{Files: changes, Stdout: stdoutBuffer.String(), Stderr: stderrBuffer.String()}
 
 		// Set stepContext.Step to current step's results before rendering outputs
 		stepContext.Step = result
@@ -172,15 +181,15 @@ func runSteps(ctx context.Context, opts *executionOpts) (result execution.Result
 		}
 
 		// Get the current diff and store that away as the per-step result.
-		stepDiff, err := workspace.Diff(ctx)
+		stepDiff, err := ws.Diff(ctx)
 		if err != nil {
 			return execResult, nil, errors.Wrap(err, "getting diff produced by step")
 		}
 		stepResult := execution.AfterStepResult{
-			StepIndex:          i,
-			Diff:               string(stepDiff),
-			Outputs:            make(map[string]interface{}),
-			PreviousStepResult: stepContext.PreviousStep,
+			StepIndex:  i,
+			Diff:       string(stepDiff),
+			Outputs:    make(map[string]interface{}),
+			StepResult: result,
 		}
 		for k, v := range execResult.Outputs {
 			stepResult.Outputs[k] = v
@@ -195,17 +204,11 @@ func runSteps(ctx context.Context, opts *executionOpts) (result execution.Result
 		}
 
 		opts.ui.StepFinished(i+1, stepResult.Diff, result.Files, stepResult.Outputs)
+
+		lastDiff = stepResult.Diff
 	}
 
-	opts.ui.CalculatingDiffStarted()
-	diffOut, err := workspace.Diff(ctx)
-	if err != nil {
-		return execResult, nil, errors.Wrap(err, "git diff failed")
-	}
-
-	opts.ui.CalculatingDiffFinished()
-
-	execResult.Diff = string(diffOut)
+	execResult.Diff = lastDiff
 	execResult.ChangedFiles = previousStepResult.Files
 
 	return execResult, stepResults, err
@@ -302,6 +305,14 @@ func executeSingleStep(
 
 	for target, source := range filesToMount {
 		args = append(args, "--mount", fmt.Sprintf("type=bind,source=%s,target=%s,ro", source.Name(), target))
+	}
+
+	// Temporarily add a guard to prevent a path to mount path for server-side processing
+	if opts.allowPathMounts {
+		// Mount any paths on the local system to the docker container. The paths have already been validated during parsing
+		for _, mount := range step.Mount {
+			args = append(args, "--mount", fmt.Sprintf("type=bind,source=%s,target=%s,ro", mount.Path, mount.Mountpoint))
+		}
 	}
 
 	for k, v := range env {
