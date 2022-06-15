@@ -37,6 +37,12 @@ type fastCommandTimeoutError struct {
 	timeout time.Duration
 }
 
+type TimeoutError interface {
+	Timeout() bool
+}
+
+var _ TimeoutError = &fastCommandTimeoutError{}
+
 func newFastCommandTimeoutError(ctx context.Context, args ...string) error {
 	// Attempt to extract the timeout from the context.
 	timeout, ok := ctx.Value(fastCommandTimeoutEnv).(time.Duration)
@@ -63,6 +69,8 @@ func (e *fastCommandTimeoutError) Error() string {
 		shellquote.Join(e.args...), e.timeout,
 	)
 }
+
+func (*fastCommandTimeoutError) Timeout() bool { return true }
 
 const (
 	fastCommandTimeoutDefault = 5 * time.Second
