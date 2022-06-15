@@ -92,7 +92,12 @@ func executeBatchSpecInWorkspaces(ctx context.Context, ui *ui.JSONLines, opts ex
 	if err := checkExecutable("git", "version"); err != nil {
 		return err
 	}
-	if err := checkExecutable("docker", "version"); err != nil {
+
+	// In the past, we checked `docker version`, but now we retrieve the number
+	// of CPUs, since we need that anyway and it performs the same check (is
+	// Docker working _at all_?).
+	parallelism, err := getBatchParallelism(ctx, opts.flags.parallelism)
+	if err != nil {
 		return err
 	}
 
@@ -112,7 +117,7 @@ func executeBatchSpecInWorkspaces(ctx context.Context, ui *ui.JSONLines, opts ex
 	if len(input.Steps) > 0 {
 		ui.PreparingContainerImages()
 		images, err := svc.EnsureDockerImages(
-			ctx, input.Steps, opts.flags.parallelism,
+			ctx, input.Steps, parallelism,
 			ui.PreparingContainerImagesProgress,
 		)
 		if err != nil {
@@ -138,7 +143,7 @@ func executeBatchSpecInWorkspaces(ctx context.Context, ui *ui.JSONLines, opts ex
 		Cache:         &executor.ServerSideCache{Writer: ui},
 		SkipErrors:    opts.flags.skipErrors,
 		CleanArchives: opts.flags.cleanArchives,
-		Parallelism:   opts.flags.parallelism,
+		Parallelism:   parallelism,
 		Timeout:       opts.flags.timeout,
 		KeepLogs:      opts.flags.keepLogs,
 		TempDir:       opts.flags.tempDir,
@@ -154,7 +159,7 @@ func executeBatchSpecInWorkspaces(ctx context.Context, ui *ui.JSONLines, opts ex
 		return err
 	}
 
-	taskExecUI := ui.ExecutingTasks(*verbose, opts.flags.parallelism)
+	taskExecUI := ui.ExecutingTasks(*verbose, parallelism)
 	err = coord.Execute(ctx, tasks, taskExecUI)
 	if err == nil || opts.flags.skipErrors {
 		if err == nil {

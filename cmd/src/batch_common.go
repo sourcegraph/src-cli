@@ -23,6 +23,7 @@ import (
 
 	"github.com/sourcegraph/src-cli/internal/api"
 	"github.com/sourcegraph/src-cli/internal/batches"
+	"github.com/sourcegraph/src-cli/internal/batches/docker"
 	"github.com/sourcegraph/src-cli/internal/batches/executor"
 	"github.com/sourcegraph/src-cli/internal/batches/graphql"
 	"github.com/sourcegraph/src-cli/internal/batches/service"
@@ -121,8 +122,8 @@ func newBatchExecuteFlags(flagSet *flag.FlagSet, workspaceExecution bool, cacheD
 	)
 
 	flagSet.IntVar(
-		&caf.parallelism, "j", runtime.GOMAXPROCS(0),
-		"The maximum number of parallel jobs. Default is GOMAXPROCS.",
+		&caf.parallelism, "j", 0,
+		"The maximum number of parallel jobs. Default (or 0) is the number of CPU cores available to Docker, or GOMAXPROCS if Docker cannot report its number of cores.",
 	)
 	flagSet.DurationVar(
 		&caf.timeout, "timeout", 60*time.Minute,
@@ -275,7 +276,11 @@ func executeBatchSpec(ctx context.Context, ui ui.ExecUI, opts executeBatchSpecOp
 		return err
 	}
 
-	if err := checkExecutable("docker", "version"); err != nil {
+	// In the past, we checked `docker version`, but now we retrieve the number
+	// of CPUs, since we need that anyway and it performs the same check (is
+	// Docker working _at all_?).
+	parallelism, err := getBatchParallelism(ctx, opts.flags.parallelism)
+	if err != nil {
 		return err
 	}
 
@@ -307,7 +312,7 @@ func executeBatchSpec(ctx context.Context, ui ui.ExecUI, opts executeBatchSpecOp
 	if len(batchSpec.Steps) > 0 {
 		ui.PreparingContainerImages()
 		images, err := svc.EnsureDockerImages(
-			ctx, batchSpec.Steps, opts.flags.parallelism,
+			ctx, batchSpec.Steps, parallelism,
 			ui.PreparingContainerImagesProgress,
 		)
 		if err != nil {
@@ -354,7 +359,7 @@ func executeBatchSpec(ctx context.Context, ui ui.ExecUI, opts executeBatchSpecOp
 		Cache:           executor.NewDiskCache(opts.flags.cacheDir),
 		SkipErrors:      opts.flags.skipErrors,
 		CleanArchives:   opts.flags.cleanArchives,
-		Parallelism:     opts.flags.parallelism,
+		Parallelism:     parallelism,
 		Timeout:         opts.flags.timeout,
 		KeepLogs:        opts.flags.keepLogs,
 		TempDir:         opts.flags.tempDir,
@@ -386,7 +391,7 @@ func executeBatchSpec(ctx context.Context, ui ui.ExecUI, opts executeBatchSpecOp
 	}
 	ui.CheckingCacheSuccess(len(specs), len(uncachedTasks))
 
-	taskExecUI := ui.ExecutingTasks(*verbose, opts.flags.parallelism)
+	taskExecUI := ui.ExecutingTasks(*verbose, parallelism)
 	freshSpecs, logFiles, execErr := coord.ExecuteAndBuildSpecs(ctx, batchSpec, uncachedTasks, taskExecUI)
 	// Add external changeset specs.
 	importedSpecs, importErr := svc.CreateImportChangesetSpecs(ctx, batchSpec)
@@ -532,4 +537,26 @@ func contextCancelOnInterrupt(parent context.Context) (context.Context, func()) 
 		signal.Stop(c)
 		ctxCancel()
 	}
+}
+
+func getBatchParallelism(ctx context.Context, flag int) (int, error) {
+	if flag > 0 {
+		return flag, nil
+	}
+
+	ncpu, err := docker.NCPU(ctx)
+	var terr docker.TimeoutError
+	if errors.As(err, &terr) {
+		return 0, err
+	} else if err != nil {
+		// In the case of errors from Docker itself, we want to fall back to
+		// GOMAXPROCS, since it's possible Docker just doesn't have access to
+		// the CPU core count (either due to permissions, or being too old).
+		//
+		// It would obviously be better if we had a global logger available to
+		// log this.
+		return runtime.GOMAXPROCS(0), nil
+	}
+
+	return ncpu, nil
 }
