@@ -19,6 +19,8 @@ All notable changes to `src-cli` are documented in this file.
 
 ### Fixed
 
+- Execution URL when running `src batch remote` doesn't result in a 404. [sourcegraph/src-cli](https://github.com/sourcegraph/src-cli/pull/787)
+
 ### Removed
 
 ## 3.40.11
