@@ -15,6 +15,41 @@ func (svc *Service) areServerSideBatchChangesSupported() error {
 	return nil
 }
 
+const upsertEmptyBatchChange = `
+mutation UpsertEmptyBatchChange(
+	$name: String!
+	$namespace: ID!
+) {
+	upsertEmptyBatchChange(
+		name: $name,
+		namespace: $namespace
+	) {
+		id
+	}
+}
+`
+
+func (svc *Service) UpsertBatchChange(
+	ctx context.Context,
+	name string,
+	namespaceID string,
+) error {
+	if err := svc.areServerSideBatchChangesSupported(); err != nil {
+		return err
+	}
+
+	var resp struct{}
+
+	if ok, err := svc.client.NewRequest(upsertEmptyBatchChange, map[string]interface{}{
+		"name":      name,
+		"namespace": namespaceID,
+	}).Do(ctx, &resp); err != nil || !ok {
+		return err
+	}
+
+	return nil
+}
+
 const upsertBatchSpecInputQuery = `
 mutation UpsertBatchSpecInput(
     $batchSpec: String!,

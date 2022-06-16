@@ -78,6 +78,13 @@ Examples:
 		}
 		ui.ResolvingNamespaceSuccess(namespace.ID)
 
+		ui.SendingBatchChange()
+		err = svc.UpsertBatchChange(ctx, spec.Name, namespace.ID)
+		if err != nil {
+			return err
+		}
+		ui.SendingBatchChangeSuccess()
+
 		ui.SendingBatchSpec()
 		batchSpecID, err := svc.UpsertBatchSpecInput(
 			ctx,
