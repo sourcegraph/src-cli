@@ -23,8 +23,11 @@ import (
 
 	"github.com/sourcegraph/src-cli/internal/api"
 	"github.com/sourcegraph/src-cli/internal/batches"
+	"github.com/sourcegraph/src-cli/internal/batches/docker"
 	"github.com/sourcegraph/src-cli/internal/batches/executor"
 	"github.com/sourcegraph/src-cli/internal/batches/graphql"
+	"github.com/sourcegraph/src-cli/internal/batches/log"
+	"github.com/sourcegraph/src-cli/internal/batches/repozip"
 	"github.com/sourcegraph/src-cli/internal/batches/service"
 	"github.com/sourcegraph/src-cli/internal/batches/ui"
 	"github.com/sourcegraph/src-cli/internal/batches/workspace"
@@ -86,30 +89,31 @@ type batchExecuteFlags struct {
 	textOnly bool
 }
 
-func newBatchExecuteFlags(flagSet *flag.FlagSet, workspaceExecution bool, cacheDir, tempDir string) *batchExecuteFlags {
+func newBatchExecuteFlags(flagSet *flag.FlagSet, cacheDir, tempDir string) *batchExecuteFlags {
 	caf := &batchExecuteFlags{
 		batchExecutionFlags: newBatchExecutionFlags(flagSet),
 	}
 
-	if !workspaceExecution {
-		flagSet.BoolVar(
-			&caf.textOnly, "text-only", false,
-			"INTERNAL USE ONLY. EXPERIMENTAL. Switches off the TUI to only print JSON lines.",
-		)
-		flagSet.BoolVar(
-			&caf.apply, "apply", false,
-			"Ignored.",
-		)
-		flagSet.BoolVar(
-			&caf.keepLogs, "keep-logs", false,
-			"Retain logs after executing steps.",
-		)
-	}
+	flagSet.BoolVar(
+		&caf.textOnly, "text-only", false,
+		"INTERNAL USE ONLY. EXPERIMENTAL. Switches off the TUI to only print JSON lines.",
+	)
+
+	flagSet.BoolVar(
+		&caf.apply, "apply", false,
+		"Ignored.",
+	)
+
+	flagSet.BoolVar(
+		&caf.keepLogs, "keep-logs", false,
+		"Retain logs after executing steps.",
+	)
 
 	flagSet.StringVar(
 		&caf.cacheDir, "cache", cacheDir,
 		"Directory for caching results and repository archives.",
 	)
+
 	flagSet.StringVar(
 		&caf.tempDir, "tmp", tempDir,
 		"Directory for storing temporary data, such as log files. Default is /tmp. Can also be set with environment variable SRC_BATCH_TMP_DIR; if both are set, this flag will be used and not the environment variable.",
@@ -121,17 +125,20 @@ func newBatchExecuteFlags(flagSet *flag.FlagSet, workspaceExecution bool, cacheD
 	)
 
 	flagSet.IntVar(
-		&caf.parallelism, "j", runtime.GOMAXPROCS(0),
-		"The maximum number of parallel jobs. Default is GOMAXPROCS.",
+		&caf.parallelism, "j", 0,
+		"The maximum number of parallel jobs. Default (or 0) is the number of CPU cores available to Docker.",
 	)
+
 	flagSet.DurationVar(
 		&caf.timeout, "timeout", 60*time.Minute,
 		"The maximum duration a single batch spec step can take.",
 	)
+
 	flagSet.BoolVar(
 		&caf.cleanArchives, "clean-archives", true,
 		"If true, deletes downloaded repository archives after executing batch spec steps.",
 	)
+
 	flagSet.BoolVar(
 		&caf.skipErrors, "skip-errors", false,
 		"If true, errors encountered while executing steps in a repository won't stop the execution of the batch spec but only cause that repository to be skipped.",
@@ -275,7 +282,11 @@ func executeBatchSpec(ctx context.Context, ui ui.ExecUI, opts executeBatchSpecOp
 		return err
 	}
 
-	if err := checkExecutable("docker", "version"); err != nil {
+	// In the past, we checked `docker version`, but now we retrieve the number
+	// of CPUs, since we need that anyway and it performs the same check (is
+	// Docker working _at all_?).
+	parallelism, err := getBatchParallelism(ctx, opts.flags.parallelism)
+	if err != nil {
 		return err
 	}
 
@@ -307,7 +318,7 @@ func executeBatchSpec(ctx context.Context, ui ui.ExecUI, opts executeBatchSpecOp
 	if len(batchSpec.Steps) > 0 {
 		ui.PreparingContainerImages()
 		images, err := svc.EnsureDockerImages(
-			ctx, batchSpec.Steps, opts.flags.parallelism,
+			ctx, batchSpec.Steps, parallelism,
 			ui.PreparingContainerImagesProgress,
 		)
 		if err != nil {
@@ -316,14 +327,15 @@ func executeBatchSpec(ctx context.Context, ui ui.ExecUI, opts executeBatchSpecOp
 		ui.PreparingContainerImagesSuccess()
 
 		ui.DeterminingWorkspaceCreatorType()
-		workspaceCreator = workspace.NewCreator(ctx, opts.flags.workspace, opts.flags.cacheDir, opts.flags.tempDir, images)
-		if workspaceCreator.Type() == workspace.CreatorTypeVolume {
+		var typ workspace.CreatorType
+		workspaceCreator, typ = workspace.NewCreator(ctx, opts.flags.workspace, opts.flags.cacheDir, opts.flags.tempDir, images)
+		if typ == workspace.CreatorTypeVolume {
 			_, err = svc.EnsureImage(ctx, workspace.DockerVolumeWorkspaceImage)
 			if err != nil {
 				return err
 			}
 		}
-		ui.DeterminingWorkspaceCreatorTypeSuccess(workspaceCreator.Type())
+		ui.DeterminingWorkspaceCreatorTypeSuccess(typ)
 	}
 
 	ui.ResolvingRepositories()
@@ -347,19 +359,22 @@ func executeBatchSpec(ctx context.Context, ui ui.ExecUI, opts executeBatchSpecOp
 	}
 	ui.DeterminingWorkspacesSuccess(len(workspaces))
 
+	archiveRegistry := repozip.NewArchiveRegistry(opts.client, opts.flags.cacheDir, opts.flags.cleanArchives)
+
 	// EXECUTION OF TASKS
-	coord := svc.NewCoordinator(executor.NewCoordinatorOpts{
-		Creator:         workspaceCreator,
-		CacheDir:        opts.flags.cacheDir,
-		Cache:           executor.NewDiskCache(opts.flags.cacheDir),
-		SkipErrors:      opts.flags.skipErrors,
-		CleanArchives:   opts.flags.cleanArchives,
-		Parallelism:     opts.flags.parallelism,
-		Timeout:         opts.flags.timeout,
-		KeepLogs:        opts.flags.keepLogs,
-		TempDir:         opts.flags.tempDir,
-		AllowPathMounts: true,
-	})
+	coord := svc.NewCoordinator(
+		archiveRegistry,
+		log.NewDiskManager(opts.flags.tempDir, opts.flags.keepLogs),
+		executor.NewCoordinatorOpts{
+			Creator:         workspaceCreator,
+			Cache:           executor.NewDiskCache(opts.flags.cacheDir),
+			Parallelism:     parallelism,
+			Timeout:         opts.flags.timeout,
+			TempDir:         opts.flags.tempDir,
+			GlobalEnv:       os.Environ(),
+			AllowPathMounts: true,
+		},
+	)
 
 	ui.CheckingCache()
 	tasks := svc.BuildTasks(
@@ -386,7 +401,7 @@ func executeBatchSpec(ctx context.Context, ui ui.ExecUI, opts executeBatchSpecOp
 	}
 	ui.CheckingCacheSuccess(len(specs), len(uncachedTasks))
 
-	taskExecUI := ui.ExecutingTasks(*verbose, opts.flags.parallelism)
+	taskExecUI := ui.ExecutingTasks(*verbose, parallelism)
 	freshSpecs, logFiles, execErr := coord.ExecuteAndBuildSpecs(ctx, batchSpec, uncachedTasks, taskExecUI)
 	// Add external changeset specs.
 	importedSpecs, importErr := svc.CreateImportChangesetSpecs(ctx, batchSpec)
@@ -532,4 +547,12 @@ func contextCancelOnInterrupt(parent context.Context) (context.Context, func()) 
 		signal.Stop(c)
 		ctxCancel()
 	}
+}
+
+func getBatchParallelism(ctx context.Context, flag int) (int, error) {
+	if flag > 0 {
+		return flag, nil
+	}
+
+	return docker.NCPU(ctx)
 }
