@@ -24,7 +24,7 @@ mutation UpsertEmptyBatchChange(
 		name: $name,
 		namespace: $namespace
 	) {
-		id
+		name
 	}
 }
 `
@@ -33,21 +33,25 @@ func (svc *Service) UpsertBatchChange(
 	ctx context.Context,
 	name string,
 	namespaceID string,
-) error {
+) (string, error) {
 	if err := svc.areServerSideBatchChangesSupported(); err != nil {
-		return err
+		return "", err
 	}
 
-	var resp struct{}
+	var resp struct {
+		UpsertEmptyBatchChange struct {
+			Name string `json:"name"`
+		} `json:"upsertEmptyBatchChange"`
+	}
 
 	if ok, err := svc.client.NewRequest(upsertEmptyBatchChange, map[string]interface{}{
 		"name":      name,
 		"namespace": namespaceID,
 	}).Do(ctx, &resp); err != nil || !ok {
-		return err
+		return "", err
 	}
 
-	return nil
+	return resp.UpsertEmptyBatchChange.Name, nil
 }
 
 const upsertBatchSpecInputQuery = `
