@@ -172,6 +172,9 @@ func executeBatchSpecInWorkspaces(ctx context.Context, flags *executorModeFlags)
 	if err := checkExecutable("git", "version"); err != nil {
 		return err
 	}
+	if err := checkExecutable("docker", "version"); err != nil {
+		return err
+	}
 
 	// Read the input file that contains the raw spec and the workspaces in
 	// which to execute it.
