@@ -15,7 +15,7 @@ func (svc *Service) areServerSideBatchChangesSupported() error {
 	return nil
 }
 
-const upsertEmptyBatchChange = `
+const upsertEmptyBatchChangeQuery = `
 mutation UpsertEmptyBatchChange(
 	$name: String!
 	$namespace: ID!
@@ -44,7 +44,7 @@ func (svc *Service) UpsertBatchChange(
 		} `json:"upsertEmptyBatchChange"`
 	}
 
-	if ok, err := svc.client.NewRequest(upsertEmptyBatchChange, map[string]interface{}{
+	if ok, err := svc.client.NewRequest(upsertEmptyBatchChangeQuery, map[string]interface{}{
 		"name":      name,
 		"namespace": namespaceID,
 	}).Do(ctx, &resp); err != nil || !ok {
@@ -52,6 +52,57 @@ func (svc *Service) UpsertBatchChange(
 	}
 
 	return resp.UpsertEmptyBatchChange.Name, nil
+}
+
+const createBatchSpecFromRawQuery = `
+mutation CreateBatchSpecFromRaw(
+    $batchSpec: String!,
+    $namespace: ID!,
+    $allowIgnored: Boolean!,
+    $allowUnsupported: Boolean!,
+    $noCache: Boolean!,
+) {
+    createBatchSpecFromRaw(
+        batchSpec: $batchSpec,
+        namespace: $namespace,
+        allowIgnored: $allowIgnored,
+        allowUnsupported: $allowUnsupported,
+        noCache: $noCache,
+    ) {
+        id
+    }
+}
+`
+
+func (svc *Service) CreateBatchSpecFromRaw(
+	ctx context.Context,
+	batchSpec string,
+	namespaceID string,
+	allowIgnored bool,
+	allowUnsupported bool,
+	noCache bool,
+) (string, error) {
+	if err := svc.areServerSideBatchChangesSupported(); err != nil {
+		return "", err
+	}
+
+	var resp struct {
+		CreateBatchSpecFromRaw struct {
+			ID string `json:"id"`
+		} `json:"createBatchSpecFromRaw"`
+	}
+
+	if ok, err := svc.client.NewRequest(createBatchSpecFromRawQuery, map[string]interface{}{
+		"batchSpec":        batchSpec,
+		"namespace":        namespaceID,
+		"allowIgnored":     allowIgnored,
+		"allowUnsupported": allowUnsupported,
+		"noCache":          noCache,
+	}).Do(ctx, &resp); err != nil || !ok {
+		return "", err
+	}
+
+	return resp.CreateBatchSpecFromRaw.ID, nil
 }
 
 const upsertBatchSpecInputQuery = `

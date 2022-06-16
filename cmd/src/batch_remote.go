@@ -86,7 +86,7 @@ Examples:
 		ui.SendingBatchChangeSuccess()
 
 		ui.SendingBatchSpec()
-		batchSpecID, err := svc.UpsertBatchSpecInput(
+		batchSpecID, err := svc.CreateBatchSpecFromRaw(
 			ctx,
 			raw,
 			namespace.ID,
