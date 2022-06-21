@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/mattn/go-isatty"
@@ -533,7 +534,7 @@ func checkExecutable(cmd string, args ...string) error {
 func contextCancelOnInterrupt(parent context.Context) (context.Context, func()) {
 	ctx, ctxCancel := context.WithCancel(parent)
 	c := make(chan os.Signal, 1)
-	signal.Notify(c, os.Interrupt)
+	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 
 	go func() {
 		select {
