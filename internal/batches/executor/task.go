@@ -41,7 +41,12 @@ func (t *Task) ArchivePathToFetch() string {
 	return ""
 }
 
-func (t *Task) cacheKey(globalEnv []string) *cache.ExecutionKeyWithGlobalEnv {
+func (t *Task) cacheKey(globalEnv []string, isRemote bool) *cache.ExecutionKeyWithGlobalEnv {
+	var metadataRetriever cache.MetadataRetriever
+	// If the task is being run locally, set the metadata retrieve to use the filesystem based implementation.
+	if !isRemote {
+		metadataRetriever = cache.FileMetadataRetriever{}
+	}
 	return &cache.ExecutionKeyWithGlobalEnv{
 		GlobalEnv: globalEnv,
 		ExecutionKey: &cache.ExecutionKey{
@@ -56,6 +61,7 @@ func (t *Task) cacheKey(globalEnv []string) *cache.ExecutionKeyWithGlobalEnv {
 			OnlyFetchWorkspace:    t.OnlyFetchWorkspace,
 			Steps:                 t.Steps,
 			BatchChangeAttributes: t.BatchChangeAttributes,
+			MetadataRetriever:     metadataRetriever,
 		},
 	}
 }
