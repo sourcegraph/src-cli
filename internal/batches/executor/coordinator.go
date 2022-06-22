@@ -49,10 +49,10 @@ type NewCoordinatorOpts struct {
 	// Used by batcheslib.BuildChangesetSpecs
 	Features batches.FeatureFlags
 
-	Parallelism     int
-	Timeout         time.Duration
-	TempDir         string
-	AllowPathMounts bool
+	Parallelism int
+	Timeout     time.Duration
+	TempDir     string
+	IsRemote    bool
 }
 
 func NewCoordinator(opts NewCoordinatorOpts, logger log.LogManager) *Coordinator {
@@ -62,11 +62,11 @@ func NewCoordinator(opts NewCoordinatorOpts, logger log.LogManager) *Coordinator
 		Creator:             opts.Creator,
 		Logger:              logger,
 
-		Parallelism:     opts.Parallelism,
-		Timeout:         opts.Timeout,
-		TempDir:         opts.TempDir,
-		AllowPathMounts: opts.AllowPathMounts,
-		GlobalEnv:       opts.GlobalEnv,
+		Parallelism: opts.Parallelism,
+		Timeout:     opts.Timeout,
+		TempDir:     opts.TempDir,
+		IsRemote:    opts.IsRemote,
+		GlobalEnv:   opts.GlobalEnv,
 		WriteStepCacheResult: func(ctx context.Context, stepResult execution.AfterStepResult, task *Task) error {
 			cacheKey := task.cacheKey(opts.GlobalEnv)
 			return writeToCache(ctx, opts.Cache, stepResult, task, cacheKey)
