@@ -1,6 +1,7 @@
 package executor
 
 import (
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -15,14 +16,20 @@ import (
 )
 
 func TestFileMetadataRetriever_Get(t *testing.T) {
-	tempDir := t.TempDir()
+	// TODO: use TempDir when https://github.com/golang/go/issues/51442 is cherry-picked into 1.18 or upgrade to 1.19+
+	//tempDir := t.TempDir()
+	tempDir, err := ioutil.TempDir("", "metadata")
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		os.RemoveAll(tempDir)
+	})
 
 	// Set a specific date on the temp files
 	modDate := time.Date(2022, 1, 2, 3, 5, 6, 0, time.UTC)
 
 	// create temp files/dirs that can be used by the tests
 	sampleScriptPath := filepath.Join(tempDir, "sample.sh")
-	_, err := os.Create(sampleScriptPath)
+	_, err = os.Create(sampleScriptPath)
 	require.NoError(t, err)
 	err = os.Chtimes(sampleScriptPath, modDate, modDate)
 	require.NoError(t, err)
