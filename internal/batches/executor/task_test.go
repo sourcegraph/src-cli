@@ -1,7 +1,6 @@
 package executor
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -18,7 +17,7 @@ import (
 func TestFileMetadataRetriever_Get(t *testing.T) {
 	// TODO: use TempDir when https://github.com/golang/go/issues/51442 is cherry-picked into 1.18 or upgrade to 1.19+
 	//tempDir := t.TempDir()
-	tempDir, err := ioutil.TempDir("", "metadata")
+	tempDir, err := os.MkdirTemp("", "metadata")
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		os.RemoveAll(tempDir)
