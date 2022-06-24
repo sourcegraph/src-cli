@@ -18,7 +18,7 @@ func TestFileMetadataRetriever_Get(t *testing.T) {
 	tempDir := t.TempDir()
 
 	// Set a specific date on the temp files
-	modDate := time.Date(2022, 1, 2, 3, 5, 6, 7, time.UTC)
+	modDate := time.Date(2022, 1, 2, 3, 5, 6, 0, time.UTC)
 
 	// create temp files/dirs that can be used by the tests
 	sampleScriptPath := filepath.Join(tempDir, "sample.sh")
