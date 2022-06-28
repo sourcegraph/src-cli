@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/json"
 	"flag"
-	"fmt"
 	"io"
 	"log"
 	"os"
@@ -155,8 +154,6 @@ func readConfig() (*config, error) {
 	}
 
 	cfg.AdditionalHeaders = parseAdditionalHeaders()
-
-	fmt.Println("reading config", cfg.AdditionalHeaders)
 
 	// Lastly, apply endpoint flag if set
 	if endpoint != nil && *endpoint != "" {
