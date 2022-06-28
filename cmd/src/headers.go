@@ -31,7 +31,7 @@ func parseAdditionalHeadersFromEnviron(environ []string) map[string]string {
 			// and they all have the same behavior.
 			re := regexp.MustCompile(`^"|"$`)
 			headers := re.ReplaceAllString(parts[1], "")
-			headers = strings.Replace(headers, `\n`, "\n", -1)
+			headers = strings.ReplaceAll(headers, `\n`, "\n")
 			splitHeaders := strings.Split(headers, "\n")
 
 			for _, h := range splitHeaders {
