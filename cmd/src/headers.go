@@ -31,6 +31,8 @@ func parseAdditionalHeadersFromEnviron(environ []string) map[string]string {
 			// and they all have the same behavior.
 			re := regexp.MustCompile(`^"|"$`)
 			headers := re.ReplaceAllString(parts[1], "")
+			// Most shell convert line breaks added to a string, so we need to replace all occurence of the stringified line
+			// breaks to actual line breaks.
 			headers = strings.ReplaceAll(headers, `\n`, "\n")
 			splitHeaders := strings.Split(headers, "\n")
 
