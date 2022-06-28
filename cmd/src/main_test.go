@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -15,6 +16,7 @@ func TestReadConfig(t *testing.T) {
 		fileContents *config
 		envToken     string
 		envFooHeader string
+		envHeaders   string
 		envEndpoint  string
 		flagEndpoint string
 		want         *config
@@ -126,9 +128,8 @@ func TestReadConfig(t *testing.T) {
 				AdditionalHeaders: map[string]string{},
 			},
 		},
-
 		{
-			name:         "additional header",
+			name:         "additional header (with SRC_HEADER_ prefix)",
 			flagEndpoint: "https://override.com/",
 			envEndpoint:  "https://example.com",
 			envToken:     "abc",
@@ -137,6 +138,18 @@ func TestReadConfig(t *testing.T) {
 				Endpoint:          "https://override.com",
 				AccessToken:       "abc",
 				AdditionalHeaders: map[string]string{"foo": "bar"},
+			},
+		},
+		{
+			name:         "additional headers (with SRC_HEADERS key)",
+			flagEndpoint: "https://override.com/",
+			envEndpoint:  "https://example.com",
+			envToken:     "abc",
+			envHeaders:   "foo:bar\nfoo-bar:bar-baz",
+			want: &config{
+				Endpoint:          "https://override.com",
+				AccessToken:       "abc",
+				AdditionalHeaders: map[string]string{"foo-bar": "bar-baz", "foo": "bar"},
 			},
 		},
 	}
@@ -178,7 +191,13 @@ func TestReadConfig(t *testing.T) {
 				*configPath = filePath
 			}
 
+			fmt.Printf("SRC_HEADER: %s, SRC_HEADERS: %s\n", test.envFooHeader, test.envHeaders)
+
 			if err := os.Setenv("SRC_HEADER_FOO", test.envFooHeader); err != nil {
+				t.Fatal(err)
+			}
+
+			if err := os.Setenv("SRC_HEADERS", test.envHeaders); err != nil {
 				t.Fatal(err)
 			}
 

@@ -5,21 +5,35 @@ import (
 	"strings"
 )
 
-// parseAdditionalHeaders reads the environment for values like SRC_HEADER_NAME=VALUE
-// and creates a `{NAME: VALUE}` map. These headers should be applied to each request
-// to the Sourcegraph instance, as some private instances require special auth or
+// parseAdditionalHeaders reads the environment for values like SRC_HEADER_NAME=VALUE or
+// SRC_HEADERS and creates a `{NAME: VALUE}` map. These headers should be applied to each
+// request to the Sourcegraph instance, as some private instances require special auth or
 // additional proxy values to be passed along with each request.
 func parseAdditionalHeaders() map[string]string {
-	return parseAdditionalHeadersFromMap(os.Environ())
+	return parseAdditionalHeadersFromEnviron(os.Environ())
 }
 
 const additionalHeaderPrefix = "SRC_HEADER_"
+const additionalHeadersKey = "SRC_HEADERS"
 
-func parseAdditionalHeadersFromMap(environ []string) map[string]string {
+func parseAdditionalHeadersFromEnviron(environ []string) map[string]string {
 	additionalHeaders := map[string]string{}
 	for _, value := range environ {
 		parts := strings.SplitN(value, "=", 2)
 		if len(parts) != 2 {
+			continue
+		}
+
+		if parts[0] == additionalHeadersKey && parts[1] != "" {
+			headers := strings.Split(parts[1], "\n")
+			for _, h := range headers {
+				p := strings.SplitN(h, ":", 2)
+				if len(parts) != 2 || p[1] == "" {
+					continue
+				}
+
+				additionalHeaders[strings.ToLower(p[0])] = strings.Trim(p[1], " ")
+			}
 			continue
 		}
 
