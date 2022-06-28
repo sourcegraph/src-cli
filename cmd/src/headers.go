@@ -2,6 +2,7 @@ package main
 
 import (
 	"os"
+	"regexp"
 	"strings"
 )
 
@@ -25,8 +26,15 @@ func parseAdditionalHeadersFromEnviron(environ []string) map[string]string {
 		}
 
 		if parts[0] == additionalHeadersKey && parts[1] != "" {
-			headers := strings.Split(parts[1], "\n")
-			for _, h := range headers {
+			// This regex removes all leading and trailing spaces from the environment variable. We need to do this
+			// because most shells add quotes to a string when it contains a new line. Tested with `bash, fish & zsh`
+			// and they all have the same behavior.
+			re := regexp.MustCompile(`^"|"$`)
+			headers := re.ReplaceAllString(parts[1], "")
+			headers = strings.Replace(headers, `\n`, "\n", -1)
+			splitHeaders := strings.Split(headers, "\n")
+
+			for _, h := range splitHeaders {
 				p := strings.SplitN(h, ":", 2)
 				if len(parts) != 2 || p[1] == "" {
 					continue

@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -190,8 +189,6 @@ func TestReadConfig(t *testing.T) {
 				}
 				*configPath = filePath
 			}
-
-			fmt.Printf("SRC_HEADER: %s, SRC_HEADERS: %s\n", test.envFooHeader, test.envHeaders)
 
 			if err := os.Setenv("SRC_HEADER_FOO", test.envFooHeader); err != nil {
 				t.Fatal(err)
