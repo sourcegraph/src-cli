@@ -42,7 +42,10 @@ func parseAdditionalHeadersFromEnviron(environ []string) map[string]string {
 					continue
 				}
 
-				additionalHeaders[strings.ToLower(p[0])] = strings.Trim(p[1], " ")
+				key := strings.Trim(strings.ToLower(p[0]), " ")
+				value := strings.Trim(p[1], " ")
+
+				additionalHeaders[key] = value
 			}
 			continue
 		}
