@@ -20,7 +20,7 @@ require (
 	github.com/sourcegraph/go-diff v0.6.1
 	github.com/sourcegraph/jsonx v0.0.0-20200629203448-1a936bd500cf
 	github.com/sourcegraph/scip v0.1.0
-	github.com/sourcegraph/sourcegraph/lib v0.0.0-20220624142708-f2b0579b57ff
+	github.com/sourcegraph/sourcegraph/lib v0.0.0-20220707111615-aabfa368a790
 	github.com/stretchr/testify v1.7.2
 	golang.org/x/net v0.0.0-20220526153639-5463443f8c37
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
@@ -110,5 +110,3 @@ require (
 
 // See: https://github.com/ghodss/yaml/pull/65
 replace github.com/ghodss/yaml => github.com/sourcegraph/yaml v1.0.1-0.20200714132230-56936252f152
-
-replace github.com/sourcegraph/sourcegraph/lib => /Users/erik/Code/sourcegraph/sourcegraph/lib
