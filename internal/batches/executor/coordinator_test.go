@@ -61,8 +61,9 @@ func TestCoordinator_Execute(t *testing.T) {
 		tasks     []*Task
 		batchSpec *batcheslib.BatchSpec
 
-		wantSpecs      []*batcheslib.ChangesetSpec
-		wantErrInclude string
+		wantCacheEntries int
+		wantSpecs        []*batcheslib.ChangesetSpec
+		wantErrInclude   string
 	}{
 		{
 			name: "success",
@@ -83,6 +84,7 @@ func TestCoordinator_Execute(t *testing.T) {
 			},
 			opts: NewCoordinatorOpts{Features: featuresAllEnabled()},
 
+			wantCacheEntries: 2,
 			wantSpecs: []*batcheslib.ChangesetSpec{
 				buildSpecFor(testRepo1, func(spec *batcheslib.ChangesetSpec) {
 					spec.Commits[0].Diff = `dummydiff1`
@@ -150,6 +152,7 @@ func TestCoordinator_Execute(t *testing.T) {
 			},
 			opts: NewCoordinatorOpts{Features: featuresAllEnabled()},
 
+			wantCacheEntries: 1,
 			wantSpecs: []*batcheslib.ChangesetSpec{
 				buildSpecFor(testRepo1, func(spec *batcheslib.ChangesetSpec) {
 					spec.HeadRef = "refs/heads/templated-branch-myOutputValue1"
@@ -203,6 +206,7 @@ func TestCoordinator_Execute(t *testing.T) {
 			// TODO: Fix comment.
 			// We have 4 ChangesetSpecs, but we only want 2 cache entries,
 			// since we cache per Task, not per resulting changeset spec.
+			wantCacheEntries: 2,
 			wantSpecs: []*batcheslib.ChangesetSpec{
 				buildSpecFor(testRepo1, func(spec *batcheslib.ChangesetSpec) {
 					spec.HeadRef = "refs/heads/" + testChangesetTemplate.Branch
@@ -318,9 +322,9 @@ func TestCoordinator_Execute(t *testing.T) {
 
 			verifyCache := func(t *testing.T) {
 				// Verify that there is a cache entry for each repo.
-				// if have, want := c.size(), tc.wantCacheEntries; have != want {
-				// 	t.Errorf("unexpected number of cache entries: have=%d want=%d cache=%+v", have, want, c)
-				// }
+				if have, want := c.size(), tc.wantCacheEntries; have != want {
+					t.Errorf("unexpected number of cache entries: have=%d want=%d cache=%+v", have, want, c)
+				}
 			}
 
 			// Sanity check, since we're going to be looking at the side effects
