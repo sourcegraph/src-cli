@@ -259,7 +259,7 @@ func (c *Coordinator) doExecute(ctx context.Context, tasks []*Task, ui TaskExecu
 	for _, res := range results {
 		for _, stepRes := range res.stepResults {
 			cacheKey := res.task.cacheKey(c.opts.GlobalEnv, c.opts.IsRemote, stepRes.StepIndex)
-			if err := c.opts.Cache.Set(ctx, cacheKey, stepRes); err != nil {
+			if err := c.cache.Set(ctx, cacheKey, stepRes); err != nil {
 				return nil, errors.Wrapf(err, "caching result for step %d", stepRes.StepIndex)
 			}
 		}
