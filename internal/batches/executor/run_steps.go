@@ -48,9 +48,6 @@ type runStepsOpts struct {
 	// globalEnv is the os.Environ() for the execution. We don't read from os.Environ()
 	// directly to allow injecting variables and hiding others.
 	globalEnv []string
-	// writeStepCacheResult will be called after each step to write the AfterStepResult to the cache
-	// as early as possible.
-	writeStepCacheResult func(ctx context.Context, stepResult execution.AfterStepResult, task *Task) error
 }
 
 func runSteps(ctx context.Context, opts *runStepsOpts) (stepResults []execution.AfterStepResult, err error) {
@@ -86,7 +83,6 @@ func runSteps(ctx context.Context, opts *runStepsOpts) (stepResults []execution.
 		lastOutputs = opts.task.CachedStepResult.Outputs
 		previousStepResult = opts.task.CachedStepResult
 		lastStep := opts.task.CachedStepResult.StepIndex
-		stepResults = append(stepResults, opts.task.CachedStepResult)
 
 		// If we have cached results and don't need to execute any more steps,
 		// we can quit.
@@ -159,18 +155,18 @@ func runSteps(ctx context.Context, opts *runStepsOpts) (stepResults []execution.
 			}
 		}()
 		if err != nil {
-			return nil, err
+			return stepResults, err
 		}
 
 		changes, err := ws.Changes(ctx)
 		if err != nil {
-			return nil, errors.Wrap(err, "getting changed files in step")
+			return stepResults, errors.Wrap(err, "getting changed files in step")
 		}
 
 		// Get the current diff and store that away as the per-step result.
 		stepDiff, err := ws.Diff(ctx)
 		if err != nil {
-			return nil, errors.Wrap(err, "getting diff produced by step")
+			return stepResults, errors.Wrap(err, "getting diff produced by step")
 		}
 
 		stepResult := execution.AfterStepResult{
@@ -179,26 +175,21 @@ func runSteps(ctx context.Context, opts *runStepsOpts) (stepResults []execution.
 			Stderr:       stderrBuffer.String(),
 			StepIndex:    i,
 			Diff:         string(stepDiff),
-			Outputs:      make(map[string]interface{}),
+			// Those will be set below.
+			Outputs: make(map[string]interface{}),
 		}
 
 		// Set stepContext.Step to current step's results before rendering outputs.
 		stepContext.Step = stepResult
 		// Render and evaluate outputs.
 		if err := setOutputs(step.Outputs, lastOutputs, &stepContext); err != nil {
-			return nil, errors.Wrap(err, "setting step outputs")
+			return stepResults, errors.Wrap(err, "setting step outputs")
 		}
 		for k, v := range lastOutputs {
 			stepResult.Outputs[k] = v
 		}
 		stepResults = append(stepResults, stepResult)
 		previousStepResult = stepResult
-
-		// Write the step result to the cache.
-		err = opts.writeStepCacheResult(ctx, stepResult, opts.task)
-		if err != nil {
-			return nil, errors.Wrap(err, "failed to cache stepResult")
-		}
 
 		opts.ui.StepFinished(i+1, stepResult.Diff, stepResult.ChangedFiles, stepResult.Outputs)
 	}

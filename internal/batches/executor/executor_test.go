@@ -10,7 +10,6 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
@@ -378,9 +377,6 @@ func TestExecutor_Integration(t *testing.T) {
 			// Temp dir for log files and downloaded archives
 			testTempDir := t.TempDir()
 
-			cacheCount := 0
-			var cacheLock sync.Mutex
-
 			cr, _ := workspace.NewCreator(context.Background(), "bind", testTempDir, testTempDir, images)
 			// Setup executor
 			opts := newExecutorOpts{
@@ -392,12 +388,6 @@ func TestExecutor_Integration(t *testing.T) {
 				TempDir:     testTempDir,
 				Parallelism: runtime.GOMAXPROCS(0),
 				Timeout:     tc.executorTimeout,
-				WriteStepCacheResult: func(ctx context.Context, stepResult execution.AfterStepResult, task *Task) error {
-					cacheLock.Lock()
-					cacheCount += 1
-					cacheLock.Unlock()
-					return nil
-				},
 			}
 
 			if opts.Timeout == 0 {
@@ -423,9 +413,6 @@ func TestExecutor_Integration(t *testing.T) {
 				}
 			}
 
-			if tc.wantCacheCount != cacheCount {
-				t.Errorf("wrong cache count. have=%d want=%d", cacheCount, tc.wantCacheCount)
-			}
 			wantResults := 0
 			resultsFound := map[string]map[string]bool{}
 			for repo, byPath := range tc.wantFilesChanged {
@@ -818,9 +805,6 @@ func testExecuteTasks(t *testing.T, tasks []*Task, archives ...mock.RepoArchive)
 		TempDir:     testTempDir,
 		Parallelism: runtime.GOMAXPROCS(0),
 		Timeout:     30 * time.Second,
-		WriteStepCacheResult: func(ctx context.Context, stepResult execution.AfterStepResult, task *Task) error {
-			return nil
-		},
 	})
 
 	executor.Start(context.Background(), tasks, newDummyTaskExecutionUI())

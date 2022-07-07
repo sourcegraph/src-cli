@@ -82,7 +82,7 @@ func (c ExecutionDiskCache) Clear(ctx context.Context, key cache.Keyer) error {
 	return os.Remove(path)
 }
 
-func (c ExecutionDiskCache) GetStepResult(ctx context.Context, key cache.Keyer) (execution.AfterStepResult, bool, error) {
+func (c ExecutionDiskCache) Get(ctx context.Context, key cache.Keyer) (execution.AfterStepResult, bool, error) {
 	var result execution.AfterStepResult
 	path, err := c.cacheFilePath(key)
 	if err != nil {
@@ -97,7 +97,7 @@ func (c ExecutionDiskCache) GetStepResult(ctx context.Context, key cache.Keyer) 
 	return result, found, nil
 }
 
-func (c ExecutionDiskCache) SetStepResult(ctx context.Context, key cache.Keyer, result execution.AfterStepResult) error {
+func (c ExecutionDiskCache) Set(ctx context.Context, key cache.Keyer, result execution.AfterStepResult) error {
 	path, err := c.cacheFilePath(key)
 	if err != nil {
 		return err
@@ -114,11 +114,11 @@ func (ExecutionNoOpCache) Clear(ctx context.Context, key cache.Keyer) error {
 	return nil
 }
 
-func (ExecutionNoOpCache) SetStepResult(ctx context.Context, key cache.Keyer, result execution.AfterStepResult) error {
+func (ExecutionNoOpCache) Set(ctx context.Context, key cache.Keyer, result execution.AfterStepResult) error {
 	return nil
 }
 
-func (ExecutionNoOpCache) GetStepResult(ctx context.Context, key cache.Keyer) (execution.AfterStepResult, bool, error) {
+func (ExecutionNoOpCache) Get(ctx context.Context, key cache.Keyer) (execution.AfterStepResult, bool, error) {
 	return execution.AfterStepResult{}, false, nil
 }
 
@@ -131,7 +131,7 @@ type ServerSideCache struct {
 	Writer   JSONCacheWriter
 }
 
-func (c *ServerSideCache) SetStepResult(ctx context.Context, key cache.Keyer, result execution.AfterStepResult) error {
+func (c *ServerSideCache) Set(ctx context.Context, key cache.Keyer, result execution.AfterStepResult) error {
 	k, err := key.Key()
 	if err != nil {
 		return err
@@ -142,7 +142,7 @@ func (c *ServerSideCache) SetStepResult(ctx context.Context, key cache.Keyer, re
 	return nil
 }
 
-func (c *ServerSideCache) GetStepResult(ctx context.Context, key cache.Keyer) (result execution.AfterStepResult, found bool, err error) {
+func (c *ServerSideCache) Get(ctx context.Context, key cache.Keyer) (result execution.AfterStepResult, found bool, err error) {
 	rawKey, err := key.Key()
 	if err != nil {
 		return result, false, err

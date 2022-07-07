@@ -43,14 +43,14 @@ index 0000000..3363c39
 func TestExecutionDiskCache_GetSet(t *testing.T) {
 	ctx := context.Background()
 
-	cacheKey1 := &cache.StepsCacheKey{
+	cacheKey1 := &cache.CacheKey{
 		Repository: cacheRepo1,
 		Steps: []batcheslib.Step{
 			{Run: "echo 'Hello World'", Container: "alpine:3"},
 		},
 	}
 
-	cacheKey2 := &cache.StepsCacheKey{
+	cacheKey2 := &cache.CacheKey{
 		Repository: cacheRepo2,
 		Steps: []batcheslib.Step{
 			{Run: "echo 'Hello World'", Container: "alpine:3"},
@@ -72,7 +72,7 @@ func TestExecutionDiskCache_GetSet(t *testing.T) {
 	assertCacheMiss(t, cache, cacheKey2)
 
 	// Set the cache
-	if err := cache.SetStepResult(ctx, cacheKey1, value); err != nil {
+	if err := cache.Set(ctx, cacheKey1, value); err != nil {
 		t.Fatalf("cache.Set returned unexpected error: %s", err)
 	}
 
@@ -89,10 +89,10 @@ func TestExecutionDiskCache_GetSet(t *testing.T) {
 	assertCacheMiss(t, cache, cacheKey1)
 }
 
-func assertCacheHit(t *testing.T, c ExecutionDiskCache, k *cache.StepsCacheKey, want execution.AfterStepResult) {
+func assertCacheHit(t *testing.T, c ExecutionDiskCache, k cache.Keyer, want execution.AfterStepResult) {
 	t.Helper()
 
-	have, found, err := c.GetStepResult(context.Background(), k)
+	have, found, err := c.Get(context.Background(), k)
 	if err != nil {
 		t.Fatalf("cache.Get returned unexpected error: %s", err)
 	}
@@ -105,10 +105,10 @@ func assertCacheHit(t *testing.T, c ExecutionDiskCache, k *cache.StepsCacheKey, 
 	}
 }
 
-func assertCacheMiss(t *testing.T, c ExecutionDiskCache, k *cache.StepsCacheKey) {
+func assertCacheMiss(t *testing.T, c ExecutionDiskCache, k cache.Keyer) {
 	t.Helper()
 
-	_, found, err := c.GetStepResult(context.Background(), k)
+	_, found, err := c.Get(context.Background(), k)
 	if err != nil {
 		t.Fatalf("cache.Get returned unexpected error: %s", err)
 	}

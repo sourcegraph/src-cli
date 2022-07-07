@@ -49,6 +49,7 @@ func (e TaskExecutionErr) StatusText() string {
 type taskResult struct {
 	task        *Task
 	stepResults []execution.AfterStepResult
+	err         error
 }
 
 type newExecutorOpts struct {
@@ -59,12 +60,11 @@ type newExecutorOpts struct {
 	Logger              log.LogManager
 
 	// Config
-	Parallelism          int
-	Timeout              time.Duration
-	TempDir              string
-	IsRemote             bool
-	GlobalEnv            []string
-	WriteStepCacheResult func(ctx context.Context, stepResult execution.AfterStepResult, task *Task) error
+	Parallelism int
+	Timeout     time.Duration
+	TempDir     string
+	IsRemote    bool
+	GlobalEnv   []string
 }
 
 type executor struct {
@@ -166,7 +166,13 @@ func (x *executor) do(ctx context.Context, task *Task, ui TaskExecutionUI) (err 
 	}()
 
 	// Now checkout the archive.
-	task.RepoArchive = x.opts.RepoArchiveRegistry.Checkout(repozip.RepoRevision{RepoName: task.Repository.Name, Commit: task.Repository.Rev()}, task.ArchivePathToFetch())
+	task.RepoArchive = x.opts.RepoArchiveRegistry.Checkout(
+		repozip.RepoRevision{
+			RepoName: task.Repository.Name,
+			Commit:   task.Repository.Rev(),
+		},
+		task.ArchivePathToFetch(),
+	)
 
 	// Set up our timeout.
 	runCtx, cancel := context.WithTimeout(ctx, x.opts.Timeout)
@@ -182,11 +188,12 @@ func (x *executor) do(ctx context.Context, task *Task, ui TaskExecutionUI) (err 
 		isRemote:    x.opts.IsRemote,
 		globalEnv:   x.opts.GlobalEnv,
 
-		ui:                   ui.StepsExecutionUI(task),
-		writeStepCacheResult: x.opts.WriteStepCacheResult,
+		ui: ui.StepsExecutionUI(task),
 	}
 
 	stepResults, err := runSteps(runCtx, opts)
+	x.addResult(task, stepResults, err)
+
 	if err != nil {
 		if reachedTimeout(runCtx, err) {
 			err = &errTimeoutReached{timeout: x.opts.Timeout}
@@ -194,17 +201,16 @@ func (x *executor) do(ctx context.Context, task *Task, ui TaskExecutionUI) (err 
 		return err
 	}
 
-	x.addResult(task, stepResults)
-
 	return nil
 }
-func (x *executor) addResult(task *Task, stepResults []execution.AfterStepResult) {
+func (x *executor) addResult(task *Task, stepResults []execution.AfterStepResult, err error) {
 	x.resultsMu.Lock()
 	defer x.resultsMu.Unlock()
 
 	x.results = append(x.results, taskResult{
 		task:        task,
 		stepResults: stepResults,
+		err:         err,
 	})
 }
 

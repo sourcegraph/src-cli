@@ -61,9 +61,8 @@ func TestCoordinator_Execute(t *testing.T) {
 		tasks     []*Task
 		batchSpec *batcheslib.BatchSpec
 
-		wantCacheEntries int
-		wantSpecs        []*batcheslib.ChangesetSpec
-		wantErrInclude   string
+		wantSpecs      []*batcheslib.ChangesetSpec
+		wantErrInclude string
 	}{
 		{
 			name: "success",
@@ -84,7 +83,6 @@ func TestCoordinator_Execute(t *testing.T) {
 			},
 			opts: NewCoordinatorOpts{Features: featuresAllEnabled()},
 
-			wantCacheEntries: 2,
 			wantSpecs: []*batcheslib.ChangesetSpec{
 				buildSpecFor(testRepo1, func(spec *batcheslib.ChangesetSpec) {
 					spec.Commits[0].Diff = `dummydiff1`
@@ -152,7 +150,6 @@ func TestCoordinator_Execute(t *testing.T) {
 			},
 			opts: NewCoordinatorOpts{Features: featuresAllEnabled()},
 
-			wantCacheEntries: 1,
 			wantSpecs: []*batcheslib.ChangesetSpec{
 				buildSpecFor(testRepo1, func(spec *batcheslib.ChangesetSpec) {
 					spec.HeadRef = "refs/heads/templated-branch-myOutputValue1"
@@ -203,9 +200,9 @@ func TestCoordinator_Execute(t *testing.T) {
 			},
 			opts: NewCoordinatorOpts{Features: featuresAllEnabled()},
 
+			// TODO: Fix comment.
 			// We have 4 ChangesetSpecs, but we only want 2 cache entries,
 			// since we cache per Task, not per resulting changeset spec.
-			wantCacheEntries: 2,
 			wantSpecs: []*batcheslib.ChangesetSpec{
 				buildSpecFor(testRepo1, func(spec *batcheslib.ChangesetSpec) {
 					spec.HeadRef = "refs/heads/" + testChangesetTemplate.Branch
@@ -250,7 +247,6 @@ func TestCoordinator_Execute(t *testing.T) {
 			},
 			opts: NewCoordinatorOpts{Features: featuresAllEnabled()},
 
-			wantCacheEntries: 2,
 			wantSpecs: []*batcheslib.ChangesetSpec{
 				buildSpecFor(testRepo1, func(spec *batcheslib.ChangesetSpec) {
 					spec.Commits[0].Diff = `dummydiff1`
@@ -330,7 +326,7 @@ func TestCoordinator_Execute(t *testing.T) {
 			// Sanity check, since we're going to be looking at the side effects
 			// on the cache.
 			if c.size() != 0 {
-				t.Fatalf("unexpectedly hot cache: %+v", c)
+				t.Fatalf("unexpected hot cache: %+v", c)
 			}
 
 			// Run with a cold cache.
@@ -586,7 +582,7 @@ func (c *inMemoryExecutionCache) getCacheItem(key cache.Keyer) (interface{}, boo
 	return res, ok, nil
 }
 
-func (c *inMemoryExecutionCache) GetStepResult(ctx context.Context, key cache.Keyer) (execution.AfterStepResult, bool, error) {
+func (c *inMemoryExecutionCache) Get(ctx context.Context, key cache.Keyer) (execution.AfterStepResult, bool, error) {
 	res, ok, err := c.getCacheItem(key)
 	if err != nil || !ok {
 		return execution.AfterStepResult{}, ok, err
@@ -596,7 +592,7 @@ func (c *inMemoryExecutionCache) GetStepResult(ctx context.Context, key cache.Ke
 	return execResult, ok, nil
 }
 
-func (c *inMemoryExecutionCache) SetStepResult(ctx context.Context, key cache.Keyer, result execution.AfterStepResult) error {
+func (c *inMemoryExecutionCache) Set(ctx context.Context, key cache.Keyer, result execution.AfterStepResult) error {
 	k, err := key.Key()
 	if err != nil {
 		return err

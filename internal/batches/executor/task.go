@@ -47,30 +47,30 @@ func (t *Task) ArchivePathToFetch() string {
 	return ""
 }
 
-func (t *Task) cacheKey(globalEnv []string, isRemote bool) *cache.StepsCacheKeyWithGlobalEnv {
+func (t *Task) cacheKey(globalEnv []string, isRemote bool, stepIndex int) cache.Keyer {
 	var metadataRetriever cache.MetadataRetriever
 	// If the task is being run locally, set the metadata retrieve to use the filesystem based implementation.
 	if !isRemote {
 		metadataRetriever = fileMetadataRetriever{}
 	}
-	return &cache.StepsCacheKeyWithGlobalEnv{
-		GlobalEnv: globalEnv,
-		StepsCacheKey: cache.StepsCacheKey{
-			Repository: batcheslib.Repository{
-				ID:          t.Repository.ID,
-				Name:        t.Repository.Name,
-				BaseRef:     t.Repository.BaseRef(),
-				BaseRev:     t.Repository.Rev(),
-				FileMatches: t.Repository.SortedFileMatches(),
-			},
-			Path:                  t.Path,
-			OnlyFetchWorkspace:    t.OnlyFetchWorkspace,
-			Steps:                 t.Steps,
-			BatchChangeAttributes: t.BatchChangeAttributes,
-			MetadataRetriever:     metadataRetriever,
-			// TODO: This doesn't consider skipped steps.
-			StepIndex: len(t.Steps) - 1,
+	return &cache.CacheKey{
+		Repository: batcheslib.Repository{
+			ID:          t.Repository.ID,
+			Name:        t.Repository.Name,
+			BaseRef:     t.Repository.BaseRef(),
+			BaseRev:     t.Repository.Rev(),
+			FileMatches: t.Repository.SortedFileMatches(),
 		},
+		Path:                  t.Path,
+		OnlyFetchWorkspace:    t.OnlyFetchWorkspace,
+		Steps:                 t.Steps,
+		BatchChangeAttributes: t.BatchChangeAttributes,
+		// TODO: This should be cached.
+		MetadataRetriever: metadataRetriever,
+
+		GlobalEnv: globalEnv,
+
+		StepIndex: stepIndex,
 	}
 }
 
@@ -131,13 +131,4 @@ func getDirectoryMountMetadata(path string) ([]cache.MountMetadata, error) {
 		metadata = append(metadata, fileMetadata...)
 	}
 	return metadata, nil
-}
-
-func cacheKeyForStep(key *cache.StepsCacheKeyWithGlobalEnv, stepIndex int) *cache.StepsCacheKeyWithGlobalEnv {
-	r := &cache.StepsCacheKeyWithGlobalEnv{
-		StepsCacheKey: key.StepsCacheKey,
-		GlobalEnv:     key.GlobalEnv,
-	}
-	r.StepIndex = stepIndex
-	return r
 }
