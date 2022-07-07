@@ -487,14 +487,12 @@ func executeBatchSpec(ctx context.Context, ui ui.ExecUI, opts executeBatchSpecOp
 	return nil
 }
 
-type ReadDeadliner interface {
-	SetReadDeadline(t time.Time) error
-}
-
-func SetReadDeadlineOnCancel(ctx context.Context, d ReadDeadliner) {
+func setReadDeadlineOnCancel(ctx context.Context, f *os.File) {
 	go func() {
+		// When user cancels, we set the read deadline to now() so the runtime
+		// cancels the read and we don't block.
 		<-ctx.Done()
-		d.SetReadDeadline(time.Now())
+		f.SetReadDeadline(time.Now())
 	}()
 }
 
@@ -510,9 +508,11 @@ func parseBatchSpec(ctx context.Context, file string, svc *service.Service, isRe
 	}
 	defer f.Close()
 
+	// Create new ctx so we ensure that the goroutine in
+	// setReadDeadlineOnCancel exits at end of function.
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	SetReadDeadlineOnCancel(ctx, f)
+	setReadDeadlineOnCancel(ctx, f)
 
 	data, err := io.ReadAll(f)
 	if err != nil {
