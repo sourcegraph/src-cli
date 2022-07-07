@@ -35,19 +35,6 @@ func (c ExecutionDiskCache) cacheFilePath(key cache.Keyer) (string, error) {
 	return filepath.Join(c.Dir, key.Slug(), keyString+cacheFileExt), nil
 }
 
-func (c ExecutionDiskCache) Get(ctx context.Context, key cache.Keyer) (execution.Result, bool, error) {
-	var result execution.Result
-
-	path, err := c.cacheFilePath(key)
-	if err != nil {
-		return result, false, err
-	}
-
-	found, err := readCacheFile(path, &result)
-
-	return result, found, err
-}
-
 func readCacheFile(path string, result interface{}) (bool, error) {
 	if _, err := os.Stat(path); os.IsNotExist(err) {
 		return false, nil
@@ -80,15 +67,6 @@ func (c ExecutionDiskCache) writeCacheFile(path string, result interface{}) erro
 	}
 
 	return os.WriteFile(path, raw, 0600)
-}
-
-func (c ExecutionDiskCache) Set(ctx context.Context, key cache.Keyer, result execution.Result) error {
-	path, err := c.cacheFilePath(key)
-	if err != nil {
-		return err
-	}
-
-	return c.writeCacheFile(path, &result)
 }
 
 func (c ExecutionDiskCache) Clear(ctx context.Context, key cache.Keyer) error {
@@ -132,14 +110,6 @@ func (c ExecutionDiskCache) SetStepResult(ctx context.Context, key cache.Keyer, 
 // retrieve cache entries.
 type ExecutionNoOpCache struct{}
 
-func (ExecutionNoOpCache) Get(ctx context.Context, key cache.Keyer) (result execution.Result, found bool, err error) {
-	return execution.Result{}, false, nil
-}
-
-func (ExecutionNoOpCache) Set(ctx context.Context, key cache.Keyer, result execution.Result) error {
-	return nil
-}
-
 func (ExecutionNoOpCache) Clear(ctx context.Context, key cache.Keyer) error {
 	return nil
 }
@@ -153,29 +123,12 @@ func (ExecutionNoOpCache) GetStepResult(ctx context.Context, key cache.Keyer) (e
 }
 
 type JSONCacheWriter interface {
-	WriteExecutionResult(key string, value execution.Result)
 	WriteAfterStepResult(key string, value execution.AfterStepResult)
 }
 
 type ServerSideCache struct {
 	CacheDir string
 	Writer   JSONCacheWriter
-}
-
-func (c *ServerSideCache) Get(ctx context.Context, key cache.Keyer) (result execution.Result, found bool, err error) {
-	// noop
-	return execution.Result{}, false, nil
-}
-
-func (c *ServerSideCache) Set(ctx context.Context, key cache.Keyer, result execution.Result) error {
-	k, err := key.Key()
-	if err != nil {
-		return err
-	}
-
-	c.Writer.WriteExecutionResult(k, result)
-
-	return nil
 }
 
 func (c *ServerSideCache) SetStepResult(ctx context.Context, key cache.Keyer, result execution.AfterStepResult) error {

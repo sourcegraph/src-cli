@@ -456,7 +456,7 @@ func TestExecutor_Integration(t *testing.T) {
 					t.Fatalf("spec for repo %q and path %q but no files expected in that branch", repoID, path)
 				}
 
-				fileDiffs, err := diff.ParseMultiFileDiff([]byte(taskResult.result.Diff))
+				fileDiffs, err := diff.ParseMultiFileDiff([]byte(taskResult.stepResults[len(taskResult.stepResults)-1].Diff))
 				if err != nil {
 					t.Fatalf("failed to parse diff: %s", err)
 				}
@@ -544,12 +544,11 @@ index 02a19af..c9644dd 100644
 			Steps: []batcheslib.Step{
 				{Run: `echo -e "foobar\n" >> README.md`},
 			},
-			CachedResultFound: true,
-			CachedResult: execution.AfterStepResult{
-				StepIndex:  0,
-				Diff:       cachedDiff,
-				Outputs:    map[string]interface{}{},
-				StepResult: execution.StepResult{},
+			CachedStepResultFound: true,
+			CachedStepResult: execution.AfterStepResult{
+				StepIndex: 0,
+				Diff:      cachedDiff,
+				Outputs:   map[string]interface{}{},
 			},
 			Repository: testRepo1,
 		}
@@ -565,7 +564,7 @@ index 02a19af..c9644dd 100644
 
 		// We want the diff to be the same as the cached one, since we only had to
 		// execute a single step
-		executionResult := results[0].result
+		executionResult := results[0].stepResults[0]
 		if diff := cmp.Diff(executionResult.Diff, cachedDiff); diff != "" {
 			t.Fatalf("wrong diff: %s", diff)
 		}
@@ -575,7 +574,7 @@ index 02a19af..c9644dd 100644
 		}
 
 		stepResult := results[0].stepResults[0]
-		if diff := cmp.Diff(stepResult, task.CachedResult); diff != "" {
+		if diff := cmp.Diff(stepResult, task.CachedStepResult); diff != "" {
 			t.Fatalf("wrong stepResult: %s", diff)
 		}
 	})
@@ -660,21 +659,19 @@ echo "previous_step.modified_files=${{ previous_step.modified_files }}" >> READM
 `},
 				{Run: `echo "this is step 5" >> ${{ outputs.myOutput }}`},
 			},
-			CachedResultFound: true,
-			CachedResult: execution.AfterStepResult{
+			CachedStepResultFound: true,
+			CachedStepResult: execution.AfterStepResult{
 				StepIndex: 2,
 				Diff:      cachedDiff,
 				Outputs: map[string]interface{}{
 					"myOutput": "my-output.txt",
 				},
-				StepResult: execution.StepResult{
-					Files: &git.Changes{
-						Modified: []string{"README.md"},
-						Added:    []string{"README.txt"},
-					},
-					Stdout: "",
-					Stderr: "",
+				ChangedFiles: git.Changes{
+					Modified: []string{"README.md"},
+					Added:    []string{"README.txt"},
 				},
+				Stdout: "",
+				Stderr: "",
 			},
 		}
 
@@ -687,12 +684,12 @@ echo "previous_step.modified_files=${{ previous_step.modified_files }}" >> READM
 			t.Fatalf("wrong number of execution results. want=%d, have=%d", want, have)
 		}
 
-		executionResult := results[0].result
+		executionResult := results[0].stepResults[0]
 		if diff := cmp.Diff(executionResult.Diff, wantFinalDiff); diff != "" {
 			t.Fatalf("wrong diff: %s", diff)
 		}
 
-		if diff := cmp.Diff(executionResult.Outputs, task.CachedResult.Outputs); diff != "" {
+		if diff := cmp.Diff(executionResult.Outputs, task.CachedStepResult.Outputs); diff != "" {
 			t.Fatalf("wrong execution result outputs: %s", diff)
 		}
 
@@ -706,7 +703,7 @@ echo "previous_step.modified_files=${{ previous_step.modified_files }}" >> READM
 			t.Fatalf("wrong stepIndex. have=%d, want=%d", have, want)
 		}
 
-		if diff := cmp.Diff(lastStepResult.Outputs, task.CachedResult.Outputs); diff != "" {
+		if diff := cmp.Diff(lastStepResult.Outputs, task.CachedStepResult.Outputs); diff != "" {
 			t.Fatalf("wrong step result outputs: %s", diff)
 		}
 	})
@@ -738,16 +735,14 @@ index 3040106..5f2f924 100644
 				{Run: "echo -n Hello world"},
 				{Run: `echo ${{ previous_step.stdout }} >> README.md`},
 			},
-			CachedResultFound: true,
-			CachedResult: execution.AfterStepResult{
-				StepIndex: 0,
-				Diff:      "",
-				Outputs:   map[string]interface{}{},
-				StepResult: execution.StepResult{
-					Files:  &git.Changes{},
-					Stdout: "hello world",
-					Stderr: "",
-				},
+			CachedStepResultFound: true,
+			CachedStepResult: execution.AfterStepResult{
+				StepIndex:    0,
+				Diff:         "",
+				Outputs:      map[string]interface{}{},
+				ChangedFiles: git.Changes{},
+				Stdout:       "hello world",
+				Stderr:       "",
 			},
 		}
 
@@ -760,12 +755,12 @@ index 3040106..5f2f924 100644
 			t.Fatalf("wrong number of execution results. want=%d, have=%d", want, have)
 		}
 
-		executionResult := results[0].result
+		executionResult := results[0].stepResults[0]
 		if diff := cmp.Diff(executionResult.Diff, wantFinalDiff); diff != "" {
 			t.Fatalf("wrong diff: %s", diff)
 		}
 
-		if diff := cmp.Diff(executionResult.Outputs, task.CachedResult.Outputs); diff != "" {
+		if diff := cmp.Diff(executionResult.Outputs, task.CachedStepResult.Outputs); diff != "" {
 			t.Fatalf("wrong execution result outputs: %s", diff)
 		}
 
@@ -779,7 +774,7 @@ index 3040106..5f2f924 100644
 			t.Fatalf("wrong stepIndex. have=%d, want=%d", have, want)
 		}
 
-		if diff := cmp.Diff(lastStepResult.Outputs, task.CachedResult.Outputs); diff != "" {
+		if diff := cmp.Diff(lastStepResult.Outputs, task.CachedStepResult.Outputs); diff != "" {
 			t.Fatalf("wrong step result outputs: %s", diff)
 		}
 	})

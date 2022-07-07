@@ -78,8 +78,8 @@ func TestCoordinator_Execute(t *testing.T) {
 
 			executor: &dummyExecutor{
 				results: []taskResult{
-					{task: srcCLITask, result: execution.Result{Diff: `dummydiff1`}},
-					{task: sourcegraphTask, result: execution.Result{Diff: `dummydiff2`}},
+					{task: srcCLITask, stepResults: []execution.AfterStepResult{{Diff: `dummydiff1`}}},
+					{task: sourcegraphTask, stepResults: []execution.AfterStepResult{{Diff: `dummydiff2`}}},
 				},
 			},
 			opts: NewCoordinatorOpts{Features: featuresAllEnabled()},
@@ -132,7 +132,7 @@ func TestCoordinator_Execute(t *testing.T) {
 				results: []taskResult{
 					{
 						task: srcCLITask,
-						result: execution.Result{
+						stepResults: []execution.AfterStepResult{{
 							Diff: `dummydiff1`,
 							Outputs: map[string]interface{}{
 								"output1": "myOutputValue1",
@@ -140,13 +140,13 @@ func TestCoordinator_Execute(t *testing.T) {
 									"subField": "subFieldValue",
 								},
 							},
-							ChangedFiles: &git.Changes{
+							ChangedFiles: git.Changes{
 								Modified: []string{"modified.txt"},
 								Added:    []string{"added.txt"},
 								Deleted:  []string{"deleted.txt"},
 								Renamed:  []string{"renamed.txt"},
 							},
-						},
+						}},
 					},
 				},
 			},
@@ -197,8 +197,8 @@ func TestCoordinator_Execute(t *testing.T) {
 
 			executor: &dummyExecutor{
 				results: []taskResult{
-					{task: srcCLITask, result: execution.Result{Diff: nestedChangesDiff}},
-					{task: sourcegraphTask, result: execution.Result{Diff: nestedChangesDiff}},
+					{task: srcCLITask, stepResults: []execution.AfterStepResult{{Diff: nestedChangesDiff}}},
+					{task: sourcegraphTask, stepResults: []execution.AfterStepResult{{Diff: nestedChangesDiff}}},
 				},
 			},
 			opts: NewCoordinatorOpts{Features: featuresAllEnabled()},
@@ -244,8 +244,8 @@ func TestCoordinator_Execute(t *testing.T) {
 
 			executor: &dummyExecutor{
 				results: []taskResult{
-					{task: srcCLITask, result: execution.Result{Diff: `dummydiff1`}},
-					{task: sourcegraphTask, result: execution.Result{Diff: `dummydiff2`}},
+					{task: srcCLITask, stepResults: []execution.AfterStepResult{{Diff: `dummydiff1`}}},
+					{task: sourcegraphTask, stepResults: []execution.AfterStepResult{{Diff: `dummydiff2`}}},
 				},
 			},
 			opts: NewCoordinatorOpts{Features: featuresAllEnabled()},
@@ -366,12 +366,6 @@ func TestCoordinator_Execute_StepCaching(t *testing.T) {
 	executor := &dummyExecutor{}
 	executor.results = []taskResult{{
 		task: task,
-		result: execution.Result{
-			Diff:         "dummydiff",
-			ChangedFiles: &git.Changes{},
-			Outputs:      map[string]interface{}{},
-			Path:         "",
-		},
 		stepResults: []execution.AfterStepResult{
 			{StepIndex: 0, Diff: `step-0-diff`},
 			{StepIndex: 1, Diff: `step-1-diff`},
@@ -392,7 +386,7 @@ func TestCoordinator_Execute_StepCaching(t *testing.T) {
 	assertCacheSize(t, cache, 1)
 
 	// Reset task
-	task.CachedResultFound = false
+	task.CachedStepResultFound = false
 
 	// Change the 2nd step's definition:
 	task.Steps[1].Run = `echo "two modified"`
@@ -404,7 +398,7 @@ func TestCoordinator_Execute_StepCaching(t *testing.T) {
 	assertCacheSize(t, cache, 2)
 
 	// Reset task
-	task.CachedResultFound = false
+	task.CachedStepResultFound = false
 
 	// Change the 3rd step's definition:
 	task.Steps[2].Run = `echo "three modified"`
@@ -415,7 +409,7 @@ func TestCoordinator_Execute_StepCaching(t *testing.T) {
 	assertCacheSize(t, cache, 3)
 
 	// Reset task
-	task.CachedResultFound = false
+	task.CachedStepResultFound = false
 
 	// Now we execute the spec with -clear-cache:
 	if err := coord.ClearCache(context.Background(), []*Task{task}); err != nil {
@@ -479,7 +473,7 @@ func assertNoCachedResult(t *testing.T) func(context.Context, []*Task, TaskExecu
 		t.Helper()
 
 		task := tasks[0]
-		if task.CachedResultFound {
+		if task.CachedStepResultFound {
 			t.Fatalf("CachedResultFound but not expected")
 		}
 	}
@@ -582,7 +576,7 @@ func (c *inMemoryExecutionCache) size() int {
 func (c *inMemoryExecutionCache) getCacheItem(key cache.Keyer) (interface{}, bool, error) {
 	k, err := key.Key()
 	if err != nil {
-		return execution.Result{}, false, err
+		return execution.AfterStepResult{}, false, err
 	}
 
 	c.mu.RLock()
@@ -590,29 +584,6 @@ func (c *inMemoryExecutionCache) getCacheItem(key cache.Keyer) (interface{}, boo
 
 	res, ok := c.cache[k]
 	return res, ok, nil
-}
-
-func (c *inMemoryExecutionCache) Get(ctx context.Context, key cache.Keyer) (execution.Result, bool, error) {
-	res, ok, err := c.getCacheItem(key)
-	if err != nil || !ok {
-		return execution.Result{}, ok, err
-	}
-
-	execResult, ok := res.(execution.Result)
-	return execResult, ok, nil
-}
-
-func (c *inMemoryExecutionCache) Set(ctx context.Context, key cache.Keyer, result execution.Result) error {
-	k, err := key.Key()
-	if err != nil {
-		return err
-	}
-
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	c.cache[k] = result
-	return nil
 }
 
 func (c *inMemoryExecutionCache) GetStepResult(ctx context.Context, key cache.Keyer) (execution.AfterStepResult, bool, error) {

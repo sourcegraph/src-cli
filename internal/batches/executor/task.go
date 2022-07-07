@@ -32,10 +32,12 @@ type Task struct {
 	// we can make it work with caching
 	BatchChangeAttributes *template.BatchChangeAttributes `json:"-"`
 
-	Archive repozip.Archive `json:"-"`
+	RepoArchive repozip.Archive `json:"-"`
 
-	CachedResultFound bool                      `json:"-"`
-	CachedResult      execution.AfterStepResult `json:"-"`
+	// CachedStepResultFound is true when a partial execution result was found in the cache.
+	// When this field is true, CachedStepResult is also populated.
+	CachedStepResultFound bool                      `json:"-"`
+	CachedStepResult      execution.AfterStepResult `json:"-"`
 }
 
 func (t *Task) ArchivePathToFetch() string {
@@ -45,15 +47,15 @@ func (t *Task) ArchivePathToFetch() string {
 	return ""
 }
 
-func (t *Task) cacheKey(globalEnv []string, isRemote bool) *cache.ExecutionKeyWithGlobalEnv {
+func (t *Task) cacheKey(globalEnv []string, isRemote bool) *cache.StepsCacheKeyWithGlobalEnv {
 	var metadataRetriever cache.MetadataRetriever
 	// If the task is being run locally, set the metadata retrieve to use the filesystem based implementation.
 	if !isRemote {
 		metadataRetriever = fileMetadataRetriever{}
 	}
-	return &cache.ExecutionKeyWithGlobalEnv{
+	return &cache.StepsCacheKeyWithGlobalEnv{
 		GlobalEnv: globalEnv,
-		ExecutionKey: &cache.ExecutionKey{
+		StepsCacheKey: cache.StepsCacheKey{
 			Repository: batcheslib.Repository{
 				ID:          t.Repository.ID,
 				Name:        t.Repository.Name,
@@ -66,12 +68,13 @@ func (t *Task) cacheKey(globalEnv []string, isRemote bool) *cache.ExecutionKeyWi
 			Steps:                 t.Steps,
 			BatchChangeAttributes: t.BatchChangeAttributes,
 			MetadataRetriever:     metadataRetriever,
+			// TODO: This doesn't consider skipped steps.
+			StepIndex: len(t.Steps) - 1,
 		},
 	}
 }
 
-type fileMetadataRetriever struct {
-}
+type fileMetadataRetriever struct{}
 
 func (f fileMetadataRetriever) Get(steps []batcheslib.Step) ([]cache.MountMetadata, error) {
 	var mountsMetadata []cache.MountMetadata
@@ -109,6 +112,8 @@ func getMountMetadata(path string) ([]cache.MountMetadata, error) {
 	return metadata, nil
 }
 
+// getDirectoryMountMetadata reads all the files in the directory with the given
+// path and returns the cache.MountMetadata for all of them.
 func getDirectoryMountMetadata(path string) ([]cache.MountMetadata, error) {
 	dir, err := os.ReadDir(path)
 	if err != nil {
@@ -128,12 +133,11 @@ func getDirectoryMountMetadata(path string) ([]cache.MountMetadata, error) {
 	return metadata, nil
 }
 
-func cacheKeyForStep(key *cache.ExecutionKeyWithGlobalEnv, stepIndex int) *cache.StepsCacheKeyWithGlobalEnv {
-	return &cache.StepsCacheKeyWithGlobalEnv{
-		StepsCacheKey: &cache.StepsCacheKey{
-			ExecutionKey: key.ExecutionKey,
-			StepIndex:    stepIndex,
-		},
-		GlobalEnv: key.GlobalEnv,
+func cacheKeyForStep(key *cache.StepsCacheKeyWithGlobalEnv, stepIndex int) *cache.StepsCacheKeyWithGlobalEnv {
+	r := &cache.StepsCacheKeyWithGlobalEnv{
+		StepsCacheKey: key.StepsCacheKey,
+		GlobalEnv:     key.GlobalEnv,
 	}
+	r.StepIndex = stepIndex
+	return r
 }

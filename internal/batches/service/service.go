@@ -99,8 +99,8 @@ func (svc *Service) DetermineFeatureFlags(ctx context.Context) error {
 	return svc.features.SetFromVersion(version)
 }
 
-func (svc *Service) SetFeatureFlagsForRelease(release string) error {
-	return svc.features.SetFromVersion(release)
+func (svc *Service) SetFeatureFlagsForVersion(version string) error {
+	return svc.features.SetFromVersion(version)
 }
 
 // TODO(campaigns-deprecation): this shim can be removed in Sourcegraph 4.0.

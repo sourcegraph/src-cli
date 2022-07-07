@@ -43,23 +43,23 @@ index 0000000..3363c39
 func TestExecutionDiskCache_GetSet(t *testing.T) {
 	ctx := context.Background()
 
-	cacheKey1 := &cache.ExecutionKey{
+	cacheKey1 := &cache.StepsCacheKey{
 		Repository: cacheRepo1,
 		Steps: []batcheslib.Step{
 			{Run: "echo 'Hello World'", Container: "alpine:3"},
 		},
 	}
 
-	cacheKey2 := &cache.ExecutionKey{
+	cacheKey2 := &cache.StepsCacheKey{
 		Repository: cacheRepo2,
 		Steps: []batcheslib.Step{
 			{Run: "echo 'Hello World'", Container: "alpine:3"},
 		},
 	}
 
-	value := execution.Result{
+	value := execution.AfterStepResult{
 		Diff: testDiff,
-		ChangedFiles: &git.Changes{
+		ChangedFiles: git.Changes{
 			Added: []string{"README.md"},
 		},
 		Outputs: map[string]interface{}{},
@@ -72,7 +72,7 @@ func TestExecutionDiskCache_GetSet(t *testing.T) {
 	assertCacheMiss(t, cache, cacheKey2)
 
 	// Set the cache
-	if err := cache.Set(ctx, cacheKey1, value); err != nil {
+	if err := cache.SetStepResult(ctx, cacheKey1, value); err != nil {
 		t.Fatalf("cache.Set returned unexpected error: %s", err)
 	}
 
@@ -89,10 +89,10 @@ func TestExecutionDiskCache_GetSet(t *testing.T) {
 	assertCacheMiss(t, cache, cacheKey1)
 }
 
-func assertCacheHit(t *testing.T, c ExecutionDiskCache, k *cache.ExecutionKey, want execution.Result) {
+func assertCacheHit(t *testing.T, c ExecutionDiskCache, k *cache.StepsCacheKey, want execution.AfterStepResult) {
 	t.Helper()
 
-	have, found, err := c.Get(context.Background(), k)
+	have, found, err := c.GetStepResult(context.Background(), k)
 	if err != nil {
 		t.Fatalf("cache.Get returned unexpected error: %s", err)
 	}
@@ -105,10 +105,10 @@ func assertCacheHit(t *testing.T, c ExecutionDiskCache, k *cache.ExecutionKey, w
 	}
 }
 
-func assertCacheMiss(t *testing.T, c ExecutionDiskCache, k *cache.ExecutionKey) {
+func assertCacheMiss(t *testing.T, c ExecutionDiskCache, k *cache.StepsCacheKey) {
 	t.Helper()
 
-	_, found, err := c.Get(context.Background(), k)
+	_, found, err := c.GetStepResult(context.Background(), k)
 	if err != nil {
 		t.Fatalf("cache.Get returned unexpected error: %s", err)
 	}
