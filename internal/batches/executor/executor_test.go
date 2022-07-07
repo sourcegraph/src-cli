@@ -424,7 +424,7 @@ func TestExecutor_Integration(t *testing.T) {
 			}
 
 			if have, want := len(results), wantResults; have != want {
-				t.Fatalf("wrong number of execution results. want=%d, have=%d", want, have)
+				t.Fatalf("wrong number of results. want=%d, have=%d", want, have)
 			}
 
 			for _, taskResult := range results {
@@ -530,6 +530,7 @@ index 02a19af..c9644dd 100644
 			BatchChangeAttributes: &template.BatchChangeAttributes{},
 			Steps: []batcheslib.Step{
 				{Run: `echo -e "foobar\n" >> README.md`},
+				{Run: `echo -e "foobar\n" >> README.md`},
 			},
 			CachedStepResultFound: true,
 			CachedStepResult: execution.AfterStepResult{
@@ -546,18 +547,18 @@ index 02a19af..c9644dd 100644
 		}
 
 		if have, want := len(results), 1; have != want {
-			t.Fatalf("wrong number of execution results. want=%d, have=%d", want, have)
-		}
-
-		// We want the diff to be the same as the cached one, since we only had to
-		// execute a single step
-		executionResult := results[0].stepResults[0]
-		if diff := cmp.Diff(executionResult.Diff, cachedDiff); diff != "" {
-			t.Fatalf("wrong diff: %s", diff)
+			t.Fatalf("wrong number of results. want=%d, have=%d", want, have)
 		}
 
 		if have, want := len(results[0].stepResults), 1; have != want {
 			t.Fatalf("wrong length of step results. have=%d, want=%d", have, want)
+		}
+
+		// We want the diff to be the same as the cached one, since we only had to
+		// execute a single step.
+		executionResult := results[0].stepResults[0]
+		if diff := cmp.Diff(executionResult.Diff, cachedDiff); diff != "" {
+			t.Fatalf("wrong diff: %s", diff)
 		}
 
 		stepResult := results[0].stepResults[0]
@@ -668,7 +669,7 @@ echo "previous_step.modified_files=${{ previous_step.modified_files }}" >> READM
 		}
 
 		if have, want := len(results), 1; have != want {
-			t.Fatalf("wrong number of execution results. want=%d, have=%d", want, have)
+			t.Fatalf("wrong number of results. want=%d, have=%d", want, have)
 		}
 
 		executionResult := results[0].stepResults[0]
@@ -739,7 +740,7 @@ index 3040106..5f2f924 100644
 		}
 
 		if have, want := len(results), 1; have != want {
-			t.Fatalf("wrong number of execution results. want=%d, have=%d", want, have)
+			t.Fatalf("wrong number of results. want=%d, have=%d", want, have)
 		}
 
 		executionResult := results[0].stepResults[0]
