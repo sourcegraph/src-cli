@@ -13,6 +13,7 @@ import (
 
 	batcheslib "github.com/sourcegraph/sourcegraph/lib/batches"
 	"github.com/sourcegraph/sourcegraph/lib/batches/execution"
+	"github.com/sourcegraph/sourcegraph/lib/batches/git"
 	"github.com/sourcegraph/sourcegraph/lib/batches/template"
 	"github.com/sourcegraph/sourcegraph/lib/errors"
 
@@ -179,15 +180,16 @@ func runSteps(ctx context.Context, opts *runStepsOpts) (stepResults []execution.
 			return stepResults, err
 		}
 
-		changes, err := ws.Changes(ctx)
-		if err != nil {
-			return stepResults, errors.Wrap(err, "getting changed files in step")
-		}
-
 		// Get the current diff and store that away as the per-step result.
 		stepDiff, err := ws.Diff(ctx)
 		if err != nil {
 			return stepResults, errors.Wrap(err, "getting diff produced by step")
+		}
+
+		// Next parse the diff to determine which files were changed.
+		changes, err := git.ChangesInDiff(stepDiff)
+		if err != nil {
+			return stepResults, errors.Wrap(err, "getting changed files in step")
 		}
 
 		stepResult := execution.AfterStepResult{
