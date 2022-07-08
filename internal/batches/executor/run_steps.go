@@ -42,15 +42,11 @@ type runStepsOpts struct {
 	timeout time.Duration
 	// repoArchive is the repo archive to be used for creating the workspace.
 	repoArchive repozip.Archive
-
-	logger log.TaskLogger
-
-	ui StepsExecutionUI
-
+	logger      log.TaskLogger
+	ui          StepsExecutionUI
 	// isRemote toggles server-side execution mode. This disables file mounts using
 	// step.mounts.
 	isRemote bool
-
 	// globalEnv is the os.Environ() for the execution. We don't read from os.Environ()
 	// directly to allow injecting variables and hiding others.
 	globalEnv []string

@@ -223,12 +223,19 @@ func executeBatchSpecInWorkspaces(ctx context.Context, flags *executorModeFlags)
 	// These arguments are unused in the json logs implementation, but the interface
 	// dictates them.
 	taskExecUI := ui.ExecutingTasks(false, 1)
+	taskExecUI.Start([]*executor.Task{task})
 	exec.Start(ctx, []*executor.Task{task}, taskExecUI)
 	results, err := exec.Wait(ctx)
 
 	// Write all step cache results for all results.
 	if err := executor.StoreTaskResultsToCache(ctx, cache, results, globalEnv, true); err != nil {
 		return err
+	}
+
+	if err == nil {
+		taskExecUI.Success()
+	} else {
+		taskExecUI.Failed(err)
 	}
 
 	return err
