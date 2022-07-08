@@ -3,7 +3,6 @@ package executor
 import (
 	"context"
 	"fmt"
-	"os/exec"
 	"sync"
 	"time"
 
@@ -153,30 +152,16 @@ func (x *executor) do(ctx context.Context, task *Task, ui TaskExecutionUI) (err 
 	if err != nil {
 		return errors.Wrap(err, "creating log file")
 	}
-	defer func() {
-		if err != nil {
-			err = TaskExecutionErr{
-				Err:        err,
-				Logfile:    l.Path(),
-				Repository: task.Repository.Name,
-			}
-			l.MarkErrored()
-		}
-		l.Close()
-	}()
+	defer l.Close()
 
 	// Now checkout the archive.
-	task.RepoArchive = x.opts.RepoArchiveRegistry.Checkout(
+	repoArchive := x.opts.RepoArchiveRegistry.Checkout(
 		repozip.RepoRevision{
 			RepoName: task.Repository.Name,
 			Commit:   task.Repository.Rev(),
 		},
 		task.ArchivePathToFetch(),
 	)
-
-	// Set up our timeout.
-	runCtx, cancel := context.WithTimeout(ctx, x.opts.Timeout)
-	defer cancel()
 
 	// Actually execute the steps.
 	opts := &runStepsOpts{
@@ -187,22 +172,26 @@ func (x *executor) do(ctx context.Context, task *Task, ui TaskExecutionUI) (err 
 		tempDir:     x.opts.TempDir,
 		isRemote:    x.opts.IsRemote,
 		globalEnv:   x.opts.GlobalEnv,
+		timeout:     x.opts.Timeout,
+		repoArchive: repoArchive,
 
 		ui: ui.StepsExecutionUI(task),
 	}
-
-	stepResults, err := runSteps(runCtx, opts)
+	stepResults, err := runSteps(ctx, opts)
+	if err != nil {
+		// Create a more visual error for the UI.
+		err = TaskExecutionErr{
+			Err:        err,
+			Logfile:    l.Path(),
+			Repository: task.Repository.Name,
+		}
+		l.MarkErrored()
+	}
 	x.addResult(task, stepResults, err)
 
-	if err != nil {
-		if reachedTimeout(runCtx, err) {
-			err = &errTimeoutReached{timeout: x.opts.Timeout}
-		}
-		return err
-	}
-
-	return nil
+	return err
 }
+
 func (x *executor) addResult(task *Task, stepResults []execution.AfterStepResult, err error) {
 	x.resultsMu.Lock()
 	defer x.resultsMu.Unlock()
@@ -212,20 +201,4 @@ func (x *executor) addResult(task *Task, stepResults []execution.AfterStepResult
 		stepResults: stepResults,
 		err:         err,
 	})
-}
-
-type errTimeoutReached struct{ timeout time.Duration }
-
-func (e *errTimeoutReached) Error() string {
-	return fmt.Sprintf("Timeout reached. Execution took longer than %s.", e.timeout)
-}
-
-func reachedTimeout(cmdCtx context.Context, err error) bool {
-	if ee, ok := errors.Cause(err).(*exec.ExitError); ok {
-		if ee.String() == "signal: killed" && cmdCtx.Err() == context.DeadlineExceeded {
-			return true
-		}
-	}
-
-	return errors.Is(errors.Cause(err), context.DeadlineExceeded)
 }

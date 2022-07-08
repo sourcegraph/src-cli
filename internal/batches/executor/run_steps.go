@@ -17,6 +17,7 @@ import (
 	"github.com/sourcegraph/sourcegraph/lib/errors"
 
 	"github.com/sourcegraph/src-cli/internal/batches/log"
+	"github.com/sourcegraph/src-cli/internal/batches/repozip"
 	"github.com/sourcegraph/src-cli/internal/batches/util"
 	"github.com/sourcegraph/src-cli/internal/batches/workspace"
 
@@ -36,6 +37,11 @@ type runStepsOpts struct {
 	task *Task
 	// tempDir points to where temporary files of the execution should live at.
 	tempDir string
+	// timeout sets the deadline for the execution context. When exceeded,
+	// execution will stop and an error is returned.
+	timeout time.Duration
+	// repoArchive is the repo archive to be used for creating the workspace.
+	repoArchive repozip.Archive
 
 	logger log.TaskLogger
 
@@ -51,16 +57,29 @@ type runStepsOpts struct {
 }
 
 func runSteps(ctx context.Context, opts *runStepsOpts) (stepResults []execution.AfterStepResult, err error) {
+	// Set up our timeout.
+	ctx, cancel := context.WithTimeout(ctx, opts.timeout)
+	defer cancel()
+
+	// Return an errTimeoutReached error in case the deadline has been exceeded.
+	defer func() {
+		if err != nil {
+			if reachedTimeout(ctx, err) {
+				err = &errTimeoutReached{timeout: opts.timeout}
+			}
+		}
+	}()
+
 	opts.ui.ArchiveDownloadStarted()
-	err = opts.task.RepoArchive.Ensure(ctx)
+	err = opts.repoArchive.Ensure(ctx)
 	opts.ui.ArchiveDownloadFinished(err)
 	if err != nil {
 		return nil, errors.Wrap(err, "fetching repo")
 	}
-	defer opts.task.RepoArchive.Close()
+	defer opts.repoArchive.Close()
 
 	opts.ui.WorkspaceInitializationStarted()
-	ws, err := opts.wc.Create(ctx, opts.task.Repository, opts.task.Steps, opts.task.RepoArchive)
+	ws, err := opts.wc.Create(ctx, opts.task.Repository, opts.task.Steps, opts.repoArchive)
 	if err != nil {
 		return nil, errors.Wrap(err, "creating workspace")
 	}
@@ -638,4 +657,20 @@ func (e stepFailedErr) SingleLineError() string {
 	}
 
 	return strings.Split(out, "\n")[0]
+}
+
+type errTimeoutReached struct{ timeout time.Duration }
+
+func (e *errTimeoutReached) Error() string {
+	return fmt.Sprintf("Timeout reached. Execution took longer than %s.", e.timeout)
+}
+
+func reachedTimeout(cmdCtx context.Context, err error) bool {
+	if ee, ok := errors.Cause(err).(*exec.ExitError); ok {
+		if ee.String() == "signal: killed" && cmdCtx.Err() == context.DeadlineExceeded {
+			return true
+		}
+	}
+
+	return errors.Is(errors.Cause(err), context.DeadlineExceeded)
 }

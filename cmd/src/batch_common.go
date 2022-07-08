@@ -280,6 +280,8 @@ func executeBatchSpec(ctx context.Context, ui ui.ExecUI, opts executeBatchSpecOp
 		Client:           opts.client,
 	})
 
+	imageCache := docker.NewImageCache()
+
 	if err := svc.DetermineFeatureFlags(ctx); err != nil {
 		return err
 	}
@@ -324,7 +326,10 @@ func executeBatchSpec(ctx context.Context, ui ui.ExecUI, opts executeBatchSpecOp
 	if len(batchSpec.Steps) > 0 {
 		ui.PreparingContainerImages()
 		images, err := svc.EnsureDockerImages(
-			ctx, batchSpec.Steps, parallelism,
+			ctx,
+			imageCache,
+			batchSpec.Steps,
+			parallelism,
 			ui.PreparingContainerImagesProgress,
 		)
 		if err != nil {
@@ -336,7 +341,8 @@ func executeBatchSpec(ctx context.Context, ui ui.ExecUI, opts executeBatchSpecOp
 		var typ workspace.CreatorType
 		workspaceCreator, typ = workspace.NewCreator(ctx, opts.flags.workspace, opts.flags.cacheDir, opts.flags.tempDir, images)
 		if typ == workspace.CreatorTypeVolume {
-			_, err = svc.EnsureImage(ctx, workspace.DockerVolumeWorkspaceImage)
+			// This creator type requires an additional image, so let's ensure it exists.
+			_, err = imageCache.Ensure(ctx, workspace.DockerVolumeWorkspaceImage)
 			if err != nil {
 				return err
 			}
@@ -367,18 +373,19 @@ func executeBatchSpec(ctx context.Context, ui ui.ExecUI, opts executeBatchSpecOp
 
 	archiveRegistry := repozip.NewArchiveRegistry(opts.client, opts.flags.cacheDir, opts.flags.cleanArchives)
 
-	// EXECUTION OF TASKS
-	coord := svc.NewCoordinator(
-		archiveRegistry,
-		log.NewDiskManager(opts.flags.tempDir, opts.flags.keepLogs),
+	coord := executor.NewCoordinator(
 		executor.NewCoordinatorOpts{
-			Creator:     workspaceCreator,
-			Cache:       executor.NewDiskCache(opts.flags.cacheDir),
-			Parallelism: parallelism,
-			Timeout:     opts.flags.timeout,
-			TempDir:     opts.flags.tempDir,
-			GlobalEnv:   os.Environ(),
-			IsRemote:    false,
+			Features:            svc.Features(),
+			Logger:              log.NewDiskManager(opts.flags.tempDir, opts.flags.keepLogs),
+			RepoArchiveRegistry: archiveRegistry,
+			Creator:             workspaceCreator,
+			Cache:               executor.NewDiskCache(opts.flags.cacheDir),
+			EnsureImage:         imageCache.Ensure,
+			Parallelism:         parallelism,
+			Timeout:             opts.flags.timeout,
+			TempDir:             opts.flags.tempDir,
+			GlobalEnv:           os.Environ(),
+			IsRemote:            false,
 		},
 	)
 

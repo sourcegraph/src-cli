@@ -24,8 +24,6 @@ import (
 	"github.com/sourcegraph/src-cli/internal/batches/docker"
 	"github.com/sourcegraph/src-cli/internal/batches/executor"
 	"github.com/sourcegraph/src-cli/internal/batches/graphql"
-	"github.com/sourcegraph/src-cli/internal/batches/log"
-	"github.com/sourcegraph/src-cli/internal/batches/repozip"
 )
 
 type Service struct {
@@ -33,7 +31,6 @@ type Service struct {
 	allowIgnored     bool
 	client           api.Client
 	features         batches.FeatureFlags
-	imageCache       docker.ImageCache
 }
 
 type Opts struct {
@@ -51,7 +48,6 @@ func New(opts *Opts) *Service {
 		allowUnsupported: opts.AllowUnsupported,
 		allowIgnored:     opts.AllowIgnored,
 		client:           opts.Client,
-		imageCache:       docker.NewImageCache(),
 	}
 }
 
@@ -96,7 +92,7 @@ func (svc *Service) DetermineFeatureFlags(ctx context.Context) error {
 		return errors.Wrap(err, "failed to query Sourcegraph version to check for available features")
 	}
 
-	return svc.features.SetFromVersion(version)
+	return svc.SetFeatureFlagsForVersion(version)
 }
 
 func (svc *Service) SetFeatureFlagsForVersion(version string) error {
@@ -172,6 +168,7 @@ func (svc *Service) CreateChangesetSpec(ctx context.Context, spec *batcheslib.Ch
 // Progress information is reported back to the given progress function.
 func (svc *Service) EnsureDockerImages(
 	ctx context.Context,
+	imageCache docker.ImageCache,
 	steps []batcheslib.Step,
 	parallelism int,
 	progress func(done, total int),
@@ -222,7 +219,7 @@ func (svc *Service) EnsureDockerImages(
 					if !more {
 						return
 					}
-					img, err := svc.EnsureImage(workerCtx, name)
+					img, err := imageCache.Ensure(workerCtx, name)
 					select {
 					case <-workerCtx.Done():
 						return
@@ -269,16 +266,6 @@ func (svc *Service) EnsureDockerImages(
 	return images, nil
 }
 
-func (svc *Service) EnsureImage(ctx context.Context, name string) (docker.Image, error) {
-	img := svc.imageCache.Get(name)
-
-	if err := img.Ensure(ctx); err != nil {
-		return nil, errors.Wrapf(err, "pulling image %q", name)
-	}
-
-	return img, nil
-}
-
 func (svc *Service) DetermineWorkspaces(ctx context.Context, repos []*graphql.Repository, spec *batcheslib.BatchSpec) ([]RepoWorkspace, error) {
 	return findWorkspaces(ctx, spec, svc, repos)
 }
@@ -287,12 +274,8 @@ func (svc *Service) BuildTasks(ctx context.Context, attributes *templatelib.Batc
 	return buildTasks(ctx, attributes, workspaces)
 }
 
-func (svc *Service) NewCoordinator(archiveRegistry repozip.ArchiveRegistry, logger log.LogManager, opts executor.NewCoordinatorOpts) *executor.Coordinator {
-	opts.RepoArchiveRegistry = archiveRegistry
-	opts.Features = svc.features
-	opts.EnsureImage = svc.EnsureImage
-
-	return executor.NewCoordinator(opts, logger)
+func (svc *Service) Features() batches.FeatureFlags {
+	return svc.features
 }
 
 func (svc *Service) CreateImportChangesetSpecs(ctx context.Context, batchSpec *batcheslib.BatchSpec) ([]*batcheslib.ChangesetSpec, error) {
