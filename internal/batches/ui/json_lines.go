@@ -193,7 +193,6 @@ func randomID() (string, error) {
 
 func (ui *taskExecutionJSONLines) Start(tasks []*executor.Task) {
 	ui.linesTasks = make(map[*executor.Task]batcheslib.JSONLinesTask, len(tasks))
-	linesTasks := []batcheslib.JSONLinesTask{}
 	for _, t := range tasks {
 		id, err := randomID()
 		if err != nil {
@@ -208,12 +207,7 @@ func (ui *taskExecutionJSONLines) Start(tasks []*executor.Task) {
 			StartStep:              t.CachedStepResult.StepIndex,
 		}
 		ui.linesTasks[t] = linesTask
-		linesTasks = append(linesTasks, linesTask)
 	}
-
-	logOperationStart(batcheslib.LogEventOperationExecutingTasks, &batcheslib.ExecutingTasksMetadata{
-		Tasks: linesTasks,
-	})
 }
 func (ui *taskExecutionJSONLines) Success() {
 	logOperationSuccess(batcheslib.LogEventOperationExecutingTasks, &batcheslib.ExecutingTasksMetadata{})

@@ -117,12 +117,8 @@ Examples:
 
 func executeBatchSpecInWorkspaces(ctx context.Context, flags *executorModeFlags) (err error) {
 	ui := &ui.JSONLines{}
-	defer func() {
-		if err != nil {
-			ui.ExecutionError(err)
-		}
-	}()
 
+	// Ensure the temp dir exists.
 	tempDir := flags.tempDir
 	if !filepath.IsAbs(tempDir) {
 		tempDir, err = filepath.Abs(tempDir)
@@ -135,6 +131,7 @@ func executeBatchSpecInWorkspaces(ctx context.Context, flags *executorModeFlags)
 		}
 	}
 
+	// Grab the absolute path to the repo contents.
 	repoDir := flags.repoDir
 	if !filepath.IsAbs(repoDir) {
 		repoDir, err = filepath.Abs(repoDir)
@@ -166,57 +163,54 @@ func executeBatchSpecInWorkspaces(ctx context.Context, flags *executorModeFlags)
 
 	imageCache := docker.NewImageCache()
 
-	{
-		ui.PreparingContainerImages()
-		_, err = service.New(&service.Opts{}).EnsureDockerImages(
-			ctx,
-			imageCache,
-			task.Steps,
-			execPullParallelism,
-			ui.PreparingContainerImagesProgress,
-		)
-		if err != nil {
-			return err
-		}
-		ui.PreparingContainerImagesSuccess()
+	ui.PreparingContainerImages()
+	_, err = service.New(&service.Opts{}).EnsureDockerImages(
+		ctx,
+		imageCache,
+		task.Steps,
+		execPullParallelism,
+		ui.PreparingContainerImagesProgress,
+	)
+	if err != nil {
+		return err
 	}
+	ui.PreparingContainerImagesSuccess()
 
 	// Empty for now until we support secrets or env var settings in SSBC.
 	globalEnv := []string{}
-	cache := &executor.ServerSideCache{Writer: ui}
-	exec := executor.NewExecutor(executor.NewExecutorOpts{
-		Logger:              log.NewNoopManager(),
-		RepoArchiveRegistry: repozip.NewNoopRegistry(),
-		Creator:             workspace.NewExecutorWorkspaceCreator(tempDir, repoDir),
-		EnsureImage:         imageCache.Ensure,
-		Parallelism:         1,
+	isRemote := true
+
+	taskExecUI := ui.ExecutingTasks(false, 1)
+	taskExecUI.Start([]*executor.Task{task})
+	taskExecUI.TaskStarted(task)
+
+	opts := &executor.RunStepsOpts{
+		Logger:      &log.NoopTaskLogger{},
+		WC:          workspace.NewExecutorWorkspaceCreator(tempDir, repoDir),
+		EnsureImage: imageCache.Ensure,
+		Task:        task,
 		// TODO: Should be slightly less than the executor timeout. Can we somehow read that?
 		Timeout:   flags.timeout,
 		TempDir:   tempDir,
 		GlobalEnv: globalEnv,
 		// Temporarily prevent the ability to sending a batch spec with a mount for server-side processing.
-		IsRemote: true,
-	})
-
-	// Run executor.
-	// These arguments are unused in the json logs implementation, but the interface
-	// dictates them.
-	taskExecUI := ui.ExecutingTasks(false, 1)
-	taskExecUI.Start([]*executor.Task{task})
-	exec.Start(ctx, []*executor.Task{task}, taskExecUI)
-	results, err := exec.Wait(ctx)
+		IsRemote:    isRemote,
+		RepoArchive: &repozip.NoopArchive{},
+		UI:          taskExecUI.StepsExecutionUI(task),
+	}
+	results, err := executor.RunSteps(ctx, opts)
 
 	// Write all step cache results for all results.
-	// TODO: Refactor this out of the executor package.
-	if err := executor.StoreTaskResultsToCache(ctx, cache, results, globalEnv, true); err != nil {
-		return err
+	for _, stepRes := range results {
+		cacheKey := task.CacheKey(globalEnv, isRemote, stepRes.StepIndex)
+		k, err := cacheKey.Key()
+		if err != nil {
+			return errors.Wrap(err, "calculating step cache key")
+		}
+		ui.WriteAfterStepResult(k, stepRes)
 	}
 
-	if err == nil {
-		taskExecUI.Success()
-	} else {
-		taskExecUI.Failed(err)
-	}
+	taskExecUI.TaskFinished(task, err)
 
 	return err
 }
