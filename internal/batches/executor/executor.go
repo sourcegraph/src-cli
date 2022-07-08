@@ -10,6 +10,7 @@ import (
 
 	"github.com/sourcegraph/sourcegraph/lib/errors"
 
+	"github.com/sourcegraph/src-cli/internal/batches/docker"
 	"github.com/sourcegraph/src-cli/internal/batches/log"
 	"github.com/sourcegraph/src-cli/internal/batches/repozip"
 	"github.com/sourcegraph/src-cli/internal/batches/util"
@@ -50,6 +51,8 @@ type taskResult struct {
 	stepResults []execution.AfterStepResult
 	err         error
 }
+
+type imageEnsurer func(ctx context.Context, name string) (docker.Image, error)
 
 type NewExecutorOpts struct {
 	// Dependencies

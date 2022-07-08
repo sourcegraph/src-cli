@@ -279,6 +279,7 @@ func executeSingleStep(
 		opts.ui.StepPreparingFailed(stepIdx+1, err)
 		return bytes.Buffer{}, bytes.Buffer{}, err
 	}
+
 	// Render the step.Env variables as templates.
 	env, err := template.RenderStepMap(stepEnv, stepContext)
 	if err != nil {

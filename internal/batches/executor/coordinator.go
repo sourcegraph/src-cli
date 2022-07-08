@@ -2,7 +2,6 @@ package executor
 
 import (
 	"context"
-	"time"
 
 	"github.com/sourcegraph/sourcegraph/lib/errors"
 
@@ -11,10 +10,7 @@ import (
 	"github.com/sourcegraph/sourcegraph/lib/batches/execution/cache"
 
 	"github.com/sourcegraph/src-cli/internal/batches"
-	"github.com/sourcegraph/src-cli/internal/batches/docker"
 	"github.com/sourcegraph/src-cli/internal/batches/log"
-	"github.com/sourcegraph/src-cli/internal/batches/repozip"
-	"github.com/sourcegraph/src-cli/internal/batches/workspace"
 )
 
 type taskExecutor interface {
@@ -31,46 +27,22 @@ type Coordinator struct {
 	exec taskExecutor
 }
 
-type imageEnsurer func(ctx context.Context, name string) (docker.Image, error)
-
 type NewCoordinatorOpts struct {
-	// Dependencies
-	EnsureImage         imageEnsurer
-	Creator             workspace.Creator
-	Cache               cache.Cache
-	RepoArchiveRegistry repozip.ArchiveRegistry
-	Logger              log.LogManager
+	ExecOpts NewExecutorOpts
 
+	Cache     cache.Cache
+	Logger    log.LogManager
 	GlobalEnv []string
-
-	// Everything that follows are either command-line flags or features.
 
 	// Used by batcheslib.BuildChangesetSpecs
 	Features batches.FeatureFlags
-
-	Parallelism int
-	Timeout     time.Duration
-	TempDir     string
-	IsRemote    bool
+	IsRemote bool
 }
 
 func NewCoordinator(opts NewCoordinatorOpts) *Coordinator {
-	exec := NewExecutor(NewExecutorOpts{
-		RepoArchiveRegistry: opts.RepoArchiveRegistry,
-		EnsureImage:         opts.EnsureImage,
-		Creator:             opts.Creator,
-		Logger:              opts.Logger,
-
-		Parallelism: opts.Parallelism,
-		Timeout:     opts.Timeout,
-		TempDir:     opts.TempDir,
-		IsRemote:    opts.IsRemote,
-		GlobalEnv:   opts.GlobalEnv,
-	})
-
 	return &Coordinator{
 		opts: opts,
-		exec: exec,
+		exec: NewExecutor(opts.ExecOpts),
 	}
 }
 
@@ -140,6 +112,7 @@ func (c Coordinator) buildChangesetSpecs(task *Task, batchSpec *batcheslib.Batch
 			BaseRef:     task.Repository.BaseRef(),
 			BaseRev:     task.Repository.Rev(),
 		},
+		Path:                  task.Path,
 		BatchChangeAttributes: task.BatchChangeAttributes,
 		Template:              batchSpec.ChangesetTemplate,
 		TransformChanges:      batchSpec.TransformChanges,
@@ -202,21 +175,23 @@ func (c *Coordinator) buildSpecs(ctx context.Context, batchSpec *batcheslib.Batc
 	return specs, nil
 }
 
-// Execute executes the given tasks. It calls the ui on updates.
-func (c *Coordinator) Execute(ctx context.Context, tasks []*Task, ui TaskExecutionUI) error {
-	_, err := c.doExecute(ctx, tasks, ui)
-
-	return err
-}
-
 // ExecuteAndBuildSpecs executes the given tasks and builds changeset specs for the results.
 // It calls the ui on updates.
 func (c *Coordinator) ExecuteAndBuildSpecs(ctx context.Context, batchSpec *batcheslib.BatchSpec, tasks []*Task, ui TaskExecutionUI) ([]*batcheslib.ChangesetSpec, []string, error) {
-	results, errs := c.doExecute(ctx, tasks, ui)
+	ui.Start(tasks)
+
+	// Run executor.
+	c.exec.Start(ctx, tasks, ui)
+	results, errs := c.exec.Wait(ctx)
+
+	// Write all step cache results to the cache.
+	if err := StoreTaskResultsToCache(ctx, c.opts.Cache, results, c.opts.GlobalEnv, c.opts.IsRemote); err != nil {
+		return nil, nil, err
+	}
 
 	var specs []*batcheslib.ChangesetSpec
 
-	// Write results to cache, build ChangesetSpecs if possible and add to list.
+	// Build ChangesetSpecs if possible and add to list.
 	for _, taskResult := range results {
 		// Don't build changeset specs for failed workspaces.
 		if taskResult.err != nil {
@@ -232,21 +207,6 @@ func (c *Coordinator) ExecuteAndBuildSpecs(ctx context.Context, batchSpec *batch
 	}
 
 	return specs, c.opts.Logger.LogFiles(), errs
-}
-
-func (c *Coordinator) doExecute(ctx context.Context, tasks []*Task, ui TaskExecutionUI) (results []taskResult, err error) {
-	ui.Start(tasks)
-
-	// Run executor.
-	c.exec.Start(ctx, tasks, ui)
-	results, err = c.exec.Wait(ctx)
-
-	// Write all step cache results for all results.
-	if err := StoreTaskResultsToCache(ctx, c.opts.Cache, results, c.opts.GlobalEnv, c.opts.IsRemote); err != nil {
-		return nil, err
-	}
-
-	return results, err
 }
 
 func StoreTaskResultsToCache(ctx context.Context, cache cache.Cache, results []taskResult, globalEnv []string, isRemote bool) error {

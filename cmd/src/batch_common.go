@@ -370,20 +370,25 @@ func executeBatchSpec(ctx context.Context, ui ui.ExecUI, opts executeBatchSpecOp
 	ui.DeterminingWorkspacesSuccess(len(workspaces))
 
 	archiveRegistry := repozip.NewArchiveRegistry(opts.client, opts.flags.cacheDir, opts.flags.cleanArchives)
-
+	logManager := log.NewDiskManager(opts.flags.tempDir, opts.flags.keepLogs)
 	coord := executor.NewCoordinator(
 		executor.NewCoordinatorOpts{
-			Features:            svc.Features(),
-			Logger:              log.NewDiskManager(opts.flags.tempDir, opts.flags.keepLogs),
-			RepoArchiveRegistry: archiveRegistry,
-			Creator:             workspaceCreator,
-			Cache:               executor.NewDiskCache(opts.flags.cacheDir),
-			EnsureImage:         imageCache.Ensure,
-			Parallelism:         parallelism,
-			Timeout:             opts.flags.timeout,
-			TempDir:             opts.flags.tempDir,
-			GlobalEnv:           os.Environ(),
-			IsRemote:            false,
+			ExecOpts: executor.NewExecutorOpts{
+				Logger:              logManager,
+				RepoArchiveRegistry: archiveRegistry,
+				Creator:             workspaceCreator,
+				EnsureImage:         imageCache.Ensure,
+				Parallelism:         parallelism,
+				Timeout:             opts.flags.timeout,
+				TempDir:             opts.flags.tempDir,
+				GlobalEnv:           os.Environ(),
+				IsRemote:            false,
+			},
+			Features:  svc.Features(),
+			Logger:    logManager,
+			Cache:     executor.NewDiskCache(opts.flags.cacheDir),
+			GlobalEnv: os.Environ(),
+			IsRemote:  false,
 		},
 	)
 
