@@ -27,16 +27,12 @@ import (
 )
 
 type Service struct {
-	allowUnsupported bool
-	allowIgnored     bool
-	client           api.Client
-	features         batches.FeatureFlags
+	client   api.Client
+	features batches.FeatureFlags
 }
 
 type Opts struct {
-	AllowUnsupported bool
-	AllowIgnored     bool
-	Client           api.Client
+	Client api.Client
 }
 
 var (
@@ -45,9 +41,7 @@ var (
 
 func New(opts *Opts) *Service {
 	return &Service{
-		allowUnsupported: opts.AllowUnsupported,
-		allowIgnored:     opts.AllowIgnored,
-		client:           opts.Client,
+		client: opts.Client,
 	}
 }
 
@@ -571,7 +565,7 @@ func (svc *Service) ResolveNamespace(ctx context.Context, namespace string) (Nam
 	return Namespace{}, fmt.Errorf("failed to resolve namespace %q: no user or organization found", namespace)
 }
 
-func (svc *Service) ResolveRepositories(ctx context.Context, spec *batcheslib.BatchSpec) ([]*graphql.Repository, error) {
+func (svc *Service) ResolveRepositories(ctx context.Context, spec *batcheslib.BatchSpec, allowUnsupported, allowIgnored bool) ([]*graphql.Repository, error) {
 	agg := onlib.NewRepoRevisionAggregator()
 	unsupported := batches.UnsupportedRepoSet{}
 	ignored := batches.IgnoredRepoSet{}
@@ -593,7 +587,7 @@ func (svc *Service) ResolveRepositories(ctx context.Context, spec *batcheslib.Ba
 		}
 
 		var repoBatchIgnores map[*graphql.Repository][]string
-		if !svc.allowIgnored {
+		if !allowIgnored {
 			repoBatchIgnores, err = svc.FindDirectoriesInRepos(ctx, ".batchignore", reposWithBranch...)
 			if err != nil {
 				return nil, err
@@ -611,12 +605,12 @@ func (svc *Service) ResolveRepositories(ctx context.Context, spec *batcheslib.Ba
 				}
 				fallthrough
 			default:
-				if !svc.allowUnsupported {
+				if !allowUnsupported {
 					unsupported.Append(repo)
 				}
 			}
 
-			if !svc.allowIgnored {
+			if !allowIgnored {
 				if locations, ok := repoBatchIgnores[repo]; ok && len(locations) > 0 {
 					ignored.Append(repo)
 				}

@@ -6,14 +6,12 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"net/http"
 	"os"
 	"path/filepath"
 	"time"
 
 	"github.com/sourcegraph/sourcegraph/lib/errors"
 
-	"github.com/sourcegraph/src-cli/internal/api"
 	"github.com/sourcegraph/src-cli/internal/batches/docker"
 	"github.com/sourcegraph/src-cli/internal/batches/executor"
 	"github.com/sourcegraph/src-cli/internal/batches/graphql"
@@ -32,16 +30,14 @@ const (
 )
 
 type executorModeFlags struct {
-	sourcegraphVersion string
-	timeout            time.Duration
-	file               string
-	tempDir            string
-	repoDir            string
+	timeout time.Duration
+	file    string
+	tempDir string
+	repoDir string
 }
 
 func newExecutorModeFlags(flagSet *flag.FlagSet) (f *executorModeFlags) {
 	f = &executorModeFlags{}
-	flagSet.StringVar(&f.sourcegraphVersion, "sourcegraphVersion", "", "Sourcegraph backend version.")
 	flagSet.DurationVar(&f.timeout, "timeout", 60*time.Minute, "The maximum duration a single batch spec step can take.")
 	flagSet.StringVar(&f.file, "f", "", "The workspace execution input file to read.")
 	flagSet.StringVar(&f.tempDir, "tmp", "", "Directory for storing temporary data.")
@@ -51,9 +47,6 @@ func newExecutorModeFlags(flagSet *flag.FlagSet) (f *executorModeFlags) {
 }
 
 func validateExecutorModeFlags(f *executorModeFlags) error {
-	if f.sourcegraphVersion == "" {
-		return errors.New("sourcegraphVersion parameter missing")
-	}
 	if f.file == "" {
 		return errors.New("input file parameter missing")
 	}
@@ -150,23 +143,6 @@ func executeBatchSpecInWorkspaces(ctx context.Context, flags *executorModeFlags)
 		}
 	}
 
-	svc := service.New(&service.Opts{
-		// When this workspace made it to here, it's already been validated.
-		AllowUnsupported: true,
-		// When this workspace made it to here, it's already been validated.
-		AllowIgnored: true,
-		// We don't want src to talk to the sg instance, if it would, this
-		// is a regression. Therefor, we have this dead client that kills the
-		// process when something should try to talk to src.
-		Client: &deadClient{},
-	})
-
-	imageCache := docker.NewImageCache()
-
-	if err := svc.SetFeatureFlagsForVersion(flags.sourcegraphVersion); err != nil {
-		return err
-	}
-
 	// Test if git is available.
 	if err := checkExecutable("git", "version"); err != nil {
 		return err
@@ -188,9 +164,11 @@ func executeBatchSpecInWorkspaces(ctx context.Context, flags *executorModeFlags)
 		return errors.New("invalid execution, no steps to process")
 	}
 
+	imageCache := docker.NewImageCache()
+
 	{
 		ui.PreparingContainerImages()
-		_, err = svc.EnsureDockerImages(
+		_, err = service.New(&service.Opts{}).EnsureDockerImages(
 			ctx,
 			imageCache,
 			task.Steps,
@@ -203,6 +181,7 @@ func executeBatchSpecInWorkspaces(ctx context.Context, flags *executorModeFlags)
 		ui.PreparingContainerImagesSuccess()
 	}
 
+	// Empty for now until we support secrets or env var settings in SSBC.
 	globalEnv := []string{}
 	cache := &executor.ServerSideCache{Writer: ui}
 	exec := executor.NewExecutor(executor.NewExecutorOpts{
@@ -228,6 +207,7 @@ func executeBatchSpecInWorkspaces(ctx context.Context, flags *executorModeFlags)
 	results, err := exec.Wait(ctx)
 
 	// Write all step cache results for all results.
+	// TODO: Refactor this out of the executor package.
 	if err := executor.StoreTaskResultsToCache(ctx, cache, results, globalEnv, true); err != nil {
 		return err
 	}
@@ -260,6 +240,8 @@ func loadWorkspaceExecutionInput(file string) (input batcheslib.WorkspacesExecut
 	return input, nil
 }
 
+// convertWorkspace takes the WorkspacesExecutionInput and restructures it into
+// an executor.Task.
 func convertWorkspace(w batcheslib.WorkspacesExecutionInput) *executor.Task {
 	fileMatches := make(map[string]bool)
 	for _, path := range w.SearchResultPaths {
@@ -288,29 +270,4 @@ func convertWorkspace(w batcheslib.WorkspacesExecutionInput) *executor.Task {
 	}
 
 	return task
-}
-
-type deadClient struct{}
-
-var _ api.Client = &deadClient{}
-
-const deadClientPanicMsg = "Dead client invoked. This indicates a bug in src-cli in server-side execution, please report this."
-
-func (c *deadClient) NewQuery(query string) api.Request {
-	panic(deadClientPanicMsg)
-}
-func (c *deadClient) NewRequest(query string, vars map[string]interface{}) api.Request {
-	panic(deadClientPanicMsg)
-}
-func (c *deadClient) NewGzippedRequest(query string, vars map[string]interface{}) api.Request {
-	panic(deadClientPanicMsg)
-}
-func (c *deadClient) NewGzippedQuery(query string) api.Request {
-	panic(deadClientPanicMsg)
-}
-func (c *deadClient) NewHTTPRequest(ctx context.Context, method, path string, body io.Reader) (*http.Request, error) {
-	panic(deadClientPanicMsg)
-}
-func (c *deadClient) Do(req *http.Request) (*http.Response, error) {
-	panic(deadClientPanicMsg)
 }

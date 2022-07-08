@@ -275,9 +275,7 @@ func executeBatchSpec(ctx context.Context, ui ui.ExecUI, opts executeBatchSpecOp
 	}()
 
 	svc := service.New(&service.Opts{
-		AllowUnsupported: opts.flags.allowUnsupported,
-		AllowIgnored:     opts.flags.allowIgnored,
-		Client:           opts.client,
+		Client: opts.client,
 	})
 
 	imageCache := docker.NewImageCache()
@@ -351,7 +349,7 @@ func executeBatchSpec(ctx context.Context, ui ui.ExecUI, opts executeBatchSpecOp
 	}
 
 	ui.ResolvingRepositories()
-	repos, err := svc.ResolveRepositories(ctx, batchSpec)
+	repos, err := svc.ResolveRepositories(ctx, batchSpec, opts.flags.allowUnsupported, opts.flags.allowIgnored)
 	if err != nil {
 		if repoSet, ok := err.(batches.UnsupportedRepoSet); ok {
 			ui.ResolvingRepositoriesDone(repos, repoSet, nil)
