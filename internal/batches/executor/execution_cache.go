@@ -121,31 +121,3 @@ func (ExecutionNoOpCache) Set(ctx context.Context, key cache.Keyer, result execu
 func (ExecutionNoOpCache) Get(ctx context.Context, key cache.Keyer) (execution.AfterStepResult, bool, error) {
 	return execution.AfterStepResult{}, false, nil
 }
-
-type JSONCacheWriter interface {
-	WriteAfterStepResult(key string, value execution.AfterStepResult)
-}
-
-type ServerSideCache struct {
-	Writer JSONCacheWriter
-}
-
-func (c *ServerSideCache) Set(ctx context.Context, key cache.Keyer, result execution.AfterStepResult) error {
-	k, err := key.Key()
-	if err != nil {
-		return err
-	}
-
-	c.Writer.WriteAfterStepResult(k, result)
-
-	return nil
-}
-
-func (c *ServerSideCache) Get(ctx context.Context, key cache.Keyer) (result execution.AfterStepResult, found bool, err error) {
-	panic("should not be called")
-}
-
-func (c *ServerSideCache) Clear(ctx context.Context, key cache.Keyer) error {
-	// noop
-	return nil
-}

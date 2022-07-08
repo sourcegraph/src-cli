@@ -15,7 +15,6 @@ import (
 
 type Task struct {
 	Repository *graphql.Repository
-
 	// Path is the folder relative to the repository's root in which the steps
 	// should be executed. "" means root.
 	Path string
@@ -39,7 +38,7 @@ func (t *Task) ArchivePathToFetch() string {
 	return ""
 }
 
-func (t *Task) cacheKey(globalEnv []string, isRemote bool, stepIndex int) cache.Keyer {
+func (t *Task) CacheKey(globalEnv []string, isRemote bool, stepIndex int) cache.Keyer {
 	var metadataRetriever cache.MetadataRetriever
 	// If the task is being run locally, set the metadata retrieve to use the filesystem based implementation.
 	if !isRemote {

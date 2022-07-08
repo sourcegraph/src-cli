@@ -167,20 +167,20 @@ func (x *executor) do(ctx context.Context, task *Task, ui TaskExecutionUI) (err 
 	)
 
 	// Actually execute the steps.
-	opts := &runStepsOpts{
-		task:        task,
-		logger:      l,
-		wc:          x.opts.Creator,
-		ensureImage: x.opts.EnsureImage,
-		tempDir:     x.opts.TempDir,
-		isRemote:    x.opts.IsRemote,
-		globalEnv:   x.opts.GlobalEnv,
-		timeout:     x.opts.Timeout,
-		repoArchive: repoArchive,
+	opts := &RunStepsOpts{
+		Task:        task,
+		Logger:      l,
+		WC:          x.opts.Creator,
+		EnsureImage: x.opts.EnsureImage,
+		TempDir:     x.opts.TempDir,
+		IsRemote:    x.opts.IsRemote,
+		GlobalEnv:   x.opts.GlobalEnv,
+		Timeout:     x.opts.Timeout,
+		RepoArchive: repoArchive,
 
-		ui: ui.StepsExecutionUI(task),
+		UI: ui.StepsExecutionUI(task),
 	}
-	stepResults, err := runSteps(ctx, opts)
+	stepResults, err := RunSteps(ctx, opts)
 	if err != nil {
 		// Create a more visual error for the UI.
 		err = TaskExecutionErr{

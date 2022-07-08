@@ -70,7 +70,7 @@ func (c *Coordinator) CheckCache(ctx context.Context, batchSpec *batcheslib.Batc
 func (c *Coordinator) ClearCache(ctx context.Context, tasks []*Task) error {
 	for _, task := range tasks {
 		for i := len(task.Steps) - 1; i > -1; i-- {
-			key := task.cacheKey(c.opts.GlobalEnv, c.opts.IsRemote, i)
+			key := task.CacheKey(c.opts.GlobalEnv, c.opts.IsRemote, i)
 			if err := c.opts.Cache.Clear(ctx, key); err != nil {
 				return errors.Wrapf(err, "clearing cache for step %d in %q", i, task.Repository.Name)
 			}
@@ -134,7 +134,7 @@ func (c *Coordinator) loadCachedStepResults(ctx context.Context, task *Task, glo
 	// We start at the back so that we can find the _last_ cached step,
 	// then restart execution on the following step.
 	for i := len(task.Steps) - 1; i > -1; i-- {
-		key := task.cacheKey(globalEnv, c.opts.IsRemote, i)
+		key := task.CacheKey(globalEnv, c.opts.IsRemote, i)
 
 		result, found, err := c.opts.Cache.Get(ctx, key)
 		if err != nil {
@@ -185,8 +185,13 @@ func (c *Coordinator) ExecuteAndBuildSpecs(ctx context.Context, batchSpec *batch
 	results, errs := c.exec.Wait(ctx)
 
 	// Write all step cache results to the cache.
-	if err := StoreTaskResultsToCache(ctx, c.opts.Cache, results, c.opts.GlobalEnv, c.opts.IsRemote); err != nil {
-		return nil, nil, err
+	for _, res := range results {
+		for _, stepRes := range res.stepResults {
+			cacheKey := res.task.CacheKey(c.opts.GlobalEnv, c.opts.IsRemote, stepRes.StepIndex)
+			if err := c.opts.Cache.Set(ctx, cacheKey, stepRes); err != nil {
+				return nil, nil, errors.Wrapf(err, "caching result for step %d", stepRes.StepIndex)
+			}
+		}
 	}
 
 	var specs []*batcheslib.ChangesetSpec
@@ -207,17 +212,4 @@ func (c *Coordinator) ExecuteAndBuildSpecs(ctx context.Context, batchSpec *batch
 	}
 
 	return specs, c.opts.Logger.LogFiles(), errs
-}
-
-func StoreTaskResultsToCache(ctx context.Context, cache cache.Cache, results []taskResult, globalEnv []string, isRemote bool) error {
-	for _, res := range results {
-		for _, stepRes := range res.stepResults {
-			cacheKey := res.task.cacheKey(globalEnv, isRemote, stepRes.StepIndex)
-			if err := cache.Set(ctx, cacheKey, stepRes); err != nil {
-				return errors.Wrapf(err, "caching result for step %d", stepRes.StepIndex)
-			}
-		}
-	}
-
-	return nil
 }

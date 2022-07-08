@@ -172,8 +172,6 @@ func (ui *JSONLines) ExecutionError(err error) {
 	logOperationFailure(batcheslib.LogEventOperationBatchSpecExecution, &batcheslib.BatchSpecExecutionMetadata{Error: err.Error()})
 }
 
-var _ executor.JSONCacheWriter = &JSONLines{}
-
 func (ui *JSONLines) WriteAfterStepResult(key string, value execution.AfterStepResult) {
 	logOperationSuccess(batcheslib.LogEventOperationCacheAfterStepResult, &batcheslib.CacheAfterStepResultMetadata{
 		Key:   key,
