@@ -83,6 +83,12 @@ func runSteps(ctx context.Context, opts *runStepsOpts) (stepResults []execution.
 		lastOutputs = opts.task.CachedStepResult.Outputs
 		previousStepResult = opts.task.CachedStepResult
 		lastStep := opts.task.CachedStepResult.StepIndex
+		// Add the cached result to the result set. It may be required for building
+		// the changeset specs in the end if we don't need to execute any other steps
+		// due to dynamic skipping.
+		// We remove it at the end of this function if it isn't needed, so we don't
+		// write it to the cache again.
+		stepResults = append(stepResults, previousStepResult)
 
 		// If we have cached results and don't need to execute any more steps,
 		// we can quit.
@@ -192,6 +198,14 @@ func runSteps(ctx context.Context, opts *runStepsOpts) (stepResults []execution.
 		previousStepResult = stepResult
 
 		opts.ui.StepFinished(i+1, stepResult.Diff, stepResult.ChangedFiles, stepResult.Outputs)
+	}
+
+	// If we ended up executing at least one step in addition to the cached step,
+	// we can remove it from the result set. Otherwise we write it to the cache
+	// again which is unnecessary. We only need to return it when we want to build changeset
+	// specs from it.
+	if len(stepResults) > 1 && opts.task.CachedStepResultFound {
+		stepResults = stepResults[1:]
 	}
 
 	return stepResults, err

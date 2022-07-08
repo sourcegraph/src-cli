@@ -543,7 +543,6 @@ index 02a19af..c9644dd 100644
 			BatchChangeAttributes: &template.BatchChangeAttributes{},
 			Steps: []batcheslib.Step{
 				{Run: `echo -e "foobar\n" >> README.md`},
-				{Run: `echo -e "foobar\n" >> README.md`},
 			},
 			CachedStepResultFound: true,
 			CachedStepResult: execution.AfterStepResult{
@@ -567,24 +566,15 @@ index 02a19af..c9644dd 100644
 			t.Fatalf("wrong length of step results. have=%d, want=%d", have, want)
 		}
 
-		wantResult := execution.AfterStepResult{
-			ChangedFiles: git.Changes{
-				Modified: []string{"README.md"},
-			},
-			StepIndex: 1,
-			Outputs:   make(map[string]any),
-			Diff: `diff --git README.md README.md
-index 02a19af..1dd6a96 100644
---- README.md
-+++ README.md
-@@ -1 +1,4 @@
-# Welcome to the README
-+foobar
-+foobar
-`,
+		// We want the diff to be the same as the cached one, since we only had to
+		// execute a single step
+		executionResult := results[0].stepResults[0]
+		if diff := cmp.Diff(executionResult.Diff, cachedDiff); diff != "" {
+			t.Fatalf("wrong diff: %s", diff)
 		}
+
 		stepResult := results[0].stepResults[0]
-		if diff := cmp.Diff(stepResult, wantResult); diff != "" {
+		if diff := cmp.Diff(stepResult, task.CachedStepResult); diff != "" {
 			t.Fatalf("wrong stepResult: %s", diff)
 		}
 	})
