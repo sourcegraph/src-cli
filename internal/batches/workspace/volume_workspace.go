@@ -236,7 +236,7 @@ set -e
 # No set -x here, since we're going to parse the git status output.
 
 git add --all > /dev/null
-exec git status --porcelain
+exec git status --porcelain --no-ahead-behind
 `
 
 	out, err := w.runScript(ctx, "/work", script)
