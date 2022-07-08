@@ -180,6 +180,7 @@ func executeBatchSpecInWorkspaces(ctx context.Context, flags *executorModeFlags)
 	globalEnv := []string{}
 	isRemote := true
 
+	// Set up the execution UI.
 	taskExecUI := ui.ExecutingTasks(false, 1)
 	taskExecUI.Start([]*executor.Task{task})
 	taskExecUI.TaskStarted(task)
