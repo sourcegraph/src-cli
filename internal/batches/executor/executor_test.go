@@ -423,11 +423,22 @@ func TestExecutor_Integration(t *testing.T) {
 				}
 			}
 
-			if have, want := len(results), wantResults; have != want {
+			haveResults := 0
+			for _, res := range results {
+				if res.err == nil {
+					haveResults++
+				}
+			}
+
+			if have, want := haveResults, wantResults; have != want {
 				t.Fatalf("wrong number of results. want=%d, have=%d", want, have)
 			}
 
 			for _, taskResult := range results {
+				if taskResult.err != nil {
+					continue
+				}
+
 				repoID := taskResult.task.Repository.ID
 				path := taskResult.task.Path
 
@@ -443,7 +454,9 @@ func TestExecutor_Integration(t *testing.T) {
 					t.Fatalf("spec for repo %q and path %q but no files expected in that branch", repoID, path)
 				}
 
-				fileDiffs, err := diff.ParseMultiFileDiff([]byte(taskResult.stepResults[len(taskResult.stepResults)-1].Diff))
+				lastStepResult := taskResult.stepResults[len(taskResult.stepResults)-1]
+
+				fileDiffs, err := diff.ParseMultiFileDiff([]byte(lastStepResult.Diff))
 				if err != nil {
 					t.Fatalf("failed to parse diff: %s", err)
 				}
@@ -554,15 +567,24 @@ index 02a19af..c9644dd 100644
 			t.Fatalf("wrong length of step results. have=%d, want=%d", have, want)
 		}
 
-		// We want the diff to be the same as the cached one, since we only had to
-		// execute a single step.
-		executionResult := results[0].stepResults[0]
-		if diff := cmp.Diff(executionResult.Diff, cachedDiff); diff != "" {
-			t.Fatalf("wrong diff: %s", diff)
+		wantResult := execution.AfterStepResult{
+			ChangedFiles: git.Changes{
+				Modified: []string{"README.md"},
+			},
+			StepIndex: 1,
+			Outputs:   make(map[string]any),
+			Diff: `diff --git README.md README.md
+index 02a19af..1dd6a96 100644
+--- README.md
++++ README.md
+@@ -1 +1,4 @@
+# Welcome to the README
++foobar
++foobar
+`,
 		}
-
 		stepResult := results[0].stepResults[0]
-		if diff := cmp.Diff(stepResult, task.CachedStepResult); diff != "" {
+		if diff := cmp.Diff(stepResult, wantResult); diff != "" {
 			t.Fatalf("wrong stepResult: %s", diff)
 		}
 	})
@@ -672,7 +694,7 @@ echo "previous_step.modified_files=${{ previous_step.modified_files }}" >> READM
 			t.Fatalf("wrong number of results. want=%d, have=%d", want, have)
 		}
 
-		executionResult := results[0].stepResults[0]
+		executionResult := results[0].stepResults[len(results[0].stepResults)-1]
 		if diff := cmp.Diff(executionResult.Diff, wantFinalDiff); diff != "" {
 			t.Fatalf("wrong diff: %s", diff)
 		}
@@ -743,7 +765,7 @@ index 3040106..5f2f924 100644
 			t.Fatalf("wrong number of results. want=%d, have=%d", want, have)
 		}
 
-		executionResult := results[0].stepResults[0]
+		executionResult := results[0].stepResults[len(results[0].stepResults)-1]
 		if diff := cmp.Diff(executionResult.Diff, wantFinalDiff); diff != "" {
 			t.Fatalf("wrong diff: %s", diff)
 		}
