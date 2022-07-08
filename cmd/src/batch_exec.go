@@ -203,34 +203,35 @@ func executeBatchSpecInWorkspaces(ctx context.Context, flags *executorModeFlags)
 		ui.PreparingContainerImagesSuccess()
 	}
 
-	coord := executor.NewCoordinator(executor.NewCoordinatorOpts{
-		Features:            svc.Features(),
+	globalEnv := []string{}
+	cache := &executor.ServerSideCache{Writer: ui}
+	exec := executor.NewExecutor(executor.NewExecutorOpts{
 		Logger:              log.NewNoopManager(),
 		RepoArchiveRegistry: repozip.NewNoopRegistry(),
 		Creator:             workspace.NewExecutorWorkspaceCreator(tempDir, repoDir),
-		Cache:               &executor.ServerSideCache{Writer: ui},
 		EnsureImage:         imageCache.Ensure,
 		Parallelism:         1,
 		// TODO: Should be slightly less than the executor timeout. Can we somehow read that?
-		Timeout: flags.timeout,
-		TempDir: tempDir,
-		// Don't allow to read from env.
-		GlobalEnv: []string{},
+		Timeout:   flags.timeout,
+		TempDir:   tempDir,
+		GlobalEnv: globalEnv,
 		// Temporarily prevent the ability to sending a batch spec with a mount for server-side processing.
 		IsRemote: true,
 	})
 
+	// Run executor.
 	// These arguments are unused in the json logs implementation, but the interface
 	// dictates them.
 	taskExecUI := ui.ExecutingTasks(false, 1)
-	err = coord.Execute(ctx, []*executor.Task{task}, taskExecUI)
-	if err != nil {
-		taskExecUI.Failed(err)
+	exec.Start(ctx, []*executor.Task{task}, taskExecUI)
+	results, err := exec.Wait(ctx)
+
+	// Write all step cache results for all results.
+	if err := executor.StoreTaskResultsToCache(ctx, cache, results, globalEnv, true); err != nil {
 		return err
 	}
 
-	taskExecUI.Success()
-	return nil
+	return err
 }
 
 func loadWorkspaceExecutionInput(file string) (input batcheslib.WorkspacesExecutionInput, err error) {

@@ -55,7 +55,7 @@ type NewCoordinatorOpts struct {
 }
 
 func NewCoordinator(opts NewCoordinatorOpts) *Coordinator {
-	exec := newExecutor(newExecutorOpts{
+	exec := NewExecutor(NewExecutorOpts{
 		RepoArchiveRegistry: opts.RepoArchiveRegistry,
 		EnsureImage:         opts.EnsureImage,
 		Creator:             opts.Creator,
@@ -242,14 +242,14 @@ func (c *Coordinator) doExecute(ctx context.Context, tasks []*Task, ui TaskExecu
 	results, err = c.exec.Wait(ctx)
 
 	// Write all step cache results for all results.
-	if err := storeTaskResultsToCache(ctx, c.opts.Cache, results, c.opts.GlobalEnv, c.opts.IsRemote); err != nil {
+	if err := StoreTaskResultsToCache(ctx, c.opts.Cache, results, c.opts.GlobalEnv, c.opts.IsRemote); err != nil {
 		return nil, err
 	}
 
 	return results, err
 }
 
-func storeTaskResultsToCache(ctx context.Context, cache cache.Cache, results []taskResult, globalEnv []string, isRemote bool) error {
+func StoreTaskResultsToCache(ctx context.Context, cache cache.Cache, results []taskResult, globalEnv []string, isRemote bool) error {
 	for _, res := range results {
 		for _, stepRes := range res.stepResults {
 			cacheKey := res.task.cacheKey(globalEnv, isRemote, stepRes.StepIndex)

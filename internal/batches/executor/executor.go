@@ -51,7 +51,7 @@ type taskResult struct {
 	err         error
 }
 
-type newExecutorOpts struct {
+type NewExecutorOpts struct {
 	// Dependencies
 	Creator             workspace.Creator
 	RepoArchiveRegistry repozip.ArchiveRegistry
@@ -67,7 +67,7 @@ type newExecutorOpts struct {
 }
 
 type executor struct {
-	opts newExecutorOpts
+	opts NewExecutorOpts
 
 	par           *parallel.Run
 	doneEnqueuing chan struct{}
@@ -76,7 +76,7 @@ type executor struct {
 	resultsMu sync.Mutex
 }
 
-func newExecutor(opts newExecutorOpts) *executor {
+func NewExecutor(opts NewExecutorOpts) *executor {
 	return &executor{
 		opts: opts,
 
