@@ -41,8 +41,8 @@ func (ic *imageCache) Get(name string) Image {
 	return image
 }
 
-// Ensure returns the image cache entry for the given Docker image, or an error
-// if it was not found.
+// Ensure returns the image cache entry for the given Docker image and makes sure
+// it exists on disk.
 func (ic *imageCache) Ensure(ctx context.Context, name string) (Image, error) {
 	img := ic.Get(name)
 
