@@ -155,6 +155,102 @@ func (svc *Service) CreateChangesetSpec(ctx context.Context, spec *batcheslib.Ch
 	return graphql.ChangesetSpecID(result.CreateChangesetSpec.ID), nil
 }
 
+const resolveWorkspacesForBatchSpecQuery = `
+query ResolveWorkspacesForBatchSpec($spec: String!) {
+    resolveWorkspacesForBatchSpec(batchSpec: $spec) {
+		onlyFetchWorkspace
+		ignored
+		unsupported
+		repository {
+			id
+			name
+			url
+			externalRepository { serviceType }
+			defaultBranch {
+				name
+				target { oid }
+			}
+		}
+		branch {
+			name
+			target {
+				oid
+			}
+		}
+		path
+		searchResultPaths
+    }
+}
+`
+
+func (svc *Service) ResolveWorkspacesForBatchSpec(ctx context.Context, spec *batcheslib.BatchSpec, allowUnsupported, allowIgnored bool) ([]RepoWorkspace, error) {
+	raw, err := json.Marshal(spec)
+	if err != nil {
+		return nil, errors.Wrap(err, "marshalling changeset spec JSON")
+	}
+
+	var result struct {
+		ResolveWorkspacesForBatchSpec []struct {
+			OnlyFetchWorkspace bool
+			Ignored            bool
+			Unsupported        bool
+			Repository         *graphql.Repository
+			Branch             *graphql.Branch
+			Path               string
+			SearchResultPaths  []string
+		}
+	}
+	if ok, err := svc.newRequest(resolveWorkspacesForBatchSpecQuery, map[string]interface{}{
+		"spec": string(raw),
+	}).Do(ctx, &result); err != nil || !ok {
+		return nil, err
+	}
+
+	unsupported := batches.UnsupportedRepoSet{}
+	ignored := batches.IgnoredRepoSet{}
+
+	workspaces := make([]RepoWorkspace, 0, len(result.ResolveWorkspacesForBatchSpec))
+	for _, w := range result.ResolveWorkspacesForBatchSpec {
+		fileMatches := make(map[string]bool)
+		for _, path := range w.SearchResultPaths {
+			fileMatches[path] = true
+		}
+
+		workspace := RepoWorkspace{
+			Repo: &graphql.Repository{
+				ID:                 w.Repository.ID,
+				Name:               w.Repository.Name,
+				URL:                w.Repository.URL,
+				FileMatches:        fileMatches,
+				ExternalRepository: w.Repository.ExternalRepository,
+				DefaultBranch:      w.Repository.DefaultBranch,
+				Commit:             w.Branch.Target,
+				Branch:             *w.Branch,
+			},
+			Path:               w.Path,
+			OnlyFetchWorkspace: w.OnlyFetchWorkspace,
+		}
+
+		if !allowIgnored && w.Ignored {
+			ignored.Append(workspace.Repo)
+		} else if !allowUnsupported && w.Unsupported {
+			unsupported.Append(workspace.Repo)
+		} else {
+			workspaces = append(workspaces, workspace)
+		}
+	}
+
+	if unsupported.HasUnsupported() {
+		return workspaces, unsupported
+	}
+
+	if ignored.HasIgnored() {
+		return workspaces, ignored
+	}
+
+	return workspaces, nil
+}
+
 // EnsureDockerImages iterates over the steps within the batch spec to ensure the
 // images exist and to determine the exact content digest to be used when running
 // each step, including any required by the service itself.
@@ -264,8 +360,8 @@ func (svc *Service) DetermineWorkspaces(ctx context.Context, repos []*graphql.Re
 	return findWorkspaces(ctx, spec, svc, repos)
 }
 
-func (svc *Service) BuildTasks(ctx context.Context, attributes *templatelib.BatchChangeAttributes, workspaces []RepoWorkspace) []*executor.Task {
-	return buildTasks(ctx, attributes, workspaces)
+func (svc *Service) BuildTasks(ctx context.Context, attributes *templatelib.BatchChangeAttributes, steps []batcheslib.Step, workspaces []RepoWorkspace) []*executor.Task {
+	return buildTasks(ctx, attributes, steps, workspaces)
 }
 
 func (svc *Service) Features() batches.FeatureFlags {
