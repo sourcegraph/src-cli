@@ -354,7 +354,7 @@ func executeBatchSpec(ctx context.Context, ui ui.ExecUI, opts executeBatchSpecOp
 	)
 	if svc.Features().ServerSideWorkspaceResolution {
 		ui.ResolvingRepositories()
-		workspaces, err = svc.ResolveWorkspacesForBatchSpec(ctx, batchSpec, opts.flags.allowUnsupported, opts.flags.allowIgnored)
+		workspaces, repos, err = svc.ResolveWorkspacesForBatchSpec(ctx, batchSpec, opts.flags.allowUnsupported, opts.flags.allowIgnored)
 		if err != nil {
 			if repoSet, ok := err.(batches.UnsupportedRepoSet); ok {
 				ui.ResolvingRepositoriesDone(repos, repoSet, nil)
@@ -365,14 +365,6 @@ func executeBatchSpec(ctx context.Context, ui ui.ExecUI, opts executeBatchSpecOp
 			}
 		} else {
 			ui.ResolvingRepositoriesDone(repos, nil, nil)
-		}
-		seenRepos := make(map[string]struct{})
-		for _, w := range workspaces {
-			if _, ok := seenRepos[w.Repo.ID]; ok {
-				continue
-			}
-			seenRepos[w.Repo.ID] = struct{}{}
-			repos = append(repos, w.Repo)
 		}
 
 		ui.DeterminingWorkspaces()

@@ -183,10 +183,10 @@ query ResolveWorkspacesForBatchSpec($spec: String!) {
 }
 `
 
-func (svc *Service) ResolveWorkspacesForBatchSpec(ctx context.Context, spec *batcheslib.BatchSpec, allowUnsupported, allowIgnored bool) ([]RepoWorkspace, error) {
+func (svc *Service) ResolveWorkspacesForBatchSpec(ctx context.Context, spec *batcheslib.BatchSpec, allowUnsupported, allowIgnored bool) ([]RepoWorkspace, []*graphql.Repository, error) {
 	raw, err := json.Marshal(spec)
 	if err != nil {
-		return nil, errors.Wrap(err, "marshalling changeset spec JSON")
+		return nil, nil, errors.Wrap(err, "marshalling changeset spec JSON")
 	}
 
 	var result struct {
@@ -203,12 +203,14 @@ func (svc *Service) ResolveWorkspacesForBatchSpec(ctx context.Context, spec *bat
 	if ok, err := svc.newRequest(resolveWorkspacesForBatchSpecQuery, map[string]interface{}{
 		"spec": string(raw),
 	}).Do(ctx, &result); err != nil || !ok {
-		return nil, err
+		return nil, nil, err
 	}
 
 	unsupported := batches.UnsupportedRepoSet{}
 	ignored := batches.IgnoredRepoSet{}
 
+	repos := make([]*graphql.Repository, 0, len(result.ResolveWorkspacesForBatchSpec))
+	seenRepos := make(map[string]struct{})
 	workspaces := make([]RepoWorkspace, 0, len(result.ResolveWorkspacesForBatchSpec))
 	for _, w := range result.ResolveWorkspacesForBatchSpec {
 		fileMatches := make(map[string]bool)
@@ -231,6 +233,12 @@ func (svc *Service) ResolveWorkspacesForBatchSpec(ctx context.Context, spec *bat
 			OnlyFetchWorkspace: w.OnlyFetchWorkspace,
 		}
 
+		// Collect the repo, if not seen yet.
+		if _, ok := seenRepos[workspace.Repo.ID]; !ok {
+			seenRepos[workspace.Repo.ID] = struct{}{}
+			repos = append(repos, workspace.Repo)
+		}
+
 		if !allowIgnored && w.Ignored {
 			ignored.Append(workspace.Repo)
 		} else if !allowUnsupported && w.Unsupported {
@@ -241,14 +249,14 @@ func (svc *Service) ResolveWorkspacesForBatchSpec(ctx context.Context, spec *bat
 	}
 
 	if unsupported.HasUnsupported() {
-		return workspaces, unsupported
+		return workspaces, repos, unsupported
 	}
 
 	if ignored.HasIgnored() {
-		return workspaces, ignored
+		return workspaces, repos, ignored
 	}
 
-	return workspaces, nil
+	return workspaces, repos, nil
 }
 
 // EnsureDockerImages iterates over the steps within the batch spec to ensure the
