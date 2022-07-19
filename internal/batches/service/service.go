@@ -233,17 +233,17 @@ func (svc *Service) ResolveWorkspacesForBatchSpec(ctx context.Context, spec *bat
 			OnlyFetchWorkspace: w.OnlyFetchWorkspace,
 		}
 
-		// Collect the repo, if not seen yet.
-		if _, ok := seenRepos[workspace.Repo.ID]; !ok {
-			seenRepos[workspace.Repo.ID] = struct{}{}
-			repos = append(repos, workspace.Repo)
-		}
-
 		if !allowIgnored && w.Ignored {
 			ignored.Append(workspace.Repo)
 		} else if !allowUnsupported && w.Unsupported {
 			unsupported.Append(workspace.Repo)
 		} else {
+			// Collect the repo, if not seen yet.
+			if _, ok := seenRepos[workspace.Repo.ID]; !ok {
+				seenRepos[workspace.Repo.ID] = struct{}{}
+				repos = append(repos, workspace.Repo)
+			}
+
 			workspaces = append(workspaces, workspace)
 		}
 	}
