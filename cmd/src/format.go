@@ -60,7 +60,7 @@ func parseTemplate(text string) (*template.Template, error) {
 		"addFloat": func(x, y float64) float64 {
 			return x + y
 		},
-		"addInt32": func(x, y int32) int32 {
+		"addInt": func(x, y int) int {
 			return x + y
 		},
 		"debug": func(v interface{}) string {
@@ -94,13 +94,11 @@ func parseTemplate(text string) (*template.Template, error) {
 		"buildVersionHasNewSearchInterface": searchTemplateFuncs["buildVersionHasNewSearchInterface"],
 		"renderResult":                      searchTemplateFuncs["renderResult"],
 
-		// Register stream-search specific template functions.
-		"streamSearchSequentialLineNumber": streamSearchTemplateFuncs["streamSearchSequentialLineNumber"],
-		"streamSearchHighlightMatch":       streamSearchTemplateFuncs["streamSearchHighlightMatch"],
-		"streamSearchHighlightCommit":      streamSearchTemplateFuncs["streamSearchHighlightCommit"],
-		"streamSearchRenderCommitLabel":    streamSearchTemplateFuncs["streamSearchRenderCommitLabel"],
-		"matchOrMatches":                   streamSearchTemplateFuncs["matchOrMatches"],
-		"countMatches":                     streamSearchTemplateFuncs["countMatches"],
+		"streamSearchHighlightMatch":    streamSearchTemplateFuncs["streamSearchHighlightMatch"],
+		"streamSearchHighlightCommit":   streamSearchTemplateFuncs["streamSearchHighlightCommit"],
+		"streamSearchRenderCommitLabel": streamSearchTemplateFuncs["streamSearchRenderCommitLabel"],
+		"matchOrMatches":                streamSearchTemplateFuncs["matchOrMatches"],
+		"countMatches":                  streamSearchTemplateFuncs["countMatches"],
 
 		// Alert rendering
 		"searchAlertRender": func(alert searchResultsAlert) string {
