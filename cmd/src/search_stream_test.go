@@ -53,6 +53,18 @@ var event = []streaming.EventMatch{
 						End:   streaming.Location{Offset: 3},
 					},
 					{
+						Start: streaming.Location{Offset: 0},
+						End:   streaming.Location{Offset: 3},
+					},
+					{
+						Start: streaming.Location{Offset: 1},
+						End:   streaming.Location{Offset: 2},
+					},
+					{
+						Start: streaming.Location{Offset: 1},
+						End:   streaming.Location{Offset: 3},
+					},
+					{
 						Start: streaming.Location{Offset: 8},
 						End:   streaming.Location{Offset: 11},
 					},

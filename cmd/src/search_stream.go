@@ -331,6 +331,11 @@ var streamSearchTemplateFuncs = map[string]interface{}{
 			return result
 		}
 
+
+		// if there are overlapping ranges, use this value to know
+		// whether to terminate highlighting or not.
+		highlightingActive := 0
+
 		lineCount := 0
 		addLineColumn(lineCount)
 		for offset, r := range match.Content {
@@ -346,8 +351,12 @@ var streamSearchTemplateFuncs = map[string]interface{}{
 			for _, rr := range match.Ranges {
 				if rr.Start.Offset-match.ContentStart.Offset+1 == offset {
 					result = append(result, []rune(ansiColors["search-match"])...)
+					highlightingActive++
 				} else if rr.End.Offset-match.ContentStart.Offset+1 == offset {
-					result = append(result, []rune(ansiColors["nc"])...)
+					highlightingActive--
+					if highlightingActive <= 0 {
+						result = append(result, []rune(ansiColors["nc"])...)
+					}
 				}
 			}
 			result = append(result, r)
