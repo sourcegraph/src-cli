@@ -331,7 +331,6 @@ var streamSearchTemplateFuncs = map[string]interface{}{
 			return result
 		}
 
-
 		// if there are overlapping ranges, use this value to know
 		// whether to terminate highlighting or not.
 		highlightingActive := 0
