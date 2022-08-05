@@ -178,8 +178,8 @@ func (s *Serve) Repos() ([]Repo, error) {
 			return nil
 		}
 
-		// We recurse into bare repositories to find subprojects. Prevent
-		// recursing into .git
+		// Previously we recursed into bare repositories which is why this check was here.
+		// Now we use this as a sanity check to make sure we didn't somehow stumble into a .git dir.
 		if filepath.Base(path) == ".git" {
 			return filepath.SkipDir
 		}
@@ -209,15 +209,10 @@ func (s *Serve) Repos() ([]Repo, error) {
 			URI:  pathpkg.Join("/repos", name),
 		})
 
-		// Check whether a repository is a bare repository or not.
-		//
-		// Bare repositories shouldn't have any further child
-		// repositories. Only regular git worktrees can have children.
-		if isBare {
-			return filepath.SkipDir
-		}
-
-		return nil
+		// At this point we know the directory is either a git repo or a bare git repo,
+		// we don't need to recurse further to save time.
+		// TODO: Look into whether ite useful to support git submodules
+		return filepath.SkipDir
 	})
 
 	if err != nil {
