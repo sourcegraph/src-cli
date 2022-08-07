@@ -33,7 +33,7 @@ Examples:
 		ctx := context.Background()
 		client := cfg.apiClient(apiFlags, flagSet.Output())
 
-		tmpl, err := parseTemplate("{{.Username}}  {{.SiteAdmin}}")
+		tmpl, err := parseTemplate("{{.Username}}  {{.SiteAdmin}} {{(index .Emails 0).Email}} {{.UsageStatistics.LastActiveTime}}")
 		if err != nil {
 			return err
 		}
@@ -41,19 +41,34 @@ Examples:
 			"-d": api.NullInt(*days),
 		}
 
-		query := `query Users(
-  $first: Int,
-  $query: String,
-) {
-  users(
-first: $first,
-    query: $query,
-  ) {
-    nodes {
-      ...UserFields
-    }
-  }
-}` + userFragment
+		query := `
+query Users($first: Int, $query: String) {
+	users(first: $first, query: $query) {
+		nodes {
+			id
+			username
+			displayName
+			siteAdmin
+			organizations {
+				nodes {
+					id
+					name
+					displayName
+				}
+			}
+			emails {
+				email
+				verified
+			}
+			usageStatistics {
+				lastActiveTime
+				lastActiveCodeHostIntegrationTime
+			}
+			url
+		}
+	}
+}
+`
 
 		var result struct {
 			Users struct {

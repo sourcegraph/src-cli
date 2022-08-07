@@ -60,6 +60,10 @@ fragment UserFields on User {
         email
         verified
     }
+	usageStatistics {
+		lastActiveTime
+		lastActiveCodeHostIntegrationTime
+	}
     url
 }
 `
@@ -72,11 +76,17 @@ type User struct {
 	Organizations struct {
 		Nodes []Org
 	}
-	Emails []UserEmail
-	URL    string
+	Emails          []UserEmail
+	UsageStatistics UserUsageStatistics
+	URL             string
 }
 
 type UserEmail struct {
 	Email    string
 	Verified bool
+}
+
+type UserUsageStatistics struct {
+	LastActiveTime                    string
+	LastActiveCodeHostIntegrationTime string
 }
