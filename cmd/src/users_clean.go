@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"time"
 
 	"github.com/sourcegraph/src-cli/internal/api"
 )
@@ -33,7 +34,7 @@ Examples:
 		ctx := context.Background()
 		client := cfg.apiClient(apiFlags, flagSet.Output())
 
-		tmpl, err := parseTemplate("{{.Username}}  {{.SiteAdmin}} {{(index .Emails 0).Email}} {{.UsageStatistics.LastActiveTime}}")
+		tmpl, err := parseTemplate("{{.Username}}  {{.SiteAdmin}} {{(index .Emails 0).Email}}")
 		if err != nil {
 			return err
 		}
@@ -97,6 +98,21 @@ query Users($first: Int, $query: String) {
 }
 
 func delete_users_not_active_in(users_data string, days_threshold int) error {
+	timeNow := time.Now()
+
+	fmt.Printf("Time now: %s\nLast Active: %s", timeNow, users_data)
+	query := `mutation DeleteUser(
+  $user: ID!
+) {
+  deleteUser(
+    user: $user
+  ) {
+    alwaysNil
+  }
+}`
 	fmt.Printf("%s -- %d\n", users_data, days_threshold)
+	if days_threshold == 0 {
+		fmt.Println(query)
+	}
 	return nil
 }
