@@ -80,11 +80,12 @@ query Users($first: Int, $query: String) {
 		}
 
 		for _, user := range result.Users.Nodes {
+			delete_users_not_active_in(user.UsageStatistics.LastActiveTime, *days)
 			if err := execTemplate(tmpl, user); err != nil {
 				return err
 			}
 		}
-		return nil
+		return err
 	}
 
 	// Register the command.
@@ -93,4 +94,9 @@ query Users($first: Int, $query: String) {
 		handler:   handler,
 		usageFunc: usageFunc,
 	})
+}
+
+func delete_users_not_active_in(users_data string, days_threshold int) error {
+	fmt.Printf("%s -- %d\n", users_data, days_threshold)
+	return nil
 }
