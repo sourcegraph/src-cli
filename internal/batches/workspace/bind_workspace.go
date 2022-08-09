@@ -110,7 +110,8 @@ type dockerBindWorkspace struct {
 	// dir is the directory where the repo archive is unzipped to.
 	// This is also the path that is directly mounted into the docker
 	// containers.
-	dir string
+	dir      string
+	mountDir string
 }
 
 var _ Workspace = &dockerBindWorkspace{}
