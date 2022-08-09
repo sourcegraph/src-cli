@@ -10,16 +10,18 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/sourcegraph/sourcegraph/lib/errors"
-
+	"github.com/sourcegraph/src-cli/internal/api"
 	"github.com/sourcegraph/src-cli/internal/batches/docker"
-	"github.com/sourcegraph/src-cli/internal/batches/executor"
-	"github.com/sourcegraph/src-cli/internal/batches/graphql"
 	"github.com/sourcegraph/src-cli/internal/batches/log"
 	"github.com/sourcegraph/src-cli/internal/batches/repozip"
+	"github.com/sourcegraph/src-cli/internal/batches/workspace"
+
+	"github.com/sourcegraph/sourcegraph/lib/errors"
+
+	"github.com/sourcegraph/src-cli/internal/batches/executor"
+	"github.com/sourcegraph/src-cli/internal/batches/graphql"
 	"github.com/sourcegraph/src-cli/internal/batches/service"
 	"github.com/sourcegraph/src-cli/internal/batches/ui"
-	"github.com/sourcegraph/src-cli/internal/batches/workspace"
 	"github.com/sourcegraph/src-cli/internal/cmderrors"
 
 	batcheslib "github.com/sourcegraph/sourcegraph/lib/batches"
@@ -30,18 +32,23 @@ const (
 )
 
 type executorModeFlags struct {
-	timeout time.Duration
-	file    string
-	tempDir string
-	repoDir string
+	timeout  time.Duration
+	file     string
+	tempDir  string
+	repoDir  string
+	mountDir string
+	api      *api.Flags
 }
 
 func newExecutorModeFlags(flagSet *flag.FlagSet) (f *executorModeFlags) {
-	f = &executorModeFlags{}
+	f = &executorModeFlags{
+		api: api.NewFlags(flagSet),
+	}
 	flagSet.DurationVar(&f.timeout, "timeout", 60*time.Minute, "The maximum duration a single batch spec step can take.")
 	flagSet.StringVar(&f.file, "f", "", "The workspace execution input file to read.")
 	flagSet.StringVar(&f.tempDir, "tmp", "", "Directory for storing temporary data.")
 	flagSet.StringVar(&f.repoDir, "repo", "", "Path of the checked out repo on disk.")
+	flagSet.StringVar(&f.mountDir, "mount", "", "Path of the files to mount on disk.")
 
 	return f
 }
@@ -56,6 +63,9 @@ func validateExecutorModeFlags(f *executorModeFlags) error {
 	if f.repoDir == "" {
 		return errors.New("repoDir parameter missing")
 	}
+	if f.mountDir == "" {
+		return errors.New("mountDir parameter missing")
+	}
 
 	return nil
 }
@@ -69,7 +79,7 @@ github.com/sourcegraph/sourcegraph/lib/batches.
 
 Usage:
 
-    src batch exec -f FILE -repo DIR [command options]
+    src batch exec -f FILE -repo DIR -mount DIR [command options]
 
 Examples:
 
@@ -96,9 +106,13 @@ Examples:
 		ctx, cancel := contextCancelOnInterrupt(context.Background())
 		defer cancel()
 
-		err := executeBatchSpecInWorkspaces(ctx, flags)
+		svc := service.New(&service.Opts{
+			Client: cfg.apiClient(flags.api, flagSet.Output()),
+		})
+
+		err := executeBatchSpecInWorkspaces(ctx, flags, svc)
 		if err != nil {
-			return cmderrors.ExitCode(1, nil)
+			return cmderrors.ExitCode(1, err)
 		}
 
 		return nil
@@ -115,7 +129,7 @@ Examples:
 	})
 }
 
-func executeBatchSpecInWorkspaces(ctx context.Context, flags *executorModeFlags) (err error) {
+func executeBatchSpecInWorkspaces(ctx context.Context, flags *executorModeFlags, svc *service.Service) (err error) {
 	ui := &ui.JSONLines{}
 
 	// Ensure the temp dir exists.
@@ -135,6 +149,15 @@ func executeBatchSpecInWorkspaces(ctx context.Context, flags *executorModeFlags)
 	repoDir := flags.repoDir
 	if !filepath.IsAbs(repoDir) {
 		repoDir, err = filepath.Abs(repoDir)
+		if err != nil {
+			return errors.Wrap(err, "getting absolute path for repo dir")
+		}
+	}
+
+	// Grab the absolute path to the mount contents.
+	mountDir := flags.mountDir
+	if !filepath.IsAbs(mountDir) {
+		repoDir, err = filepath.Abs(mountDir)
 		if err != nil {
 			return errors.Wrap(err, "getting absolute path for repo dir")
 		}
@@ -177,8 +200,7 @@ func executeBatchSpecInWorkspaces(ctx context.Context, flags *executorModeFlags)
 	ui.PreparingContainerImagesSuccess()
 
 	// Empty for now until we support secrets or env var settings in SSBC.
-	globalEnv := []string{}
-	isRemote := true
+	var globalEnv []string
 
 	// Set up the execution UI.
 	taskExecUI := ui.ExecutingTasks(false, 1)
@@ -191,11 +213,10 @@ func executeBatchSpecInWorkspaces(ctx context.Context, flags *executorModeFlags)
 		EnsureImage: imageCache.Ensure,
 		Task:        task,
 		// TODO: Should be slightly less than the executor timeout. Can we somehow read that?
-		Timeout:   flags.timeout,
-		TempDir:   tempDir,
-		GlobalEnv: globalEnv,
-		// Temporarily prevent the ability to sending a batch spec with a mount for server-side processing.
-		IsRemote:    isRemote,
+		Timeout:     flags.timeout,
+		TempDir:     tempDir,
+		MountDir:    mountDir,
+		GlobalEnv:   globalEnv,
 		RepoArchive: &repozip.NoopArchive{},
 		UI:          taskExecUI.StepsExecutionUI(task),
 	}
@@ -203,7 +224,7 @@ func executeBatchSpecInWorkspaces(ctx context.Context, flags *executorModeFlags)
 
 	// Write all step cache results for all results.
 	for _, stepRes := range results {
-		cacheKey := task.CacheKey(globalEnv, isRemote, stepRes.StepIndex)
+		cacheKey := task.CacheKey(globalEnv, mountDir, true, stepRes.StepIndex)
 		k, err := cacheKey.Key()
 		if err != nil {
 			return errors.Wrap(err, "calculating step cache key")
