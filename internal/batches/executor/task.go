@@ -14,7 +14,8 @@ import (
 )
 
 type Task struct {
-	Repository *graphql.Repository
+	BatchSpecID string
+	Repository  *graphql.Repository
 	// Path is the folder relative to the repository's root in which the steps
 	// should be executed. "" means root.
 	Path string
@@ -38,11 +39,13 @@ func (t *Task) ArchivePathToFetch() string {
 	return ""
 }
 
-func (t *Task) CacheKey(globalEnv []string, isRemote bool, stepIndex int) cache.Keyer {
+func (t *Task) CacheKey(globalEnv []string, dir string, isRemote bool, stepIndex int) cache.Keyer {
 	var metadataRetriever cache.MetadataRetriever
 	// If the task is being run locally, set the metadata retrieve to use the filesystem based implementation.
 	if !isRemote {
-		metadataRetriever = fileMetadataRetriever{}
+		metadataRetriever = fileMetadataRetriever{
+			batchSpecDir: dir,
+		}
 	}
 	return &cache.CacheKey{
 		Repository: batcheslib.Repository{
@@ -65,14 +68,16 @@ func (t *Task) CacheKey(globalEnv []string, isRemote bool, stepIndex int) cache.
 	}
 }
 
-type fileMetadataRetriever struct{}
+type fileMetadataRetriever struct {
+	batchSpecDir string
+}
 
 func (f fileMetadataRetriever) Get(steps []batcheslib.Step) ([]cache.MountMetadata, error) {
 	var mountsMetadata []cache.MountMetadata
 	for _, step := range steps {
 		// Build up the metadata for each mount for each step
 		for _, mount := range step.Mount {
-			metadata, err := getMountMetadata(mount.Path)
+			metadata, err := getMountMetadata(filepath.Join(f.batchSpecDir, mount.Path))
 			if err != nil {
 				return nil, err
 			}
