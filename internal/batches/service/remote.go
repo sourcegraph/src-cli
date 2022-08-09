@@ -1,8 +1,17 @@
 package service
 
 import (
+	"bytes"
 	"context"
+	"io"
+	"mime/multipart"
+	"net/http"
+	"os"
+	"path/filepath"
 
+	"github.com/sourcegraph/src-cli/internal/api"
+
+	"github.com/sourcegraph/sourcegraph/lib/batches"
 	"github.com/sourcegraph/sourcegraph/lib/errors"
 )
 
@@ -25,6 +34,7 @@ mutation UpsertEmptyBatchChange(
 		namespace: $namespace
 	) {
 		name
+		id
 	}
 }
 `
@@ -33,14 +43,15 @@ func (svc *Service) UpsertBatchChange(
 	ctx context.Context,
 	name string,
 	namespaceID string,
-) (string, error) {
+) (string, string, error) {
 	if err := svc.areServerSideBatchChangesSupported(); err != nil {
-		return "", err
+		return "", "", err
 	}
 
 	var resp struct {
 		UpsertEmptyBatchChange struct {
 			Name string `json:"name"`
+			ID   string `json:"id"`
 		} `json:"upsertEmptyBatchChange"`
 	}
 
@@ -48,10 +59,10 @@ func (svc *Service) UpsertBatchChange(
 		"name":      name,
 		"namespace": namespaceID,
 	}).Do(ctx, &resp); err != nil || !ok {
-		return "", err
+		return "", "", err
 	}
 
-	return resp.UpsertEmptyBatchChange.Name, nil
+	return resp.UpsertEmptyBatchChange.ID, resp.UpsertEmptyBatchChange.Name, nil
 }
 
 const createBatchSpecFromRawQuery = `
@@ -61,6 +72,7 @@ mutation CreateBatchSpecFromRaw(
     $allowIgnored: Boolean!,
     $allowUnsupported: Boolean!,
     $noCache: Boolean!,
+    $batchChange: ID!,
 ) {
     createBatchSpecFromRaw(
         batchSpec: $batchSpec,
@@ -68,8 +80,10 @@ mutation CreateBatchSpecFromRaw(
         allowIgnored: $allowIgnored,
         allowUnsupported: $allowUnsupported,
         noCache: $noCache,
+        batchChange: $batchChange,
     ) {
         id
+        uploadToken
     }
 }
 `
@@ -81,6 +95,7 @@ func (svc *Service) CreateBatchSpecFromRaw(
 	allowIgnored bool,
 	allowUnsupported bool,
 	noCache bool,
+	batchChange string,
 ) (string, error) {
 	if err := svc.areServerSideBatchChangesSupported(); err != nil {
 		return "", err
@@ -88,7 +103,8 @@ func (svc *Service) CreateBatchSpecFromRaw(
 
 	var resp struct {
 		CreateBatchSpecFromRaw struct {
-			ID string `json:"id"`
+			ID          string `json:"id"`
+			UploadToken string `json:"uploadToken"`
 		} `json:"createBatchSpecFromRaw"`
 	}
 
@@ -98,11 +114,95 @@ func (svc *Service) CreateBatchSpecFromRaw(
 		"allowIgnored":     allowIgnored,
 		"allowUnsupported": allowUnsupported,
 		"noCache":          noCache,
+		"batchChange":      batchChange,
 	}).Do(ctx, &resp); err != nil || !ok {
 		return "", err
 	}
 
 	return resp.CreateBatchSpecFromRaw.ID, nil
+}
+
+func (svc *Service) UploadMounts(dir string, batchSpecID string, steps []batches.Step) error {
+	if err := svc.areServerSideBatchChangesSupported(); err != nil {
+		return err
+	}
+
+	for _, step := range steps {
+		// TODO bulk + parallel
+		for _, mount := range step.Mount {
+			if err := uploadMount(svc.client, batchSpecID, filepath.Join(dir, mount.Path)); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func uploadMount(client api.Client, batchSpecID string, mountPath string) error {
+	info, err := os.Stat(mountPath)
+	if err != nil {
+		return err
+	}
+	if info.IsDir() {
+		dir, err := os.ReadDir(mountPath)
+		if err != nil {
+			return err
+		}
+		for _, dirEntry := range dir {
+			if err = uploadMount(client, batchSpecID, filepath.Join(mountPath, dirEntry.Name())); err != nil {
+				return err
+			}
+		}
+	} else {
+		if err = uploadFile(client, batchSpecID, mountPath); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func uploadFile(client api.Client, batchSpecID string, path string) error {
+	body := &bytes.Buffer{}
+	w := multipart.NewWriter(body)
+
+	f, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	if err = w.WriteField("count", "1"); err != nil {
+		return err
+	}
+	if err = w.WriteField("batchSpecID", batchSpecID); err != nil {
+		return err
+	}
+
+	part, err := w.CreateFormFile("file_0", "foo/bar/updater.py")
+	if err != nil {
+		return err
+	}
+	if _, err = io.Copy(part, f); err != nil {
+		return err
+	}
+	if err = w.Close(); err != nil {
+		return err
+	}
+
+	request, err := client.NewHTTPRequest(context.Background(), http.MethodPost, filepath.Join(".api/batches/mount", batchSpecID), body)
+	if err != nil {
+		return err
+	}
+	request.Header.Add("Content-Type", w.FormDataContentType())
+
+	resp, err := client.Do(request)
+	if err != nil {
+		return err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return errors.New("failed")
+	}
+	return nil
 }
 
 const executeBatchSpecQuery = `
