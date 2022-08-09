@@ -62,11 +62,12 @@ type NewExecutorOpts struct {
 	Logger              log.LogManager
 
 	// Config
-	Parallelism int
-	Timeout     time.Duration
-	TempDir     string
-	IsRemote    bool
-	GlobalEnv   []string
+	Parallelism        int
+	Timeout            time.Duration
+	BatchSpecDirectory string
+	TempDir            string
+	IsRemote           bool
+	GlobalEnv          []string
 }
 
 type executor struct {
@@ -173,7 +174,6 @@ func (x *executor) do(ctx context.Context, task *Task, ui TaskExecutionUI) (err 
 		WC:          x.opts.Creator,
 		EnsureImage: x.opts.EnsureImage,
 		TempDir:     x.opts.TempDir,
-		IsRemote:    x.opts.IsRemote,
 		GlobalEnv:   x.opts.GlobalEnv,
 		Timeout:     x.opts.Timeout,
 		RepoArchive: repoArchive,
