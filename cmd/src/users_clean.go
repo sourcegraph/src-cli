@@ -97,10 +97,18 @@ query Users($first: Int, $query: String) {
 	})
 }
 
-func delete_users_not_active_in(users_data string, days_threshold int) error {
+func delete_users_not_active_in(usage string, days_threshold int) error {
 	timeNow := time.Now()
+	timeLast, err := time.Parse(time.RFC3339, usage)
+	if err != nil {
+		fmt.Printf("failed to parse lastActive time: %s", err)
+	}
+	timeDiff := timeNow.Sub(timeLast)
+	if err != nil {
+		fmt.Printf("failed to diff lastActive to current time: %s", err)
+	}
 
-	fmt.Printf("Time now: %s\nLast Active: %s", timeNow, users_data)
+	fmt.Printf("Time now: %s\nLast active: %s\nTime diff: %d\n\n", timeNow, timeLast, int(timeDiff.Hours()/24))
 	query := `mutation DeleteUser(
   $user: ID!
 ) {
@@ -110,7 +118,7 @@ func delete_users_not_active_in(users_data string, days_threshold int) error {
     alwaysNil
   }
 }`
-	fmt.Printf("%s -- %d\n", users_data, days_threshold)
+	fmt.Printf("%s -- %d\n", usage, days_threshold)
 	if days_threshold == 0 {
 		fmt.Println(query)
 	}
