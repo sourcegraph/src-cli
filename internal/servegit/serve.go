@@ -60,8 +60,9 @@ var indexHTML = template.Must(template.New("").Parse(`<html>
 </html>`))
 
 type Repo struct {
-	Name string
-	URI  string
+	Name   string
+	URI    string
+	IsBare bool
 }
 
 func (s *Serve) handler() http.Handler {
@@ -205,8 +206,9 @@ func (s *Serve) Repos() ([]Repo, error) {
 		name := filepath.ToSlash(subpath)
 		reposRootIsRepo = reposRootIsRepo || name == "."
 		repos = append(repos, Repo{
-			Name: name,
-			URI:  pathpkg.Join("/repos", name),
+			Name:   name,
+			URI:    pathpkg.Join("/repos", name),
+			IsBare: isBare,
 		})
 
 		// At this point we know the directory is either a git repo or a bare git repo,

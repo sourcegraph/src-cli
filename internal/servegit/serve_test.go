@@ -32,7 +32,7 @@ func TestReposHandler(t *testing.T) {
 		repos: []string{"project1", "project2"},
 	}, {
 		name:  "nested",
-		repos: []string{"project1", "project1/subproject", "project2", "dir/project3", "dir/project4.bare"},
+		repos: []string{"project1", "project2", "dir/project3", "dir/project4.bare"},
 	}}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -47,7 +47,9 @@ func TestReposHandler(t *testing.T) {
 
 			var want []Repo
 			for _, name := range tc.repos {
-				want = append(want, Repo{Name: name, URI: path.Join("/repos", name)})
+				isBare := strings.HasSuffix(name, ".bare")
+				want = append(want, Repo{Name: name, URI: path.Join("/repos", name), IsBare: isBare})
+
 			}
 			testReposHandler(t, h, want)
 		})
