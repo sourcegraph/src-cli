@@ -24,8 +24,10 @@ Examples:
 		fmt.Println(usage)
 	}
 	var (
-		days     = flagSet.Int("d", 1000, "Returns the first n users from the list. (use -1 for unlimited)")
-		apiFlags = api.NewFlags(flagSet)
+		days      = flagSet.Int("d", 365, "Returns the first n users from the list. (use -1 for unlimited)")
+		noAdmin   = flagSet.Bool("no-admin", false, "Omit admin accounts from cleanup")
+		sendEmail = flagSet.Bool("email", false, "send removed users an email")
+		apiFlags  = api.NewFlags(flagSet)
 	)
 
 	handler := func(args []string) error {
@@ -81,7 +83,14 @@ query Users($first: Int, $query: String) {
 		}
 
 		for _, user := range result.Users.Nodes {
-			delete_users_not_active_in(user.UsageStatistics.LastActiveTime, *days)
+			fmt.Printf("PRINT: %v, %v", *noAdmin, *sendEmail)
+			daysSinceLastUse, err := timeSinceLastUse(user, *days)
+			if err != nil {
+				fmt.Print(err)
+			}
+			if daysSinceLastUse >= *days {
+				removeUser(user)
+			}
 			if err := execTemplate(tmpl, user); err != nil {
 				return err
 			}
@@ -97,18 +106,26 @@ query Users($first: Int, $query: String) {
 	})
 }
 
-func delete_users_not_active_in(usage string, days_threshold int) error {
+func timeSinceLastUse(user User, daysToDelete int) (int, error) {
 	timeNow := time.Now()
-	timeLast, err := time.Parse(time.RFC3339, usage)
+	if user.UsageStatistics.LastActiveTime == "" {
+		fmt.Printf("%s at (%s) has no lastActive value\n", user.Username, user.Emails[0].Email)
+		return 0, nil
+	}
+	timeLast, err := time.Parse(time.RFC3339, user.UsageStatistics.LastActiveTime)
 	if err != nil {
 		fmt.Printf("failed to parse lastActive time: %s", err)
 	}
-	timeDiff := timeNow.Sub(timeLast)
+	timeDiff := int(timeNow.Sub(timeLast).Hours() / 24)
 	if err != nil {
 		fmt.Printf("failed to diff lastActive to current time: %s", err)
 	}
 
-	fmt.Printf("Time now: %s\nLast active: %s\nTime diff: %d\n\n", timeNow, timeLast, int(timeDiff.Hours()/24))
+	fmt.Printf("Time now: %s\nLast active: %s\nTime diff: %d\n\n", timeNow, timeLast, timeDiff)
+	return timeDiff, err
+}
+
+func removeUser(user User) error {
 	query := `mutation DeleteUser(
   $user: ID!
 ) {
@@ -118,9 +135,11 @@ func delete_users_not_active_in(usage string, days_threshold int) error {
     alwaysNil
   }
 }`
-	fmt.Printf("%s -- %d\n", usage, days_threshold)
-	if days_threshold == 0 {
-		fmt.Println(query)
-	}
+	fmt.Printf("Deleted user: %s\n%s", user.Username, query)
+	return nil
+}
+
+func sendEmail(user *User) error {
+	fmt.Printf("This sent an email to %s", user.Emails[0].Email)
 	return nil
 }
