@@ -63,7 +63,7 @@ Examples:
 		// may as well validate it at the same time so we don't even have to go to
 		// the backend if it's invalid.
 		ui.ParsingBatchSpec()
-		spec, raw, err := parseBatchSpec(ctx, file, svc, true)
+		spec, raw, err := parseBatchSpec(ctx, file, svc)
 		if err != nil {
 			ui.ParsingBatchSpecFailure(err)
 			return err
@@ -79,7 +79,7 @@ Examples:
 		ui.ResolvingNamespaceSuccess(namespace.ID)
 
 		ui.SendingBatchChange()
-		batchChangeName, err := svc.UpsertBatchChange(ctx, spec.Name, namespace.ID)
+		batchChangeID, batchChangeName, err := svc.UpsertBatchChange(ctx, spec.Name, namespace.ID)
 		if err != nil {
 			return err
 		}
@@ -93,11 +93,22 @@ Examples:
 			flags.allowIgnored,
 			flags.allowUnsupported,
 			flags.clearCache,
+			batchChangeID,
 		)
 		if err != nil {
 			return err
 		}
 		ui.SendingBatchSpecSuccess()
+
+		ui.UploadingMounts()
+		dir, err := getBatchSpecDirectory(file)
+		if err != nil {
+			return errors.Wrap(err, "batch spec path")
+		}
+		if err = svc.UploadMounts(dir, batchSpecID, spec.Steps); err != nil {
+			return err
+		}
+		ui.UploadingMountsSuccess()
 
 		// Wait for the workspaces to be resolved.
 		ui.ResolvingWorkspaces()
