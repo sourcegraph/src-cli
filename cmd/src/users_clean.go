@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"reflect"
 	"time"
 
 	"github.com/sourcegraph/src-cli/internal/api"
@@ -24,10 +25,10 @@ Examples:
 		fmt.Println(usage)
 	}
 	var (
-		days      = flagSet.Int("d", 365, "Returns the first n users from the list. (use -1 for unlimited)")
-		noAdmin   = flagSet.Bool("no-admin", false, "Omit admin accounts from cleanup")
-		sendEmail = flagSet.Bool("email", false, "send removed users an email")
-		apiFlags  = api.NewFlags(flagSet)
+		daysToDelete = flagSet.Int("d", 365, "Returns the first n users from the list. (use -1 for unlimited)")
+		noAdmin      = flagSet.Bool("no-admin", false, "Omit admin accounts from cleanup")
+		toEmail      = flagSet.Bool("email", false, "send removed users an email")
+		apiFlags     = api.NewFlags(flagSet)
 	)
 
 	handler := func(args []string) error {
@@ -36,12 +37,12 @@ Examples:
 		ctx := context.Background()
 		client := cfg.apiClient(apiFlags, flagSet.Output())
 
-		tmpl, err := parseTemplate("{{.Username}}  {{.SiteAdmin}} {{(index .Emails 0).Email}}")
-		if err != nil {
-			return err
-		}
+		//tmpl, err := parseTemplate("{{.Username}}  {{.SiteAdmin}} {{(index .Emails 0).Email}}")
+		//if err != nil {
+		//	return err
+		//}
 		vars := map[string]interface{}{
-			"-d": api.NullInt(*days),
+			"-d": api.NullInt(*daysToDelete),
 		}
 
 		query := `
@@ -78,24 +79,31 @@ query Users($first: Int, $query: String) {
 				Nodes []User
 			}
 		}
+
 		if ok, err := client.NewRequest(query, vars).Do(ctx, &result); err != nil || !ok {
 			return err
 		}
 
+		usersToDelete := make([]User, 0)
 		for _, user := range result.Users.Nodes {
-			fmt.Printf("PRINT: %v, %v", *noAdmin, *sendEmail)
-			daysSinceLastUse, err := timeSinceLastUse(user, *days)
+			daysSinceLastUse, err := computeDaysSinceLastUse(user)
 			if err != nil {
-				fmt.Print(err)
-			}
-			if daysSinceLastUse >= *days {
-				removeUser(user)
-			}
-			if err := execTemplate(tmpl, user); err != nil {
 				return err
 			}
+			if daysSinceLastUse >= *daysToDelete {
+				usersToDelete = append(usersToDelete, user)
+				fmt.Printf("\nAdding %s to remove list: %d days since last active, remove after %d days inactive\n", user.Username, daysSinceLastUse, *daysToDelete)
+			}
 		}
-		return err
+		for _, user := range usersToDelete {
+			removeUser(user)
+			if *toEmail {
+				sendEmail(user)
+			}
+		}
+		fmt.Print(noAdmin)
+		fmt.Print(toEmail)
+		return nil
 	}
 
 	// Register the command.
@@ -106,11 +114,12 @@ query Users($first: Int, $query: String) {
 	})
 }
 
-func timeSinceLastUse(user User, daysToDelete int) (int, error) {
+func computeDaysSinceLastUse(user User) (int, error) {
 	timeNow := time.Now()
+	//TODO handle for null lastActiveTime = null
 	if user.UsageStatistics.LastActiveTime == "" {
-		fmt.Printf("%s at (%s) has no lastActive value\n", user.Username, user.Emails[0].Email)
-		return 0, nil
+		fmt.Printf("\n%s has no lastActive value\n", user.Username)
+		return 9999, nil
 	}
 	timeLast, err := time.Parse(time.RFC3339, user.UsageStatistics.LastActiveTime)
 	if err != nil {
@@ -121,7 +130,6 @@ func timeSinceLastUse(user User, daysToDelete int) (int, error) {
 		fmt.Printf("failed to diff lastActive to current time: %s", err)
 	}
 
-	fmt.Printf("Time now: %s\nLast active: %s\nTime diff: %d\n\n", timeNow, timeLast, timeDiff)
 	return timeDiff, err
 }
 
@@ -135,11 +143,12 @@ func removeUser(user User) error {
     alwaysNil
   }
 }`
-	fmt.Printf("Deleted user: %s\n%s", user.Username, query)
+	reflect.TypeOf(query)
+	fmt.Printf("\nDeleted user: %s\n", user.Username)
 	return nil
 }
 
-func sendEmail(user *User) error {
+func sendEmail(user User) error {
 	fmt.Printf("This sent an email to %s", user.Emails[0].Email)
 	return nil
 }
