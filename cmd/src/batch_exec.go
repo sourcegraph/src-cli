@@ -157,9 +157,9 @@ func executeBatchSpecInWorkspaces(ctx context.Context, flags *executorModeFlags,
 	// Grab the absolute path to the mount contents.
 	mountDir := flags.mountDir
 	if !filepath.IsAbs(mountDir) {
-		repoDir, err = filepath.Abs(mountDir)
+		mountDir, err = filepath.Abs(mountDir)
 		if err != nil {
-			return errors.Wrap(err, "getting absolute path for repo dir")
+			return errors.Wrap(err, "getting absolute path for mount dir")
 		}
 	}
 
