@@ -3,13 +3,14 @@ package service
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"mime/multipart"
 	"net/http"
 	"os"
 	"path/filepath"
-
-	"github.com/sourcegraph/src-cli/internal/api"
+	"strconv"
+	"strings"
 
 	"github.com/sourcegraph/sourcegraph/lib/batches"
 	"github.com/sourcegraph/sourcegraph/lib/errors"
@@ -83,7 +84,6 @@ mutation CreateBatchSpecFromRaw(
         batchChange: $batchChange,
     ) {
         id
-        uploadToken
     }
 }
 `
@@ -103,8 +103,7 @@ func (svc *Service) CreateBatchSpecFromRaw(
 
 	var resp struct {
 		CreateBatchSpecFromRaw struct {
-			ID          string `json:"id"`
-			UploadToken string `json:"uploadToken"`
+			ID string `json:"id"`
 		} `json:"createBatchSpecFromRaw"`
 	}
 
@@ -122,85 +121,99 @@ func (svc *Service) CreateBatchSpecFromRaw(
 	return resp.CreateBatchSpecFromRaw.ID, nil
 }
 
-func (svc *Service) UploadMounts(dir string, batchSpecID string, steps []batches.Step) error {
+// UploadMounts uploads file mounts to the server.
+func (svc *Service) UploadMounts(workingDir string, batchSpecID string, steps []batches.Step) error {
 	if err := svc.areServerSideBatchChangesSupported(); err != nil {
 		return err
 	}
 
-	for _, step := range steps {
-		// TODO bulk + parallel
-		for _, mount := range step.Mount {
-			if err := uploadMount(svc.client, batchSpecID, filepath.Join(dir, mount.Path)); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
-}
-
-func uploadMount(client api.Client, batchSpecID string, mountPath string) error {
-	info, err := os.Stat(mountPath)
-	if err != nil {
-		return err
-	}
-	if info.IsDir() {
-		dir, err := os.ReadDir(mountPath)
-		if err != nil {
-			return err
-		}
-		for _, dirEntry := range dir {
-			if err = uploadMount(client, batchSpecID, filepath.Join(mountPath, dirEntry.Name())); err != nil {
-				return err
-			}
-		}
-	} else {
-		if err = uploadFile(client, batchSpecID, mountPath); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func uploadFile(client api.Client, batchSpecID string, path string) error {
 	body := &bytes.Buffer{}
 	w := multipart.NewWriter(body)
 
-	f, err := os.Open(path)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-
-	if err = w.WriteField("count", "1"); err != nil {
-		return err
-	}
-	if err = w.WriteField("batchSpecID", batchSpecID); err != nil {
-		return err
+	// TODO bulk + parallel
+	count := 0
+	for _, step := range steps {
+		for _, mount := range step.Mount {
+			if err := createFormFile(w, workingDir, mount.Path, count); err != nil {
+				return err
+			}
+			count++
+		}
 	}
 
-	part, err := w.CreateFormFile("file_0", "foo/bar/updater.py")
-	if err != nil {
-		return err
-	}
-	if _, err = io.Copy(part, f); err != nil {
-		return err
-	}
-	if err = w.Close(); err != nil {
+	// Add 1 to the count for the actual length.
+	if err := w.WriteField("count", strconv.Itoa(count+1)); err != nil {
 		return err
 	}
 
-	request, err := client.NewHTTPRequest(context.Background(), http.MethodPost, filepath.Join(".api/batches/mount", batchSpecID), body)
+	// Honestly, the most import thing to do. This adds the closing boundary to the request.
+	if err := w.Close(); err != nil {
+		return err
+	}
+
+	request, err := svc.client.NewHTTPRequest(context.Background(), http.MethodPost, filepath.Join(".api/batches/mount", batchSpecID), body)
 	if err != nil {
 		return err
 	}
 	request.Header.Add("Content-Type", w.FormDataContentType())
 
-	resp, err := client.Do(request)
+	resp, err := svc.client.Do(request)
 	if err != nil {
 		return err
 	}
 	if resp.StatusCode != http.StatusOK {
-		return errors.New("failed")
+		p, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return err
+		}
+		return errors.New(string(p))
+	}
+	return nil
+}
+
+func createFormFile(w *multipart.Writer, workingDir, mountPath string, index int) error {
+	actualFilePath := filepath.Join(workingDir, mountPath)
+	info, err := os.Stat(actualFilePath)
+	if err != nil {
+		return err
+	}
+	if info.IsDir() {
+		dir, err := os.ReadDir(actualFilePath)
+		if err != nil {
+			return err
+		}
+		for _, dirEntry := range dir {
+			if err = createFormFile(w, workingDir, filepath.Join(mountPath, dirEntry.Name()), index); err != nil {
+				return err
+			}
+		}
+	} else {
+		if err = uploadFile(w, workingDir, mountPath, index); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func uploadFile(w *multipart.Writer, workingDir string, mountPath string, index int) error {
+	// TODO: limit file size
+	f, err := os.Open(filepath.Join(workingDir, mountPath))
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	filePath, fileName := filepath.Split(mountPath)
+	if err = w.WriteField(fmt.Sprintf("filepath_%d", index), strings.TrimLeft(filePath, "./")); err != nil {
+		return err
+	}
+
+	part, err := w.CreateFormFile(fmt.Sprintf("file_%d", index), fileName)
+	if err != nil {
+		return err
+	}
+	if _, err = io.Copy(part, f); err != nil {
+		return err
 	}
 	return nil
 }
