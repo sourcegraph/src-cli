@@ -4,7 +4,6 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"reflect"
 	"time"
 
 	"github.com/sourcegraph/src-cli/internal/api"
@@ -25,10 +24,11 @@ Examples:
 		fmt.Println(usage)
 	}
 	var (
-		daysToDelete = flagSet.Int("d", 365, "Returns the first n users from the list. (use -1 for unlimited)")
-		noAdmin      = flagSet.Bool("no-admin", false, "Omit admin accounts from cleanup")
-		toEmail      = flagSet.Bool("email", false, "send removed users an email")
-		apiFlags     = api.NewFlags(flagSet)
+		daysToDelete       = flagSet.Int("d", 365, "Returns the first n users from the list. (use -1 for unlimited)")
+		noAdmin            = flagSet.Bool("no-admin", false, "Omit admin accounts from cleanup")
+		toEmail            = flagSet.Bool("email", false, "send removed users an email")
+		removeNoLastActive = flagSet.Bool("removeNeverActive", false, "removes users with null lastActive value")
+		apiFlags           = api.NewFlags(flagSet)
 	)
 
 	handler := func(args []string) error {
@@ -49,30 +49,11 @@ Examples:
 query Users($first: Int, $query: String) {
 	users(first: $first, query: $query) {
 		nodes {
-			id
-			username
-			displayName
-			siteAdmin
-			organizations {
-				nodes {
-					id
-					name
-					displayName
-				}
-			}
-			emails {
-				email
-				verified
-			}
-			usageStatistics {
-				lastActiveTime
-				lastActiveCodeHostIntegrationTime
-			}
-			url
+			...UserFields
 		}
 	}
 }
-`
+` + userFragment
 
 		var result struct {
 			Users struct {
@@ -86,23 +67,32 @@ query Users($first: Int, $query: String) {
 
 		usersToDelete := make([]User, 0)
 		for _, user := range result.Users.Nodes {
-			daysSinceLastUse, err := computeDaysSinceLastUse(user)
+			daysSinceLastUse, wasLastActive, err := computeDaysSinceLastUse(user)
 			if err != nil {
 				return err
 			}
-			if daysSinceLastUse >= *daysToDelete {
-				usersToDelete = append(usersToDelete, user)
-				fmt.Printf("\nAdding %s to remove list: %d days since last active, remove after %d days inactive\n", user.Username, daysSinceLastUse, *daysToDelete)
+			if !wasLastActive && !*removeNoLastActive {
+				continue
 			}
+			if *noAdmin && user.SiteAdmin {
+				continue
+			}
+			if daysSinceLastUse <= *daysToDelete {
+				continue
+			}
+
+			usersToDelete = append(usersToDelete, user)
+			fmt.Printf("\nAdding %s to remove list: %d days since last active, remove after %d days inactive\n", user.Username, daysSinceLastUse, *daysToDelete)
 		}
 		for _, user := range usersToDelete {
-			removeUser(user)
+			if err := removeUser(user, client, ctx); err != nil {
+				return err
+			}
 			if *toEmail {
 				sendEmail(user)
 			}
 		}
-		fmt.Print(noAdmin)
-		fmt.Print(toEmail)
+
 		return nil
 	}
 
@@ -114,26 +104,25 @@ query Users($first: Int, $query: String) {
 	})
 }
 
-func computeDaysSinceLastUse(user User) (int, error) {
+func computeDaysSinceLastUse(user User) (timeDiff int, wasLastActive bool, _ error) {
 	timeNow := time.Now()
 	//TODO handle for null lastActiveTime = null
 	if user.UsageStatistics.LastActiveTime == "" {
 		fmt.Printf("\n%s has no lastActive value\n", user.Username)
-		return 9999, nil
+		wasLastActive = false
+		return 0, wasLastActive, nil
 	}
 	timeLast, err := time.Parse(time.RFC3339, user.UsageStatistics.LastActiveTime)
 	if err != nil {
 		fmt.Printf("failed to parse lastActive time: %s", err)
+		return 0, false, err
 	}
-	timeDiff := int(timeNow.Sub(timeLast).Hours() / 24)
-	if err != nil {
-		fmt.Printf("failed to diff lastActive to current time: %s", err)
-	}
+	timeDiff = int(timeNow.Sub(timeLast).Hours() / 24)
 
-	return timeDiff, err
+	return timeDiff, true, err
 }
 
-func removeUser(user User) error {
+func removeUser(user User, client api.Client, ctx context.Context) error {
 	query := `mutation DeleteUser(
   $user: ID!
 ) {
@@ -143,8 +132,13 @@ func removeUser(user User) error {
     alwaysNil
   }
 }`
-	reflect.TypeOf(query)
-	fmt.Printf("\nDeleted user: %s\n", user.Username)
+	vars := map[string]interface{}{
+		"user": user.ID,
+	}
+	if ok, err := client.NewRequest(query, vars).Do(ctx, nil); err != nil || !ok {
+		return err
+	}
+	fmt.Printf("\nDeleted user %s: %s\n", user.ID, user.Username)
 	return nil
 }
 
