@@ -131,18 +131,18 @@ func (svc *Service) UploadMounts(workingDir string, batchSpecID string, steps []
 	w := multipart.NewWriter(body)
 
 	// TODO bulk + parallel
-	count := 0
+	var count int
 	for _, step := range steps {
 		for _, mount := range step.Mount {
-			if err := createFormFile(w, workingDir, mount.Path, count); err != nil {
+			total, err := handlePath(w, workingDir, mount.Path, count)
+			if err != nil {
 				return err
 			}
-			count++
+			count += total
 		}
 	}
 
-	// Add 1 to the count for the actual length.
-	if err := w.WriteField("count", strconv.Itoa(count+1)); err != nil {
+	if err := w.WriteField("count", strconv.Itoa(count)); err != nil {
 		return err
 	}
 
@@ -151,7 +151,7 @@ func (svc *Service) UploadMounts(workingDir string, batchSpecID string, steps []
 		return err
 	}
 
-	request, err := svc.client.NewHTTPRequest(context.Background(), http.MethodPost, filepath.Join(".api/batches/mount", batchSpecID), body)
+	request, err := svc.client.NewHTTPRequest(context.Background(), http.MethodPost, fmt.Sprintf(".api/batches/mount/%s", batchSpecID), body)
 	if err != nil {
 		return err
 	}
@@ -171,31 +171,35 @@ func (svc *Service) UploadMounts(workingDir string, batchSpecID string, steps []
 	return nil
 }
 
-func createFormFile(w *multipart.Writer, workingDir, mountPath string, index int) error {
+func handlePath(w *multipart.Writer, workingDir, mountPath string, offset int) (int, error) {
+	total := 0
 	actualFilePath := filepath.Join(workingDir, mountPath)
 	info, err := os.Stat(actualFilePath)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	if info.IsDir() {
 		dir, err := os.ReadDir(actualFilePath)
 		if err != nil {
-			return err
+			return 0, err
 		}
 		for _, dirEntry := range dir {
-			if err = createFormFile(w, workingDir, filepath.Join(mountPath, dirEntry.Name()), index); err != nil {
-				return err
+			totalFiles, err := handlePath(w, workingDir, filepath.Join(mountPath, dirEntry.Name()), offset+total)
+			if err != nil {
+				return 0, err
 			}
+			total += totalFiles
 		}
 	} else {
-		if err = uploadFile(w, workingDir, mountPath, index); err != nil {
-			return err
+		if err = createFormFile(w, workingDir, mountPath, offset+total); err != nil {
+			return 0, err
 		}
+		total++
 	}
-	return nil
+	return total, nil
 }
 
-func uploadFile(w *multipart.Writer, workingDir string, mountPath string, index int) error {
+func createFormFile(w *multipart.Writer, workingDir string, mountPath string, index int) error {
 	// TODO: limit file size
 	f, err := os.Open(filepath.Join(workingDir, mountPath))
 	if err != nil {
@@ -204,7 +208,8 @@ func uploadFile(w *multipart.Writer, workingDir string, mountPath string, index 
 	defer f.Close()
 
 	filePath, fileName := filepath.Split(mountPath)
-	if err = w.WriteField(fmt.Sprintf("filepath_%d", index), strings.TrimLeft(filePath, "./")); err != nil {
+	trimmedPath := strings.Trim(strings.TrimSuffix(filePath, string(filepath.Separator)), ".")
+	if err = w.WriteField(fmt.Sprintf("filepath_%d", index), trimmedPath); err != nil {
 		return err
 	}
 
