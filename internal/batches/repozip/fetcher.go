@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"math/rand"
 	"net/http"
 	"os"
 	"path"
@@ -337,10 +336,7 @@ func fetchRepositoryFile(ctx context.Context, client HTTPClient, repo RepoRevisi
 		return false, fmt.Errorf("unable to fetch archive (HTTP %d from %s)", resp.StatusCode, req.URL.String())
 	}
 
-	tmpFileDir := fmt.Sprintf("%s.%d.tmp", dest, rand.Int())
-	// Ensure the file doesn't exist.
-	_ = os.Remove(tmpFileDir)
-	f, err := os.Create(tmpFileDir)
+	f, err := os.CreateTemp(path.Dir(dest), fmt.Sprintf("%s-*.tmp", path.Base(dest)))
 	if err != nil {
 		return false, err
 	}
@@ -352,7 +348,7 @@ func fetchRepositoryFile(ctx context.Context, client HTTPClient, repo RepoRevisi
 
 	// Atomically create the actual file, so that there are no artifacts left behind
 	// when this process is aborted, network errors occur, or some witchcraft goes on.
-	if err := os.Rename(tmpFileDir, dest); err != nil {
+	if err := os.Rename(f.Name(), dest); err != nil {
 		return false, errors.Wrap(err, "renaming temp file")
 	}
 
