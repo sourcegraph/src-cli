@@ -71,7 +71,7 @@ func (f fileMetadataRetriever) Get(steps []batcheslib.Step) ([]cache.MountMetada
 	for _, step := range steps {
 		// Build up the metadata for each mount for each step
 		for _, mount := range step.Mount {
-			metadata, err := getMountMetadata(filepath.Join(f.batchSpecDir, mount.Path))
+			metadata, err := f.getMountMetadata(f.batchSpecDir, mount.Path)
 			if err != nil {
 				return nil, err
 			}
@@ -82,8 +82,12 @@ func (f fileMetadataRetriever) Get(steps []batcheslib.Step) ([]cache.MountMetada
 	return mountsMetadata, nil
 }
 
-func getMountMetadata(path string) ([]cache.MountMetadata, error) {
-	info, err := os.Stat(path)
+func (f fileMetadataRetriever) getMountMetadata(baseDir string, path string) ([]cache.MountMetadata, error) {
+	fullPath := path
+	if !filepath.IsAbs(path) {
+		fullPath = filepath.Join(baseDir, path)
+	}
+	info, err := os.Stat(fullPath)
 	if errors.Is(err, os.ErrNotExist) {
 		return nil, errors.Newf("path %s does not exist", path)
 	} else if err != nil {
@@ -91,30 +95,33 @@ func getMountMetadata(path string) ([]cache.MountMetadata, error) {
 	}
 	var metadata []cache.MountMetadata
 	if info.IsDir() {
-		dirMetadata, err := getDirectoryMountMetadata(path)
+		dirMetadata, err := f.getDirectoryMountMetadata(fullPath)
 		if err != nil {
 			return nil, err
 		}
 		metadata = append(metadata, dirMetadata...)
 	} else {
-		metadata = append(metadata, cache.MountMetadata{Path: path, Size: info.Size(), Modified: info.ModTime().UTC()})
+		relativePath, err := filepath.Rel(f.batchSpecDir, fullPath)
+		if err != nil {
+			return nil, err
+		}
+		metadata = append(metadata, cache.MountMetadata{Path: relativePath, Size: info.Size(), Modified: info.ModTime().UTC()})
 	}
 	return metadata, nil
 }
 
 // getDirectoryMountMetadata reads all the files in the directory with the given
 // path and returns the cache.MountMetadata for all of them.
-func getDirectoryMountMetadata(path string) ([]cache.MountMetadata, error) {
+func (f fileMetadataRetriever) getDirectoryMountMetadata(path string) ([]cache.MountMetadata, error) {
 	dir, err := os.ReadDir(path)
 	if err != nil {
 		return nil, err
 	}
 	var metadata []cache.MountMetadata
 	for _, dirEntry := range dir {
-		newPath := filepath.Join(path, dirEntry.Name())
 		// Go back to the very start. Need to get the FileInfo again for the new path and figure out if it is a
 		// directory or a file.
-		fileMetadata, err := getMountMetadata(newPath)
+		fileMetadata, err := f.getMountMetadata(path, dirEntry.Name())
 		if err != nil {
 			return nil, err
 		}
