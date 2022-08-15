@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"testing"
@@ -340,6 +341,9 @@ func writeTempFile(dir string, name string, content string) error {
 	return nil
 }
 
+// 2006-01-02 15:04:05.999999999 -0700 MST
+var modtimeRegex = regexp.MustCompile("^[0-9]{4}-[0-9]{2}-[0-9]{2}\\s[0-9]{2}:[0-9]{2}:[0-9]{2}.[0-9]{9} \\+0000 UTC$")
+
 func multipartFormRequestMatcher(entries ...multipartFormEntry) func(*http.Request) bool {
 	return func(req *http.Request) bool {
 		contentType := req.Header.Get("Content-Type")
@@ -354,6 +358,9 @@ func multipartFormRequestMatcher(entries ...multipartFormEntry) func(*http.Reque
 		}
 		for i, entry := range entries {
 			if req.Form.Get(fmt.Sprintf("filepath_%d", i)) != entry.path {
+				return false
+			}
+			if !modtimeRegex.MatchString(req.Form.Get(fmt.Sprintf("filemod_%d", i))) {
 				return false
 			}
 			f, header, err := req.FormFile(fmt.Sprintf("file_%d", i))

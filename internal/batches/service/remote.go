@@ -211,6 +211,13 @@ func createFormFile(w *multipart.Writer, workingDir string, mountPath string, in
 	if err = w.WriteField(fmt.Sprintf("filepath_%d", index), trimmedPath); err != nil {
 		return err
 	}
+	fileInfo, err := f.Stat()
+	if err != nil {
+		return err
+	}
+	if err = w.WriteField(fmt.Sprintf("filemod_%d", index), fileInfo.ModTime().UTC().String()); err != nil {
+		return err
+	}
 
 	part, err := w.CreateFormFile(fmt.Sprintf("file_%d", index), fileName)
 	if err != nil {
