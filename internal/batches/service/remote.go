@@ -130,7 +130,6 @@ func (svc *Service) UploadMounts(workingDir string, batchSpecID string, steps []
 	body := &bytes.Buffer{}
 	w := multipart.NewWriter(body)
 
-	// TODO bulk + parallel
 	var count int
 	for _, step := range steps {
 		for _, mount := range step.Mount {
