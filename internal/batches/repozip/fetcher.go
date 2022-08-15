@@ -336,7 +336,7 @@ func fetchRepositoryFile(ctx context.Context, client HTTPClient, repo RepoRevisi
 		return false, fmt.Errorf("unable to fetch archive (HTTP %d from %s)", resp.StatusCode, req.URL.String())
 	}
 
-	f, err := os.CreateTemp(path.Dir(dest), fmt.Sprintf("%s-*.tmp", path.Base(dest)))
+	f, err := os.CreateTemp(filepath.Dir(dest), fmt.Sprintf("%s-*.tmp", filepath.Base(dest)))
 	if err != nil {
 		return false, err
 	}
