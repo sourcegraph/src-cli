@@ -39,14 +39,7 @@ func (t *Task) ArchivePathToFetch() string {
 	return ""
 }
 
-func (t *Task) CacheKey(globalEnv []string, dir string, isRemote bool, stepIndex int) cache.Keyer {
-	var metadataRetriever cache.MetadataRetriever
-	// If the task is being run locally, set the metadata retrieve to use the filesystem based implementation.
-	if !isRemote {
-		metadataRetriever = fileMetadataRetriever{
-			batchSpecDir: dir,
-		}
-	}
+func (t *Task) CacheKey(globalEnv []string, dir string, stepIndex int) cache.Keyer {
 	return &cache.CacheKey{
 		Repository: batcheslib.Repository{
 			ID:          t.Repository.ID,
@@ -59,8 +52,9 @@ func (t *Task) CacheKey(globalEnv []string, dir string, isRemote bool, stepIndex
 		OnlyFetchWorkspace:    t.OnlyFetchWorkspace,
 		Steps:                 t.Steps,
 		BatchChangeAttributes: t.BatchChangeAttributes,
-		// TODO: This should be cached.
-		MetadataRetriever: metadataRetriever,
+		MetadataRetriever: fileMetadataRetriever{
+			batchSpecDir: dir,
+		},
 
 		GlobalEnv: globalEnv,
 

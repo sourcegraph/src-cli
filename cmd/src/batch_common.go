@@ -416,7 +416,6 @@ func executeBatchSpec(ctx context.Context, ui ui.ExecUI, opts executeBatchSpecOp
 			Logger:    logManager,
 			Cache:     executor.NewDiskCache(opts.flags.cacheDir),
 			GlobalEnv: os.Environ(),
-			IsRemote:  false,
 		},
 	)
 

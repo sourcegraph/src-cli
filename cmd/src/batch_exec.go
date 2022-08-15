@@ -224,7 +224,7 @@ func executeBatchSpecInWorkspaces(ctx context.Context, flags *executorModeFlags,
 
 	// Write all step cache results for all results.
 	for _, stepRes := range results {
-		cacheKey := task.CacheKey(globalEnv, mountDir, true, stepRes.StepIndex)
+		cacheKey := task.CacheKey(globalEnv, mountDir, stepRes.StepIndex)
 		k, err := cacheKey.Key()
 		if err != nil {
 			return errors.Wrap(err, "calculating step cache key")
