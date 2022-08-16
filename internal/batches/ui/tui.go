@@ -99,13 +99,13 @@ func (ui *TUI) ResolvingRepositories() {
 func (ui *TUI) ResolvingRepositoriesDone(repos []*graphql.Repository, unsupported batches.UnsupportedRepoSet, ignored batches.IgnoredRepoSet) {
 	batchCompletePending(ui.pending, fmt.Sprintf("Resolved %d repositories", len(repos)))
 
-	if unsupported != nil && len(unsupported) != 0 {
+	if len(unsupported) != 0 {
 		block := ui.Out.Block(output.Line(" ", output.StyleWarning, "Some repositories are hosted on unsupported code hosts and will be skipped. Use the -allow-unsupported flag to avoid skipping them."))
 		for repo := range unsupported {
 			block.Write(repo.Name)
 		}
 		block.Close()
-	} else if ignored != nil && len(ignored) != 0 {
+	} else if len(ignored) != 0 {
 		block := ui.Out.Block(output.Line(" ", output.StyleWarning, "The repositories listed below contain .batchignore files and will be skipped. Use the -force-override-ignore flag to avoid skipping them."))
 		for repo := range ignored {
 			block.Write(repo.Name)
