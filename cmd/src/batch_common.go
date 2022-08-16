@@ -370,22 +370,19 @@ func executeBatchSpec(ctx context.Context, ui ui.ExecUI, opts executeBatchSpecOp
 		ui.DeterminingWorkspaceCreatorTypeSuccess(typ)
 	}
 
-	ui.ResolvingRepositories()
+	ui.DeterminingWorkspaces()
 	workspaces, repos, err := svc.ResolveWorkspacesForBatchSpec(ctx, batchSpec, opts.flags.allowUnsupported, opts.flags.allowIgnored)
 	if err != nil {
 		if repoSet, ok := err.(batches.UnsupportedRepoSet); ok {
-			ui.ResolvingRepositoriesDone(repos, repoSet, nil)
+			ui.DeterminingWorkspacesSuccess(len(workspaces), len(repos), repoSet, nil)
 		} else if repoSet, ok := err.(batches.IgnoredRepoSet); ok {
-			ui.ResolvingRepositoriesDone(repos, nil, repoSet)
+			ui.DeterminingWorkspacesSuccess(len(workspaces), len(repos), nil, repoSet)
 		} else {
 			return errors.Wrap(err, "resolving repositories")
 		}
 	} else {
-		ui.ResolvingRepositoriesDone(repos, nil, nil)
+		ui.DeterminingWorkspacesSuccess(len(workspaces), len(repos), nil, nil)
 	}
-
-	ui.DeterminingWorkspaces()
-	ui.DeterminingWorkspacesSuccess(len(workspaces))
 
 	archiveRegistry := repozip.NewArchiveRegistry(opts.client, opts.flags.cacheDir, opts.flags.cleanArchives)
 	logManager := log.NewDiskManager(opts.flags.tempDir, opts.flags.keepLogs)

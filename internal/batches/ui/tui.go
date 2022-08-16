@@ -93,11 +93,11 @@ func (ui *TUI) DeterminingWorkspaceCreatorTypeSuccess(wt workspace.CreatorType) 
 	batchCompletePending(ui.pending, "Set workspace type")
 }
 
-func (ui *TUI) ResolvingRepositories() {
-	ui.pending = batchCreatePending(ui.Out, "Resolving repositories")
+func (ui *TUI) DeterminingWorkspaces() {
+	ui.pending = batchCreatePending(ui.Out, "Determining workspaces")
 }
-func (ui *TUI) ResolvingRepositoriesDone(repos []*graphql.Repository, unsupported batches.UnsupportedRepoSet, ignored batches.IgnoredRepoSet) {
-	batchCompletePending(ui.pending, fmt.Sprintf("Resolved %d repositories", len(repos)))
+func (ui *TUI) DeterminingWorkspacesSuccess(workspacesCount, reposCount int, unsupported batches.UnsupportedRepoSet, ignored batches.IgnoredRepoSet) {
+	batchCompletePending(ui.pending, fmt.Sprintf("Resolved %d repositories with %d workspaces", reposCount, workspacesCount))
 
 	if len(unsupported) != 0 {
 		block := ui.Out.Block(output.Line(" ", output.StyleWarning, "Some repositories are hosted on unsupported code hosts and will be skipped. Use the -allow-unsupported flag to avoid skipping them."))
@@ -112,14 +112,6 @@ func (ui *TUI) ResolvingRepositoriesDone(repos []*graphql.Repository, unsupporte
 		}
 		block.Close()
 	}
-}
-
-func (ui *TUI) DeterminingWorkspaces() {
-	ui.pending = batchCreatePending(ui.Out, "Determining workspaces")
-}
-
-func (ui *TUI) DeterminingWorkspacesSuccess(num int) {
-	batchCompletePending(ui.pending, fmt.Sprintf("Found %d workspaces with steps to execute", num))
 }
 
 func (ui *TUI) CheckingCache() {
