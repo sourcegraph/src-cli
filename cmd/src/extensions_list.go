@@ -63,7 +63,7 @@ Examples:
       nodes {
         ...RegistryExtensionFields
       }
-			error
+      error
     }
   }
 }` + registryExtensionFragment
