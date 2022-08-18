@@ -38,7 +38,8 @@ type RunStepsOpts struct {
 	// Task is the definition of the workspace execution.
 	Task *Task
 	// TempDir points to where temporary files of the execution should live at.
-	TempDir  string
+	TempDir string
+	// MountDir points to where files that should be mounted live at.
 	MountDir string
 	// Timeout sets the deadline for the execution context. When exceeded,
 	// execution will stop and an error is returned.
