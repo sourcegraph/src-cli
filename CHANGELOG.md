@@ -19,6 +19,12 @@ All notable changes to `src-cli` are documented in this file.
 
 ### Removed
 
+## 3.43.1
+
+### Changed
+
+- `src extensions` subcommands are now deprecated, and will be removed in Sourcegraph 4.0.
+
 ## 3.43.0
 
 ### Changed
