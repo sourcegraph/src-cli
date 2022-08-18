@@ -74,7 +74,7 @@ query Users($first: Int, $query: String) {
 			if *noAdmin && user.SiteAdmin {
 				continue
 			}
-			if daysSinceLastUse <= *daysToDelete {
+			if daysSinceLastUse <= *daysToDelete && wasLastActive {
 				continue
 			}
 
@@ -113,7 +113,6 @@ func computeDaysSinceLastUse(user User) (timeDiff int, wasLastActive bool, _ err
 	timeNow := time.Now()
 	// handle for null lastActiveTime returned from
 	if user.UsageStatistics.LastActiveTime == "" {
-		fmt.Printf("\n%s has no lastActive value\n", user.Username)
 		wasLastActive = false
 		return 0, wasLastActive, nil
 	}
@@ -150,7 +149,11 @@ func removeUser(user User, client api.Client, ctx context.Context) error {
 func confirmUserRemoval(usersToRemove []User) (bool, error) {
 	fmt.Printf("The following users will be removed from your Sourcegraph instance:\n")
 	for _, user := range usersToRemove {
-		fmt.Printf("\t%s  %s  %s\n", user.Username, user.DisplayName, user.Emails[0].Email)
+		if len(user.Emails) > 0 {
+			fmt.Printf("\t%s  %s  %s\n", user.Username, user.DisplayName, user.Emails[0].Email)
+		} else {
+			fmt.Printf("\t%s  %s\n", user.Username, user.DisplayName)
+		}
 	}
 	input := ""
 	for strings.ToLower(input) != "y" && strings.ToLower(input) != "n" {
