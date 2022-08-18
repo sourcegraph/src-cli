@@ -62,7 +62,7 @@ query Users($first: Int, $query: String) {
 			return err
 		}
 
-		usersToDelete := make([]User, 0)
+		usersToDelete := make([]UserToDelete, 0)
 		for _, user := range result.Users.Nodes {
 			daysSinceLastUse, wasLastActive, err := computeDaysSinceLastUse(user)
 			if err != nil {
@@ -77,9 +77,10 @@ query Users($first: Int, $query: String) {
 			if daysSinceLastUse <= *daysToDelete && wasLastActive {
 				continue
 			}
+			deleteUser := UserToDelete{user, daysSinceLastUse}
 
-			usersToDelete = append(usersToDelete, user)
-			fmt.Printf("\nAdding %s to remove list: %d days since last active, remove after %d days inactive\n", user.Username, daysSinceLastUse, *daysToDelete)
+			usersToDelete = append(usersToDelete, deleteUser)
+			//fmt.Printf("\nAdding %s to remove list: %d days since last active, remove after %d days inactive\n", user.Username, daysSinceLastUse, *daysToDelete)
 		}
 
 		// confirm and remove users
@@ -89,11 +90,11 @@ query Users($first: Int, $query: String) {
 		} else {
 			fmt.Println("REMOVING USERS")
 			for _, user := range usersToDelete {
-				if err := removeUser(user, client, ctx); err != nil {
+				if err := removeUser(user.User, client, ctx); err != nil {
 					return err
 				}
 				if *toEmail {
-					sendEmail(user)
+					sendEmail(user.User)
 				}
 			}
 		}
@@ -142,17 +143,21 @@ func removeUser(user User, client api.Client, ctx context.Context) error {
 	if ok, err := client.NewRequest(query, vars).Do(ctx, nil); err != nil || !ok {
 		return err
 	}
-	fmt.Printf("\nDeleted user %s: %s\n", user.ID, user.Username)
 	return nil
 }
 
-func confirmUserRemoval(usersToRemove []User) (bool, error) {
-	fmt.Printf("Users to remove from instance at %s:\n", cfg.Endpoint)
+type UserToDelete struct {
+	User             User
+	DaysSinceLastUse int
+}
+
+func confirmUserRemoval(usersToRemove []UserToDelete) (bool, error) {
+	fmt.Printf("Users to remove from instance at %s \n\t\t(Username|DisplayName|Email|DaysSinceLastActive)\n", cfg.Endpoint)
 	for _, user := range usersToRemove {
-		if len(user.Emails) > 0 {
-			fmt.Printf("\t\t%s  %s  %s\n", user.Username, user.DisplayName, user.Emails[0].Email)
+		if len(user.User.Emails) > 0 {
+			fmt.Printf("\t\t%s  %s  %s  %d\n", user.User.Username, user.User.DisplayName, user.User.Emails[0].Email, user.DaysSinceLastUse)
 		} else {
-			fmt.Printf("\t\t%s  %s\n", user.Username, user.DisplayName)
+			fmt.Printf("\t\t%s  %s  %d\n", user.User.Username, user.User.DisplayName, user.DaysSinceLastUse)
 		}
 	}
 	input := ""
