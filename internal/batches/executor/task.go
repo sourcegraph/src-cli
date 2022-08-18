@@ -14,8 +14,7 @@ import (
 )
 
 type Task struct {
-	BatchSpecID string
-	Repository  *graphql.Repository
+	Repository *graphql.Repository
 	// Path is the folder relative to the repository's root in which the steps
 	// should be executed. "" means root.
 	Path string
