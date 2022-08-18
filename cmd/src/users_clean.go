@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/sourcegraph/src-cli/internal/api"
@@ -24,7 +25,7 @@ Examples:
 		fmt.Println(usage)
 	}
 	var (
-		daysToDelete       = flagSet.Int("d", 365, "Returns the first n users from the list. (use -1 for unlimited)")
+		daysToDelete       = flagSet.Int("d", 365, "Day threshold on which to remove users, defaults to 365")
 		noAdmin            = flagSet.Bool("no-admin", false, "Omit admin accounts from cleanup")
 		toEmail            = flagSet.Bool("email", false, "send removed users an email")
 		removeNoLastActive = flagSet.Bool("removeNeverActive", false, "removes users with null lastActive value")
@@ -37,10 +38,6 @@ Examples:
 		ctx := context.Background()
 		client := cfg.apiClient(apiFlags, flagSet.Output())
 
-		//tmpl, err := parseTemplate("{{.Username}}  {{.SiteAdmin}} {{(index .Emails 0).Email}}")
-		//if err != nil {
-		//	return err
-		//}
 		vars := map[string]interface{}{
 			"-d": api.NullInt(*daysToDelete),
 		}
@@ -55,12 +52,12 @@ query Users($first: Int, $query: String) {
 }
 ` + userFragment
 
+		// get users to delete
 		var result struct {
 			Users struct {
 				Nodes []User
 			}
 		}
-
 		if ok, err := client.NewRequest(query, vars).Do(ctx, &result); err != nil || !ok {
 			return err
 		}
@@ -84,12 +81,20 @@ query Users($first: Int, $query: String) {
 			usersToDelete = append(usersToDelete, user)
 			fmt.Printf("\nAdding %s to remove list: %d days since last active, remove after %d days inactive\n", user.Username, daysSinceLastUse, *daysToDelete)
 		}
-		for _, user := range usersToDelete {
-			if err := removeUser(user, client, ctx); err != nil {
-				return err
-			}
-			if *toEmail {
-				sendEmail(user)
+
+		// confirm and remove users
+		if confirmed, _ := confirmUserRemoval(usersToDelete); !confirmed {
+			fmt.Println("Aborting removal")
+			return nil
+		} else {
+			fmt.Println("REMOVING USERS")
+			for _, user := range usersToDelete {
+				if err := removeUser(user, client, ctx); err != nil {
+					return err
+				}
+				if *toEmail {
+					sendEmail(user)
+				}
 			}
 		}
 
@@ -106,7 +111,7 @@ query Users($first: Int, $query: String) {
 
 func computeDaysSinceLastUse(user User) (timeDiff int, wasLastActive bool, _ error) {
 	timeNow := time.Now()
-	//TODO handle for null lastActiveTime = null
+	// handle for null lastActiveTime returned from
 	if user.UsageStatistics.LastActiveTime == "" {
 		fmt.Printf("\n%s has no lastActive value\n", user.Username)
 		wasLastActive = false
@@ -140,6 +145,21 @@ func removeUser(user User, client api.Client, ctx context.Context) error {
 	}
 	fmt.Printf("\nDeleted user %s: %s\n", user.ID, user.Username)
 	return nil
+}
+
+func confirmUserRemoval(usersToRemove []User) (bool, error) {
+	fmt.Printf("The following users will be removed from your Sourcegraph instance:\n")
+	for _, user := range usersToRemove {
+		fmt.Printf("\t%s  %s  %s\n", user.Username, user.DisplayName, user.Emails[0].Email)
+	}
+	input := ""
+	for strings.ToLower(input) != "y" && strings.ToLower(input) != "n" {
+		fmt.Printf("Do you  wish to proceed with user removal [y/N]: ")
+		if _, err := fmt.Scanln(&input); err != nil {
+			return false, err
+		}
+	}
+	return strings.ToLower(input) == "y", nil
 }
 
 func sendEmail(user User) error {
