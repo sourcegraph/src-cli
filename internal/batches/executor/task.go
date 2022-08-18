@@ -52,9 +52,7 @@ func (t *Task) CacheKey(globalEnv []string, dir string, stepIndex int) cache.Key
 		OnlyFetchWorkspace:    t.OnlyFetchWorkspace,
 		Steps:                 t.Steps,
 		BatchChangeAttributes: t.BatchChangeAttributes,
-		MetadataRetriever: fileMetadataRetriever{
-			batchSpecDir: dir,
-		},
+		MetadataRetriever:     fileMetadataRetriever{workingDirectory: dir},
 
 		GlobalEnv: globalEnv,
 
@@ -63,7 +61,7 @@ func (t *Task) CacheKey(globalEnv []string, dir string, stepIndex int) cache.Key
 }
 
 type fileMetadataRetriever struct {
-	batchSpecDir string
+	workingDirectory string
 }
 
 func (f fileMetadataRetriever) Get(steps []batcheslib.Step) ([]cache.MountMetadata, error) {
@@ -71,7 +69,7 @@ func (f fileMetadataRetriever) Get(steps []batcheslib.Step) ([]cache.MountMetada
 	for _, step := range steps {
 		// Build up the metadata for each mount for each step
 		for _, mount := range step.Mount {
-			metadata, err := f.getMountMetadata(f.batchSpecDir, mount.Path)
+			metadata, err := f.getMountMetadata(f.workingDirectory, mount.Path)
 			if err != nil {
 				return nil, err
 			}
@@ -101,7 +99,7 @@ func (f fileMetadataRetriever) getMountMetadata(baseDir string, path string) ([]
 		}
 		metadata = append(metadata, dirMetadata...)
 	} else {
-		relativePath, err := filepath.Rel(f.batchSpecDir, fullPath)
+		relativePath, err := filepath.Rel(f.workingDirectory, fullPath)
 		if err != nil {
 			return nil, err
 		}

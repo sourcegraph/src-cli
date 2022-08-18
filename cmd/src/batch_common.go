@@ -407,7 +407,7 @@ func executeBatchSpec(ctx context.Context, ui ui.ExecUI, opts executeBatchSpecOp
 				Creator:             workspaceCreator,
 				EnsureImage:         imageCache.Ensure,
 				Parallelism:         parallelism,
-				BatchSpecDirectory:  batchSpecDirectory,
+				WorkingDirectory:    batchSpecDirectory,
 				Timeout:             opts.flags.timeout,
 				TempDir:             opts.flags.tempDir,
 				GlobalEnv:           os.Environ(),

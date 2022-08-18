@@ -62,12 +62,12 @@ type NewExecutorOpts struct {
 	Logger              log.LogManager
 
 	// Config
-	Parallelism        int
-	Timeout            time.Duration
-	BatchSpecDirectory string
-	TempDir            string
-	IsRemote           bool
-	GlobalEnv          []string
+	Parallelism      int
+	Timeout          time.Duration
+	WorkingDirectory string
+	TempDir          string
+	IsRemote         bool
+	GlobalEnv        []string
 }
 
 type executor struct {

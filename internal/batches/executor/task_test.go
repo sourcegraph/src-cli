@@ -40,7 +40,7 @@ func TestFileMetadataRetriever_Get(t *testing.T) {
 	require.NoError(t, err)
 
 	retriever := fileMetadataRetriever{
-		batchSpecDir: tempDir,
+		workingDirectory: tempDir,
 	}
 
 	tests := []struct {
