@@ -147,12 +147,12 @@ func removeUser(user User, client api.Client, ctx context.Context) error {
 }
 
 func confirmUserRemoval(usersToRemove []User) (bool, error) {
-	fmt.Printf("The following users will be removed from your Sourcegraph instance:\n")
+	fmt.Printf("Users to remove from instance at %s:\n", cfg.Endpoint)
 	for _, user := range usersToRemove {
 		if len(user.Emails) > 0 {
-			fmt.Printf("\t%s  %s  %s\n", user.Username, user.DisplayName, user.Emails[0].Email)
+			fmt.Printf("\t\t%s  %s  %s\n", user.Username, user.DisplayName, user.Emails[0].Email)
 		} else {
-			fmt.Printf("\t%s  %s\n", user.Username, user.DisplayName)
+			fmt.Printf("\t\t%s  %s\n", user.Username, user.DisplayName)
 		}
 	}
 	input := ""
