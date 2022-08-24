@@ -25,12 +25,15 @@ Examples:
 		fmt.Println(usage)
 	}
 	var (
-		daysToDelete       = flagSet.Int("d", 365, "Day threshold on which to remove users, defaults to 365")
-		noAdmin            = flagSet.Bool("no-admin", false, "Omit admin accounts from cleanup")
-		toEmail            = flagSet.Bool("email", false, "send removed users an email")
+		daysToDelete = flagSet.Int("d", 365, "Day threshold on which to remove users, defaults to 365")
+		noAdmin      = flagSet.Bool("no-admin", false, "Omit admin accounts from cleanup")
+		// TODO: Add an email functionality to email removed users, open editor like in git commit
+		// toEmail            = flagSet.Bool("email", false, "send removed users an email")
 		removeNoLastActive = flagSet.Bool("removeNeverActive", false, "removes users with null lastActive value")
 		skipConfirmation   = flagSet.Bool("skip-conf", false, "skips user confirmation step allowing programmatic use")
-		apiFlags           = api.NewFlags(flagSet)
+		// TODO: Write json file containing users to be deleted, last active usage, site-admin status, and emails
+		// json               = flagSet.Bool("json", false, "Write json file containing users to be deleted, last active usage, site-admin status, and emails")
+		apiFlags = api.NewFlags(flagSet)
 	)
 
 	handler := func(args []string) error {
@@ -91,11 +94,12 @@ query Users($first: Int, $query: String) {
 				if err := removeUser(user.User, client, ctx); err != nil {
 					return err
 				}
-				if *toEmail {
-					if err := sendEmail(user.User); err != nil {
-						fmt.Printf("failer to send email to %s with error: %s", user.User.Emails[0].Email, err)
-					}
-				}
+				// TODO: see flag toEmail
+				//if *toEmail {
+				//	if err := sendEmail(user.User); err != nil {
+				//		fmt.Printf("failed to send email to %s with error: %s", user.User.Emails[0].Email, err)
+				//	}
+				//}
 			}
 			return nil
 		}
@@ -110,11 +114,12 @@ query Users($first: Int, $query: String) {
 				if err := removeUser(user.User, client, ctx); err != nil {
 					return err
 				}
-				if *toEmail {
-					if err := sendEmail(user.User); err != nil {
-						fmt.Printf("failer to send email to %s with error: %s", user.User.Emails[0].Email, err)
-					}
-				}
+				// TODO: see flag toEmail
+				//if *toEmail {
+				//	if err := sendEmail(user.User); err != nil {
+				//		fmt.Printf("failed to send email to %s with error: %s", user.User.Emails[0].Email, err)
+				//	}
+				//}
 			}
 		}
 
@@ -170,6 +175,7 @@ type UserToDelete struct {
 	DaysSinceLastUse int
 }
 
+// TODO: improve formatting of list output
 func confirmUserRemoval(usersToRemove []UserToDelete) (bool, error) {
 	fmt.Printf("Users to remove from instance at %s \n\t\t(Username|DisplayName|Email|DaysSinceLastActive)\n", cfg.Endpoint)
 	for _, user := range usersToRemove {
@@ -189,7 +195,8 @@ func confirmUserRemoval(usersToRemove []UserToDelete) (bool, error) {
 	return strings.ToLower(input) == "y", nil
 }
 
-func sendEmail(user User) error {
-	fmt.Printf("This sent an email to %s", user.Emails[0].Email)
-	return nil
-}
+// TODO: function to execute email
+//func sendEmail(user User) error {
+//	fmt.Printf("This sent an email to %s", user.Emails[0].Email)
+//	return nil
+//}
