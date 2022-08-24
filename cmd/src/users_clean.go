@@ -29,11 +29,14 @@ Examples:
 		noAdmin            = flagSet.Bool("no-admin", false, "Omit admin accounts from cleanup")
 		toEmail            = flagSet.Bool("email", false, "send removed users an email")
 		removeNoLastActive = flagSet.Bool("removeNeverActive", false, "removes users with null lastActive value")
+		skipConfirmation   = flagSet.Bool("skip-conf", false, "skips user confirmation step allowing programmatic use")
 		apiFlags           = api.NewFlags(flagSet)
 	)
 
 	handler := func(args []string) error {
-		flagSet.Parse(args)
+		if err := flagSet.Parse(args); err != nil {
+			fmt.Printf("failed to parse command args with error: %s", err)
+		}
 
 		ctx := context.Background()
 		client := cfg.apiClient(apiFlags, flagSet.Output())
@@ -83,6 +86,20 @@ query Users($first: Int, $query: String) {
 			//fmt.Printf("\nAdding %s to remove list: %d days since last active, remove after %d days inactive\n", user.Username, daysSinceLastUse, *daysToDelete)
 		}
 
+		if *skipConfirmation {
+			for _, user := range usersToDelete {
+				if err := removeUser(user.User, client, ctx); err != nil {
+					return err
+				}
+				if *toEmail {
+					if err := sendEmail(user.User); err != nil {
+						fmt.Printf("failer to send email to %s with error: %s", user.User.Emails[0].Email, err)
+					}
+				}
+			}
+			return nil
+		}
+
 		// confirm and remove users
 		if confirmed, _ := confirmUserRemoval(usersToDelete); !confirmed {
 			fmt.Println("Aborting removal")
@@ -94,7 +111,9 @@ query Users($first: Int, $query: String) {
 					return err
 				}
 				if *toEmail {
-					sendEmail(user.User)
+					if err := sendEmail(user.User); err != nil {
+						fmt.Printf("failer to send email to %s with error: %s", user.User.Emails[0].Email, err)
+					}
 				}
 			}
 		}
