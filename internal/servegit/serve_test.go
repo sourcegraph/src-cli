@@ -48,7 +48,12 @@ func TestReposHandler(t *testing.T) {
 			var want []Repo
 			for _, name := range tc.repos {
 				isBare := strings.HasSuffix(name, ".bare")
-				want = append(want, Repo{Name: name, URI: path.Join("/repos", name), Bare: isBare})
+				uri := path.Join("/repos", name)
+				clonePath := uri
+				if !isBare {
+					clonePath += "/.git"
+				}
+				want = append(want, Repo{Name: name, URI: uri, ClonePath: clonePath})
 
 			}
 			testReposHandler(t, h, want)
