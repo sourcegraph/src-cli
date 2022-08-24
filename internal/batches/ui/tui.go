@@ -97,7 +97,7 @@ func (ui *TUI) DeterminingWorkspaces() {
 	ui.pending = batchCreatePending(ui.Out, "Determining workspaces")
 }
 func (ui *TUI) DeterminingWorkspacesSuccess(workspacesCount, reposCount int, unsupported batches.UnsupportedRepoSet, ignored batches.IgnoredRepoSet) {
-	batchCompletePending(ui.pending, fmt.Sprintf("Resolved %d repositories with %d workspaces", reposCount, workspacesCount))
+	batchCompletePending(ui.pending, fmt.Sprintf("Resolved %d workspaces from %d repositories", workspacesCount, reposCount))
 
 	if len(unsupported) != 0 {
 		block := ui.Out.Block(output.Line(" ", output.StyleWarning, "Some repositories are hosted on unsupported code hosts and will be skipped. Use the -allow-unsupported flag to avoid skipping them."))
