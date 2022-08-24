@@ -27,7 +27,7 @@ func (ff *FeatureFlags) SetFromVersion(version string) error {
 		// https://github.com/Masterminds/semver#working-with-prerelease-versions for more.
 		// Example usage:
 		// {&ff.FlagName, ">= 3.23.0-0", "2020-11-24"},
-		{&ff.Sourcegraph40, ">= 4.0.0-0", "2022-08-17"},
+		{&ff.Sourcegraph40, ">= 4.0.0-0", "2022-08-24"},
 	} {
 		value, err := api.CheckSourcegraphVersion(version, feature.constraint, feature.minDate)
 		if err != nil {
