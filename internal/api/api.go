@@ -26,7 +26,7 @@ type Client interface {
 	// variables.
 	NewQuery(query string) Request
 
-	// NewRequest creates a GraphQL request with gzip compression turned on.
+	// NewRequest creates a GraphQL request.
 	NewRequest(query string, vars map[string]interface{}) Request
 
 	// NewHTTPRequest creates an http.Request for the Sourcegraph API.

@@ -21,7 +21,7 @@ require (
 	github.com/sourcegraph/go-diff v0.6.1
 	github.com/sourcegraph/jsonx v0.0.0-20200629203448-1a936bd500cf
 	github.com/sourcegraph/scip v0.2.0
-	github.com/sourcegraph/sourcegraph/lib v0.0.0-20220824144150-8f8eae051559
+	github.com/sourcegraph/sourcegraph/lib v0.0.0-20220825181731-397a768a5290
 	github.com/stretchr/testify v1.7.2
 	golang.org/x/net v0.0.0-20220722155237-a158d28d115b
 	golang.org/x/sync v0.0.0-20220722155255-886fb9371eb4
