@@ -43,8 +43,6 @@ All notable changes to `src-cli` are documented in this file.
 
 ### Fixed
 
-### Removed
-=======
 - INTERNAL ONLY: Fixed src batch exec not logging errors.
 
 
