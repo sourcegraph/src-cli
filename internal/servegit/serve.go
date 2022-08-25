@@ -208,9 +208,11 @@ func (s *Serve) Repos() ([]Repo, error) {
 		cloneURI := pathpkg.Join("/repos", name)
 		clonePath := cloneURI
 
-		if !isBare {
+		// Regular git repos won't clone without the full path to the .git directory.
+		if isGit {
 			clonePath += "/.git"
 		}
+
 		repos = append(repos, Repo{
 			Name:      name,
 			URI:       cloneURI,
@@ -219,7 +221,7 @@ func (s *Serve) Repos() ([]Repo, error) {
 
 		// At this point we know the directory is either a git repo or a bare git repo,
 		// we don't need to recurse further to save time.
-		// TODO: Look into whether ite useful to support git submodules
+		// TODO: Look into whether it is useful to support git submodules
 		return filepath.SkipDir
 	})
 
