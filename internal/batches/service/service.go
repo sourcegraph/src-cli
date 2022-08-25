@@ -6,16 +6,12 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path"
 	"path/filepath"
 	"strings"
 	"sync"
 	"text/template"
 
-	"github.com/grafana/regexp"
-
 	batcheslib "github.com/sourcegraph/sourcegraph/lib/batches"
-	onlib "github.com/sourcegraph/sourcegraph/lib/batches/on"
 	templatelib "github.com/sourcegraph/sourcegraph/lib/batches/template"
 	"github.com/sourcegraph/sourcegraph/lib/errors"
 
@@ -27,8 +23,7 @@ import (
 )
 
 type Service struct {
-	client   api.Client
-	features batches.FeatureFlags
+	client api.Client
 }
 
 type Opts struct {
@@ -77,49 +72,70 @@ func (svc *Service) getSourcegraphVersion(ctx context.Context) (string, error) {
 	return result.Site.ProductVersion, err
 }
 
-// DetermineFeatureFlags fetches the version of the configured Sourcegraph
-// instance and then sets flags on the Service itself to use features available
-// in that version, e.g. gzip compression.
-func (svc *Service) DetermineFeatureFlags(ctx context.Context) error {
+// DetermineFeatureFlags fetches the version of the configured Sourcegraph and
+// returns the enabled features.
+func (svc *Service) DetermineFeatureFlags(ctx context.Context) (*batches.FeatureFlags, error) {
 	version, err := svc.getSourcegraphVersion(ctx)
 	if err != nil {
-		return errors.Wrap(err, "failed to query Sourcegraph version to check for available features")
+		return nil, errors.Wrap(err, "failed to query Sourcegraph version to check for available features")
 	}
-
-	return svc.SetFeatureFlagsForVersion(version)
+	ffs := &batches.FeatureFlags{}
+	return ffs, ffs.SetFromVersion(version)
 }
 
-func (svc *Service) SetFeatureFlagsForVersion(version string) error {
-	return svc.features.SetFromVersion(version)
-}
-
-// TODO(campaigns-deprecation): this shim can be removed in Sourcegraph 4.0.
-func (svc *Service) newOperations() graphql.Operations {
-	return graphql.NewOperations(
-		svc.client,
-		svc.features.BatchChanges,
-		svc.features.UseGzipCompression,
-	)
-}
-
-func (svc *Service) newRequest(query string, vars map[string]interface{}) api.Request {
-	if svc.features.UseGzipCompression {
-		return svc.client.NewGzippedRequest(query, vars)
+const applyBatchChangeMutation = `
+mutation ApplyBatchChange($batchSpec: ID!) {
+	applyBatchChange(batchSpec: $batchSpec) {
+		...batchChangeFields
 	}
-	return svc.client.NewRequest(query, vars)
 }
+
+fragment batchChangeFields on BatchChange {
+    url
+}
+`
 
 func (svc *Service) ApplyBatchChange(ctx context.Context, spec graphql.BatchSpecID) (*graphql.BatchChange, error) {
-	return svc.newOperations().ApplyBatchChange(ctx, spec)
+	var result struct {
+		BatchChange *graphql.BatchChange `json:"applyBatchChange"`
+	}
+	if ok, err := svc.client.NewRequest(applyBatchChangeMutation, map[string]interface{}{
+		"batchSpec": spec,
+	}).Do(ctx, &result); err != nil || !ok {
+		return nil, err
+	}
+	return result.BatchChange, nil
 }
 
+const createBatchSpecMutation = `
+mutation CreateBatchSpec(
+    $namespace: ID!,
+    $spec: String!,
+    $changesetSpecs: [ID!]!
+) {
+    createBatchSpec(
+        namespace: $namespace, 
+        batchSpec: $spec,
+        changesetSpecs: $changesetSpecs
+    ) {
+        id
+        applyURL
+    }
+}
+`
+
 func (svc *Service) CreateBatchSpec(ctx context.Context, namespace, spec string, ids []graphql.ChangesetSpecID) (graphql.BatchSpecID, string, error) {
-	result, err := svc.newOperations().CreateBatchSpec(ctx, namespace, spec, ids)
-	if err != nil {
+	var result struct {
+		CreateBatchSpec graphql.CreateBatchSpecResponse
+	}
+	if ok, err := svc.client.NewRequest(createBatchSpecMutation, map[string]interface{}{
+		"namespace":      namespace,
+		"spec":           spec,
+		"changesetSpecs": ids,
+	}).Do(ctx, &result); err != nil || !ok {
 		return "", "", err
 	}
-
-	return result.ID, result.ApplyURL, nil
+	return result.CreateBatchSpec.ID, result.CreateBatchSpec.ApplyURL, nil
 }
 
 const createChangesetSpecMutation = `
@@ -146,7 +162,7 @@ func (svc *Service) CreateChangesetSpec(ctx context.Context, spec *batcheslib.Ch
 			ID string
 		}
 	}
-	if ok, err := svc.newRequest(createChangesetSpecMutation, map[string]interface{}{
+	if ok, err := svc.client.NewRequest(createChangesetSpecMutation, map[string]interface{}{
 		"spec": string(raw),
 	}).Do(ctx, &result); err != nil || !ok {
 		return "", err
@@ -200,7 +216,7 @@ func (svc *Service) ResolveWorkspacesForBatchSpec(ctx context.Context, spec *bat
 			SearchResultPaths  []string
 		}
 	}
-	if ok, err := svc.newRequest(resolveWorkspacesForBatchSpecQuery, map[string]interface{}{
+	if ok, err := svc.client.NewRequest(resolveWorkspacesForBatchSpecQuery, map[string]interface{}{
 		"spec": string(raw),
 	}).Do(ctx, &result); err != nil || !ok {
 		return nil, nil, err
@@ -364,16 +380,8 @@ func (svc *Service) EnsureDockerImages(
 	return images, nil
 }
 
-func (svc *Service) DetermineWorkspaces(ctx context.Context, repos []*graphql.Repository, spec *batcheslib.BatchSpec) ([]RepoWorkspace, error) {
-	return findWorkspaces(ctx, spec, svc, repos)
-}
-
 func (svc *Service) BuildTasks(attributes *templatelib.BatchChangeAttributes, steps []batcheslib.Step, workspaces []RepoWorkspace) []*executor.Task {
 	return buildTasks(attributes, steps, workspaces)
-}
-
-func (svc *Service) Features() batches.FeatureFlags {
-	return svc.features
 }
 
 func (svc *Service) CreateImportChangesetSpecs(ctx context.Context, batchSpec *batcheslib.BatchSpec) ([]*batcheslib.ChangesetSpec, error) {
@@ -459,11 +467,7 @@ func (e *duplicateBranchesErr) Error() string {
 }
 
 func (svc *Service) ParseBatchSpec(dir string, data []byte, isRemote bool) (*batcheslib.BatchSpec, error) {
-	spec, err := batcheslib.ParseBatchSpec(data, batcheslib.ParseBatchSpecOptions{
-		AllowArrayEnvironments: svc.features.AllowArrayEnvironments,
-		AllowTransformChanges:  svc.features.AllowTransformChanges,
-		AllowConditionalExec:   svc.features.AllowConditionalExec,
-	})
+	spec, err := batcheslib.ParseBatchSpec(data)
 	if err != nil {
 		return nil, errors.Wrap(err, "parsing batch spec")
 	}
@@ -538,11 +542,6 @@ changesetTemplate:
     message: Append Hello World to all README.md files
 `
 
-const exampleSpecPublishFlagTmpl = `
-  # Change published to true once you're ready to create changesets on the code host.
-  published: false
-`
-
 func (svc *Service) GenerateExampleSpec(ctx context.Context, fileName string) error {
 	// Try to create file. Bail out, if it already exists.
 	f, err := os.OpenFile(fileName, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
@@ -554,11 +553,7 @@ func (svc *Service) GenerateExampleSpec(ctx context.Context, fileName string) er
 	}
 	defer f.Close()
 
-	t := exampleSpecTmpl
-	if !svc.features.AllowOptionalPublished {
-		t += exampleSpecPublishFlagTmpl
-	}
-	tmpl, err := template.New("").Parse(t)
+	tmpl, err := template.New("").Parse(exampleSpecTmpl)
 	if err != nil {
 		return err
 	}
@@ -669,114 +664,6 @@ func (svc *Service) ResolveNamespace(ctx context.Context, namespace string) (Nam
 	return Namespace{}, fmt.Errorf("failed to resolve namespace %q: no user or organization found", namespace)
 }
 
-func (svc *Service) ResolveRepositories(ctx context.Context, spec *batcheslib.BatchSpec, allowUnsupported, allowIgnored bool) ([]*graphql.Repository, error) {
-	agg := onlib.NewRepoRevisionAggregator()
-	unsupported := batches.UnsupportedRepoSet{}
-	ignored := batches.IgnoredRepoSet{}
-
-	// TODO: this could be trivially parallelised in the future.
-	for _, on := range spec.On {
-		repos, ruleType, err := svc.ResolveRepositoriesOn(ctx, &on)
-		if err != nil {
-			return nil, errors.Wrapf(err, on.String())
-		}
-
-		result := agg.NewRuleRevisions(ruleType)
-		reposWithBranch := make([]*graphql.Repository, 0, len(repos))
-		for _, repo := range repos {
-			if !repo.HasBranch() {
-				continue
-			}
-			reposWithBranch = append(reposWithBranch, repo)
-		}
-
-		var repoBatchIgnores map[*graphql.Repository][]string
-		if !allowIgnored {
-			repoBatchIgnores, err = svc.FindDirectoriesInRepos(ctx, ".batchignore", reposWithBranch...)
-			if err != nil {
-				return nil, err
-			}
-		}
-
-		for _, repo := range reposWithBranch {
-			result.AddRepoRevision(repo.ID, repo)
-
-			switch st := strings.ToLower(repo.ExternalRepository.ServiceType); st {
-			case "github", "gitlab", "bitbucketserver":
-			case "bitbucketcloud":
-				if svc.features.BitbucketCloud {
-					break
-				}
-				fallthrough
-			default:
-				if !allowUnsupported {
-					unsupported.Append(repo)
-				}
-			}
-
-			if !allowIgnored {
-				if locations, ok := repoBatchIgnores[repo]; ok && len(locations) > 0 {
-					ignored.Append(repo)
-				}
-			}
-		}
-	}
-
-	final := []*graphql.Repository{}
-	for _, rev := range agg.Revisions() {
-		repo := rev.(*graphql.Repository)
-		if !unsupported.Includes(repo) && !ignored.Includes(repo) {
-			final = append(final, repo)
-		}
-	}
-
-	if unsupported.HasUnsupported() {
-		return final, unsupported
-	}
-
-	if ignored.HasIgnored() {
-		return final, ignored
-	}
-
-	return final, nil
-}
-
-func (svc *Service) ResolveRepositoriesOn(ctx context.Context, on *batcheslib.OnQueryOrRepository) ([]*graphql.Repository, onlib.RepositoryRuleType, error) {
-	if on.RepositoriesMatchingQuery != "" {
-		repo, err := svc.resolveRepositorySearch(ctx, on.RepositoriesMatchingQuery)
-		return repo, onlib.RepositoryRuleTypeQuery, err
-	} else if on.Repository != "" {
-		branches, err := on.GetBranches()
-		if err != nil {
-			return nil, onlib.RepositoryRuleTypeExplicit, err
-		}
-
-		if len(branches) > 0 {
-			repos := make([]*graphql.Repository, len(branches))
-			for i, branch := range branches {
-				repo, err := svc.resolveRepositoryNameAndBranch(ctx, on.Repository, branch)
-				if err != nil {
-					return nil, onlib.RepositoryRuleTypeExplicit, err
-				}
-
-				repos[i] = repo
-			}
-
-			return repos, onlib.RepositoryRuleTypeExplicit, nil
-		} else {
-			repo, err := svc.resolveRepositoryName(ctx, on.Repository)
-			if err != nil {
-				return nil, onlib.RepositoryRuleTypeExplicit, err
-			}
-			return []*graphql.Repository{repo}, onlib.RepositoryRuleTypeExplicit, nil
-		}
-	}
-
-	// This shouldn't happen on any batch spec that has passed validation, but,
-	// alas, software.
-	return nil, onlib.RepositoryRuleTypeExplicit, ErrMalformedOnQueryOrRepository
-}
-
 const repositoryNameQuery = `
 query Repository($name: String!, $queryCommit: Boolean!, $rev: String!) {
     repository(name: $name) {
@@ -798,251 +685,6 @@ func (svc *Service) resolveRepositoryName(ctx context.Context, name string) (*gr
 		return nil, errors.New("no repository found: check spelling and specify the repository in the format \"<codehost_url>/owner/repo-name\" or \"repo-name\" as required by your instance")
 	}
 	return result.Repository, nil
-}
-
-func (svc *Service) resolveRepositoryNameAndBranch(ctx context.Context, name, branch string) (*graphql.Repository, error) {
-	var result struct{ Repository *graphql.Repository }
-	if ok, err := svc.client.NewRequest(repositoryNameQuery, map[string]interface{}{
-		"name":        name,
-		"queryCommit": true,
-		"rev":         branch,
-	}).Do(ctx, &result); err != nil || !ok {
-		return nil, err
-	}
-	if result.Repository == nil {
-		return nil, errors.New("no repository found")
-	}
-	if result.Repository.Commit.OID == "" {
-		return nil, fmt.Errorf("no branch matching %q found for repository %s", branch, name)
-	}
-
-	result.Repository.Branch = graphql.Branch{
-		Name:   branch,
-		Target: result.Repository.Commit,
-	}
-
-	return result.Repository, nil
-}
-
-// TODO: search result alerts.
-const repositorySearchQuery = `
-query ChangesetRepos(
-    $query: String!,
-	$queryCommit: Boolean!,
-	$rev: String!,
-) {
-    search(query: $query, version: V2) {
-        results {
-            results {
-                __typename
-                ... on Repository {
-                    ...repositoryFields
-                }
-                ... on FileMatch {
-                    file { path }
-                    repository {
-                        ...repositoryFields
-                    }
-                }
-            }
-        }
-    }
-}
-` + graphql.RepositoryFieldsFragment
-
-func (svc *Service) resolveRepositorySearch(ctx context.Context, query string) ([]*graphql.Repository, error) {
-	var result struct {
-		Search struct {
-			Results struct {
-				Results []searchResult
-			}
-		}
-	}
-
-	if ok, err := svc.client.NewRequest(repositorySearchQuery, map[string]interface{}{
-		"query":       setDefaultQueryCount(query),
-		"queryCommit": false,
-		"rev":         "",
-	}).Do(ctx, &result); err != nil || !ok {
-		return nil, err
-	}
-
-	ids := map[string]*graphql.Repository{}
-	var repos []*graphql.Repository
-	for _, r := range result.Search.Results.Results {
-		existing, ok := ids[r.ID]
-		if !ok {
-			repo := r.Repository
-			repos = append(repos, &repo)
-			ids[r.ID] = &repo
-		} else {
-			for file := range r.FileMatches {
-				existing.FileMatches[file] = true
-			}
-		}
-	}
-	return repos, nil
-}
-
-// findDirectoriesResult maps the name of the GraphQL query to its results. The
-// name is the repository's ID.
-type findDirectoriesResult map[string]struct {
-	Results struct{ Results []searchResult }
-}
-
-const searchQueryTmpl = `%s: search(query: %q, version: V2) {
-	results {
-		results {
-			__typename
-			... on FileMatch {
-				file { path }
-			}
-		}
-	}
-}
-`
-
-const findDirectoriesInReposBatchSize = 50
-
-// FindDirectoriesInRepos returns a map of repositories and the locations of
-// files matching the given file name in the repository.
-// The locations are paths relative to the root of the directory.
-// No "/" at the beginning.
-// A dot (".") represents the root directory.
-func (svc *Service) FindDirectoriesInRepos(ctx context.Context, fileName string, repos ...*graphql.Repository) (map[*graphql.Repository][]string, error) {
-	// Build up unique identifiers that are safe to use as GraphQL query aliases.
-	reposByQueryID := map[string]*graphql.Repository{}
-	queryIDByRepo := map[*graphql.Repository]string{}
-	for i, repo := range repos {
-		queryID := fmt.Sprintf("repo_%d", i)
-		reposByQueryID[queryID] = repo
-		queryIDByRepo[repo] = queryID
-	}
-
-	findInBatch := func(batch []*graphql.Repository, results map[*graphql.Repository][]string) error {
-		var a strings.Builder
-		a.WriteString("query DirectoriesContainingFile {\n")
-
-		for _, repo := range batch {
-			query := fmt.Sprintf(`file:(^|/)%s$ repo:^%s$@%s type:path count:99999`, regexp.QuoteMeta(fileName), regexp.QuoteMeta(repo.Name), repo.Rev())
-
-			a.WriteString(fmt.Sprintf(searchQueryTmpl, queryIDByRepo[repo], query))
-		}
-
-		a.WriteString("}")
-
-		var result findDirectoriesResult
-		if ok, err := svc.client.NewQuery(a.String()).Do(ctx, &result); err != nil || !ok {
-			return err
-		}
-
-		for queryID, search := range result {
-			repo, ok := reposByQueryID[queryID]
-			if !ok {
-				return fmt.Errorf("result for query %q did not match any repository", queryID)
-			}
-
-			files := map[string]struct{}{}
-
-			for _, r := range search.Results.Results {
-				for file := range r.FileMatches {
-					files[file] = struct{}{}
-				}
-			}
-
-			var dirs []string
-			for f := range files {
-				dir := path.Dir(f)
-				// "." means the path is root, but in the executor we use "" to signify root.
-				if dir == "." {
-					dir = ""
-				}
-				// We use path.Dir and not filepath.Dir here, because while
-				// src-cli might be executed on Windows, we need the paths to
-				// be Unix paths, since they will be used inside Docker
-				// containers.
-				dirs = append(dirs, dir)
-			}
-
-			results[repo] = dirs
-		}
-
-		return nil
-	}
-
-	results := make(map[*graphql.Repository][]string)
-
-	for start := 0; start < len(repos); start += findDirectoriesInReposBatchSize {
-		if err := ctx.Err(); err != nil {
-			return nil, err
-		}
-
-		end := start + findDirectoriesInReposBatchSize
-		if end > len(repos) {
-			end = len(repos)
-		}
-
-		batch := repos[start:end]
-
-		err := findInBatch(batch, results)
-		if err != nil {
-			return results, err
-		}
-	}
-
-	return results, nil
-}
-
-var defaultQueryCountRegex = regexp.MustCompile(`\bcount:(\d+|all)\b`)
-
-const hardCodedCount = " count:999999"
-
-func setDefaultQueryCount(query string) string {
-	if defaultQueryCountRegex.MatchString(query) {
-		return query
-	}
-
-	return query + hardCodedCount
-}
-
-type searchResult struct {
-	graphql.Repository
-}
-
-func (sr *searchResult) UnmarshalJSON(data []byte) error {
-	var tn struct {
-		Typename string `json:"__typename"`
-	}
-	if err := json.Unmarshal(data, &tn); err != nil {
-		return err
-	}
-
-	switch tn.Typename {
-	case "FileMatch":
-		var result struct {
-			Repository graphql.Repository
-			File       struct {
-				Path string
-			}
-		}
-		if err := json.Unmarshal(data, &result); err != nil {
-			return err
-		}
-
-		sr.Repository = result.Repository
-		sr.Repository.FileMatches = map[string]bool{result.File.Path: true}
-		return nil
-
-	case "Repository":
-		if err := json.Unmarshal(data, &sr.Repository); err != nil {
-			return err
-		}
-		sr.Repository.FileMatches = map[string]bool{}
-		return nil
-
-	default:
-		return errors.Errorf("unknown GraphQL type %q", tn.Typename)
-	}
 }
 
 func getGitConfig(attribute string) (string, error) {

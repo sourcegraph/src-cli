@@ -15,8 +15,6 @@ All notable changes to `src-cli` are documented in this file.
 
 ### Changed
 
-- **IMPORTANT:** Searches using the command `src search -stream` is updated to use a **new and better search result schema**, improving highlighting and accurate result counts for multiline matches. Please see the new JSON schema for results if you use the `src search -stream -json` output: [#807](https://github.com/sourcegraph/src-cli/pull/807)
-
 ### Fixed
 
 - Fixed a performance issue when serving git repos where it would take an exponentially large amount of time to list the repos. [#810](https://github.com/sourcegraph/src-cli/pull/810)
@@ -25,6 +23,30 @@ All notable changes to `src-cli` are documented in this file.
 ### Removed
 
 - Removed git sub-repo support when serving git repos as it introduced a huge performance hit. [#810](https://github.com/sourcegraph/src-cli/pull/810)
+
+## 3.43.0
+
+### Changed
+
+- `src code-intel upload` now includes an additional header for efficiently tracking the uncompressed size of uploads in the backend. [#39690](https://github.com/sourcegraph/sourcegraph/pull/39690)
+
+### Fixed
+
+- The default directory used to mount files into containers will be automatically changed to a temporary directory within `$HOME` if Docker Desktop for Linux is in use. [#754](https://github.com/sourcegraph/src-cli/issues/754)
+- src-cli no longer leaves corrupted repo archives behind when interrupted during batch spec execution. [#817](https://github.com/sourcegraph/src-cli/pull/817)
+
+## 3.42.3
+
+### Changed
+
+- **IMPORTANT:** Searches using the command `src search -stream` is updated to use a **new and better search result schema**, improving highlighting and accurate result counts for multiline matches. Please see the new JSON schema for results if you use the `src search -stream -json` output: [#807](https://github.com/sourcegraph/src-cli/pull/807)
+
+### Fixed
+
+### Removed
+=======
+- INTERNAL ONLY: Fixed src batch exec not logging errors.
+
 
 ## 3.42.2
 
