@@ -592,5 +592,5 @@ func validateSourcegraphVersionConstraint(ctx context.Context, svc *service.Serv
 	if ffs.Sourcegraph40 {
 		return nil
 	}
-	return errors.Newf("\n\n * Warning:\n This version of src-cli requires Sourcegraph version 4.0 or newer. If you're not on Sourcegraph 4.0 or newer, please use any 3.x release of src-cli.\n\n")
+	return errors.Newf("\n\n * Warning:\n This version of src-cli requires Sourcegraph version 4.0 or newer. If you're not on Sourcegraph 4.0 or newer, please use the 3.x release of src-cli that corresponds to your Sourcegraph version.\n\n")
 }
