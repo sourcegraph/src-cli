@@ -104,6 +104,9 @@ func parseAndValidateCodeIntelUploadFlags(args []string) (*output.Output, error)
 		}
 	}
 
+	// We want to strip off any trailing slash in the repository name so we don't get a 404
+	codeintelUploadFlags.repo = strings.TrimRight(codeintelUploadFlags.repo, "/")
+
 	// parse the api client flags separately and then populate the codeintelUploadFlags struct with the result
 	// we could just use insecureSkipVerify but I'm including everything here because it costs nothing
 	// and maybe we'll use some in the future
