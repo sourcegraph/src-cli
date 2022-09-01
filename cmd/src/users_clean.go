@@ -51,8 +51,8 @@ Examples:
 		client := cfg.apiClient(apiFlags, flagSet.Output())
 
 		query := `
-query Users($first: Int, $query: String) {
-	users(first: $first, query: $query) {
+query Users() {
+	users() {
 		nodes {
 			...UserFields
 		}
