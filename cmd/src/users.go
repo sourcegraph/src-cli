@@ -58,12 +58,12 @@ fragment UserFields on User {
     }
     emails {
         email
-		verified
+	verified
     }
-	usageStatistics {
-		lastActiveTime
-		lastActiveCodeHostIntegrationTime
-	}
+    usageStatistics {
+        lastActiveTime
+        lastActiveCodeHostIntegrationTime
+    }
     url
 }
 `
