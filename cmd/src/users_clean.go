@@ -142,12 +142,8 @@ func computeDaysSinceLastUse(user User) (timeDiff int, wasLastActive bool, _ err
 
 // Issue graphQL api request to remove user
 func removeUser(user User, client api.Client, ctx context.Context) error {
-	query := `mutation DeleteUser(
-  $user: ID!
-) {
-  deleteUser(
-    user: $user
-  ) {
+	query := `mutation DeleteUser($user: ID!) {
+  deleteUser(user: $user) {
     alwaysNil
   }
 }`
