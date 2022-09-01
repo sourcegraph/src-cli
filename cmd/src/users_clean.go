@@ -125,17 +125,16 @@ query Users($first: Int, $query: String) {
 
 // computes days since last usage from current day and time and UsageStatistics.LastActiveTime, uses time.Parse
 func computeDaysSinceLastUse(user User) (timeDiff int, wasLastActive bool, _ error) {
-	timeNow := time.Now()
 	// handle for null lastActiveTime returned from
 	if user.UsageStatistics.LastActiveTime == "" {
 		wasLastActive = false
 		return 0, wasLastActive, nil
 	}
-	timeLast, err := time.Parse(time.RFC3339, user.UsageStatistics.LastActiveTime)
+	lastActive, err := time.Parse(time.RFC3339, user.UsageStatistics.LastActiveTime)
 	if err != nil {
 		return 0, false, err
 	}
-	timeDiff = int(timeNow.Sub(timeLast).Hours() / 24)
+	timeDiff = int(time.Since(timeLast).Hours() / 24)
 
 	return timeDiff, true, err
 }
