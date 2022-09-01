@@ -130,7 +130,7 @@ func computeDaysSinceLastUse(user User) (timeDiff int, wasLastActive bool, _ err
 		wasLastActive = false
 		return 0, wasLastActive, nil
 	}
-	lastActive, err := time.Parse(time.RFC3339, user.UsageStatistics.LastActiveTime)
+	timeLast, err := time.Parse(time.RFC3339, user.UsageStatistics.LastActiveTime)
 	if err != nil {
 		return 0, false, err
 	}
