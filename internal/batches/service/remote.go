@@ -18,13 +18,6 @@ import (
 
 var ErrServerSideBatchChangesUnsupported = errors.New("server side batch changes are not available on this Sourcegraph instance")
 
-func (svc *Service) areServerSideBatchChangesSupported() error {
-	if !svc.features.ServerSideBatchChanges {
-		return ErrServerSideBatchChangesUnsupported
-	}
-	return nil
-}
-
 const upsertEmptyBatchChangeQuery = `
 mutation UpsertEmptyBatchChange(
 	$name: String!
@@ -44,11 +37,7 @@ func (svc *Service) UpsertBatchChange(
 	ctx context.Context,
 	name string,
 	namespaceID string,
-) (string, string, error) {
-	if err := svc.areServerSideBatchChangesSupported(); err != nil {
-		return "", "", err
-	}
-
+) (string, error) {
 	var resp struct {
 		UpsertEmptyBatchChange struct {
 			Name string `json:"name"`
@@ -97,10 +86,6 @@ func (svc *Service) CreateBatchSpecFromRaw(
 	noCache bool,
 	batchChange string,
 ) (string, error) {
-	if err := svc.areServerSideBatchChangesSupported(); err != nil {
-		return "", err
-	}
-
 	var resp struct {
 		CreateBatchSpecFromRaw struct {
 			ID string `json:"id"`
@@ -242,10 +227,6 @@ func (svc *Service) ExecuteBatchSpec(
 	batchSpecID string,
 	noCache bool,
 ) (string, error) {
-	if err := svc.areServerSideBatchChangesSupported(); err != nil {
-		return "", err
-	}
-
 	var resp struct {
 		ExecuteBatchSpec struct {
 			ID string `json:"id"`
@@ -281,10 +262,6 @@ type BatchSpecWorkspaceResolution struct {
 }
 
 func (svc *Service) GetBatchSpecWorkspaceResolution(ctx context.Context, id string) (*BatchSpecWorkspaceResolution, error) {
-	if err := svc.areServerSideBatchChangesSupported(); err != nil {
-		return nil, err
-	}
-
 	var resp struct {
 		Node struct {
 			WorkspaceResolution BatchSpecWorkspaceResolution `json:"workspaceResolution"`
