@@ -65,7 +65,7 @@ See [Sourcegraph CLI for Windows](WINDOWS.md).
 
 ### Installation: Docker
 
-`sourcegraph/src-cli` is published to DockerHub. You can use the `latest` tag or a specific version such as `3.43`. To see all versions view [sourcegraph/src-cli tags](https://hub.docker.com/r/sourcegraph/src-cli/tags).
+`sourcegraph/src-cli` is published to Docker Hub. You can use the `latest` tag or a specific version such as `3.43`. To see all versions view [sourcegraph/src-cli tags](https://hub.docker.com/r/sourcegraph/src-cli/tags).
 
 ```bash
 docker run --rm=true sourcegraph/src-cli:latest search 'hello world'
