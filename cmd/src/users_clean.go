@@ -50,7 +50,26 @@ Examples:
 		ctx := context.Background()
 		client := cfg.apiClient(apiFlags, flagSet.Output())
 
-		query := `
+		currentUserQuery := `
+query {
+	currentUser {
+		username
+	}
+}
+`
+		var currentUserResult struct {
+			Data struct {
+				CurrentUser struct {
+					Username string
+				}
+			}
+		}
+		if ok, err := cfg.apiClient(apiFlags, flagSet.Output()).NewRequest(currentUserQuery, nil).DoRaw(context.Background(), &currentUserResult); err != nil || !ok {
+			return err
+		}
+		fmt.Println(currentUserResult)
+
+		usersQuery := `
 query Users() {
 	users() {
 		nodes {
@@ -61,20 +80,25 @@ query Users() {
 ` + userFragment
 
 		// get users to delete
-		var result struct {
+		var usersResult struct {
 			Users struct {
 				Nodes []User
 			}
 		}
-		if ok, err := client.NewRequest(query, nil).Do(ctx, &result); err != nil || !ok {
+		if ok, err := client.NewRequest(usersQuery, nil).Do(ctx, &usersResult); err != nil || !ok {
 			return err
 		}
+		fmt.Println(usersResult)
 
 		usersToDelete := make([]UserToDelete, 0)
-		for _, user := range result.Users.Nodes {
+		for _, user := range usersResult.Users.Nodes {
 			daysSinceLastUse, wasLastActive, err := computeDaysSinceLastUse(user)
 			if err != nil {
 				return err
+			}
+			// never remove user issuing command
+			if user.Username == currentUserResult.Data.CurrentUser.Username {
+				continue
 			}
 			if !wasLastActive && !*removeNoLastActive {
 				continue
