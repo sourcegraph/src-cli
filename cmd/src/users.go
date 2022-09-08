@@ -58,7 +58,7 @@ fragment UserFields on User {
     }
     emails {
         email
-	verified
+		verified
     }
     usageStatistics {
         lastActiveTime
