@@ -21,7 +21,7 @@ Examples:
 
 	$ src users clean -days 182
 	
-	$ src users clean -removeAdmin -removeNeverActive 
+	$ src users clean -remove-admin -remove-never-active 
 `
 
 	flagSet := flag.NewFlagSet("clean", flag.ExitOnError)
@@ -32,8 +32,8 @@ Examples:
 	}
 	var (
 		daysToDelete       = flagSet.Int("days", 60, "Days threshold on which to remove users, must be 60 days or greater and defaults to this value ")
-		removeAdmin        = flagSet.Bool("removeAdmin", false, "clean admin accounts")
-		removeNoLastActive = flagSet.Bool("removeNeverActive", false, "removes users with null lastActive value")
+		removeAdmin        = flagSet.Bool("remove-admin", false, "clean admin accounts")
+		removeNoLastActive = flagSet.Bool("remove-never-active", false, "removes users with null lastActive value")
 		skipConfirmation   = flagSet.Bool("force", false, "skips user confirmation step allowing programmatic use")
 		apiFlags           = api.NewFlags(flagSet)
 	)
