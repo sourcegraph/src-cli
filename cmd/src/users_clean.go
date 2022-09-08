@@ -15,13 +15,13 @@ import (
 
 func init() {
 	usage := `
-This command removes users from a Sourcegraph instance who have been inactive for 60 or more days.
+This command removes users from a Sourcegraph instance who have been inactive for 60 or more days. Admin accounts are omitted by default.
 	
 Examples:
 
 	$ src users clean -days 182
 	
-	$ src users clean -noAdmin -removeNeverActive 
+	$ src users clean -removeAdmin -removeNeverActive 
 `
 
 	flagSet := flag.NewFlagSet("clean", flag.ExitOnError)
@@ -32,7 +32,7 @@ Examples:
 	}
 	var (
 		daysToDelete       = flagSet.Int("days", 60, "Days threshold on which to remove users, must be 60 days or greater and defaults to this value ")
-		noAdmin            = flagSet.Bool("noAdmin", false, "Omit admin accounts from cleanup")
+		removeAdmin        = flagSet.Bool("removeAdmin", false, "clean admin accounts")
 		removeNoLastActive = flagSet.Bool("removeNeverActive", false, "removes users with null lastActive value")
 		skipConfirmation   = flagSet.Bool("force", false, "skips user confirmation step allowing programmatic use")
 		apiFlags           = api.NewFlags(flagSet)
@@ -79,7 +79,7 @@ query Users() {
 			if !wasLastActive && !*removeNoLastActive {
 				continue
 			}
-			if *noAdmin && user.SiteAdmin {
+			if !*removeAdmin && user.SiteAdmin {
 				continue
 			}
 			if daysSinceLastUse <= *daysToDelete && wasLastActive {
