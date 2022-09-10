@@ -28,7 +28,7 @@ All notable changes to `src-cli` are documented in this file.
 
 ### Added
 
-- src users cleanup has been added. [#826](https://github.com/sourcegraph/src-cli/pull/826)
+- `src users cleanup` has been added. [#826](https://github.com/sourcegraph/src-cli/pull/826)
 
 ## 3.43.1
 
