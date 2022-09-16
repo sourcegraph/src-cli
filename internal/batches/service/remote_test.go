@@ -41,8 +41,7 @@ func TestService_UpsertBatchChange(t *testing.T) {
 					Once()
 				mockRequest.On("Do", mock.Anything, mock.Anything).
 					Run(func(args mock.Arguments) {
-						result := args[1].(interface{})
-						json.Unmarshal([]byte(`{"upsertEmptyBatchChange":{"id":"123", "name":"my-change"}}`), &result)
+						json.Unmarshal([]byte(`{"upsertEmptyBatchChange":{"id":"123", "name":"my-change"}}`), &args[1])
 					}).
 					Return(true, nil).
 					Once()
@@ -126,8 +125,7 @@ func TestService_CreateBatchSpecFromRaw(t *testing.T) {
 					Once()
 				mockRequest.On("Do", mock.Anything, mock.Anything).
 					Run(func(args mock.Arguments) {
-						result := args[1].(interface{})
-						json.Unmarshal([]byte(`{"createBatchSpecFromRaw":{"id":"xyz"}}`), &result)
+						json.Unmarshal([]byte(`{"createBatchSpecFromRaw":{"id":"xyz"}}`), &args[1])
 					}).
 					Return(true, nil).
 					Once()
@@ -154,10 +152,6 @@ func TestService_CreateBatchSpecFromRaw(t *testing.T) {
 					Return(mockRequest, nil).
 					Once()
 				mockRequest.On("Do", mock.Anything, mock.Anything).
-					Run(func(args mock.Arguments) {
-						result := args[1].(interface{})
-						json.Unmarshal([]byte(`{"createBatchSpecFromRaw":{"id":"xyz"}}`), &result)
-					}).
 					Return(false, errors.New("did not get a good response code")).
 					Once()
 			},
