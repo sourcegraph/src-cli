@@ -103,8 +103,8 @@ func (svc *Service) CreateBatchSpecFromRaw(
 	return resp.CreateBatchSpecFromRaw.ID, nil
 }
 
-// UploadMounts uploads file mounts to the server.
-func (svc *Service) UploadMounts(workingDir string, batchSpecID string, steps []batches.Step) error {
+// UploadBatchSpecWorkspaceFile uploads workspace files to the server.
+func (svc *Service) UploadBatchSpecWorkspaceFile(workingDir string, batchSpecID string, steps []batches.Step) error {
 	for _, step := range steps {
 		for _, mount := range step.Mount {
 			body := &bytes.Buffer{}
