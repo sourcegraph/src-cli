@@ -107,7 +107,7 @@ Examples:
 			Client: cfg.apiClient(flags.api, flagSet.Output()),
 		})
 
-		err := executeBatchSpecInWorkspaces(ctx, flags, svc)
+		err := executeBatchSpecInWorkspaces(ctx, flags)
 		if err != nil {
 			return cmderrors.ExitCode(1, err)
 		}
