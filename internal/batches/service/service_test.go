@@ -326,7 +326,7 @@ changesetTemplate:
 						Container: "alpine:3",
 						Mount: []batcheslib.Mount{
 							{
-								Path:       filepath.Join(tempDir, "sample.sh"),
+								Path:       "./sample.sh",
 								Mountpoint: "/tmp/sample.sh",
 							},
 						},
@@ -370,7 +370,7 @@ changesetTemplate:
 						Container: "alpine:3",
 						Mount: []batcheslib.Mount{
 							{
-								Path:       tempDir + string(filepath.Separator),
+								Path:       tempDir,
 								Mountpoint: "/tmp",
 							},
 						},
@@ -414,7 +414,7 @@ changesetTemplate:
 						Container: "alpine:3",
 						Mount: []batcheslib.Mount{
 							{
-								Path:       tempDir + string(filepath.Separator),
+								Path:       "./",
 								Mountpoint: "/tmp",
 							},
 						},
@@ -460,11 +460,11 @@ changesetTemplate:
 						Container: "alpine:3",
 						Mount: []batcheslib.Mount{
 							{
-								Path:       filepath.Join(tempDir, "sample.sh"),
+								Path:       "./sample.sh",
 								Mountpoint: "/tmp/sample.sh",
 							},
 							{
-								Path:       filepath.Join(tempDir, "another.sh"),
+								Path:       "./another.sh",
 								Mountpoint: "/tmp/another.sh",
 							},
 						},
