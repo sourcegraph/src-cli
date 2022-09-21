@@ -32,12 +32,12 @@ const (
 )
 
 type executorModeFlags struct {
-	timeout  time.Duration
-	file     string
-	tempDir  string
-	repoDir  string
-	mountDir string
-	api      *api.Flags
+	timeout           time.Duration
+	file              string
+	tempDir           string
+	repoDir           string
+	workspaceFilesDir string
+	api               *api.Flags
 }
 
 func newExecutorModeFlags(flagSet *flag.FlagSet) (f *executorModeFlags) {
@@ -48,7 +48,7 @@ func newExecutorModeFlags(flagSet *flag.FlagSet) (f *executorModeFlags) {
 	flagSet.StringVar(&f.file, "f", "", "The workspace execution input file to read.")
 	flagSet.StringVar(&f.tempDir, "tmp", "", "Directory for storing temporary data.")
 	flagSet.StringVar(&f.repoDir, "repo", "", "Path of the checked out repo on disk.")
-	flagSet.StringVar(&f.mountDir, "mount", "", "Path of the files to mount on disk.")
+	flagSet.StringVar(&f.workspaceFilesDir, "workspaceFiles", "", "Path of workspace files on disk.")
 
 	return f
 }
@@ -63,9 +63,6 @@ func validateExecutorModeFlags(f *executorModeFlags) error {
 	if f.repoDir == "" {
 		return errors.New("repoDir parameter missing")
 	}
-	if f.mountDir == "" {
-		return errors.New("mountDir parameter missing")
-	}
 
 	return nil
 }
@@ -79,7 +76,7 @@ github.com/sourcegraph/sourcegraph/lib/batches.
 
 Usage:
 
-    src batch exec -f FILE -repo DIR -mount DIR [command options]
+    src batch exec -f FILE -repo DIR -workspaceFiles DIR [command options]
 
 Examples:
 
@@ -154,12 +151,12 @@ func executeBatchSpecInWorkspaces(ctx context.Context, flags *executorModeFlags,
 		}
 	}
 
-	// Grab the absolute path to the mount contents.
-	mountDir := flags.mountDir
-	if !filepath.IsAbs(mountDir) {
-		mountDir, err = filepath.Abs(mountDir)
+	// Grab the absolute path to the workspace files contents.
+	workspaceFilesDir := flags.workspaceFilesDir
+	if !filepath.IsAbs(workspaceFilesDir) {
+		workspaceFilesDir, err = filepath.Abs(workspaceFilesDir)
 		if err != nil {
-			return errors.Wrap(err, "getting absolute path for mount dir")
+			return errors.Wrap(err, "getting absolute path for workspace files dir")
 		}
 	}
 
@@ -213,18 +210,18 @@ func executeBatchSpecInWorkspaces(ctx context.Context, flags *executorModeFlags,
 		EnsureImage: imageCache.Ensure,
 		Task:        task,
 		// TODO: Should be slightly less than the executor timeout. Can we somehow read that?
-		Timeout:     flags.timeout,
-		TempDir:     tempDir,
-		MountDir:    mountDir,
-		GlobalEnv:   globalEnv,
-		RepoArchive: &repozip.NoopArchive{},
-		UI:          taskExecUI.StepsExecutionUI(task),
+		Timeout:           flags.timeout,
+		TempDir:           tempDir,
+		WorkspaceFilesDir: workspaceFilesDir,
+		GlobalEnv:         globalEnv,
+		RepoArchive:       &repozip.NoopArchive{},
+		UI:                taskExecUI.StepsExecutionUI(task),
 	}
 	results, err := executor.RunSteps(ctx, opts)
 
 	// Write all step cache results for all results.
 	for _, stepRes := range results {
-		cacheKey := task.CacheKey(globalEnv, mountDir, stepRes.StepIndex)
+		cacheKey := task.CacheKey(globalEnv, workspaceFilesDir, stepRes.StepIndex)
 		k, err := cacheKey.Key()
 		if err != nil {
 			return errors.Wrap(err, "calculating step cache key")
