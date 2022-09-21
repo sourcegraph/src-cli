@@ -202,19 +202,13 @@ func TestService_CreateBatchSpecFromRaw(t *testing.T) {
 	}
 }
 
-func TestService_UploadMounts(t *testing.T) {
-	client := new(mockclient.Client)
-	svc := service.New(&service.Opts{Client: client})
-
-	// Use a temp directory for reading files
-	workingDir := t.TempDir()
-
+func TestService_UploadBatchSpecWorkspaceFile(t *testing.T) {
 	tests := []struct {
 		name  string
 		steps []batches.Step
 
-		setup       func() error
-		mockInvokes func()
+		setup       func(workingDir string) error
+		mockInvokes func(client *mockclient.Client)
 
 		expectedError error
 	}{
@@ -225,12 +219,12 @@ func TestService_UploadMounts(t *testing.T) {
 					Path: "./hello.txt",
 				}},
 			}},
-			setup: func() error {
+			setup: func(workingDir string) error {
 				return writeTempFile(workingDir, "hello.txt", "hello world!")
 			},
-			mockInvokes: func() {
+			mockInvokes: func(client *mockclient.Client) {
 				// Body will get set with the body argument to NewHTTPRequest
-				req := httptest.NewRequest(http.MethodPost, "http://fake.com/.api/files/batch-changes/mount/123", nil)
+				req := httptest.NewRequest(http.MethodPost, "http://fake.com/.api/files/batch-changes/123", nil)
 				client.On("NewHTTPRequest", mock.Anything, http.MethodPost, ".api/files/batch-changes/123", mock.Anything).
 					Run(func(args mock.Arguments) {
 						req.Body = io.NopCloser(args.Get(3).(*bytes.Buffer))
@@ -240,13 +234,7 @@ func TestService_UploadMounts(t *testing.T) {
 				resp := &http.Response{
 					StatusCode: http.StatusOK,
 				}
-				requestMatcher := multipartFormRequestMatcher(
-					multipartFormEntry{
-						fileName: "hello.txt",
-						content:  "hello world!",
-					},
-				)
-				client.On("Do", mock.MatchedBy(requestMatcher)).
+				client.On("Do", mock.Anything).
 					Return(resp, nil).
 					Once()
 			},
@@ -263,13 +251,13 @@ func TestService_UploadMounts(t *testing.T) {
 					},
 				},
 			}},
-			setup: func() error {
+			setup: func(workingDir string) error {
 				if err := writeTempFile(workingDir, "hello.txt", "hello"); err != nil {
 					return err
 				}
 				return writeTempFile(workingDir, "world.txt", "world!")
 			},
-			mockInvokes: func() {
+			mockInvokes: func(client *mockclient.Client) {
 				// Body will get set with the body argument to NewHTTPRequest
 				req := httptest.NewRequest(http.MethodPost, "http://fake.com/.api/files/batch-changes/123", nil)
 				client.On("NewHTTPRequest", mock.Anything, http.MethodPost, ".api/files/batch-changes/123", mock.Anything).
@@ -296,13 +284,13 @@ func TestService_UploadMounts(t *testing.T) {
 					},
 				},
 			}},
-			setup: func() error {
+			setup: func(workingDir string) error {
 				if err := writeTempFile(workingDir, "hello.txt", "hello"); err != nil {
 					return err
 				}
 				return writeTempFile(workingDir, "world.txt", "world!")
 			},
-			mockInvokes: func() {
+			mockInvokes: func(client *mockclient.Client) {
 				// Body will get set with the body argument to NewHTTPRequest
 				req := httptest.NewRequest(http.MethodPost, "http://fake.com/.api/files/batch-changes/123", nil)
 				client.On("NewHTTPRequest", mock.Anything, http.MethodPost, ".api/files/batch-changes/123", mock.Anything).
@@ -314,17 +302,8 @@ func TestService_UploadMounts(t *testing.T) {
 				resp := &http.Response{
 					StatusCode: http.StatusOK,
 				}
-				client.On("Do", mock.MatchedBy(multipartFormRequestMatcher(multipartFormEntry{
-					fileName: "hello.txt",
-					content:  "hello",
-				}))).
+				client.On("Do", mock.Anything).
 					Return(resp, nil)
-				//client.On("Do", mock.MatchedBy(multipartFormRequestMatcher(multipartFormEntry{
-				//	fileName: "world.txt",
-				//	content:  "world!",
-				//}))).
-				//	Return(resp, nil).
-				//	Once()
 			},
 		},
 		{
@@ -336,14 +315,14 @@ func TestService_UploadMounts(t *testing.T) {
 					},
 				},
 			}},
-			setup: func() error {
+			setup: func(workingDir string) error {
 				dir := filepath.Join(workingDir, "scripts")
 				if err := os.Mkdir(dir, os.ModePerm); err != nil {
 					return err
 				}
 				return writeTempFile(dir, "hello.txt", "hello world!")
 			},
-			mockInvokes: func() {
+			mockInvokes: func(client *mockclient.Client) {
 				// Body will get set with the body argument to NewHTTPRequest
 				req := httptest.NewRequest(http.MethodPost, "http://fake.com/.api/files/batch-changes/123", nil)
 				client.On("NewHTTPRequest", mock.Anything, http.MethodPost, ".api/files/batch-changes/123", mock.Anything).
@@ -355,14 +334,7 @@ func TestService_UploadMounts(t *testing.T) {
 				resp := &http.Response{
 					StatusCode: http.StatusOK,
 				}
-				requestMatcher := multipartFormRequestMatcher(
-					multipartFormEntry{
-						path:     "scripts",
-						fileName: "hello.txt",
-						content:  "hello world!",
-					},
-				)
-				client.On("Do", mock.MatchedBy(requestMatcher)).
+				client.On("Do", mock.Anything).
 					Return(resp, nil).
 					Once()
 			},
@@ -382,7 +354,7 @@ func TestService_UploadMounts(t *testing.T) {
 					},
 				},
 			}},
-			setup: func() error {
+			setup: func(workingDir string) error {
 				if err := writeTempFile(workingDir, "hello.txt", "hello"); err != nil {
 					return err
 				}
@@ -395,7 +367,7 @@ func TestService_UploadMounts(t *testing.T) {
 				}
 				return writeTempFile(dir, "something-else.txt", "this is neat")
 			},
-			mockInvokes: func() {
+			mockInvokes: func(client *mockclient.Client) {
 				// Body will get set with the body argument to NewHTTPRequest
 				req := httptest.NewRequest(http.MethodPost, "http://fake.com/.api/files/batch-changes/123", nil)
 				client.On("NewHTTPRequest", mock.Anything, http.MethodPost, ".api/files/batch-changes/123", mock.Anything).
@@ -403,40 +375,14 @@ func TestService_UploadMounts(t *testing.T) {
 						req.Body = io.NopCloser(args.Get(3).(*bytes.Buffer))
 					}).
 					Return(req, nil).
-					Once()
+					Times(3)
 				resp := &http.Response{
 					StatusCode: http.StatusOK,
 				}
-				client.On("Do", mock.MatchedBy(multipartFormRequestMatcher(multipartFormEntry{
-					fileName: "hello.txt",
-					content:  "hello",
-				}))).
+				client.On("Do", mock.Anything).
 					Return(resp, nil).
-					Once()
-				client.On("Do", mock.MatchedBy(multipartFormRequestMatcher(multipartFormEntry{
-					path:     "scripts",
-					fileName: "something-else.txt",
-					content:  "this is neat",
-				}))).
-					Return(resp, nil).
-					Once()
-				client.On("Do", mock.MatchedBy(multipartFormRequestMatcher(multipartFormEntry{
-					path:     "scripts",
-					fileName: "something-else.txt",
-					content:  "this is neat",
-				}))).
-					Return(resp, nil).
-					Once()
+					Times(3)
 			},
-		},
-		{
-			name: "File does not exist",
-			steps: []batches.Step{{
-				Mount: []batches.Mount{{
-					Path: "./this-does-not-exist.txt",
-				}},
-			}},
-			expectedError: errors.Newf("stat %s/this-does-not-exist.txt: no such file or directory", workingDir),
 		},
 		{
 			name: "Bad status code",
@@ -445,10 +391,10 @@ func TestService_UploadMounts(t *testing.T) {
 					Path: "./hello.txt",
 				}},
 			}},
-			setup: func() error {
+			setup: func(workingDir string) error {
 				return writeTempFile(workingDir, "hello.txt", "hello world!")
 			},
-			mockInvokes: func() {
+			mockInvokes: func(client *mockclient.Client) {
 				// Body will get set with the body argument to NewHTTPRequest
 				req := httptest.NewRequest(http.MethodPost, "http://fake.com/.api/files/batch-changes/123", nil)
 				client.On("NewHTTPRequest", mock.Anything, http.MethodPost, ".api/files/batch-changes/123", mock.Anything).
@@ -467,16 +413,21 @@ func TestService_UploadMounts(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			// Use a temp directory for reading files
+			workingDir := t.TempDir()
 			if test.setup != nil {
-				err := test.setup()
+				err := test.setup(workingDir)
 				require.NoError(t, err)
 			}
 
+			client := new(mockclient.Client)
+			svc := service.New(&service.Opts{Client: client})
+
 			if test.mockInvokes != nil {
-				test.mockInvokes()
+				test.mockInvokes(client)
 			}
 
-			err := svc.UploadMounts(workingDir, "123", test.steps)
+			err := svc.UploadBatchSpecWorkspaceFile(workingDir, "123", test.steps)
 			if test.expectedError != nil {
 				assert.Equal(t, test.expectedError.Error(), err.Error())
 			} else {
