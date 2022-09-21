@@ -27,6 +27,7 @@ mutation UpsertEmptyBatchChange(
 		name: $name,
 		namespace: $namespace
 	) {
+		id
 		name
 		id
 	}
@@ -37,9 +38,10 @@ func (svc *Service) UpsertBatchChange(
 	ctx context.Context,
 	name string,
 	namespaceID string,
-) (string, error) {
+) (string, string, error) {
 	var resp struct {
 		UpsertEmptyBatchChange struct {
+			ID   string `json:"id"`
 			Name string `json:"name"`
 			ID   string `json:"id"`
 		} `json:"upsertEmptyBatchChange"`
