@@ -9,14 +9,11 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 
 	"github.com/sourcegraph/sourcegraph/lib/batches"
 	"github.com/sourcegraph/sourcegraph/lib/errors"
 )
-
-var ErrServerSideBatchChangesUnsupported = errors.New("server side batch changes are not available on this Sourcegraph instance")
 
 const upsertEmptyBatchChangeQuery = `
 mutation UpsertEmptyBatchChange(
@@ -29,7 +26,6 @@ mutation UpsertEmptyBatchChange(
 	) {
 		id
 		name
-		id
 	}
 }
 `
@@ -43,7 +39,6 @@ func (svc *Service) UpsertBatchChange(
 		UpsertEmptyBatchChange struct {
 			ID   string `json:"id"`
 			Name string `json:"name"`
-			ID   string `json:"id"`
 		} `json:"upsertEmptyBatchChange"`
 	}
 
@@ -110,82 +105,67 @@ func (svc *Service) CreateBatchSpecFromRaw(
 
 // UploadMounts uploads file mounts to the server.
 func (svc *Service) UploadMounts(workingDir string, batchSpecID string, steps []batches.Step) error {
-	if err := svc.areServerSideBatchChangesSupported(); err != nil {
-		return err
-	}
-
-	body := &bytes.Buffer{}
-	w := multipart.NewWriter(body)
-
-	var count int
 	for _, step := range steps {
 		for _, mount := range step.Mount {
-			total, err := handlePath(w, workingDir, mount.Path, count)
+			body := &bytes.Buffer{}
+			w := multipart.NewWriter(body)
+			err := handlePath(w, workingDir, mount.Path)
 			if err != nil {
 				return err
 			}
-			count += total
+			// Honestly, the most import thing to do. This adds the closing boundary to the request.
+			if err := w.Close(); err != nil {
+				return err
+			}
+
+			request, err := svc.client.NewHTTPRequest(context.Background(), http.MethodPost, fmt.Sprintf(".api/files/batch-changes/%s", batchSpecID), body)
+			if err != nil {
+				return err
+			}
+			request.Header.Add("Content-Type", w.FormDataContentType())
+
+			resp, err := svc.client.Do(request)
+			if err != nil {
+				return err
+			}
+			if resp.StatusCode != http.StatusOK {
+				p, err := io.ReadAll(resp.Body)
+				if err != nil {
+					return err
+				}
+				return errors.New(string(p))
+			}
 		}
-	}
-
-	if err := w.WriteField("count", strconv.Itoa(count)); err != nil {
-		return err
-	}
-
-	// Honestly, the most import thing to do. This adds the closing boundary to the request.
-	if err := w.Close(); err != nil {
-		return err
-	}
-
-	request, err := svc.client.NewHTTPRequest(context.Background(), http.MethodPost, fmt.Sprintf(".api/batches/mount/%s", batchSpecID), body)
-	if err != nil {
-		return err
-	}
-	request.Header.Add("Content-Type", w.FormDataContentType())
-
-	resp, err := svc.client.Do(request)
-	if err != nil {
-		return err
-	}
-	if resp.StatusCode != http.StatusOK {
-		p, err := io.ReadAll(resp.Body)
-		if err != nil {
-			return err
-		}
-		return errors.New(string(p))
 	}
 	return nil
 }
 
-func handlePath(w *multipart.Writer, workingDir, mountPath string, offset int) (int, error) {
-	total := 0
+func handlePath(w *multipart.Writer, workingDir, mountPath string) error {
 	actualFilePath := filepath.Join(workingDir, mountPath)
 	info, err := os.Stat(actualFilePath)
 	if err != nil {
-		return 0, err
+		return err
 	}
 	if info.IsDir() {
 		dir, err := os.ReadDir(actualFilePath)
 		if err != nil {
-			return 0, err
+			return err
 		}
 		for _, dirEntry := range dir {
-			totalFiles, err := handlePath(w, workingDir, filepath.Join(mountPath, dirEntry.Name()), offset+total)
+			err := handlePath(w, workingDir, filepath.Join(mountPath, dirEntry.Name()))
 			if err != nil {
-				return 0, err
+				return err
 			}
-			total += totalFiles
 		}
 	} else {
-		if err = createFormFile(w, workingDir, mountPath, offset+total); err != nil {
-			return 0, err
+		if err = createFormFile(w, workingDir, mountPath); err != nil {
+			return err
 		}
-		total++
 	}
-	return total, nil
+	return nil
 }
 
-func createFormFile(w *multipart.Writer, workingDir string, mountPath string, index int) error {
+func createFormFile(w *multipart.Writer, workingDir string, mountPath string) error {
 	// TODO: limit file size
 	f, err := os.Open(filepath.Join(workingDir, mountPath))
 	if err != nil {
@@ -195,18 +175,18 @@ func createFormFile(w *multipart.Writer, workingDir string, mountPath string, in
 
 	filePath, fileName := filepath.Split(mountPath)
 	trimmedPath := strings.Trim(strings.TrimSuffix(filePath, string(filepath.Separator)), ".")
-	if err = w.WriteField(fmt.Sprintf("filepath_%d", index), trimmedPath); err != nil {
+	if err = w.WriteField("filepath", trimmedPath); err != nil {
 		return err
 	}
 	fileInfo, err := f.Stat()
 	if err != nil {
 		return err
 	}
-	if err = w.WriteField(fmt.Sprintf("filemod_%d", index), fileInfo.ModTime().UTC().String()); err != nil {
+	if err = w.WriteField("filemod", fileInfo.ModTime().UTC().String()); err != nil {
 		return err
 	}
 
-	part, err := w.CreateFormFile(fmt.Sprintf("file_%d", index), fileName)
+	part, err := w.CreateFormFile("file", fileName)
 	if err != nil {
 		return err
 	}
