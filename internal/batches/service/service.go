@@ -466,7 +466,7 @@ func (e *duplicateBranchesErr) Error() string {
 	return out.String()
 }
 
-func (svc *Service) ParseBatchSpec(dir string, data []byte, isRemote bool) (*batcheslib.BatchSpec, error) {
+func (svc *Service) ParseBatchSpec(dir string, data []byte) (*batcheslib.BatchSpec, error) {
 	spec, err := batcheslib.ParseBatchSpec(data)
 	if err != nil {
 		return nil, errors.Wrap(err, "parsing batch spec")

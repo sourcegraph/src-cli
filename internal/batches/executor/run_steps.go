@@ -39,8 +39,8 @@ type RunStepsOpts struct {
 	Task *Task
 	// TempDir points to where temporary files of the execution should live at.
 	TempDir string
-	// MountDir points to where files that should be mounted live at.
-	MountDir string
+	// WorkspaceFilesDir points to where the workspace files should live at.
+	WorkspaceFilesDir string
 	// Timeout sets the deadline for the execution context. When exceeded,
 	// execution will stop and an error is returned.
 	Timeout time.Duration
@@ -323,11 +323,11 @@ func executeSingleStep(
 
 	// Mount any paths on the local system to the docker container. The paths have already been validated during parsing.
 	for _, mount := range step.Mount {
-		mountPath, err := getAbsoluteMountPath(opts.MountDir, mount.Path)
+		workspaceFilePath, err := getAbsoluteMountPath(opts.WorkspaceFilesDir, mount.Path)
 		if err != nil {
 			return bytes.Buffer{}, bytes.Buffer{}, err
 		}
-		args = append(args, "--mount", fmt.Sprintf("type=bind,source=%s,target=%s,ro", mountPath, mount.Mountpoint))
+		args = append(args, "--mount", fmt.Sprintf("type=bind,source=%s,target=%s,ro", workspaceFilePath, mount.Mountpoint))
 	}
 
 	for k, v := range env {
