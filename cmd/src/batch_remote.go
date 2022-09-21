@@ -100,15 +100,15 @@ Examples:
 		}
 		ui.SendingBatchSpecSuccess()
 
-		ui.UploadingMounts()
+		ui.UploadingWorkspaceFiles()
 		dir, err := getBatchSpecDirectory(file)
 		if err != nil {
 			return errors.Wrap(err, "batch spec path")
 		}
-		if err = svc.UploadMounts(dir, batchSpecID, spec.Steps); err != nil {
+		if err = svc.UploadBatchSpecWorkspaceFile(dir, batchSpecID, spec.Steps); err != nil {
 			return err
 		}
-		ui.UploadingMountsSuccess()
+		ui.UploadingWorkspaceFilesSuccess()
 
 		// Wait for the workspaces to be resolved.
 		ui.ResolvingWorkspaces()

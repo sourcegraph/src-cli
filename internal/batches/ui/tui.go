@@ -232,12 +232,12 @@ func (ui *TUI) SendingBatchSpecSuccess() {
 	batchCompletePending(ui.pending, "Sending batch spec")
 }
 
-func (ui *TUI) UploadingMounts() {
-	ui.pending = batchCreatePending(ui.Out, "Uploading mounts")
+func (ui *TUI) UploadingWorkspaceFiles() {
+	ui.pending = batchCreatePending(ui.Out, "Uploading workspace files")
 }
 
-func (ui *TUI) UploadingMountsSuccess() {
-	batchCompletePending(ui.pending, "Uploading mounts")
+func (ui *TUI) UploadingWorkspaceFilesSuccess() {
+	batchCompletePending(ui.pending, "Uploading workspace files")
 }
 
 func (ui *TUI) ResolvingWorkspaces() {
