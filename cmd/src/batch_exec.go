@@ -103,10 +103,6 @@ Examples:
 		ctx, cancel := contextCancelOnInterrupt(context.Background())
 		defer cancel()
 
-		svc := service.New(&service.Opts{
-			Client: cfg.apiClient(flags.api, flagSet.Output()),
-		})
-
 		err := executeBatchSpecInWorkspaces(ctx, flags)
 		if err != nil {
 			return cmderrors.ExitCode(1, err)
