@@ -126,7 +126,7 @@ Examples:
 	})
 }
 
-func executeBatchSpecInWorkspaces(ctx context.Context, flags *executorModeFlags, svc *service.Service) (err error) {
+func executeBatchSpecInWorkspaces(ctx context.Context, flags *executorModeFlags) (err error) {
 	ui := &ui.JSONLines{}
 
 	// Ensure the temp dir exists.
