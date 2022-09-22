@@ -13,7 +13,7 @@ All notable changes to `src-cli` are documented in this file.
 
 ### Added
 
-- Batch Specs can now mount files when running server side batch changes. [sourcegraph/src-cli#816](https://github.com/sourcegraph/src-cli/pull/816)
+- Mounting files now works when running batch changes server side. [sourcegraph/src-cli#816](https://github.com/sourcegraph/src-cli/pull/816)
 
 ### Changed
 
