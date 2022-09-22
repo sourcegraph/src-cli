@@ -1,7 +1,6 @@
 package service
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -107,18 +106,23 @@ func (svc *Service) CreateBatchSpecFromRaw(
 func (svc *Service) UploadBatchSpecWorkspaceFile(workingDir string, batchSpecID string, steps []batches.Step) error {
 	for _, step := range steps {
 		for _, mount := range step.Mount {
-			body := &bytes.Buffer{}
-			w := multipart.NewWriter(body)
-			err := handlePath(w, workingDir, mount.Path)
-			if err != nil {
-				return err
-			}
-			// Honestly, the most import thing to do. This adds the closing boundary to the request.
-			if err := w.Close(); err != nil {
-				return err
-			}
+			// Create a pipe so the requests can be chunked to the server
+			pipeReader, pipeWriter := io.Pipe()
+			w := multipart.NewWriter(pipeWriter)
 
-			request, err := svc.client.NewHTTPRequest(context.Background(), http.MethodPost, fmt.Sprintf(".api/files/batch-changes/%s", batchSpecID), body)
+			// Write in a separate goroutine to properly chunk the file content. Writing to the pipe lets us not have
+			// to put the whole file in memory.
+			go func() {
+				defer pipeWriter.Close()
+				defer w.Close()
+
+				err := handlePath(w, workingDir, mount.Path)
+				if err != nil {
+					return
+				}
+			}()
+
+			request, err := svc.client.NewHTTPRequest(context.Background(), http.MethodPost, fmt.Sprintf(".api/files/batch-changes/%s", batchSpecID), pipeReader)
 			if err != nil {
 				return err
 			}
