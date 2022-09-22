@@ -148,12 +148,9 @@ func executeBatchSpecInWorkspaces(ctx context.Context, flags *executorModeFlags)
 	}
 
 	// Grab the absolute path to the workspace files contents.
-	workspaceFilesDir := flags.workspaceFilesDir
-	if !filepath.IsAbs(workspaceFilesDir) {
-		workspaceFilesDir, err = filepath.Abs(workspaceFilesDir)
-		if err != nil {
-			return errors.Wrap(err, "getting absolute path for workspace files dir")
-		}
+	workspaceFilesDir, err := filepath.Abs(flags.workspaceFilesDir)
+	if err != nil {
+		return errors.Wrap(err, "getting absolute path for workspace files dir")
 	}
 
 	// Test if git is available.
