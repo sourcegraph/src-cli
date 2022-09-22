@@ -142,17 +142,16 @@ func (svc *Service) handleWorkspaceFile(workingDir, mountPath, batchSpecID strin
 func (svc *Service) uploadFile(workingDir, mountPath, batchSpecID string) error {
 	// Create a pipe so the requests can be chunked to the server
 	pipeReader, pipeWriter := io.Pipe()
-	w := multipart.NewWriter(pipeWriter)
+	multipartWriter := multipart.NewWriter(pipeWriter)
 
 	// Write in a separate goroutine to properly chunk the file content. Writing to the pipe lets us not have
 	// to put the whole file in memory.
 	go func() {
 		defer pipeWriter.Close()
-		defer w.Close()
+		defer multipartWriter.Close()
 
-		if err := createFormFile(w, workingDir, mountPath); err != nil {
-			// TODO
-			return
+		if err := createFormFile(multipartWriter, workingDir, mountPath); err != nil {
+			pipeWriter.CloseWithError(err)
 		}
 	}()
 
@@ -160,10 +159,11 @@ func (svc *Service) uploadFile(workingDir, mountPath, batchSpecID string) error 
 	if err != nil {
 		return err
 	}
-	request.Header.Set("Content-Type", w.FormDataContentType())
+	request.Header.Set("Content-Type", multipartWriter.FormDataContentType())
 
 	resp, err := svc.client.Do(request)
 	if err != nil {
+		// Errors passed to pipeWriter.CloseWithError come through here.
 		return err
 	}
 	if resp.StatusCode != http.StatusOK {
@@ -176,13 +176,23 @@ func (svc *Service) uploadFile(workingDir, mountPath, batchSpecID string) error 
 	return nil
 }
 
+const maxFileSize = 10 << 20 // 10MB
+
 func createFormFile(w *multipart.Writer, workingDir string, mountPath string) error {
-	// TODO: limit file size
 	f, err := os.Open(filepath.Join(workingDir, mountPath))
 	if err != nil {
 		return err
 	}
 	defer f.Close()
+
+	// Limit the size of file to 10MB
+	fileStat, err := f.Stat()
+	if err != nil {
+		return err
+	}
+	if fileStat.Size() > maxFileSize {
+		return errors.New("file exceeds limit of 10MB")
+	}
 
 	filePath, fileName := filepath.Split(mountPath)
 	trimmedPath := strings.Trim(strings.TrimSuffix(filePath, string(filepath.Separator)), ".")
