@@ -472,6 +472,39 @@ func TestService_UploadBatchSpecWorkspaceFile(t *testing.T) {
 			},
 			expectedError: errors.New("failed to upload file"),
 		},
+		{
+			name: "File exceeds limit",
+			steps: []batches.Step{{
+				Mount: []batches.Mount{{
+					Path: "./hello.txt",
+				}},
+			}},
+			setup: func(workingDir string) error {
+				f, err := os.Create(filepath.Join(workingDir, "hello.txt"))
+				if err != nil {
+					return err
+				}
+				defer f.Close()
+				if _, err = io.Copy(f, io.LimitReader(neverEnding('a'), 11<<20)); err != nil {
+					return err
+				}
+				return nil
+			},
+			mockInvokes: func(client *mockclient.Client) {
+				req := httptest.NewRequest(http.MethodPost, "http://fake.com/.api/files/batch-changes/123", nil)
+				client.On("NewHTTPRequest", mock.Anything, http.MethodPost, ".api/files/batch-changes/123", mock.Anything).
+					Run(func(args mock.Arguments) {
+						req.Body = args[3].(*io.PipeReader)
+					}).
+					Return(req, nil).
+					Once()
+
+				client.On("Do", mock.Anything).
+					Return(nil, errors.New("file exceeds limit")).
+					Once()
+			},
+			expectedError: errors.New("file exceeds limit"),
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -562,4 +595,13 @@ type multipartFormEntry struct {
 	content  string
 	// This prevents some weird behavior that causes the request body to get read and throw errors.
 	calls int
+}
+
+type neverEnding byte
+
+func (b neverEnding) Read(p []byte) (n int, err error) {
+	for i := range p {
+		p[i] = byte(b)
+	}
+	return len(p), nil
 }
