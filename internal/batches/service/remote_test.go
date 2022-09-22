@@ -226,12 +226,21 @@ func TestService_UploadBatchSpecWorkspaceFile(t *testing.T) {
 				// Body will get set with the body argument to NewHTTPRequest
 				req := httptest.NewRequest(http.MethodPost, "http://fake.com/.api/files/batch-changes/123", nil)
 				client.On("NewHTTPRequest", mock.Anything, http.MethodPost, ".api/files/batch-changes/123", mock.Anything).
+					Run(func(args mock.Arguments) {
+						req.Body = args[3].(*io.PipeReader)
+					}).
 					Return(req, nil).
 					Once()
+
 				resp := &http.Response{
 					StatusCode: http.StatusOK,
 				}
-				client.On("Do", mock.Anything).
+				entry := &multipartFormEntry{
+					fileName: "hello.txt",
+					content:  "hello world!",
+				}
+				requestMatcher := multipartFormRequestMatcher(entry)
+				client.On("Do", mock.MatchedBy(requestMatcher)).
 					Return(resp, nil).
 					Once()
 			},
@@ -258,15 +267,32 @@ func TestService_UploadBatchSpecWorkspaceFile(t *testing.T) {
 				// Body will get set with the body argument to NewHTTPRequest
 				req := httptest.NewRequest(http.MethodPost, "http://fake.com/.api/files/batch-changes/123", nil)
 				client.On("NewHTTPRequest", mock.Anything, http.MethodPost, ".api/files/batch-changes/123", mock.Anything).
+					Run(func(args mock.Arguments) {
+						req.Body = args[3].(*io.PipeReader)
+					}).
 					Return(req, nil).
 					Twice()
 
 				resp := &http.Response{
 					StatusCode: http.StatusOK,
 				}
-				client.On("Do", mock.Anything).
+				helloEntry := &multipartFormEntry{
+					fileName: "hello.txt",
+					content:  "hello",
+				}
+				client.
+					On("Do", mock.MatchedBy(multipartFormRequestMatcher(helloEntry))).
 					Return(resp, nil).
-					Twice()
+					Once()
+
+				worldEntry := &multipartFormEntry{
+					fileName: "world.txt",
+					content:  "world!",
+				}
+				client.
+					On("Do", mock.MatchedBy(multipartFormRequestMatcher(worldEntry))).
+					Return(resp, nil).
+					Once()
 			},
 		},
 		{
@@ -288,13 +314,32 @@ func TestService_UploadBatchSpecWorkspaceFile(t *testing.T) {
 				// Body will get set with the body argument to NewHTTPRequest
 				req := httptest.NewRequest(http.MethodPost, "http://fake.com/.api/files/batch-changes/123", nil)
 				client.On("NewHTTPRequest", mock.Anything, http.MethodPost, ".api/files/batch-changes/123", mock.Anything).
+					Run(func(args mock.Arguments) {
+						req.Body = args[3].(*io.PipeReader)
+					}).
 					Return(req, nil).
-					Once()
+					Twice()
+
 				resp := &http.Response{
 					StatusCode: http.StatusOK,
 				}
-				client.On("Do", mock.Anything).
-					Return(resp, nil)
+				helloEntry := &multipartFormEntry{
+					fileName: "hello.txt",
+					content:  "hello",
+				}
+				client.
+					On("Do", mock.MatchedBy(multipartFormRequestMatcher(helloEntry))).
+					Return(resp, nil).
+					Once()
+
+				worldEntry := &multipartFormEntry{
+					fileName: "world.txt",
+					content:  "world!",
+				}
+				client.
+					On("Do", mock.MatchedBy(multipartFormRequestMatcher(worldEntry))).
+					Return(resp, nil).
+					Once()
 			},
 		},
 		{
@@ -317,12 +362,21 @@ func TestService_UploadBatchSpecWorkspaceFile(t *testing.T) {
 				// Body will get set with the body argument to NewHTTPRequest
 				req := httptest.NewRequest(http.MethodPost, "http://fake.com/.api/files/batch-changes/123", nil)
 				client.On("NewHTTPRequest", mock.Anything, http.MethodPost, ".api/files/batch-changes/123", mock.Anything).
+					Run(func(args mock.Arguments) {
+						req.Body = args[3].(*io.PipeReader)
+					}).
 					Return(req, nil).
 					Once()
+
 				resp := &http.Response{
 					StatusCode: http.StatusOK,
 				}
-				client.On("Do", mock.Anything).
+				entry := &multipartFormEntry{
+					path:     "scripts",
+					fileName: "hello.txt",
+					content:  "hello world!",
+				}
+				client.On("Do", mock.MatchedBy(multipartFormRequestMatcher(entry))).
 					Return(resp, nil).
 					Once()
 			},
@@ -359,14 +413,37 @@ func TestService_UploadBatchSpecWorkspaceFile(t *testing.T) {
 				// Body will get set with the body argument to NewHTTPRequest
 				req := httptest.NewRequest(http.MethodPost, "http://fake.com/.api/files/batch-changes/123", nil)
 				client.On("NewHTTPRequest", mock.Anything, http.MethodPost, ".api/files/batch-changes/123", mock.Anything).
+					Run(func(args mock.Arguments) {
+						req.Body = args[3].(*io.PipeReader)
+					}).
 					Return(req, nil).
 					Times(3)
+
 				resp := &http.Response{
 					StatusCode: http.StatusOK,
 				}
-				client.On("Do", mock.Anything).
+				helloEntry := &multipartFormEntry{
+					fileName: "hello.txt",
+					content:  "hello",
+				}
+				client.On("Do", mock.MatchedBy(multipartFormRequestMatcher(helloEntry))).
 					Return(resp, nil).
-					Times(3)
+					Once()
+				worldEntry := &multipartFormEntry{
+					fileName: "world.txt",
+					content:  "world!",
+				}
+				client.On("Do", mock.MatchedBy(multipartFormRequestMatcher(worldEntry))).
+					Return(resp, nil).
+					Once()
+				somethingElseEntry := &multipartFormEntry{
+					path:     "scripts",
+					fileName: "something-else.txt",
+					content:  "this is neat",
+				}
+				client.On("Do", mock.MatchedBy(multipartFormRequestMatcher(somethingElseEntry))).
+					Return(resp, nil).
+					Once()
 			},
 		},
 		{
@@ -380,11 +457,11 @@ func TestService_UploadBatchSpecWorkspaceFile(t *testing.T) {
 				return writeTempFile(workingDir, "hello.txt", "hello world!")
 			},
 			mockInvokes: func(client *mockclient.Client) {
-				// Body will get set with the body argument to NewHTTPRequest
 				req := httptest.NewRequest(http.MethodPost, "http://fake.com/.api/files/batch-changes/123", nil)
 				client.On("NewHTTPRequest", mock.Anything, http.MethodPost, ".api/files/batch-changes/123", mock.Anything).
 					Return(req, nil).
 					Once()
+
 				resp := &http.Response{
 					StatusCode: http.StatusInternalServerError,
 					Body:       io.NopCloser(bytes.NewReader([]byte("failed to upload file"))),
@@ -437,24 +514,30 @@ func writeTempFile(dir string, name string, content string) error {
 }
 
 // 2006-01-02 15:04:05.999999999 -0700 MST
-var modtimeRegex = regexp.MustCompile("^[0-9]{4}-[0-9]{2}-[0-9]{2}\\s[0-9]{2}:[0-9]{2}:[0-9]{2}.[0-9]{9} \\+0000 UTC$")
+var modtimeRegex = regexp.MustCompile("^[0-9]{4}-[0-9]{2}-[0-9]{2}\\s[0-9]{2}:[0-9]{2}:[0-9]{2}.[0-9]{1,9} \\+0000 UTC$")
 
-func multipartFormRequestMatcher(entry multipartFormEntry) func(*http.Request) bool {
+func multipartFormRequestMatcher(entry *multipartFormEntry) func(*http.Request) bool {
 	return func(req *http.Request) bool {
-		contentType := req.Header.Get("Content-Type")
+		// Prevent parsing the body for the wrong matcher - causes all kinds of havoc.
+		if entry.calls > 0 {
+			return false
+		}
+		// Clone the request. Running ParseMultipartForm changes the behavior of the request for any additional matchers.
+		cloneReq := req.Clone(context.Background())
+		contentType := cloneReq.Header.Get("Content-Type")
 		if !strings.HasPrefix(contentType, "multipart/form-data") {
 			return false
 		}
-		if err := req.ParseMultipartForm(32 << 20); err != nil {
+		if err := cloneReq.ParseMultipartForm(32 << 20); err != nil {
 			return false
 		}
-		if req.Form.Get("filepath") != entry.path {
+		if cloneReq.Form.Get("filepath") != entry.path {
 			return false
 		}
-		if !modtimeRegex.MatchString(req.Form.Get("filemod")) {
+		if !modtimeRegex.MatchString(cloneReq.Form.Get("filemod")) {
 			return false
 		}
-		f, header, err := req.FormFile("file")
+		f, header, err := cloneReq.FormFile("file")
 		if err != nil {
 			return false
 		}
@@ -468,6 +551,7 @@ func multipartFormRequestMatcher(entry multipartFormEntry) func(*http.Request) b
 		if string(b) != entry.content {
 			return false
 		}
+		entry.calls++
 		return true
 	}
 }
@@ -476,4 +560,6 @@ type multipartFormEntry struct {
 	path     string
 	fileName string
 	content  string
+	// This prevents some weird behavior that causes the request body to get read and throw errors.
+	calls int
 }
