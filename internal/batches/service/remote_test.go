@@ -226,9 +226,6 @@ func TestService_UploadBatchSpecWorkspaceFile(t *testing.T) {
 				// Body will get set with the body argument to NewHTTPRequest
 				req := httptest.NewRequest(http.MethodPost, "http://fake.com/.api/files/batch-changes/123", nil)
 				client.On("NewHTTPRequest", mock.Anything, http.MethodPost, ".api/files/batch-changes/123", mock.Anything).
-					Run(func(args mock.Arguments) {
-						req.Body = io.NopCloser(args.Get(3).(*bytes.Buffer))
-					}).
 					Return(req, nil).
 					Once()
 				resp := &http.Response{
@@ -261,9 +258,6 @@ func TestService_UploadBatchSpecWorkspaceFile(t *testing.T) {
 				// Body will get set with the body argument to NewHTTPRequest
 				req := httptest.NewRequest(http.MethodPost, "http://fake.com/.api/files/batch-changes/123", nil)
 				client.On("NewHTTPRequest", mock.Anything, http.MethodPost, ".api/files/batch-changes/123", mock.Anything).
-					Run(func(args mock.Arguments) {
-						req.Body = io.NopCloser(args.Get(3).(*bytes.Buffer))
-					}).
 					Return(req, nil).
 					Twice()
 
@@ -294,9 +288,6 @@ func TestService_UploadBatchSpecWorkspaceFile(t *testing.T) {
 				// Body will get set with the body argument to NewHTTPRequest
 				req := httptest.NewRequest(http.MethodPost, "http://fake.com/.api/files/batch-changes/123", nil)
 				client.On("NewHTTPRequest", mock.Anything, http.MethodPost, ".api/files/batch-changes/123", mock.Anything).
-					Run(func(args mock.Arguments) {
-						req.Body = io.NopCloser(args.Get(3).(*bytes.Buffer))
-					}).
 					Return(req, nil).
 					Once()
 				resp := &http.Response{
@@ -326,9 +317,6 @@ func TestService_UploadBatchSpecWorkspaceFile(t *testing.T) {
 				// Body will get set with the body argument to NewHTTPRequest
 				req := httptest.NewRequest(http.MethodPost, "http://fake.com/.api/files/batch-changes/123", nil)
 				client.On("NewHTTPRequest", mock.Anything, http.MethodPost, ".api/files/batch-changes/123", mock.Anything).
-					Run(func(args mock.Arguments) {
-						req.Body = io.NopCloser(args.Get(3).(*bytes.Buffer))
-					}).
 					Return(req, nil).
 					Once()
 				resp := &http.Response{
@@ -371,9 +359,6 @@ func TestService_UploadBatchSpecWorkspaceFile(t *testing.T) {
 				// Body will get set with the body argument to NewHTTPRequest
 				req := httptest.NewRequest(http.MethodPost, "http://fake.com/.api/files/batch-changes/123", nil)
 				client.On("NewHTTPRequest", mock.Anything, http.MethodPost, ".api/files/batch-changes/123", mock.Anything).
-					Run(func(args mock.Arguments) {
-						req.Body = io.NopCloser(args.Get(3).(*bytes.Buffer))
-					}).
 					Return(req, nil).
 					Times(3)
 				resp := &http.Response{
