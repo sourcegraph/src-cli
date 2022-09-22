@@ -106,45 +106,15 @@ func (svc *Service) CreateBatchSpecFromRaw(
 func (svc *Service) UploadBatchSpecWorkspaceFile(workingDir string, batchSpecID string, steps []batches.Step) error {
 	for _, step := range steps {
 		for _, mount := range step.Mount {
-			// Create a pipe so the requests can be chunked to the server
-			pipeReader, pipeWriter := io.Pipe()
-			w := multipart.NewWriter(pipeWriter)
-
-			// Write in a separate goroutine to properly chunk the file content. Writing to the pipe lets us not have
-			// to put the whole file in memory.
-			go func() {
-				defer pipeWriter.Close()
-				defer w.Close()
-
-				err := handlePath(w, workingDir, mount.Path)
-				if err != nil {
-					return
-				}
-			}()
-
-			request, err := svc.client.NewHTTPRequest(context.Background(), http.MethodPost, fmt.Sprintf(".api/files/batch-changes/%s", batchSpecID), pipeReader)
-			if err != nil {
+			if err := svc.handleWorkspaceFile(workingDir, mount.Path, batchSpecID); err != nil {
 				return err
-			}
-			request.Header.Add("Content-Type", w.FormDataContentType())
-
-			resp, err := svc.client.Do(request)
-			if err != nil {
-				return err
-			}
-			if resp.StatusCode != http.StatusOK {
-				p, err := io.ReadAll(resp.Body)
-				if err != nil {
-					return err
-				}
-				return errors.New(string(p))
 			}
 		}
 	}
 	return nil
 }
 
-func handlePath(w *multipart.Writer, workingDir, mountPath string) error {
+func (svc *Service) handleWorkspaceFile(workingDir, mountPath, batchSpecID string) error {
 	actualFilePath := filepath.Join(workingDir, mountPath)
 	info, err := os.Stat(actualFilePath)
 	if err != nil {
@@ -156,15 +126,52 @@ func handlePath(w *multipart.Writer, workingDir, mountPath string) error {
 			return err
 		}
 		for _, dirEntry := range dir {
-			err := handlePath(w, workingDir, filepath.Join(mountPath, dirEntry.Name()))
+			err := svc.handleWorkspaceFile(workingDir, filepath.Join(mountPath, dirEntry.Name()), batchSpecID)
 			if err != nil {
 				return err
 			}
 		}
 	} else {
-		if err = createFormFile(w, workingDir, mountPath); err != nil {
+		if err = svc.uploadFile(workingDir, mountPath, batchSpecID); err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+func (svc *Service) uploadFile(workingDir, mountPath, batchSpecID string) error {
+	// Create a pipe so the requests can be chunked to the server
+	pipeReader, pipeWriter := io.Pipe()
+	w := multipart.NewWriter(pipeWriter)
+
+	// Write in a separate goroutine to properly chunk the file content. Writing to the pipe lets us not have
+	// to put the whole file in memory.
+	go func() {
+		defer pipeWriter.Close()
+		defer w.Close()
+
+		if err := createFormFile(w, workingDir, mountPath); err != nil {
+			// TODO
+			return
+		}
+	}()
+
+	request, err := svc.client.NewHTTPRequest(context.Background(), http.MethodPost, fmt.Sprintf(".api/files/batch-changes/%s", batchSpecID), pipeReader)
+	if err != nil {
+		return err
+	}
+	request.Header.Set("Content-Type", w.FormDataContentType())
+
+	resp, err := svc.client.Do(request)
+	if err != nil {
+		return err
+	}
+	if resp.StatusCode != http.StatusOK {
+		p, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return err
+		}
+		return errors.New(string(p))
 	}
 	return nil
 }
