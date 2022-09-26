@@ -41,9 +41,7 @@ type executorModeFlags struct {
 }
 
 func newExecutorModeFlags(flagSet *flag.FlagSet) (f *executorModeFlags) {
-	f = &executorModeFlags{
-		api: api.NewFlags(flagSet),
-	}
+	f = &executorModeFlags{}
 	flagSet.DurationVar(&f.timeout, "timeout", 60*time.Minute, "The maximum duration a single batch spec step can take.")
 	flagSet.StringVar(&f.file, "f", "", "The workspace execution input file to read.")
 	flagSet.StringVar(&f.tempDir, "tmp", "", "Directory for storing temporary data.")
