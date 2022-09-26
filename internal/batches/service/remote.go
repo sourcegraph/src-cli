@@ -182,7 +182,7 @@ func (svc *Service) uploadFile(ctx context.Context, workingDir, filePath, batchS
 		return err
 	}
 	// 2xx and 3xx are ok
-	if resp.StatusCode >= http.StatusBadRequest || resp.StatusCode < http.StatusOK {
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusBadRequest {
 		p, err := io.ReadAll(resp.Body)
 		if err != nil {
 			return err
