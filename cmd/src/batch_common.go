@@ -300,7 +300,7 @@ func executeBatchSpec(ctx context.Context, ui ui.ExecUI, opts executeBatchSpecOp
 
 	// Parse flags and build up our service and executor options.
 	ui.ParsingBatchSpec()
-	batchSpec, rawSpec, err := parseBatchSpec(ctx, opts.file, svc)
+	batchSpec, batchSpecDir, rawSpec, err := parseBatchSpec(ctx, opts.file, svc)
 	if err != nil {
 		var multiErr errors.MultiError
 		if errors.As(err, &multiErr) {
@@ -366,10 +366,6 @@ func executeBatchSpec(ctx context.Context, ui ui.ExecUI, opts executeBatchSpecOp
 
 	archiveRegistry := repozip.NewArchiveRegistry(opts.client, opts.flags.cacheDir, opts.flags.cleanArchives)
 	logManager := log.NewDiskManager(opts.flags.tempDir, opts.flags.keepLogs)
-	batchSpecDirectory, err := getBatchSpecDirectory(opts.file)
-	if err != nil {
-		return err
-	}
 	coord := executor.NewCoordinator(
 		executor.NewCoordinatorOpts{
 			ExecOpts: executor.NewExecutorOpts{
@@ -378,7 +374,7 @@ func executeBatchSpec(ctx context.Context, ui ui.ExecUI, opts executeBatchSpecOp
 				Creator:             workspaceCreator,
 				EnsureImage:         imageCache.Ensure,
 				Parallelism:         parallelism,
-				WorkingDirectory:    batchSpecDirectory,
+				WorkingDirectory:    batchSpecDir,
 				Timeout:             opts.flags.timeout,
 				TempDir:             opts.flags.tempDir,
 				GlobalEnv:           os.Environ(),
@@ -507,10 +503,10 @@ func setReadDeadlineOnCancel(ctx context.Context, f *os.File) {
 
 // parseBatchSpec parses and validates the given batch spec. If the spec has
 // validation errors, they are returned.
-func parseBatchSpec(ctx context.Context, file string, svc *service.Service) (*batcheslib.BatchSpec, string, error) {
+func parseBatchSpec(ctx context.Context, file string, svc *service.Service) (*batcheslib.BatchSpec, string, string, error) {
 	f, err := batchOpenFileFlag(file)
 	if err != nil {
-		return nil, "", err
+		return nil, "", "", err
 	}
 	defer f.Close()
 
@@ -522,16 +518,16 @@ func parseBatchSpec(ctx context.Context, file string, svc *service.Service) (*ba
 
 	data, err := io.ReadAll(f)
 	if err != nil {
-		return nil, "", errors.Wrap(err, "reading batch spec")
+		return nil, "", "", errors.Wrap(err, "reading batch spec")
 	}
 
 	dir, err := getBatchSpecDirectory(file)
 	if err != nil {
-		return nil, "", errors.Wrap(err, "batch spec path")
+		return nil, "", "", errors.Wrap(err, "batch spec path")
 	}
 
 	spec, err := svc.ParseBatchSpec(dir, data)
-	return spec, string(data), err
+	return spec, dir, string(data), err
 }
 
 func getBatchSpecDirectory(file string) (string, error) {
