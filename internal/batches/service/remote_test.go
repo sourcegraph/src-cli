@@ -522,7 +522,7 @@ func TestService_UploadBatchSpecWorkspaceFile(t *testing.T) {
 				test.mockInvokes(client)
 			}
 
-			err := svc.UploadBatchSpecWorkspaceFile(workingDir, "123", test.steps)
+			err := svc.UploadBatchSpecWorkspaceFile(context.Background(), workingDir, "123", test.steps)
 			if test.expectedError != nil {
 				assert.Equal(t, test.expectedError.Error(), err.Error())
 			} else {

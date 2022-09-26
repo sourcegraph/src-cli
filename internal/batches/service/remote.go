@@ -103,10 +103,10 @@ func (svc *Service) CreateBatchSpecFromRaw(
 }
 
 // UploadBatchSpecWorkspaceFile uploads workspace files to the server.
-func (svc *Service) UploadBatchSpecWorkspaceFile(workingDir string, batchSpecID string, steps []batches.Step) error {
+func (svc *Service) UploadBatchSpecWorkspaceFile(ctx context.Context, workingDir string, batchSpecID string, steps []batches.Step) error {
 	for _, step := range steps {
 		for _, mount := range step.Mount {
-			if err := svc.handleWorkspaceFile(workingDir, mount.Path, batchSpecID); err != nil {
+			if err := svc.handleWorkspaceFile(ctx, workingDir, mount.Path, batchSpecID); err != nil {
 				return err
 			}
 		}
@@ -114,7 +114,7 @@ func (svc *Service) UploadBatchSpecWorkspaceFile(workingDir string, batchSpecID 
 	return nil
 }
 
-func (svc *Service) handleWorkspaceFile(workingDir, mountPath, batchSpecID string) error {
+func (svc *Service) handleWorkspaceFile(ctx context.Context, workingDir, mountPath, batchSpecID string) error {
 	actualFilePath := filepath.Join(workingDir, mountPath)
 	info, err := os.Stat(actualFilePath)
 	if err != nil {
@@ -126,20 +126,20 @@ func (svc *Service) handleWorkspaceFile(workingDir, mountPath, batchSpecID strin
 			return err
 		}
 		for _, dirEntry := range dir {
-			err := svc.handleWorkspaceFile(workingDir, filepath.Join(mountPath, dirEntry.Name()), batchSpecID)
+			err := svc.handleWorkspaceFile(ctx, workingDir, filepath.Join(mountPath, dirEntry.Name()), batchSpecID)
 			if err != nil {
 				return err
 			}
 		}
 	} else {
-		if err = svc.uploadFile(workingDir, mountPath, batchSpecID); err != nil {
+		if err = svc.uploadFile(ctx, workingDir, mountPath, batchSpecID); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (svc *Service) uploadFile(workingDir, mountPath, batchSpecID string) error {
+func (svc *Service) uploadFile(ctx context.Context, workingDir, mountPath, batchSpecID string) error {
 	// Create a pipe so the requests can be chunked to the server
 	pipeReader, pipeWriter := io.Pipe()
 	multipartWriter := multipart.NewWriter(pipeWriter)
@@ -155,7 +155,7 @@ func (svc *Service) uploadFile(workingDir, mountPath, batchSpecID string) error 
 		}
 	}()
 
-	request, err := svc.client.NewHTTPRequest(context.Background(), http.MethodPost, fmt.Sprintf(".api/files/batch-changes/%s", batchSpecID), pipeReader)
+	request, err := svc.client.NewHTTPRequest(ctx, http.MethodPost, fmt.Sprintf(".api/files/batch-changes/%s", batchSpecID), pipeReader)
 	if err != nil {
 		return err
 	}

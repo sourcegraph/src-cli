@@ -105,7 +105,7 @@ Examples:
 		if err != nil {
 			return errors.Wrap(err, "batch spec path")
 		}
-		if err = svc.UploadBatchSpecWorkspaceFile(dir, batchSpecID, spec.Steps); err != nil {
+		if err = svc.UploadBatchSpecWorkspaceFile(ctx, dir, batchSpecID, spec.Steps); err != nil {
 			return err
 		}
 		ui.UploadingWorkspaceFilesSuccess()
