@@ -38,7 +38,7 @@ func (t *Task) ArchivePathToFetch() string {
 	return ""
 }
 
-func (t *Task) CacheKey(globalEnv []string, dir string, stepIndex int) cache.Keyer {
+func (t *Task) CacheKey(globalEnv []string, workingDir string, stepIndex int) cache.Keyer {
 	return &cache.CacheKey{
 		Repository: batcheslib.Repository{
 			ID:          t.Repository.ID,
@@ -51,7 +51,7 @@ func (t *Task) CacheKey(globalEnv []string, dir string, stepIndex int) cache.Key
 		OnlyFetchWorkspace:    t.OnlyFetchWorkspace,
 		Steps:                 t.Steps,
 		BatchChangeAttributes: t.BatchChangeAttributes,
-		MetadataRetriever:     fileMetadataRetriever{workingDirectory: dir},
+		MetadataRetriever:     fileMetadataRetriever{workingDirectory: workingDir},
 
 		GlobalEnv: globalEnv,
 
