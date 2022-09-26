@@ -201,12 +201,12 @@ func executeBatchSpecInWorkspaces(ctx context.Context, flags *executorModeFlags)
 		EnsureImage: imageCache.Ensure,
 		Task:        task,
 		// TODO: Should be slightly less than the executor timeout. Can we somehow read that?
-		Timeout:           flags.timeout,
-		TempDir:           tempDir,
-		WorkspaceFilesDir: workspaceFilesDir,
-		GlobalEnv:         globalEnv,
-		RepoArchive:       &repozip.NoopArchive{},
-		UI:                taskExecUI.StepsExecutionUI(task),
+		Timeout:          flags.timeout,
+		TempDir:          tempDir,
+		WorkingDirectory: workspaceFilesDir,
+		GlobalEnv:        globalEnv,
+		RepoArchive:      &repozip.NoopArchive{},
+		UI:               taskExecUI.StepsExecutionUI(task),
 	}
 	results, err := executor.RunSteps(ctx, opts)
 
