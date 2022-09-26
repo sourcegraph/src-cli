@@ -102,44 +102,59 @@ func (svc *Service) CreateBatchSpecFromRaw(
 	return resp.CreateBatchSpecFromRaw.ID, nil
 }
 
-// UploadBatchSpecWorkspaceFile uploads workspace files to the server.
-func (svc *Service) UploadBatchSpecWorkspaceFile(ctx context.Context, workingDir string, batchSpecID string, steps []batches.Step) error {
+// UploadBatchSpecWorkspaceFiles uploads workspace files to the server.
+func (svc *Service) UploadBatchSpecWorkspaceFiles(ctx context.Context, workingDir string, batchSpecID string, steps []batches.Step) error {
+	filePaths := make(map[string]bool)
 	for _, step := range steps {
 		for _, mount := range step.Mount {
-			if err := svc.handleWorkspaceFile(ctx, workingDir, mount.Path, batchSpecID); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
-}
-
-func (svc *Service) handleWorkspaceFile(ctx context.Context, workingDir, mountPath, batchSpecID string) error {
-	actualFilePath := filepath.Join(workingDir, mountPath)
-	info, err := os.Stat(actualFilePath)
-	if err != nil {
-		return err
-	}
-	if info.IsDir() {
-		dir, err := os.ReadDir(actualFilePath)
-		if err != nil {
-			return err
-		}
-		for _, dirEntry := range dir {
-			err := svc.handleWorkspaceFile(ctx, workingDir, filepath.Join(mountPath, dirEntry.Name()), batchSpecID)
+			paths, err := getFilePaths(workingDir, mount.Path)
 			if err != nil {
 				return err
 			}
+			// Dedupe any files.
+			for _, path := range paths {
+				if !filePaths[path] {
+					filePaths[path] = true
+				}
+			}
 		}
-	} else {
-		if err = svc.uploadFile(ctx, workingDir, mountPath, batchSpecID); err != nil {
+	}
+
+	for filePath := range filePaths {
+		if err := svc.uploadFile(ctx, workingDir, filePath, batchSpecID); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (svc *Service) uploadFile(ctx context.Context, workingDir, mountPath, batchSpecID string) error {
+func getFilePaths(workingDir, filePath string) ([]string, error) {
+	var filePaths []string
+	actualFilePath := filepath.Join(workingDir, filePath)
+	info, err := os.Stat(actualFilePath)
+	if err != nil {
+		return nil, err
+	}
+
+	if info.IsDir() {
+		dir, err := os.ReadDir(actualFilePath)
+		if err != nil {
+			return nil, err
+		}
+		for _, dirEntry := range dir {
+			paths, err := getFilePaths(workingDir, filepath.Join(filePath, dirEntry.Name()))
+			if err != nil {
+				return nil, err
+			}
+			filePaths = append(filePaths, paths...)
+		}
+	} else {
+		filePaths = append(filePaths, filePath)
+	}
+	return filePaths, nil
+}
+
+func (svc *Service) uploadFile(ctx context.Context, workingDir, filePath, batchSpecID string) error {
 	// Create a pipe so the requests can be chunked to the server
 	pipeReader, pipeWriter := io.Pipe()
 	multipartWriter := multipart.NewWriter(pipeWriter)
@@ -150,7 +165,7 @@ func (svc *Service) uploadFile(ctx context.Context, workingDir, mountPath, batch
 		defer pipeWriter.Close()
 		defer multipartWriter.Close()
 
-		if err := createFormFile(multipartWriter, workingDir, mountPath); err != nil {
+		if err := createFormFile(multipartWriter, workingDir, filePath); err != nil {
 			pipeWriter.CloseWithError(err)
 		}
 	}()

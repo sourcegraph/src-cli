@@ -202,7 +202,7 @@ func TestService_CreateBatchSpecFromRaw(t *testing.T) {
 	}
 }
 
-func TestService_UploadBatchSpecWorkspaceFile(t *testing.T) {
+func TestService_UploadBatchSpecWorkspaceFiles(t *testing.T) {
 	tests := []struct {
 		name  string
 		steps []batches.Step
@@ -218,6 +218,47 @@ func TestService_UploadBatchSpecWorkspaceFile(t *testing.T) {
 				Mount: []batches.Mount{{
 					Path: "./hello.txt",
 				}},
+			}},
+			setup: func(workingDir string) error {
+				return writeTempFile(workingDir, "hello.txt", "hello world!")
+			},
+			mockInvokes: func(client *mockclient.Client) {
+				// Body will get set with the body argument to NewHTTPRequest
+				req := httptest.NewRequest(http.MethodPost, "http://fake.com/.api/files/batch-changes/123", nil)
+				client.On("NewHTTPRequest", mock.Anything, http.MethodPost, ".api/files/batch-changes/123", mock.Anything).
+					Run(func(args mock.Arguments) {
+						req.Body = args[3].(*io.PipeReader)
+					}).
+					Return(req, nil).
+					Once()
+
+				resp := &http.Response{
+					StatusCode: http.StatusOK,
+				}
+				entry := &multipartFormEntry{
+					fileName: "hello.txt",
+					content:  "hello world!",
+				}
+				requestMatcher := multipartFormRequestMatcher(entry)
+				client.On("Do", mock.MatchedBy(requestMatcher)).
+					Return(resp, nil).
+					Once()
+			},
+		},
+		{
+			name: "Deduplicate files",
+			steps: []batches.Step{{
+				Mount: []batches.Mount{
+					{
+						Path: "./hello.txt",
+					},
+					{
+						Path: "./hello.txt",
+					},
+					{
+						Path: "./hello.txt",
+					},
+				},
 			}},
 			setup: func(workingDir string) error {
 				return writeTempFile(workingDir, "hello.txt", "hello world!")
@@ -522,7 +563,7 @@ func TestService_UploadBatchSpecWorkspaceFile(t *testing.T) {
 				test.mockInvokes(client)
 			}
 
-			err := svc.UploadBatchSpecWorkspaceFile(context.Background(), workingDir, "123", test.steps)
+			err := svc.UploadBatchSpecWorkspaceFiles(context.Background(), workingDir, "123", test.steps)
 			if test.expectedError != nil {
 				assert.Equal(t, test.expectedError.Error(), err.Error())
 			} else {
