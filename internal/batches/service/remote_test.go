@@ -546,6 +546,51 @@ func TestService_UploadBatchSpecWorkspaceFiles(t *testing.T) {
 			},
 			expectedError: errors.New("file exceeds limit"),
 		},
+		{
+			name: "Long mount path",
+			steps: []batches.Step{{
+				Mount: []batches.Mount{{
+					Path: "foo/../bar/../baz/../hello.txt",
+				}},
+			}},
+			setup: func(workingDir string) error {
+				dir := filepath.Join(workingDir, "foo")
+				if err := os.Mkdir(dir, os.ModePerm); err != nil {
+					return err
+				}
+				dir = filepath.Join(workingDir, "bar")
+				if err := os.Mkdir(dir, os.ModePerm); err != nil {
+					return err
+				}
+				dir = filepath.Join(workingDir, "baz")
+				if err := os.Mkdir(dir, os.ModePerm); err != nil {
+					return err
+				}
+				return writeTempFile(workingDir, "hello.txt", "hello world!")
+			},
+			mockInvokes: func(client *mockclient.Client) {
+				// Body will get set with the body argument to NewHTTPRequest
+				req := httptest.NewRequest(http.MethodPost, "http://fake.com/.api/files/batch-changes/123", nil)
+				client.On("NewHTTPRequest", mock.Anything, http.MethodPost, ".api/files/batch-changes/123", mock.Anything).
+					Run(func(args mock.Arguments) {
+						req.Body = args[3].(*io.PipeReader)
+					}).
+					Return(req, nil).
+					Once()
+
+				resp := &http.Response{
+					StatusCode: http.StatusOK,
+				}
+				entry := &multipartFormEntry{
+					fileName: "hello.txt",
+					content:  "hello world!",
+				}
+				requestMatcher := multipartFormRequestMatcher(entry)
+				client.On("Do", mock.MatchedBy(requestMatcher)).
+					Return(resp, nil).
+					Once()
+			},
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

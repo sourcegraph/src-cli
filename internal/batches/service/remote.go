@@ -149,7 +149,11 @@ func getFilePaths(workingDir, filePath string) ([]string, error) {
 			filePaths = append(filePaths, paths...)
 		}
 	} else {
-		filePaths = append(filePaths, filePath)
+		relPath, err := filepath.Rel(workingDir, actualFilePath)
+		if err != nil {
+			return nil, err
+		}
+		filePaths = append(filePaths, relPath)
 	}
 	return filePaths, nil
 }
