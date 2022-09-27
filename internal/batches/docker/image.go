@@ -80,19 +80,10 @@ func (image *image) Ensure(ctx context.Context) error {
 				// Desktop VMs running out of memory, whereupon the Linux
 				// kernel's OOM killer sometimes chooses to kill components of
 				// Docker instead of processes within containers.
-				dctx, cancel, err := withFastCommandContext(ctx)
-				if err != nil {
-					return "", err
-				}
-				defer cancel()
-
 				args := []string{"image", "inspect", "--format", "{{ .Id }}", image.name}
-				out, err := exec.CommandContext(dctx, "docker", args...).CombinedOutput()
+				out, err := executeFastCommand(ctx, args...)
 				id := string(bytes.TrimSpace(out))
-
-				if errors.IsDeadlineExceeded(err) || errors.IsDeadlineExceeded(dctx.Err()) {
-					return "", newFastCommandTimeoutError(dctx, args...)
-				} else if err != nil {
+				if err != nil {
 					return "", err
 				}
 
