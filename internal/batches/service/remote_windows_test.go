@@ -31,6 +31,11 @@ func TestService_UploadBatchSpecWorkspaceFiles_Windows_Path(t *testing.T) {
 	dir := filepath.Join(workingDir, "scripts")
 	err = os.Mkdir(dir, os.ModePerm)
 	require.NoError(t, err)
+
+	dir = filepath.Join(dir, "another-dir")
+	err = os.Mkdir(dir, os.ModePerm)
+	require.NoError(t, err)
+
 	err = writeTempFile(dir, "hello.txt", "hello world!")
 	require.NoError(t, err)
 
@@ -50,7 +55,7 @@ func TestService_UploadBatchSpecWorkspaceFiles_Windows_Path(t *testing.T) {
 		StatusCode: http.StatusOK,
 	}
 	entry := &multipartFormEntry{
-		path:     "scripts/hello.txt",
+		path:     "scripts/dir",
 		fileName: "hello.txt",
 		content:  "hello world!",
 	}
