@@ -96,9 +96,9 @@ func fastCommandTimeout() (time.Duration, error) {
 	return fastCommandTimeoutData.timeout, fastCommandTimeoutData.err
 }
 
-// executeFastDockerCommand creates a fastCommandContext used to execute docker commands
+// executeFastCommand creates a fastCommandContext used to execute docker commands
 // with a timeout for docker commands that are supposed to be fast (e.g docker info).
-func executeFastDockerCommand(ctx context.Context, args ...string) ([]byte, error) {
+func executeFastCommand(ctx context.Context, args ...string) ([]byte, error) {
 	dctx, cancel, err := withFastCommandContext(ctx)
 	if err != nil {
 		return nil, err
