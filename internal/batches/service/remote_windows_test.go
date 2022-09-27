@@ -55,7 +55,7 @@ func TestService_UploadBatchSpecWorkspaceFiles_Windows_Path(t *testing.T) {
 		StatusCode: http.StatusOK,
 	}
 	entry := &multipartFormEntry{
-		path:     "scripts/dir",
+		path:     "scripts/another-dir",
 		fileName: "hello.txt",
 		content:  "hello world!",
 	}
@@ -66,7 +66,7 @@ func TestService_UploadBatchSpecWorkspaceFiles_Windows_Path(t *testing.T) {
 
 	steps := []batches.Step{{
 		Mount: []batches.Mount{{
-			Path: "scripts\\hello.txt",
+			Path: ".\\scripts\\another-dir\\hello.txt",
 		}},
 	}}
 	err = svc.UploadBatchSpecWorkspaceFiles(context.Background(), workingDir, "123", steps)
