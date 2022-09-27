@@ -215,8 +215,10 @@ func createFormFile(w *multipart.Writer, workingDir string, mountPath string) er
 	}
 
 	filePath, fileName := filepath.Split(mountPath)
-	trimmedPath := strings.Trim(strings.TrimSuffix(filePath, string(filepath.Separator)), ".")
-	if err = w.WriteField("filepath", trimmedPath); err != nil {
+	filePath = strings.Trim(strings.TrimSuffix(filePath, string(filepath.Separator)), ".")
+	// Ensure Windows separators are changed to Unix.
+	filePath = strings.ReplaceAll(filePath, "\\", "/")
+	if err = w.WriteField("filepath", filePath); err != nil {
 		return err
 	}
 	fileInfo, err := f.Stat()
