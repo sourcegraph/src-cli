@@ -594,8 +594,14 @@ func TestService_UploadBatchSpecWorkspaceFiles(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			// Use a temp directory for reading files
-			workingDir := t.TempDir()
+			// TODO: use TempDir when https://github.com/golang/go/issues/51442 is cherry-picked into 1.18 or upgrade to 1.19+
+			//tempDir := t.TempDir()
+			workingDir, err := os.MkdirTemp("", test.name)
+			require.NoError(t, err)
+			t.Cleanup(func() {
+				os.RemoveAll(workingDir)
+			})
+
 			if test.setup != nil {
 				err := test.setup(workingDir)
 				require.NoError(t, err)
@@ -608,7 +614,7 @@ func TestService_UploadBatchSpecWorkspaceFiles(t *testing.T) {
 				test.mockInvokes(client)
 			}
 
-			err := svc.UploadBatchSpecWorkspaceFiles(context.Background(), workingDir, "123", test.steps)
+			err = svc.UploadBatchSpecWorkspaceFiles(context.Background(), workingDir, "123", test.steps)
 			if test.expectedError != nil {
 				assert.Equal(t, test.expectedError.Error(), err.Error())
 			} else {
