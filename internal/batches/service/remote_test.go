@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -714,7 +713,7 @@ func cloneRequest(req *http.Request) (*http.Request, error) {
 	if _, err := b.ReadFrom(req.Body); err != nil {
 		return nil, err
 	}
-	req.Body = ioutil.NopCloser(&b)
-	clone.Body = ioutil.NopCloser(bytes.NewReader(b.Bytes()))
+	req.Body = io.NopCloser(&b)
+	clone.Body = io.NopCloser(bytes.NewReader(b.Bytes()))
 	return clone, nil
 }
