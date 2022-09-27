@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -648,11 +649,15 @@ func multipartFormRequestMatcher(entry *multipartFormEntry) func(*http.Request) 
 		if entry.calls > 0 {
 			return false
 		}
-		// Clone the request. Running ParseMultipartForm changes the behavior of the request for any additional matchers.
-		cloneReq := req.Clone(context.Background())
+		// Clone the request. Running ParseMultipartForm changes the behavior of the request for any additional
+		// matchers by consuming the request body.
+		cloneReq, err := cloneRequest(req)
+		if err != nil {
+			fmt.Printf("failed to clone request: %s\n", err)
+			return false
+		}
 		contentType := cloneReq.Header.Get("Content-Type")
 		if !strings.HasPrefix(contentType, "multipart/form-data") {
-			fmt.Printf("contentType: expected 'multipart/form-data', actual '%s'\n", contentType)
 			return false
 		}
 		if err := cloneReq.ParseMultipartForm(32 << 20); err != nil {
@@ -660,11 +665,9 @@ func multipartFormRequestMatcher(entry *multipartFormEntry) func(*http.Request) 
 			return false
 		}
 		if cloneReq.Form.Get("filepath") != entry.path {
-			fmt.Printf("filepath: expected '%s', actual '%s'\n", entry.path, cloneReq.Form.Get("filepath"))
 			return false
 		}
 		if !modtimeRegex.MatchString(cloneReq.Form.Get("filemod")) {
-			fmt.Printf("modified at '%s' does not match regex\n", cloneReq.Form.Get("filemod"))
 			return false
 		}
 		f, header, err := cloneReq.FormFile("file")
@@ -673,7 +676,6 @@ func multipartFormRequestMatcher(entry *multipartFormEntry) func(*http.Request) 
 			return false
 		}
 		if header.Filename != entry.fileName {
-			fmt.Printf("fileName: expected '%s', actual '%s'\n", entry.fileName, header.Filename)
 			return false
 		}
 		b, err := io.ReadAll(f)
@@ -682,7 +684,6 @@ func multipartFormRequestMatcher(entry *multipartFormEntry) func(*http.Request) 
 			return false
 		}
 		if string(b) != entry.content {
-			fmt.Printf("content: expected '%s', actual '%s'\n", entry.content, string(b))
 			return false
 		}
 		entry.calls++
@@ -705,4 +706,15 @@ func (b neverEnding) Read(p []byte) (n int, err error) {
 		p[i] = byte(b)
 	}
 	return len(p), nil
+}
+
+func cloneRequest(req *http.Request) (*http.Request, error) {
+	clone := req.Clone(context.TODO())
+	var b bytes.Buffer
+	if _, err := b.ReadFrom(req.Body); err != nil {
+		return nil, err
+	}
+	req.Body = ioutil.NopCloser(&b)
+	clone.Body = ioutil.NopCloser(bytes.NewReader(b.Bytes()))
+	return clone, nil
 }
