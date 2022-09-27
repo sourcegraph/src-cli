@@ -271,7 +271,7 @@ func executeBatchSpec(ctx context.Context, ui ui.ExecUI, opts executeBatchSpecOp
 	// In the past, we relied on `getBatchParallelism` to ascertain if docker is running,
 	// however, we don't always check for the number of CPUs (especially when the -j parallelis)
 	// flag is passed. This is a more explicit check to confirm docker is working.
-	if err := checkExecutable("docker", "version"); err != nil {
+	if err := docker.CheckVersion(ctx); err != nil {
 		return err
 	}
 
