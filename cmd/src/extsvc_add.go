@@ -41,6 +41,10 @@ func init() {
 			return err
 		}
 
+		if *nameFlag == "" {
+			return errors.New("-name must be provided")
+		}
+
 		client := cfg.apiClient(apiFlags, flagSet.Output())
 		if *nameFlag != "" {
 			_, err := lookupExternalService(ctx, client, "", *nameFlag)
