@@ -23,7 +23,7 @@ The commands are:
 
 	list      lists the external services on the Sourcegraph instance
 	edit      edits external services on the Sourcegraph instance
-  add       adds an external service on the Sourcegaph instance
+	add       add an external service on the Sourcegraph instance
 
 Use "src extsvc [command] -h" for more information about a command.
 `
