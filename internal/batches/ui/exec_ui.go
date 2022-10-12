@@ -48,4 +48,7 @@ type ExecUI interface {
 	ApplyingBatchSpecSuccess(batchChangeURL string)
 
 	ExecutionError(error)
+
+	UploadingWorkspaceFiles()
+	UploadingWorkspaceFilesSuccess()
 }
