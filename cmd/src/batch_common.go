@@ -481,6 +481,21 @@ func executeBatchSpec(ctx context.Context, ui ui.ExecUI, opts executeBatchSpecOp
 	previewURL := cfg.Endpoint + url
 	ui.CreatingBatchSpecSuccess(previewURL)
 
+	hasWorkspaceFiles := false
+	for _, step := range batchSpec.Steps {
+		if len(step.Mount) > 0 {
+			hasWorkspaceFiles = true
+			break
+		}
+	}
+	if hasWorkspaceFiles {
+		ui.UploadingWorkspaceFiles()
+		if err = svc.UploadBatchSpecWorkspaceFiles(ctx, batchSpecDir, string(id), batchSpec.Steps); err != nil {
+			return err
+		}
+		ui.UploadingWorkspaceFilesSuccess()
+	}
+
 	if !opts.applyBatchSpec {
 		ui.PreviewBatchSpec(previewURL)
 		return
