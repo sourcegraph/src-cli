@@ -1,4 +1,4 @@
-name: GoReleaser
+name: GoReleaser WIP
 
 on:
   push:

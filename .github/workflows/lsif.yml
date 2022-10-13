@@ -1,6 +1,9 @@
 name: LSIF
 on:
-  - push
+  push:
+    branches:
+      - main
+
 jobs:
   lsif-go:
     runs-on: ubuntu-latest
