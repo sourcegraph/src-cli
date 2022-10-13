@@ -9,28 +9,59 @@ on:
 
 jobs:
   goreleaser-pre:
-    name: prepare-previous-release
+    name: Copy previous release
     runs-on: ubuntu-latest
+    outputs:
+      second_latest_tag: ${{ env.second_latest_tag }}
+      latest_tag: ${{ env.latest_tag }}
     steps:
       - name: Checkout
         uses: actions/checkout@v3
         with:
           fetch-depth: 0
-      - name: Fetch last tag
-        id: last_tag
-        run: echo "::set-output name=tag::$((git tag --sort=taggerdate | tail -1))"
-      - name: Show last tag
+      - name: Fetch latest and second-latest tags
         run: |
-          echo "Output from last tag: ${{steps.last-tag.outputs.tag}}"
-      # - name: Checkout Homebrew tap
-      # - name: Copy main release formula file to versioned formula file
-      # - name: Rename formula classname to match
-      # - name: Commit result
-  # goreleaser:
-  #   name: release
-  #   runs-on: ubuntu-latest
-  #   needs: goreleaser-pre
-  #   steps:
+          echo "second_latest_tag=$(git tag --sort=taggerdate | tail -2 | sed -n 1p)" >> $GITHUB_ENV
+          echo "latest_tag=$(git tag --sort=taggerdate | tail -1)" >> $GITHUB_ENV
+      - name: Set versioning variables
+        run: |
+          echo "versioned_formula_file=Formula/src-cli@${{ env.second_latest_tag }}.rb" >> $GITHUB_ENV
+          echo "versioned_classname=SrcCliAT$(echo ${{ env.second_latest_tag }} | sed 's/\.//g')" >> $GITHUB_ENV
+      - name: Log variables
+        run: |
+          echo "Second latest tag: ${{ env.second_latest_tag }}"
+          echo "Versioned formula file: ${{ env.versioned_formula_file }}"
+          echo "Versioned classname: ${{ env.versioned_classname }}"
+      - name: Checkout Homebrew tap
+        uses: actions/checkout@v3
+        with:
+          repository: courier-new/homebrew-src-cli-test
+          fetch-depth: 0
+          token: ${{ secrets.BOT_CROSS_REPO_PAT }}
+      - name: Copy main release formula file to versioned formula file
+        run: cp Formula/src-cli.rb ${{ env.versioned_formula_file }}
+      - name: Rename formula classname
+        run: |
+          sed -i 's/class SrcCli/class ${{ env.versioned_classname }}/' ${{ env.versioned_formula_file }}
+          cat ${{ env.versioned_formula_file }}
+      - name: Commit result
+        run: |
+          git config user.name sourcegraph-bot
+          git config user.email sourcegraph-bot-github@sourcegraph.com
+          git add .
+          git commit -m "Copy previous release"
+          git push
+
+  goreleaser:
+    name: release
+    runs-on: ubuntu-latest
+    needs: goreleaser-pre
+    outputs:
+      second_latest_tag: ${{ needs.goreleaser-pre.outputs.second_latest_tag }}
+      latest_tag: ${{ needs.goreleaser-pre.outputs.latest_tag }}
+    steps:
+        - name: Psyche!
+          run: echo "Hi!"
   #     - name: Checkout
   #       uses: actions/checkout@v3
   #       with:
@@ -53,6 +84,38 @@ jobs:
   #       env:
   #         # Use separate access token, because we need a scope:repo token to publish the brew formula.
   #         GITHUB_TOKEN: ${{ secrets.GH_PAT }}
+
+  goreleaser-post:
+    name: Create new release version symlink
+    runs-on: ubuntu-latest
+    needs: goreleaser
+    steps:
+      - name: Set variables
+        run: |
+          echo "old_symlink_name=src-cli@${{ needs.goreleaser.outputs.second_latest_tag }}" >> $GITHUB_ENV
+          echo "new_symlink_name=src-cli@${{ needs.goreleaser.outputs.latest_tag }}" >> $GITHUB_ENV
+      - name: Log variables
+        run: |
+          echo "Old symlink: ${{ env.old_symlink_name }}"
+          echo "New symlink: ${{ env.new_symlink_name }}"
+      - name: Checkout Homebrew tap
+        uses: actions/checkout@v3
+        with:
+          repository: courier-new/homebrew-src-cli-test
+          fetch-depth: 0
+          token: ${{ secrets.BOT_CROSS_REPO_PAT }}
+      - name: Replace symlink
+        run: |
+          cd Aliases
+          mv ${{ env.old_symlink_name }} ${{ env.new_symlink_name }}
+      - name: Commit result
+        run: |
+          git config user.name sourcegraph-bot
+          git config user.email sourcegraph-bot-github@sourcegraph.com
+          git add .
+          git commit -m "Update latest release symlink"
+          git push
+
   # npm:
   #   runs-on: ubuntu-latest
   #   needs: goreleaser
