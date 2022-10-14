@@ -41,6 +41,14 @@ curl -L https://sourcegraph.example.com/.api/src-cli/src_darwin_amd64 -o /usr/lo
 chmod +x /usr/local/bin/src
 ```
 
+or, if you know the specific version to target, for example 3.43.2:
+
+```bash
+brew install sourcegraph/src-cli/src-cli@3.43.2
+```
+
+> Note: Versioned formulas are available on Homebrew for Sourcegraph versions 3.43.2 and later.
+
 ### Installation: Linux
 
 #### Latest version
