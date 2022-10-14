@@ -1,7 +1,6 @@
 name: LSIF
 on:
   - push
-
 jobs:
   lsif-go:
     runs-on: ubuntu-latest
