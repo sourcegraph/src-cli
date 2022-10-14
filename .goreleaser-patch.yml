@@ -1,6 +1,7 @@
-# This is the main configuration for goreleaser, which builds and publishes a new latest
-# release. It updates the main formula in the Homebrew tap. It should match
-# .gorelease-patch.yml in every way except for the brews.name template.
+# This is the main configuration for goreleaser, which builds and publishes a new patch
+# release for an older version of src-cli. It publishes a new versioned formula in the
+# Homebrew tap. It should match .gorelease.yml in every way except for the brews.name
+# template.
 dist: release
 env:
   - GO111MODULE=on
@@ -32,7 +33,7 @@ archives:
   name_template: "src_{{ .Os }}_{{ .Arch }}"
 brews:
   -
-    name: src-cli
+    name: src-cli@{{ .Major }}.{{ .Minor }}.{{ .Patch }}
     homepage: "https://sourcegraph.com/"
     description: "Sourcegraph CLI"
     tap:

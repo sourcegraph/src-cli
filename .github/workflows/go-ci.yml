@@ -1,7 +1,9 @@
 name: Go CI
 
 on:
-  - push
+  push:
+    branches:
+      - main
 
 jobs:
   go-test:

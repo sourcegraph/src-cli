@@ -1,30 +1,68 @@
 name: GoReleaser
 
 on:
-  push:
-    tags:
-      - '*'
-      - '!latest'
+  - push
 
 jobs:
-  # goreleaser-pre copies the main formula in our Homebrew tap for the last release
-  # (second latest tag) to a versioned formula, so that it is preserved when goreleaser
-  # runs and overwrites the main formula with the latest build.
-  goreleaser-pre:
-    name: Copy previous release
+  release_type:
+    name: Determine release type
     runs-on: ubuntu-latest
     outputs:
-      second_latest_tag: ${{ env.second_latest_tag }}
+      is_latest_version: ${{ env.is_latest_version }}
       latest_tag: ${{ env.latest_tag }}
+      second_latest_tag: ${{ env.second_latest_tag }}
     steps:
       - name: Checkout
         uses: actions/checkout@v3
         with:
           fetch-depth: 0
-      - name: Fetch latest and second-latest tags
+      - name: Fetch most recent, latest (highest version), and second latest tags
+        # TODO: Replace most_recent echo "most_recent_tag=$(git tag --sort=taggerdate | tail -1)" >> $GITHUB_ENV
         run: |
-          echo "second_latest_tag=$(git tag --sort=taggerdate | tail -2 | sed -n 1p)" >> $GITHUB_ENV
-          echo "latest_tag=$(git tag --sort=taggerdate | tail -1)" >> $GITHUB_ENV
+          echo "most_recent_tag=3.43.3" >> $GITHUB_ENV
+          echo "latest_tag=$(git tag --sort=version:refname | tail -1)" >> $GITHUB_ENV
+          echo "second_latest_tag=$(git tag --sort=version:refname | tail -2 | sed -n 1p)" >> $GITHUB_ENV
+      - name: Install semver
+        run: |
+          wget -O /usr/local/bin/semver https://raw.githubusercontent.com/fsaintjacques/semver-tool/master/src/semver
+          chmod +x /usr/local/bin/semver
+      - name: Compare tags
+        # If the most recent tag IS the latest tag, semver compare returns 0. If it's a
+        # patch of an earlier version, semver compare will return -1. It shouldn't be
+        # possible that the most recent tag is a newer version than the latest.
+        run: |
+          if [[ $(semver compare ${{ env.latest_tag }} ${{ env.most_recent_tag }}) == 0 ]]
+          then
+            echo "is_latest_version=1" >> $GITHUB_ENV
+          else
+            echo "is_latest_version=0" >> $GITHUB_ENV
+          fi
+      - name: Log variables
+        run: |
+          echo "Most recent (current) tag: ${{ env.most_recent_tag }}"
+          echo "Latest tag: ${{ env.latest_tag }}"
+          echo "Building current version as new latest?: ${{ env.is_latest_version }}"
+
+
+  # goreleaser_pre copies the main formula in our Homebrew tap for the previous latest
+  # release (second latest tag) to a versioned formula, so that it is preserved when
+  # goreleaser runs and overwrites the main formula for the latest build.
+  goreleaser_pre:
+    name: Copy previous release
+    runs-on: ubuntu-latest
+    needs: release_type
+    # Only run this step if we're releasing a new latest version. Creating a patch release
+    # does not touch the main formula.
+    if: needs.release_type.outputs.is_latest_version == 1
+    steps:
+      - name: Set variables
+        run: |
+          echo "latest_tag=${{ needs.release_type.outputs.latest_tag }}" >> $GITHUB_ENV
+          echo "second_latest_tag=${{ needs.release_type.outputs.second_latest_tag }}" >> $GITHUB_ENV
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
       - name: Set versioning variables
         run: |
           echo "versioned_formula_file=Formula/src-cli@${{ env.second_latest_tag }}.rb" >> $GITHUB_ENV
@@ -37,7 +75,8 @@ jobs:
       - name: Checkout Homebrew tap
         uses: actions/checkout@v3
         with:
-          repository: sourcegraph/homebrew-src-cli
+          # TODO: Switch to non-fork
+          repository: courier-new/homebrew-src-cli-test
           fetch-depth: 0
           token: ${{ secrets.BOT_CROSS_REPO_PAT }}
       - name: Copy main release formula file to versioned formula file
@@ -48,55 +87,83 @@ jobs:
       - name: Rename formula classname
         run: sed -i 's/class SrcCli/class ${{ env.versioned_classname }}/' ${{ env.versioned_formula_file }}
       - name: Commit result
+        # TODO: Drop --dry-run
         run: |
           git config user.name sourcegraph-bot
           git config user.email sourcegraph-bot-github@sourcegraph.com
           git add .
           git commit -m "Copy previous release"
-          git push
+          git push --dry-run
 
   goreleaser:
-    name: release
+    name: Run goreleaser
     runs-on: ubuntu-latest
-    needs: goreleaser-pre
-    # Passthrough for the outputs from the first job so that they're also available in
-    # goreleaser-post
+    needs: [release_type, goreleaser_pre]
+    # By default, this job will be skipped if either "needs" job is skipped. This tells
+    # GitHub actions to always run it, so long as the previous jobs didn't fail.
+    if: |
+      always() &&
+      (needs.release_type.result == 'success') &&
+      (needs.goreleaser_pre.result == 'success' || needs.goreleaser_pre.result == 'skipped')
     outputs:
-      second_latest_tag: ${{ needs.goreleaser-pre.outputs.second_latest_tag }}
-      latest_tag: ${{ needs.goreleaser-pre.outputs.latest_tag }}
+      # Passthrough from previous jobs so that they're also available in goreleaser_post
+      second_latest_tag: ${{ needs.release_type.outputs.second_latest_tag }}
+      latest_tag: ${{ needs.release_type.outputs.latest_tag }}
+      is_latest_version: ${{ env.is_latest_version }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v3
-        with:
-          fetch-depth: 0
-      - name: Set up Go
-        uses: actions/setup-go@v3
-        with:
-          go-version: 1.18
-      - run: go get -d -t ./...
-      - run: go test -i ./...
-      - run: go test -race -v ./...
-      - run: echo "${DOCKER_PASSWORD}" | docker login -u=sourcegraphci --password-stdin
-        env:
-          DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
-      - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@v2
-        with:
-          version: latest
-          args: release --rm-dist
-        env:
-          # Use separate access token, because we need a scope:repo token to publish the brew formula.
-          GITHUB_TOKEN: ${{ secrets.GH_PAT }}
+      - name: Set variables
+        run: echo "is_latest_version=${{ needs.release_type.outputs.is_latest_version }}" >> $GITHUB_ENV
+      - name: Set config file
+        run: |
+          if [[ ${{ env.is_latest_version }} == 1 ]]
+          then
+            echo "config_file=.goreleaser.yml" >> $GITHUB_ENV
+          else
+            echo "config_file=.goreleaser-patch.yml" >> $GITHUB_ENV
+          fi
+      - name: Log config file
+        run: |
+          echo "Goreleaser config file: ${{ env.config_file }}"
+      # - name: Checkout
+      #   uses: actions/checkout@v3
+      #   with:
+      #     fetch-depth: 0
+      # - name: Set up Go
+      #   uses: actions/setup-go@v3
+      #   with:
+      #     go-version: 1.18
+      # - run: go get -d -t ./...
+      # - run: go test -i ./...
+      # - run: go test -race -v ./...
+      # - run: echo "${DOCKER_PASSWORD}" | docker login -u=sourcegraphci --password-stdin
+      #   env:
+      #     DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+      # - name: Run GoReleaser
+      #   uses: goreleaser/goreleaser-action@v2
+      #   with:
+      #     version: latest
+      #     # We use a different goreleaser config for releasing a new latest version vs.
+      #     # releasing a patch on an older version. For releasing the new latest version,
+      #     # we want to update the main (unversioned) Homebrew formula. For releasing a
+      #     # patch on an older version, we want to publish a new versioned formula and
+      #     # leave the main formula untouched.
+      #     args: release --rm-dist --config=${{ env.config_file }}
+      #   env:
+      #     # Use separate access token, because we need a scope:repo token to publish the brew formula.
+      #     GITHUB_TOKEN: ${{ secrets.GH_PAT }}
 
-  # goreleaser-post updates the symlink name to refer to the new release version. The
+  # goreleaser_post updates the symlink name to refer to the new release version. The
   # symlink enables users to install the latest src-cli with the versioned command:
   # $ brew install sourcegraph/src-cli/src-cli@X.Y.Z
   # alongside the command to install it via the main formula:
   # $ brew install sourcegraph/src-cli/src-cli
-  goreleaser-post:
+  goreleaser_post:
     name: Create new release version symlink
     runs-on: ubuntu-latest
     needs: goreleaser
+    # Only run this step if we're releasing a new latest version. Creating a patch release
+    # does not require updating the symlink.
+    if: needs.goreleaser.outputs.is_latest_version == 1
     steps:
       - name: Set variables
         run: |
@@ -109,36 +176,38 @@ jobs:
       - name: Checkout Homebrew tap
         uses: actions/checkout@v3
         with:
-          repository: sourcegraph/homebrew-src-cli
+          # TODO: Switch to non-fork
+          repository: courier-new/homebrew-src-cli-test
           fetch-depth: 0
           token: ${{ secrets.BOT_CROSS_REPO_PAT }}
       - name: Replace symlink
         run: mv ${{ env.old_symlink_name }} ${{ env.new_symlink_name }}
       - name: Commit result
+        # TODO: Drop --dry-run
         run: |
           git config user.name sourcegraph-bot
           git config user.email sourcegraph-bot-github@sourcegraph.com
           git add .
           git commit -m "Update latest release symlink"
-          git push
+          git push --dry-run
 
-  npm:
-    runs-on: ubuntu-latest
-    needs: goreleaser
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3
-        with:
-          fetch-depth: 0
-      - uses: actions/setup-node@v3
-        with:
-          node-version: 16
-          registry-url: 'https://registry.npmjs.org'
-      - run: echo "VERSION=${GITHUB_REF/refs\/tags\//}" >> $GITHUB_ENV
-      - run: echo "Releasing version ${{ env.version }}"
-      - run: yarn version --no-git-tag-version --new-version "${{ env.VERSION }}"
-        working-directory: npm-distribution
-      - run: npm publish --access public
-        working-directory: npm-distribution
-        env:
-          NODE_AUTH_TOKEN: ${{secrets.NPM_TOKEN}}
+  # npm:
+  #   runs-on: ubuntu-latest
+  #   needs: goreleaser
+  #   steps:
+  #     - name: Checkout
+  #       uses: actions/checkout@v3
+  #       with:
+  #         fetch-depth: 0
+  #     - uses: actions/setup-node@v3
+  #       with:
+  #         node-version: 16
+  #         registry-url: 'https://registry.npmjs.org'
+  #     - run: echo "VERSION=${GITHUB_REF/refs\/tags\//}" >> $GITHUB_ENV
+  #     - run: echo "Releasing version ${{ env.version }}"
+  #     - run: yarn version --no-git-tag-version --new-version "${{ env.VERSION }}"
+  #       working-directory: npm-distribution
+  #     - run: npm publish --access public
+  #       working-directory: npm-distribution
+  #       env:
+  #         NODE_AUTH_TOKEN: ${{secrets.NPM_TOKEN}}
