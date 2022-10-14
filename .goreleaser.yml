@@ -1,6 +1,7 @@
 # This is the main configuration for goreleaser, which builds and publishes a new latest
 # release. It updates the main formula in the Homebrew tap. It should match
-# .gorelease-patch.yml in every way except for the brews.name template.
+# .goreleaser-patch.yml in every way except for the brews.name template and the
+# dockers.image_templates list.
 dist: release
 env:
   - GO111MODULE=on
