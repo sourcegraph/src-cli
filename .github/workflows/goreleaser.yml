@@ -52,8 +52,8 @@ jobs:
         # TODO: to fake a patch release: echo "most_recent_tag=3.43.3" >> $GITHUB_ENV
         run: |
           echo "most_recent_tag=$(git tag --sort=taggerdate | tail -1)" >> $GITHUB_ENV
-          echo "latest_tag=$(git tag --sort=version:refname | tail -1)" >> $GITHUB_ENV
-          echo "second_latest_tag=$(git tag --sort=version:refname | tail -2 | sed -n 1p)" >> $GITHUB_ENV
+          echo "latest_tag=$(git tag | tr - \~ | sort -V | tr \~ - | tail -1)" >> $GITHUB_ENV
+          echo "second_latest_tag=$(git tag | tr - \~ | sort -V | tr \~ - | tail -2 | sed -n 1p)" >> $GITHUB_ENV
       - name: Install semver
         run: |
           wget -O /usr/local/bin/semver https://raw.githubusercontent.com/fsaintjacques/semver-tool/master/src/semver
