@@ -1,8 +1,6 @@
 name: LSIF
 on:
-  push:
-    branches:
-      - main
+  - push
 
 jobs:
   lsif-go:

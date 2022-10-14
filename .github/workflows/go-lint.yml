@@ -1,9 +1,7 @@
 name: Go Lint
 
 on:
-  push:
-    branches:
-      - main
+  - push
 
 jobs:
   go-test:
