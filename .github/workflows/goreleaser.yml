@@ -1,7 +1,9 @@
 name: Build and Release
 
 on:
-  - push
+  push:
+    tags:	
+      - '*'
 
 # There are two cases where this GitHub action will run:
 #
@@ -107,8 +109,7 @@ jobs:
       - name: Checkout Homebrew tap
         uses: actions/checkout@v3
         with:
-          # TODO: Switch to non-fork
-          repository: courier-new/homebrew-src-cli-test
+          repository: sourcegraph/homebrew-src-cli
           fetch-depth: 0
           token: ${{ secrets.BOT_CROSS_REPO_PAT }}
       - name: Copy main release formula file to versioned formula file
@@ -119,13 +120,12 @@ jobs:
       - name: Rename formula classname
         run: sed -i 's/class SrcCli/class ${{ env.versioned_classname }}/' ${{ env.versioned_formula_file }}
       - name: Commit result
-        # TODO: Drop --dry-run
         run: |
           git config user.name sourcegraph-bot
           git config user.email sourcegraph-bot-github@sourcegraph.com
           git add .
           git commit -m "Copy previous release"
-          git push --dry-run
+          git push
 
   # goreleaser runs tests before building, then uses goreleaser to publish to Homebrew and
   # Docker Hub.
@@ -161,33 +161,33 @@ jobs:
       - name: Log config file
         run: |
           echo "Goreleaser config file: ${{ env.config_file }}"
-      # - name: Checkout
-      #   uses: actions/checkout@v3
-      #   with:
-      #     fetch-depth: 0
-      # - name: Set up Go
-      #   uses: actions/setup-go@v3
-      #   with:
-      #     go-version: 1.18
-      # - run: go get -d -t ./...
-      # - run: go test -i ./...
-      # - run: go test -race -v ./...
-      # - run: echo "${DOCKER_PASSWORD}" | docker login -u=sourcegraphci --password-stdin
-      #   env:
-      #     DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
-      # - name: Run GoReleaser
-      #   uses: goreleaser/goreleaser-action@v2
-      #   with:
-      #     version: latest
-      #     # We use a different goreleaser config for releasing a new latest version vs.
-      #     # releasing a patch on an older version. For releasing the new latest version,
-      #     # we want to update the main (unversioned) Homebrew formula. For releasing a
-      #     # patch on an older version, we want to publish a new versioned formula and
-      #     # leave the main formula untouched.
-      #     args: release --rm-dist --config=${{ env.config_file }}
-      #   env:
-      #     # Use separate access token, because we need a scope:repo token to publish the brew formula.
-      #     GITHUB_TOKEN: ${{ secrets.GH_PAT }}
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - name: Set up Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: 1.18
+      - run: go get -d -t ./...
+      - run: go test -i ./...
+      - run: go test -race -v ./...
+      - run: echo "${DOCKER_PASSWORD}" | docker login -u=sourcegraphci --password-stdin
+        env:
+          DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v2
+        with:
+          version: latest
+          # We use a different goreleaser config for releasing a new latest version vs.
+          # releasing a patch on an older version. For releasing the new latest version,
+          # we want to update the main (unversioned) Homebrew formula. For releasing a
+          # patch on an older version, we want to publish a new versioned formula and
+          # leave the main formula untouched.
+          args: release --rm-dist --config=${{ env.config_file }}
+        env:
+          # Use separate access token, because we need a scope:repo token to publish the brew formula.
+          GITHUB_TOKEN: ${{ secrets.GH_PAT }}
 
   # goreleaser_post updates the symlink name to refer to the new release version. The
   # symlink enables users to install the latest src-cli with the versioned command:
@@ -213,39 +213,37 @@ jobs:
       - name: Checkout Homebrew tap
         uses: actions/checkout@v3
         with:
-          # TODO: Switch to non-fork
-          repository: courier-new/homebrew-src-cli-test
+          repository: sourcegraph/homebrew-src-cli
           fetch-depth: 0
           token: ${{ secrets.BOT_CROSS_REPO_PAT }}
       - name: Replace symlink
         run: mv ${{ env.old_symlink_name }} ${{ env.new_symlink_name }}
       - name: Commit result
-        # TODO: Drop --dry-run
         run: |
           git config user.name sourcegraph-bot
           git config user.email sourcegraph-bot-github@sourcegraph.com
           git add .
           git commit -m "Update latest release symlink"
-          git push --dry-run
+          git push
 
   # npm publishes the new version to the npm package registry
-  # npm:
-  #   runs-on: ubuntu-latest
-  #   needs: goreleaser
-  #   steps:
-  #     - name: Checkout
-  #       uses: actions/checkout@v3
-  #       with:
-  #         fetch-depth: 0
-  #     - uses: actions/setup-node@v3
-  #       with:
-  #         node-version: 16
-  #         registry-url: 'https://registry.npmjs.org'
-  #     - run: echo "VERSION=${GITHUB_REF/refs\/tags\//}" >> $GITHUB_ENV
-  #     - run: echo "Releasing version ${{ env.version }}"
-  #     - run: yarn version --no-git-tag-version --new-version "${{ env.VERSION }}"
-  #       working-directory: npm-distribution
-  #     - run: npm publish --access public
-  #       working-directory: npm-distribution
-  #       env:
-  #         NODE_AUTH_TOKEN: ${{secrets.NPM_TOKEN}}
+  npm:
+    runs-on: ubuntu-latest
+    needs: goreleaser
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 16
+          registry-url: 'https://registry.npmjs.org'
+      - run: echo "VERSION=${GITHUB_REF/refs\/tags\//}" >> $GITHUB_ENV
+      - run: echo "Releasing version ${{ env.version }}"
+      - run: yarn version --no-git-tag-version --new-version "${{ env.VERSION }}"
+        working-directory: npm-distribution
+      - run: npm publish --access public
+        working-directory: npm-distribution
+        env:
+          NODE_AUTH_TOKEN: ${{secrets.NPM_TOKEN}}

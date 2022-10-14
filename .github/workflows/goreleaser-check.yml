@@ -1,9 +1,7 @@
 name: GoReleaser check
 
 on:
-  push:
-    branches:
-      - main
+  - push
 
 jobs:
   goreleaser:
