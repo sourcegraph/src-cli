@@ -2,8 +2,8 @@ name: Build and Release
 
 on:
   push:
-    tags:	
-      - '*'
+    tags:
+      - 'DO-NOT-PUSH-ME'
 
 # There are two cases where this GitHub action will run:
 #
