@@ -50,5 +50,6 @@ type ExecUI interface {
 	ExecutionError(error)
 
 	UploadingWorkspaceFiles()
+	UploadingWorkspaceFilesWarning(error)
 	UploadingWorkspaceFilesSuccess()
 }

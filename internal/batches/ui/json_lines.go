@@ -339,6 +339,10 @@ func (ui *JSONLines) UploadingWorkspaceFiles() {
 	// No workspace file upload required for executor mode.
 }
 
+func (ui *JSONLines) UploadingWorkspaceFilesWarning(err error) {
+	// No workspace file upload required for executor mode.
+}
+
 func (ui *JSONLines) UploadingWorkspaceFilesSuccess() {
 	// No workspace file upload required for executor mode.
 }

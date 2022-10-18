@@ -491,9 +491,11 @@ func executeBatchSpec(ctx context.Context, ui ui.ExecUI, opts executeBatchSpecOp
 	if hasWorkspaceFiles {
 		ui.UploadingWorkspaceFiles()
 		if err = svc.UploadBatchSpecWorkspaceFiles(ctx, batchSpecDir, string(id), batchSpec.Steps); err != nil {
-			return err
+			// Since failing to upload workspace files should not stop processing, just warn
+			ui.UploadingWorkspaceFilesWarning(errors.Wrap(err, "uploading workspace files"))
+		} else {
+			ui.UploadingWorkspaceFilesSuccess()
 		}
-		ui.UploadingWorkspaceFilesSuccess()
 	}
 
 	if !opts.applyBatchSpec {
