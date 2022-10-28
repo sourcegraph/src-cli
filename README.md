@@ -124,7 +124,7 @@ For convenience, you can add these environment variables persistently.
 
 ### Configuration: Mac OS / Linux
 
-To configure them as environment variables, add the following to your terminal profile file, typically accessible at `~/.bash_profile` (if using Bash) or `~/.zprofile` (if using Zsh):
+Add the following to your terminal profile file, typically accessible at `~/.bash_profile` (if using Bash) or `~/.zprofile` (if using Zsh):
 
 ```
 export SRC_ACCESS_TOKEN=my-token
@@ -141,7 +141,7 @@ SRC_ENDPOINT=https://sourcegraph.example.com SRC_ACCESS_TOKEN=my-token src searc
 
 ### Configuration: Windows
 
-To configure them as environment variables, type the following on your PowerShell terminal:
+Type the following on your PowerShell terminal:
 
 ```
 [Environment]::SetEnvironmentVariable('SRC_ENDPOINT', 'https://sourcegraph.example.com', [EnvironmentVariableTarget]::Machine)
