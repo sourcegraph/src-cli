@@ -120,7 +120,7 @@ Run <code><strong>src login <i>SOURCEGRAPH-URL</i></strong></code> to authentica
 - `SRC_ENDPOINT`: the URL to your Sourcegraph instance (such as `https://sourcegraph.example.com`)
 - `SRC_ACCESS_TOKEN`: your Sourcegraph access token (on your Sourcegraph instance, click your user menu in the top right, then select **Settings > Access tokens** to create one)
 
-For convenience, you can export these environment variables in your shell profile. 
+For convenience, you can add these environment variables persistently. 
 
 ### Configuration: Mac OS / Linux
 
