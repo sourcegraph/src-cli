@@ -150,7 +150,7 @@ To configure them as environment variables, type the following on your PowerShel
 
 Replace `my-token` and `https://sourcegraph.example.com` with the appropriate values for your account and instance.
 
-You can also manually add them via *System Properties* in *This PC* icon. Check [this post](https://www.computerhope.com/issues/ch000549.htm) for details.
+You can also manually add them via the *System Properties* windows. Check [this post](https://www.computerhope.com/issues/ch000549.htm) for details.
 
 Is your Sourcegraph instance behind a custom auth proxy? See [auth proxy configuration](./AUTH_PROXY.md) docs.
 
