@@ -144,8 +144,8 @@ SRC_ENDPOINT=https://sourcegraph.example.com SRC_ACCESS_TOKEN=my-token src searc
 Type the following on your PowerShell terminal:
 
 ```
-[Environment]::SetEnvironmentVariable('SRC_ENDPOINT', 'https://sourcegraph.example.com', [EnvironmentVariableTarget]::Machine)
-[Environment]::SetEnvironmentVariable('SRC_ACCESS_TOKEN', 'my-token', [EnvironmentVariableTarget]::Machine)
+$env.SRC_ENDPOINT = 'https://sourcegraph.example.com'
+$env.SRC_ACCESS_TOKEN = 'my-token'
 ```
 
 Replace `my-token` and `https://sourcegraph.example.com` with the appropriate values for your account and instance.
