@@ -72,7 +72,7 @@ We adhere to the [general Sourcegraph principles for testing](https://docs.sourc
 5.  Make the necessary updates to the main Sourcegraph repo:
     1. Update the `MinimumVersion` constant in the [src-cli package](https://github.com/sourcegraph/sourcegraph/tree/main/internal/src-cli/consts.go).
     2. Commit the changes, and open a PR.
- 6. The [curl commands in the README](README.markdown#installation) takes some time before the new version is available for download (usually less than hour). Be sure to confirm it works after some time. 
+ 6. Once the version bump PR is merged and the commit is live on dotcom, check that the [curl commands in the README](README.markdown#installation) also fetch the new latest version.
 
 ### Patch releases
 
