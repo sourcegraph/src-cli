@@ -255,17 +255,9 @@ type executeBatchSpecOpts struct {
 // Sourcegraph, including execution as needed and applying the resulting batch
 // spec if specified.
 func executeBatchSpec(ctx context.Context, opts executeBatchSpecOpts) (err error) {
-	svc := service.New(&service.Opts{
-		Client: opts.client,
-	})
-
-	ffs, err := svc.DetermineFeatureFlags(ctx)
-	if err != nil {
-		return err
-	}
 	var execUI ui.ExecUI
 	if opts.flags.textOnly {
-		execUI = &ui.JSONLines{BinaryDiffs: ffs.BinaryDiffs}
+		execUI = &ui.JSONLines{}
 	} else {
 		out := output.NewOutput(os.Stderr, output.OutputOpts{Verbose: *verbose})
 		execUI = &ui.TUI{Out: out}
@@ -276,6 +268,20 @@ func executeBatchSpec(ctx context.Context, opts executeBatchSpecOpts) (err error
 			execUI.ExecutionError(err)
 		}
 	}()
+
+	svc := service.New(&service.Opts{
+		Client: opts.client,
+	})
+
+	ffs, err := svc.DetermineFeatureFlags(ctx)
+	if err != nil {
+		return err
+	}
+
+	// Once we know about feature flags, reconfigure the UI if needed.
+	if opts.flags.textOnly && ffs.BinaryDiffs {
+		execUI = &ui.JSONLines{BinaryDiffs: true}
+	}
 
 	imageCache := docker.NewImageCache()
 
