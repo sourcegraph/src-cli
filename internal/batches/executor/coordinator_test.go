@@ -283,6 +283,7 @@ func TestCoordinator_Execute(t *testing.T) {
 
 			tc.opts.Cache = c
 			tc.opts.Logger = logManager
+			tc.opts.BinaryDiffs = true
 
 			coord := Coordinator{
 				exec: tc.executor,
