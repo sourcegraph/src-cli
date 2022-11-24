@@ -28,7 +28,7 @@ func (ff *FeatureFlags) SetFromVersion(version string) error {
 		// Example usage:
 		// {&ff.FlagName, ">= 3.23.0-0", "2020-11-24"},
 		{&ff.Sourcegraph40, ">= 4.0.0-0", "2022-08-24"},
-		{&ff.BinaryDiffs, ">= 4.3.0-0", "2022-11-24"},
+		{&ff.BinaryDiffs, ">= 4.4.0-0", "2022-11-24"},
 	} {
 		value, err := api.CheckSourcegraphVersion(version, feature.constraint, feature.minDate)
 		if err != nil {
