@@ -17,32 +17,31 @@ import (
 // Each test errors with only a brief summary of what went wrong, and only if
 // the error is critical. Detailed output should be written to out.
 func NewChecks(
-	out *output.Output,
 	since time.Duration,
 	instanceHealth Summary,
-) []func() error {
-	return []func() error{
-		func() error {
+) []func(out *output.Output) error {
+	return []func(out *output.Output) error{
+		func(out *output.Output) error {
 			b := out.Block(output.Styled(output.StyleBold, "Site alerts"))
 			defer b.Close()
 			return checkSiteAlerts(b, instanceHealth)
 		},
-		func() error {
+		func(out *output.Output) error {
 			b := out.Block(output.Styled(output.StyleBold, "Site configuration"))
 			defer b.Close()
 			return checkSiteConfiguration(b, instanceHealth)
 		},
-		func() error {
+		func(out *output.Output) error {
 			b := out.Block(output.Styled(output.StyleBold, "Monitoring alerts"))
 			defer b.Close()
 			return checkMonitoringAlerts(b, since, instanceHealth)
 		},
-		func() error {
+		func(out *output.Output) error {
 			b := out.Block(output.Styled(output.StyleBold, "External services"))
 			defer b.Close()
 			return checkExternalServices(b, since, instanceHealth)
 		},
-		func() error {
+		func(out *output.Output) error {
 			b := out.Block(output.Styled(output.StyleBold, "Permissions syncing"))
 			defer b.Close()
 			return checkPermissionsSyncing(b, since, instanceHealth)

@@ -66,12 +66,12 @@ USAGE
 			}
 
 			// generate checks set
-			checks := instancehealth.NewChecks(out, *since, *instanceHealth)
+			checks := instancehealth.NewChecks(*since, *instanceHealth)
 
 			// Run checks
 			var validationErrors error
 			for _, check := range checks {
-				validationErrors = errors.Append(validationErrors, check())
+				validationErrors = errors.Append(validationErrors, check(out))
 			}
 			if validationErrors != nil {
 				out.WriteLine(output.Linef(output.EmojiFailure, output.StyleFailure,
