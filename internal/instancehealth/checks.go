@@ -18,7 +18,7 @@ import (
 // the error is critical. Detailed output should be written to out.
 func NewChecks(
 	since time.Duration,
-	instanceHealth Summary,
+	instanceHealth Indicators,
 ) []func(out *output.Output) error {
 	return []func(out *output.Output) error{
 		func(out *output.Output) error {
@@ -52,7 +52,7 @@ func NewChecks(
 // checkSiteAlerts indicates if there are any alerts issued by the application
 func checkSiteAlerts(
 	out output.Writer,
-	instanceHealth Summary,
+	instanceHealth Indicators,
 ) error {
 	if len(instanceHealth.Site.Alerts) > 0 {
 		out.WriteLine(output.Linef(output.EmojiWarning, output.StyleWarning,
@@ -70,7 +70,7 @@ func checkSiteAlerts(
 // configuration validation
 func checkSiteConfiguration(
 	out output.Writer,
-	instanceHealth Summary,
+	instanceHealth Indicators,
 ) error {
 	if len(instanceHealth.Site.Configuration.ValidationMessages) > 0 {
 		out.WriteLine(output.Linef(output.EmojiWarning, output.StyleWarning,
@@ -90,7 +90,7 @@ func checkSiteConfiguration(
 func checkMonitoringAlerts(
 	out output.Writer,
 	since time.Duration,
-	instanceHealth Summary,
+	instanceHealth Indicators,
 ) error {
 	var criticalAlerts int
 	for _, a := range instanceHealth.Site.MonitoringStatistics.Alerts {
@@ -117,7 +117,7 @@ func checkMonitoringAlerts(
 func checkExternalServices(
 	out output.Writer,
 	since time.Duration,
-	instanceHealth Summary,
+	instanceHealth Indicators,
 ) error {
 	if len(instanceHealth.ExternalServices.Nodes) == 0 {
 		out.WriteLine(output.Linef(output.EmojiWarning, output.StyleWarning,
@@ -162,7 +162,7 @@ func checkExternalServices(
 func checkPermissionsSyncing(
 	out output.Writer,
 	since time.Duration,
-	instanceHealth Summary,
+	instanceHealth Indicators,
 ) error {
 	var syncCount int
 	var syncErrors []string

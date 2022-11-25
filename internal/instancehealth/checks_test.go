@@ -16,13 +16,13 @@ import (
 func TestCheckPermissionsSyncing(t *testing.T) {
 	for _, tt := range []struct {
 		name           string
-		instanceHealth Summary
+		instanceHealth Indicators
 
 		wantEmojis []string
 		wantErr    string
 	}{{
 		name: "no jobs",
-		instanceHealth: Summary{
+		instanceHealth: Indicators{
 			PermissionsSyncJobs: struct{ Nodes []permissionsSyncJob }{
 				Nodes: nil,
 			},
@@ -31,7 +31,7 @@ func TestCheckPermissionsSyncing(t *testing.T) {
 		wantErr:    "",
 	}, {
 		name: "healthy",
-		instanceHealth: Summary{
+		instanceHealth: Indicators{
 			PermissionsSyncJobs: struct{ Nodes []permissionsSyncJob }{
 				Nodes: []permissionsSyncJob{{
 					CompletedAt: time.Now(),
@@ -48,7 +48,7 @@ func TestCheckPermissionsSyncing(t *testing.T) {
 		wantErr:    "",
 	}, {
 		name: "unhealthy",
-		instanceHealth: Summary{
+		instanceHealth: Indicators{
 			PermissionsSyncJobs: struct{ Nodes []permissionsSyncJob }{
 				Nodes: []permissionsSyncJob{{
 					CompletedAt: time.Now(),

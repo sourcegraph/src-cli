@@ -9,7 +9,9 @@ import (
 	"github.com/sourcegraph/src-cli/internal/api"
 )
 
-type Summary struct {
+// Indicators are values from the Sourcegraph GraphQL API that help indicate the health of
+// and instance.
+type Indicators struct {
 	Site struct {
 		Configuration struct {
 			ValidationMessages []string
@@ -59,8 +61,8 @@ type permissionsProviderStatus struct {
 
 // GetIndicators retrieves summary data from a Sourcegraph instance's GraphQL API for
 // assessing instance health.
-func GetIndicators(ctx context.Context, client api.Client) (*Summary, error) {
-	var instanceHealth Summary
+func GetIndicators(ctx context.Context, client api.Client) (*Indicators, error) {
+	var instanceHealth Indicators
 	ok, err := client.NewQuery(`
 		query InstanceHealthSummary {
 			site {
