@@ -59,13 +59,11 @@ TARGETS FILES
 				}
 			case "docker":
 				commandBuilder = func(t pgdump.Target) (string, error) {
-					// docker exec -it pgsql sh -c 'pg_dump --no-owner --format=p --no-acl --username=sg --dbname=sg'
 					return fmt.Sprintf("docker exec -it %s sh -c '%s'", t.Target, pgdump.Command(t)), nil
 				}
 			case "kubectl":
 				targetKey = "k8s"
 				commandBuilder = func(t pgdump.Target) (string, error) {
-					// docker exec -it pgsql sh -c 'pg_dump --no-owner --format=p --no-acl --username=sg --dbname=sg'
 					return fmt.Sprintf("kubectl exec -it %s -- bash -c '%s'", t.Target, pgdump.Command(t)), nil
 				}
 			default:
