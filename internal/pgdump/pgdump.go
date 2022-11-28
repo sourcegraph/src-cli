@@ -19,6 +19,7 @@ type Target struct {
 	//
 	// - in docker, the name of the database container, e.g. pgsql, codeintel-db, codeinsights-db
 	// - in k8s, the name of the deployment or statefulset, e.g. deploy/pgsql, sts/pgsql
+	// - in plain pg_dump, the server host or socket directory
 	Target string `yaml:"target"`
 
 	DBName   string `yaml:"dbname"`

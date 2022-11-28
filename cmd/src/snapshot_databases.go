@@ -54,8 +54,13 @@ TARGETS FILES
 			var commandBuilder pgdump.CommandBuilder
 			switch builder {
 			case "pg_dump", "":
+				targetKey = "local"
 				commandBuilder = func(t pgdump.Target) (string, error) {
-					return pgdump.Command(t), nil
+					cmd := pgdump.Command(t)
+					if t.Target != "" {
+						return fmt.Sprintf("%s --host=%s", cmd, t.Target), nil
+					}
+					return cmd, nil
 				}
 			case "docker":
 				commandBuilder = func(t pgdump.Target) (string, error) {
@@ -106,6 +111,23 @@ TARGETS FILES
 
 // predefinedDatabaseDumpTargets is based on default Sourcegraph configurations.
 var predefinedDatabaseDumpTargets = map[string]pgdump.Targets{
+	"local": {
+		Primary: pgdump.Target{
+			DBName:   "sg",
+			Username: "sg",
+			Password: "sg",
+		},
+		CodeIntel: pgdump.Target{
+			DBName:   "sg",
+			Username: "sg",
+			Password: "sg",
+		},
+		CodeInsights: pgdump.Target{
+			DBName:   "postgres",
+			Username: "postgres",
+			Password: "password",
+		},
+	},
 	"docker": { // based on deploy-sourcegraph-managed
 		Primary: pgdump.Target{
 			Target:   "pgsql",
