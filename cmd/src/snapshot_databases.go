@@ -25,14 +25,16 @@ TARGETS FILES
 	Custom targets configuration can be provided in YAML format with '--targets=target.yaml', e.g.
 
 		primary:
-			entity: ...
-			dbname: ...
-			username: ...
-			password: ...
+			target: ...   # the DSN of the database deployment, e.g. in docker, the name of the database container
+			dbname: ...   # name of database
+			username: ... # username for database access
+			password: ... # password for database access - only include password if it is non-sensitive
 		codeintel:
 			# same as above
 		codeinsights:
 			# same as above
+
+	See the pgdump.Targets type for more details.
 `
 	flagSet := flag.NewFlagSet("databases", flag.ExitOnError)
 	targetsKeyFlag := flagSet.String("targets", "auto", "predefined targets ('docker' or 'k8s'), or a custom targets.yaml file")
