@@ -15,8 +15,11 @@ type Targets struct {
 
 // Target represents a database for pg_dump to export.
 type Target struct {
-	// e.g. container, deployment, statefulset, etc.
-	Target string `yaml:"entity"`
+	// Target is the DSN of the database deployment:
+	//
+	// - in docker, the name of the database container, e.g. pgsql, codeintel-db, codeinsights-db
+	// - in k8s, the name of the deployment or statefulset, e.g. deploy/pgsql, sts/pgsql
+	Target string `yaml:"target"`
 
 	DBName   string `yaml:"dbname"`
 	Username string `yaml:"username"`
