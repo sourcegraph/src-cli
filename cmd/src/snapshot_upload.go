@@ -148,8 +148,12 @@ func copyToBucket(ctx context.Context, src io.Reader, stat fs.FileInfo, dst *sto
 		return err
 	}
 
+	// Progress is not called on completion, so we call it manually after io.Copy is done
+	progressFn(written)
+
 	// Validate we have sent all data
-	if size := stat.Size(); written != size {
+	size := stat.Size()
+	if written != size {
 		return errors.Newf("expected to write %d bytes, but actually wrote %d bytes",
 			size, written)
 	}
