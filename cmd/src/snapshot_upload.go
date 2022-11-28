@@ -32,7 +32,7 @@ USAGE
 `
 	flagSet := flag.NewFlagSet("upload", flag.ExitOnError)
 	bucketName := flagSet.String("bucket", "", "destination Cloud Storage bucket name")
-	credentialsPath := flagSet.String("credentials", "", "JSON credentials file for Google Cloud")
+	credentialsPath := flagSet.String("credentials", "", "JSON credentials file for Google Cloud service account")
 
 	snapshotCommands = append(snapshotCommands, &command{
 		flagSet: flagSet,
