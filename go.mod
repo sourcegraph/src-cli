@@ -3,7 +3,6 @@ module github.com/sourcegraph/src-cli
 go 1.18
 
 require (
-	github.com/Masterminds/semver v1.5.0
 	github.com/creack/goselect v0.1.2
 	github.com/derision-test/glock v0.0.0-20210316032053-f5b74334bb29
 	github.com/dineshappavoo/basex v0.0.0-20170425072625-481a6f6dc663
@@ -22,10 +21,10 @@ require (
 	github.com/sourcegraph/go-diff v0.6.1
 	github.com/sourcegraph/jsonx v0.0.0-20200629203448-1a936bd500cf
 	github.com/sourcegraph/scip v0.2.3
-	github.com/sourcegraph/sourcegraph/lib v0.0.0-20221004162410-237d5855fa13
+	github.com/sourcegraph/sourcegraph/lib v0.0.0-20221129000458-bf6c7a8cdbd4
 	github.com/stretchr/testify v1.8.0
-	golang.org/x/net v0.0.0-20220722155237-a158d28d115b
-	golang.org/x/sync v0.0.0-20220722155255-886fb9371eb4
+	golang.org/x/net v0.2.0
+	golang.org/x/sync v0.1.0
 	google.golang.org/protobuf v1.28.0
 	gopkg.in/yaml.v3 v3.0.1
 	jaytaylor.com/html2text v0.0.0-20200412013138-3577fbdbcff7
@@ -33,6 +32,7 @@ require (
 
 require (
 	github.com/Azure/go-ansiterm v0.0.0-20210617225240-d185dfc1b5a1 // indirect
+	github.com/Masterminds/semver v1.5.0 // indirect
 	github.com/Masterminds/sprig v2.15.0+incompatible // indirect
 	github.com/alecthomas/chroma v0.10.0 // indirect
 	github.com/aokoli/goutils v1.0.1 // indirect
@@ -104,11 +104,11 @@ require (
 	go.uber.org/multierr v1.8.0 // indirect
 	go.uber.org/zap v1.23.0 // indirect
 	golang.org/x/crypto v0.0.0-20210921155107-089bfa567519 // indirect
-	golang.org/x/mod v0.6.0-dev.0.20220419223038-86c51ed26bb4 // indirect
-	golang.org/x/sys v0.0.0-20220928140112-f11e5e49a4ec // indirect
-	golang.org/x/term v0.0.0-20220411215600-e5f449aeb171 // indirect
-	golang.org/x/text v0.3.7 // indirect
-	golang.org/x/tools v0.1.12 // indirect
+	golang.org/x/mod v0.7.0 // indirect
+	golang.org/x/sys v0.2.0 // indirect
+	golang.org/x/term v0.2.0 // indirect
+	golang.org/x/text v0.4.0 // indirect
+	golang.org/x/tools v0.3.0 // indirect
 	google.golang.org/genproto v0.0.0-20220414192740-2d67ff6cf2b4 // indirect
 	google.golang.org/grpc v1.45.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
@@ -117,5 +117,3 @@ require (
 
 // See: https://github.com/ghodss/yaml/pull/65
 replace github.com/ghodss/yaml => github.com/sourcegraph/yaml v1.0.1-0.20200714132230-56936252f152
-
-replace github.com/sourcegraph/sourcegraph/lib => /Users/erik/Code/sourcegraph/sourcegraph/lib
