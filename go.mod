@@ -3,13 +3,13 @@ module github.com/sourcegraph/src-cli
 go 1.18
 
 require (
-	github.com/Masterminds/semver v1.5.0
+	cloud.google.com/go/storage v1.28.0
 	github.com/creack/goselect v0.1.2
 	github.com/derision-test/glock v0.0.0-20210316032053-f5b74334bb29
 	github.com/dineshappavoo/basex v0.0.0-20170425072625-481a6f6dc663
 	github.com/dustin/go-humanize v1.0.0
 	github.com/gobwas/glob v0.2.3
-	github.com/google/go-cmp v0.5.8
+	github.com/google/go-cmp v0.5.9
 	github.com/grafana/regexp v0.0.0-20220304100321-149c8afcd6cb
 	github.com/hexops/autogold v1.3.0
 	github.com/jedib0t/go-pretty/v6 v6.3.7
@@ -22,17 +22,23 @@ require (
 	github.com/sourcegraph/go-diff v0.6.1
 	github.com/sourcegraph/jsonx v0.0.0-20200629203448-1a936bd500cf
 	github.com/sourcegraph/scip v0.2.3
-	github.com/sourcegraph/sourcegraph/lib v0.0.0-20221004162410-237d5855fa13
+	github.com/sourcegraph/sourcegraph/lib v0.0.0-20221129022201-2804729b069c
 	github.com/stretchr/testify v1.8.0
-	golang.org/x/net v0.0.0-20220722155237-a158d28d115b
-	golang.org/x/sync v0.0.0-20220722155255-886fb9371eb4
-	google.golang.org/protobuf v1.28.0
+	golang.org/x/net v0.2.0
+	golang.org/x/sync v0.1.0
+	google.golang.org/api v0.102.0
+	google.golang.org/protobuf v1.28.1
 	gopkg.in/yaml.v3 v3.0.1
 	jaytaylor.com/html2text v0.0.0-20200412013138-3577fbdbcff7
 )
 
 require (
+	cloud.google.com/go v0.104.0 // indirect
+	cloud.google.com/go/compute v1.12.1 // indirect
+	cloud.google.com/go/compute/metadata v0.2.1 // indirect
+	cloud.google.com/go/iam v0.5.0 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20210617225240-d185dfc1b5a1 // indirect
+	github.com/Masterminds/semver v1.5.0 // indirect
 	github.com/Masterminds/sprig v2.15.0+incompatible // indirect
 	github.com/alecthomas/chroma v0.10.0 // indirect
 	github.com/aokoli/goutils v1.0.1 // indirect
@@ -55,6 +61,8 @@ require (
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/google/uuid v1.3.0 // indirect
+	github.com/googleapis/enterprise-certificate-proxy v0.2.0 // indirect
+	github.com/googleapis/gax-go/v2 v2.6.0 // indirect
 	github.com/gorilla/css v1.0.0 // indirect
 	github.com/hexops/gotextdiff v1.0.3 // indirect
 	github.com/hexops/valast v1.4.1 // indirect
@@ -104,13 +112,16 @@ require (
 	go.uber.org/multierr v1.8.0 // indirect
 	go.uber.org/zap v1.23.0 // indirect
 	golang.org/x/crypto v0.0.0-20210921155107-089bfa567519 // indirect
-	golang.org/x/mod v0.6.0-dev.0.20220419223038-86c51ed26bb4 // indirect
-	golang.org/x/sys v0.0.0-20220928140112-f11e5e49a4ec // indirect
-	golang.org/x/term v0.0.0-20220411215600-e5f449aeb171 // indirect
-	golang.org/x/text v0.3.7 // indirect
-	golang.org/x/tools v0.1.12 // indirect
-	google.golang.org/genproto v0.0.0-20220414192740-2d67ff6cf2b4 // indirect
-	google.golang.org/grpc v1.45.0 // indirect
+	golang.org/x/mod v0.7.0 // indirect
+	golang.org/x/oauth2 v0.0.0-20221014153046-6fdb5e3db783 // indirect
+	golang.org/x/sys v0.2.0 // indirect
+	golang.org/x/term v0.2.0 // indirect
+	golang.org/x/text v0.4.0 // indirect
+	golang.org/x/tools v0.3.0 // indirect
+	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2 // indirect
+	google.golang.org/appengine v1.6.7 // indirect
+	google.golang.org/genproto v0.0.0-20221024183307-1bc688fe9f3e // indirect
+	google.golang.org/grpc v1.50.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	mvdan.cc/gofumpt v0.2.1 // indirect
 )
