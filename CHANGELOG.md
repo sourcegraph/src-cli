@@ -21,6 +21,8 @@ All notable changes to `src-cli` are documented in this file.
 
 ### Fixed
 
+- Batch changes: Git patches are now binary encoded instead of UTF-8 over the wire, fixing support for non-UTF-8 files. [#887](https://github.com/sourcegraph/src-cli/pull/887)
+
 ### Removed
 
 ## 4.2.0
