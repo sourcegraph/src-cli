@@ -13,6 +13,16 @@ All notable changes to `src-cli` are documented in this file.
 
 ### Added
 
+### Changed
+
+### Fixed
+
+### Removed
+
+## 4.2.1
+
+### Added
+
 - Batch specs being run locally with `src batch preview` or `src batch apply` can now be run with the `-run-as-root` flag, which will run all step containers as root instead of the default user for the image. This is off by default. [#886](https://github.com/sourcegraph/src-cli/pull/886)
 
 ### Changed
@@ -22,8 +32,6 @@ All notable changes to `src-cli` are documented in this file.
 ### Fixed
 
 - Batch changes: Git patches are now binary encoded instead of UTF-8 over the wire, fixing support for non-UTF-8 files. [#887](https://github.com/sourcegraph/src-cli/pull/887)
-
-### Removed
 
 ## 4.2.0
 
