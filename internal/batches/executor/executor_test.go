@@ -455,7 +455,7 @@ func TestExecutor_Integration(t *testing.T) {
 
 				lastStepResult := taskResult.stepResults[len(taskResult.stepResults)-1]
 
-				fileDiffs, err := diff.ParseMultiFileDiff([]byte(lastStepResult.Diff))
+				fileDiffs, err := diff.ParseMultiFileDiff(lastStepResult.Diff)
 				if err != nil {
 					t.Fatalf("failed to parse diff: %s", err)
 				}
