@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/hexops/autogold"
@@ -13,6 +14,10 @@ import (
 )
 
 func TestPartialCopyWithoutExtensions(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Test doesn't work on Windows of weirdness with t.TempDir() handling")
+	}
+
 	// Create test data - there is no stdlib in-memory io.ReadSeeker implementation
 	src, err := os.Create(filepath.Join(t.TempDir(), t.Name()))
 	require.NoError(t, err)
