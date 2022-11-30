@@ -1,0 +1,65 @@
+package pgdump
+
+import (
+	"bytes"
+	"io"
+	"os"
+	"path/filepath"
+	"testing"
+
+	"github.com/hexops/autogold"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func TestPartialCopyWithoutExtensions(t *testing.T) {
+	// Create test data - there is no stdlib in-memory io.ReadSeeker implementation
+	src, err := os.Create(filepath.Join(t.TempDir(), t.Name()))
+	require.NoError(t, err)
+	_, err = src.WriteString(`-- Some comment
+
+CREATE EXTENSION foobar
+
+COMMENT ON EXTENSION barbaz
+
+CREATE TYPE asdf
+
+CREATE TABLE robert (
+	...
+)
+
+CREATE TABLE bobhead (
+	...
+)`)
+	require.NoError(t, err)
+	_, err = src.Seek(0, io.SeekStart)
+	require.NoError(t, err)
+
+	// Set up target to assert against
+	var dst bytes.Buffer
+
+	// Perform partial copy
+	_, err = PartialCopyWithoutExtensions(&dst, src, func(i int64) {})
+	assert.NoError(t, err)
+
+	// Copy rest of contents
+	_, err = io.Copy(&dst, src)
+	assert.NoError(t, err)
+
+	// Assert contents (update with -update)
+	autogold.Want("partial-copy-without-extensions", `-- Some comment
+
+CREATE EXTENSION foobar
+
+-- COMMENT ON EXTENSION barbaz
+
+CREATE TYPE asdf
+
+CREATE TABLE robert (
+	...
+)
+
+CREATE TABLE bobhead (
+	...
+)`).Equal(t, dst.String())
+}
