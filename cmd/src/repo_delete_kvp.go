@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+
 	"github.com/sourcegraph/sourcegraph/lib/errors"
 	"github.com/sourcegraph/src-cli/internal/api"
 )
