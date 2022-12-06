@@ -1,8 +1,10 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
+	"net/http"
 	"os"
 	"path"
 	"path/filepath"
@@ -89,7 +91,7 @@ func init() {
 //
 // On success, the global codeintelUploadFlags object will be populated with valid values. An
 // error is returned on failure.
-func parseAndValidateCodeIntelUploadFlags(args []string) (*output.Output, error) {
+func parseAndValidateCodeIntelUploadFlags(args []string, isSCIPAvailable bool) (*output.Output, error) {
 	if err := codeintelUploadFlagSet.Parse(args); err != nil {
 		return nil, err
 	}
@@ -112,8 +114,10 @@ func parseAndValidateCodeIntelUploadFlags(args []string) (*output.Output, error)
 		return nil, err
 	}
 
-	if err := handleSCIP(out); err != nil {
-		return nil, err
+	if !isSCIPAvailable {
+		if err := handleSCIP(out); err != nil {
+			return nil, err
+		}
 	}
 
 	if inferenceErrors := inferMissingCodeIntelUploadFlags(); len(inferenceErrors) > 0 {
@@ -149,6 +153,22 @@ func codeintelUploadOutput() (out *output.Output) {
 	return output.NewOutput(flag.CommandLine.Output(), output.OutputOpts{
 		Verbose: true,
 	})
+}
+
+func isSCIPAvailable() (bool, error) {
+	client := cfg.apiClient(codeintelUploadFlags.apiFlags, codeintelUploadFlagSet.Output())
+	req, err := client.NewHTTPRequest(context.Background(), "HEAD", "/.api/scip/upload", nil)
+	if err != nil {
+		return false, err
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return false, err
+	}
+	defer resp.Body.Close()
+
+	return resp.StatusCode == http.StatusOK, nil
 }
 
 type argumentInferenceError struct {
