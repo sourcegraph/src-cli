@@ -4,23 +4,18 @@ import (
 	"time"
 )
 
-type Watcher interface {
-	Start()
-	Stop()
-}
-
-type watchDog struct {
+type WatchDog struct {
 	interval time.Duration
 	ticker   *time.Ticker
-	done     chan bool
+	done     chan struct{}
 	callback func()
 }
 
-func New(interval time.Duration, callback func()) Watcher {
+func New(interval time.Duration, callback func()) *WatchDog {
 	t := time.NewTicker(interval)
-	done := make(chan bool)
+	done := make(chan struct{}, 1)
 
-	return &watchDog{
+	return &WatchDog{
 		interval: interval,
 		ticker:   t,
 		done:     done,
@@ -28,11 +23,11 @@ func New(interval time.Duration, callback func()) Watcher {
 	}
 }
 
-func (w *watchDog) Stop() {
+func (w *WatchDog) Stop() {
 	close(w.done)
 }
 
-func (w *watchDog) Start() {
+func (w *WatchDog) Start() {
 	for {
 		select {
 		case <-w.ticker.C:

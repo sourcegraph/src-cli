@@ -37,7 +37,8 @@ import (
 	"github.com/sourcegraph/src-cli/internal/cmderrors"
 )
 
-const dockerWatchDuration = 5 * time.Second
+// We check for docker responsiveness every minute
+const dockerWatchDuration = 1 * time.Minute
 
 // batchExecutionFlags are common to batch changes that are executed both
 // locally and remotely.
@@ -254,7 +255,7 @@ type executeBatchSpecOpts struct {
 	client api.Client
 }
 
-func createDockerWatchdog(ctx context.Context, execUI ui.ExecUI) watchdog.Watcher {
+func createDockerWatchdog(ctx context.Context, execUI ui.ExecUI) *watchdog.WatchDog {
 	return watchdog.New(dockerWatchDuration, func() {
 		_, err := docker.CurrentContext(ctx)
 		if err != nil {
