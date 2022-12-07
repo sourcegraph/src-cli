@@ -177,6 +177,11 @@ func (ui *JSONLines) WriteAfterStepResult(key string, value execution.AfterStepR
 	})
 }
 
+func (ui *JSONLines) DockerWatchDogWarning(err error) {
+	fmt.Println("docker warning")
+	// logOperationFailure(batcheslib.LogEventOperationDockerWatchDog, &batcheslib.DockerWatchDogMetadata{Error: err.Error()})
+}
+
 type taskExecutionJSONLines struct {
 	linesTasks  map[*executor.Task]batcheslib.JSONLinesTask
 	binaryDiffs bool
