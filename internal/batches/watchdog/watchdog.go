@@ -2,38 +2,29 @@ package watchdog
 
 import (
 	"time"
+
+	"github.com/derision-test/glock"
 )
 
 type WatchDog struct {
-	interval time.Duration
-	ticker   *time.Ticker
-	done     chan struct{}
+	ticker   glock.Ticker
 	callback func()
 }
 
 func New(interval time.Duration, callback func()) *WatchDog {
-	t := time.NewTicker(interval)
-	done := make(chan struct{}, 1)
-
+	ticker := glock.NewRealTicker(interval)
 	return &WatchDog{
-		interval: interval,
-		ticker:   t,
-		done:     done,
+		ticker:   ticker,
 		callback: callback,
 	}
 }
 
 func (w *WatchDog) Stop() {
-	close(w.done)
+	w.ticker.Stop()
 }
 
 func (w *WatchDog) Start() {
-	for {
-		select {
-		case <-w.ticker.C:
-			go w.callback()
-		case <-w.done:
-			w.ticker.Stop()
-		}
+	for _ = range w.ticker.Chan() {
+		go w.callback()
 	}
 }

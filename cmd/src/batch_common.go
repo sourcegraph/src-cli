@@ -257,7 +257,7 @@ type executeBatchSpecOpts struct {
 
 func createDockerWatchdog(ctx context.Context, execUI ui.ExecUI) *watchdog.WatchDog {
 	return watchdog.New(dockerWatchDuration, func() {
-		_, err := docker.CurrentContext(ctx)
+		_, err := docker.NCPU(ctx)
 		if err != nil {
 			execUI.DockerWatchDogWarning(errors.Wrap(err, "docker watchdog"))
 		}

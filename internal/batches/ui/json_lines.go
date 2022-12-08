@@ -178,7 +178,11 @@ func (ui *JSONLines) WriteAfterStepResult(key string, value execution.AfterStepR
 }
 
 func (ui *JSONLines) DockerWatchDogWarning(err error) {
-	logOperationFailure(batcheslib.LogEventOperationDockerWatchDog, &batcheslib.DockerWatchDogMetadata{Error: err.Error()})
+	message := fmt.Sprintf(`Your Docker engine might be frozen.
+If there's no progress in the next couple minutes, you may want to try restarting Docker and running the command again.
+Error: %s
+`, err.Error())
+	logOperationFailure(batcheslib.LogEventOperationDockerWatchDog, &batcheslib.DockerWatchDogMetadata{Error: message})
 }
 
 type taskExecutionJSONLines struct {
