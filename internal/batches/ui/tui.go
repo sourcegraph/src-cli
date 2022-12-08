@@ -455,7 +455,7 @@ func batchCompleteWarning(p output.Pending, message string) {
 }
 
 func dockerWatchDogWarning(out *output.Output, err error) {
-	block := out.Block(output.Line("🐳", output.StyleWarning, "Your Docker engine might be frozen."))
+	block := out.Block(output.Line("🐳", output.StyleWarning, "It seems your Docker engine might be frozen."))
 	block.WriteLine(output.Line("", output.StyleWarning, "If there's no progress in the next couple minutes, you may want to try restarting Docker and running the command again."))
 	block.WriteLine(output.Linef("", output.StyleWarning, "Error: %s", err.Error()))
 	block.Write("")
