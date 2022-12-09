@@ -9,6 +9,7 @@ import (
 type WatchDog struct {
 	ticker   glock.Ticker
 	callback func()
+	done     chan struct{}
 }
 
 func New(interval time.Duration, callback func()) *WatchDog {
@@ -16,15 +17,22 @@ func New(interval time.Duration, callback func()) *WatchDog {
 	return &WatchDog{
 		ticker:   ticker,
 		callback: callback,
+		done:     make(chan struct{}, 1),
 	}
 }
 
 func (w *WatchDog) Stop() {
-	w.ticker.Stop()
+	close(w.done)
 }
 
 func (w *WatchDog) Start() {
-	for _ = range w.ticker.Chan() {
-		go w.callback()
+	for {
+		select {
+		case <-w.ticker.Chan():
+			go w.callback()
+		case <-w.done:
+			w.ticker.Stop()
+			return
+		}
 	}
 }

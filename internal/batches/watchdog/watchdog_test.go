@@ -23,6 +23,7 @@ func TestWatchDog(t *testing.T) {
 	w := &WatchDog{
 		ticker:   ticker,
 		callback: mockCallback,
+		done:     make(chan struct{}, 1),
 	}
 
 	go w.Start()
