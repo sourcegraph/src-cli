@@ -401,6 +401,8 @@ github.com/sourcegraph/sourcegraph/lib v0.0.0-20221129022201-2804729b069c h1:bjT
 github.com/sourcegraph/sourcegraph/lib v0.0.0-20221129022201-2804729b069c/go.mod h1:PmWmo2ysXWCHcbtp08cDXKGD+8NQzrkj2UjdRBu9H0k=
 github.com/sourcegraph/sourcegraph/lib v0.0.0-20221209160553-82a7387a4395 h1:E/u2HLqdtvND9hQP7XXPHtA0A9WGtWi7xU5PWSnHQSw=
 github.com/sourcegraph/sourcegraph/lib v0.0.0-20221209160553-82a7387a4395/go.mod h1:pLXoYrwkmERkPVv1dpLcq0Epo21Kh4EgrdZXdnafmyQ=
+github.com/sourcegraph/sourcegraph/lib v0.0.0-20221209214825-85243deca886 h1:SmiA2Dmy0vtRVhxIYV6Obc1MHcPesxEvYrqn++W3a1o=
+github.com/sourcegraph/sourcegraph/lib v0.0.0-20221209214825-85243deca886/go.mod h1:pLXoYrwkmERkPVv1dpLcq0Epo21Kh4EgrdZXdnafmyQ=
 github.com/sourcegraph/yaml v1.0.1-0.20200714132230-56936252f152 h1:z/MpntplPaW6QW95pzcAR/72Z5TWDyDnSo0EOcyij9o=
 github.com/sourcegraph/yaml v1.0.1-0.20200714132230-56936252f152/go.mod h1:GIjDIg/heH5DOkXY3YJ/wNhfHsQHoXGjl8G8amsYQ1I=
 github.com/spf13/afero v1.1.2/go.mod h1:j4pytiNVoe2o6bmDsKpLACNPDBIoEAkihy7loJ1B0CQ=
