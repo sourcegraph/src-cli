@@ -51,7 +51,7 @@ Examples:
 		client := cfg.apiClient(apiFlags, flagSet.Output())
 
 		currentUserQuery := `
-query {
+query getCurrentUser {
 	currentUser {
 		username
 	}
@@ -68,23 +68,37 @@ query {
 			return err
 		}
 
-		usersQuery := `
-query Users() {
-	users() {
-		nodes {
-			...UserFields
-		}
-	}
+		getInactiveUsersQuery := `
+query getInactiveUsers {
+	  site {
+    users {
+      nodes {
+        username
+        email
+        siteAdmin
+        lastActiveAt
+      }
+    }
+  }
 }
-` + userFragment
+`
 
-		// get users to delete
+		// This isnt the full SiteUser available in the graphQL API and shoul only be used in this command
+		type SiteUser struct {
+			Username string
+			Email string
+			SiteAdmin bool
+			lastActiveAt string
+		}
+			
+
 		var usersResult struct {
 			Users struct {
-				Nodes []User
+				Nodes []SiteUser 
 			}
 		}
-		if ok, err := client.NewRequest(usersQuery, nil).Do(ctx, &usersResult); err != nil || !ok {
+
+		if ok, err := client.NewRequest(getInactiveUsersQuery, nil).Do(ctx, &usersResult); err != nil || !ok {
 			return err
 		}
 
@@ -146,13 +160,13 @@ query Users() {
 }
 
 // computes days since last usage from current day and time and UsageStatistics.LastActiveTime, uses time.Parse
-func computeDaysSinceLastUse(user User) (timeDiff int, wasLastActive bool, _ error) {
+func computeDaysSinceLastUse(user SiteUser) (timeDiff int, wasLastActive bool, _ error) {
 	// handle for null lastActiveTime returned from
-	if user.UsageStatistics.LastActiveTime == "" {
+	if user.lastActiveAt == "" {
 		wasLastActive = false
 		return 0, wasLastActive, nil
 	}
-	timeLast, err := time.Parse(time.RFC3339, user.UsageStatistics.LastActiveTime)
+	timeLast, err := time.Parse(time.RFC3339, user.lastActiveAt)
 	if err != nil {
 		return 0, false, err
 	}
@@ -162,7 +176,7 @@ func computeDaysSinceLastUse(user User) (timeDiff int, wasLastActive bool, _ err
 }
 
 // Issue graphQL api request to remove user
-func removeUser(user User, client api.Client, ctx context.Context) error {
+func removeUser(user SiteUser, client api.Client, ctx context.Context) error {
 	query := `mutation DeleteUser($user: ID!) {
   deleteUser(user: $user) {
     alwaysNil
@@ -178,7 +192,7 @@ func removeUser(user User, client api.Client, ctx context.Context) error {
 }
 
 type UserToDelete struct {
-	User             User
+	User             SiteUser
 	DaysSinceLastUse int
 }
 
