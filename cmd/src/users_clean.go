@@ -84,17 +84,20 @@ query getInactiveUsers {
 `
 
 		var usersResult struct {
+			Site struct {
 			Users struct {
 				Nodes []SiteUser 
+			}
 			}
 		}
 
 		if ok, err := client.NewRequest(getInactiveUsersQuery, nil).Do(ctx, &usersResult); err != nil || !ok {
 			return err
 		}
+		fmt.Printf("\n request returns -- \n\n%v\n\n", usersResult)
 
 		usersToDelete := make([]UserToDelete, 0)
-		for _, user := range usersResult.Users.Nodes {
+		for _, user := range usersResult.Site.Users.Nodes {
 			daysSinceLastUse, hasLastActive, err := computeDaysSinceLastUse(user)
 			if err != nil {
 				return err
