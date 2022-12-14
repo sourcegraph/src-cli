@@ -33,7 +33,7 @@ Examples:
 	var (
 		daysToDelete       = flagSet.Int("days", 60, "Days threshold on which to remove users, must be 60 days or greater and defaults to this value ")
 		removeAdmin        = flagSet.Bool("remove-admin", false, "clean admin accounts")
-		removeNoLastActive = flagSet.Bool("remove-never-active", false, "removes users with null lastActive value")
+		removeNoLastActive = flagSet.Bool("remove-never-active", false, "removes users with no events registered in the database")
 		skipConfirmation   = flagSet.Bool("force", false, "skips user confirmation step allowing programmatic use")
 		apiFlags           = api.NewFlags(flagSet)
 	)
@@ -83,15 +83,6 @@ query getInactiveUsers {
 }
 `
 
-		// This isnt the full SiteUser available in the graphQL API and shoul only be used in this command
-		type SiteUser struct {
-			Username string
-			Email string
-			SiteAdmin bool
-			lastActiveAt string
-		}
-			
-
 		var usersResult struct {
 			Users struct {
 				Nodes []SiteUser 
@@ -104,7 +95,7 @@ query getInactiveUsers {
 
 		usersToDelete := make([]UserToDelete, 0)
 		for _, user := range usersResult.Users.Nodes {
-			daysSinceLastUse, wasLastActive, err := computeDaysSinceLastUse(user)
+			daysSinceLastUse, hasLastActive, err := computeDaysSinceLastUse(user)
 			if err != nil {
 				return err
 			}
@@ -112,13 +103,13 @@ query getInactiveUsers {
 			if user.Username == currentUserResult.Data.CurrentUser.Username {
 				continue
 			}
-			if !wasLastActive && !*removeNoLastActive {
+			if !hasLastActive && !*removeNoLastActive {
 				continue
 			}
 			if !*removeAdmin && user.SiteAdmin {
 				continue
 			}
-			if daysSinceLastUse <= *daysToDelete && wasLastActive {
+			if daysSinceLastUse <= *daysToDelete && hasLastActive {
 				continue
 			}
 			deleteUser := UserToDelete{user, daysSinceLastUse}
@@ -160,13 +151,13 @@ query getInactiveUsers {
 }
 
 // computes days since last usage from current day and time and UsageStatistics.LastActiveTime, uses time.Parse
-func computeDaysSinceLastUse(user SiteUser) (timeDiff int, wasLastActive bool, _ error) {
-	// handle for null lastActiveTime returned from
-	if user.lastActiveAt == "" {
-		wasLastActive = false
-		return 0, wasLastActive, nil
+func computeDaysSinceLastUse(user SiteUser) (timeDiff int, hasLastActive bool, _ error) {
+	// handle for null LastActiveAt returned from
+	if user.LastActiveAt == "" {
+		hasLastActive = false
+		return 0, hasLastActive, nil
 	}
-	timeLast, err := time.Parse(time.RFC3339, user.lastActiveAt)
+	timeLast, err := time.Parse(time.RFC3339, user.LastActiveAt)
 	if err != nil {
 		return 0, false, err
 	}
@@ -203,8 +194,8 @@ func confirmUserRemoval(usersToRemove []UserToDelete) (bool, error) {
 	t.SetOutputMirror(os.Stdout)
 	t.AppendHeader(table.Row{"Username", "Email", "Days Since Last Active"})
 	for _, user := range usersToRemove {
-		if len(user.User.Emails) > 0 {
-			t.AppendRow([]interface{}{user.User.Username, user.User.Emails[0].Email, user.DaysSinceLastUse})
+		if user.User.Email != "" {
+			t.AppendRow([]interface{}{user.User.Username, user.User.Email, user.DaysSinceLastUse})
 			t.AppendSeparator()
 		} else {
 			t.AppendRow([]interface{}{user.User.Username, "", user.DaysSinceLastUse})

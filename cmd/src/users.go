@@ -90,3 +90,12 @@ type UserUsageStatistics struct {
 	LastActiveTime                    string
 	LastActiveCodeHostIntegrationTime string
 }
+
+type SiteUser struct {
+	ID string
+	Username string
+	Email string
+	SiteAdmin bool
+	LastActiveAt string
+}
+	
