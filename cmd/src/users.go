@@ -92,10 +92,9 @@ type UserUsageStatistics struct {
 }
 
 type SiteUser struct {
-	ID string
-	Username string
-	Email string
-	SiteAdmin bool
+	ID           string
+	Username     string
+	Email        string
+	SiteAdmin    bool
 	LastActiveAt string
 }
-	
