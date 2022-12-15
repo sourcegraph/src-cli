@@ -85,9 +85,9 @@ query getInactiveUsers {
 
 		var usersResult struct {
 			Site struct {
-			Users struct {
-				Nodes []SiteUser 
-			}
+				Users struct {
+					Nodes []SiteUser
+				}
 			}
 		}
 
