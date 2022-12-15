@@ -19,12 +19,12 @@ This command removes users from a Sourcegraph instance who have been inactive fo
 	
 Examples:
 
-	$ src users clean -days 182
+	$ src users prune -days 182
 	
-	$ src users clean -remove-admin -remove-never-active 
+	$ src users prune -remove-admin -remove-never-active 
 `
 
-	flagSet := flag.NewFlagSet("clean", flag.ExitOnError)
+	flagSet := flag.NewFlagSet("prune", flag.ExitOnError)
 	usageFunc := func() {
 		fmt.Fprintf(flag.CommandLine.Output(), "Usage of 'src users %s':\n", flagSet.Name())
 		flagSet.PrintDefaults()
@@ -32,7 +32,7 @@ Examples:
 	}
 	var (
 		daysToDelete       = flagSet.Int("days", 60, "Days threshold on which to remove users, must be 60 days or greater and defaults to this value ")
-		removeAdmin        = flagSet.Bool("remove-admin", false, "clean admin accounts")
+		removeAdmin        = flagSet.Bool("remove-admin", false, "prune admin accounts")
 		removeNoLastActive = flagSet.Bool("remove-never-active", false, "removes users with no events registered in the database")
 		skipConfirmation   = flagSet.Bool("force", false, "skips user confirmation step allowing programmatic use")
 		apiFlags           = api.NewFlags(flagSet)
