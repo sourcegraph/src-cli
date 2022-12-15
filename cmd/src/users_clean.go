@@ -94,7 +94,6 @@ query getInactiveUsers {
 		if ok, err := client.NewRequest(getInactiveUsersQuery, nil).Do(ctx, &usersResult); err != nil || !ok {
 			return err
 		}
-		fmt.Printf("\n request returns -- \n\n%v\n\n", usersResult)
 
 		usersToDelete := make([]UserToDelete, 0)
 		for _, user := range usersResult.Site.Users.Nodes {
