@@ -286,26 +286,14 @@ func handleLSIF(out *output.Output) error {
 		inputFile := codeintelUploadFlags.file
 		outputFile := replaceExtension(inputFile, ".scip")
 		codeintelUploadFlags.file = outputFile
-		return convertLSIFToSCIP(out, inputFile, outputFile, getOrInferRoot())
+		return convertLSIFToSCIP(out, inputFile, outputFile)
 	}
 
 	return nil
 }
 
-func getOrInferRoot() string {
-	if isFlagSet(codeintelUploadFlagSet, "root") {
-		return codeintelUploadFlags.root
-	}
-
-	// Infer this on-demand when translating LSIF -> SCIP. We have a weird init order and this
-	// was a small diff to get this working while we still care about LSIF -> SCIP support as
-	// well. Most of this file is more cluttered than it will need to be in ~ two months.
-	root, _ := inferIndexRoot()
-	return root
-}
-
 // Reads the LSIF encoded input file and writes the corresponding SCIP encoded output file.
-func convertLSIFToSCIP(out *output.Output, inputFile, outputFile, root string) error {
+func convertLSIFToSCIP(out *output.Output, inputFile, outputFile string) error {
 	if out != nil {
 		out.Writef("%s  Converting %s into %s", output.EmojiInfo, inputFile, outputFile)
 	}
@@ -319,8 +307,7 @@ func convertLSIFToSCIP(out *output.Output, inputFile, outputFile, root string) e
 	ctx := context.Background()
 	uploadID := -time.Now().Nanosecond()
 
-	// TODO - do not require indexer name
-	index, err := libscip.ConvertLSIF(ctx, uploadID, rc, root, "")
+	index, err := libscip.ConvertLSIF(ctx, uploadID, rc, getOrInferRoot())
 	if err != nil {
 		return err
 	}
@@ -330,6 +317,18 @@ func convertLSIFToSCIP(out *output.Output, inputFile, outputFile, root string) e
 	}
 
 	return os.WriteFile(outputFile, serialized, os.ModePerm)
+}
+
+func getOrInferRoot() string {
+	if isFlagSet(codeintelUploadFlagSet, "root") {
+		return codeintelUploadFlags.root
+	}
+
+	// Infer this on-demand when translating LSIF -> SCIP. We have a weird init order and this
+	// was a small diff to get this working while we still care about LSIF -> SCIP support as
+	// well. Most of this file is more cluttered than it will need to be in ~ two months.
+	root, _ := inferIndexRoot()
+	return root
 }
 
 // inferMissingCodeIntelUploadFlags updates the flags values which were not explicitly
