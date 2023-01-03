@@ -118,6 +118,10 @@ func parseAndValidateCodeIntelUploadFlags(args []string, isSCIPAvailable bool) (
 		if err := handleSCIP(out); err != nil {
 			return nil, err
 		}
+	} else {
+		if err := handleLSIF(out); err != nil {
+			return nil, err
+		}
 	}
 
 	if inferenceErrors := inferMissingCodeIntelUploadFlags(); len(inferenceErrors) > 0 {
@@ -194,7 +198,7 @@ func replaceBaseName(oldPath string, newBaseName string) string {
 func handleSCIP(out *output.Output) error {
 	fileExt := path.Ext(codeintelUploadFlags.file)
 	if len(fileExt) == 0 {
-		return errors.Newf("missing file extension for %s; expected .scip", codeintelUploadFlags.file)
+		return errors.Newf("missing file extension for %s; expected .scip or .lsif", codeintelUploadFlags.file)
 	}
 	inputFile := codeintelUploadFlags.file
 	if fileExt == ".scip" || fileExt == ".lsif-typed" {
@@ -268,6 +272,42 @@ func convertSCIPToLSIFGraph(out *output.Output, inputFile, outputFile string) er
 	if err != nil {
 		return err
 	}
+	return nil
+}
+
+func handleLSIF(out *output.Output) error {
+	fileExt := path.Ext(codeintelUploadFlags.file)
+	if len(fileExt) == 0 {
+		return errors.Newf("missing file extension for %s; expected .scip or .lsif", codeintelUploadFlags.file)
+	}
+
+	if fileExt == ".lsif" {
+		inputFile := codeintelUploadFlags.file
+		outputFile := replaceExtension(inputFile, ".scip")
+		codeintelUploadFlags.file = outputFile
+		return convertLSIFToSCIP(out, inputFile, outputFile)
+	}
+
+	return nil
+}
+
+// Reads the LSIF encoded input file and writes the corresponding SCIP encoded output file.
+func convertLSIFToSCIP(out *output.Output, inputFile, outputFile string) error {
+	if out != nil {
+		out.Writef("%s  Converting %s into %s", output.EmojiInfo, inputFile, outputFile)
+	}
+	tmp, err := os.Create(outputFile)
+	if err != nil {
+		return err
+	}
+	defer tmp.Close()
+
+	// TODO - write to tmp
+
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+
 	return nil
 }
 
