@@ -9,13 +9,14 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+	"time"
 
+	"github.com/sourcegraph/scip/bindings/go/scip"
+	libscip "github.com/sourcegraph/sourcegraph/lib/codeintel/lsif/scip"
+	"github.com/sourcegraph/sourcegraph/lib/codeintel/upload"
 	"github.com/sourcegraph/sourcegraph/lib/errors"
 	"github.com/sourcegraph/sourcegraph/lib/output"
 	"google.golang.org/protobuf/proto"
-
-	"github.com/sourcegraph/scip/bindings/go/scip"
-	"github.com/sourcegraph/sourcegraph/lib/codeintel/upload"
 
 	"github.com/sourcegraph/src-cli/internal/api"
 	"github.com/sourcegraph/src-cli/internal/codeintel"
@@ -285,30 +286,50 @@ func handleLSIF(out *output.Output) error {
 		inputFile := codeintelUploadFlags.file
 		outputFile := replaceExtension(inputFile, ".scip")
 		codeintelUploadFlags.file = outputFile
-		return convertLSIFToSCIP(out, inputFile, outputFile)
+		return convertLSIFToSCIP(out, inputFile, outputFile, getOrInferRoot())
 	}
 
 	return nil
 }
 
+func getOrInferRoot() string {
+	if isFlagSet(codeintelUploadFlagSet, "root") {
+		return codeintelUploadFlags.root
+	}
+
+	// Infer this on-demand when translating LSIF -> SCIP. We have a weird init order and this
+	// was a small diff to get this working while we still care about LSIF -> SCIP support as
+	// well. Most of this file is more cluttered than it will need to be in ~ two months.
+	root, _ := inferIndexRoot()
+	return root
+}
+
 // Reads the LSIF encoded input file and writes the corresponding SCIP encoded output file.
-func convertLSIFToSCIP(out *output.Output, inputFile, outputFile string) error {
+func convertLSIFToSCIP(out *output.Output, inputFile, outputFile, root string) error {
 	if out != nil {
 		out.Writef("%s  Converting %s into %s", output.EmojiInfo, inputFile, outputFile)
 	}
-	tmp, err := os.Create(outputFile)
+
+	rc, err := os.Open(inputFile)
 	if err != nil {
 		return err
 	}
-	defer tmp.Close()
+	defer rc.Close()
 
-	// TODO - write to tmp
+	ctx := context.Background()
+	uploadID := -time.Now().Nanosecond()
 
-	if err := tmp.Close(); err != nil {
+	// TODO - do not require indexer name
+	index, err := libscip.ConvertLSIF(ctx, uploadID, rc, root, "")
+	if err != nil {
+		return err
+	}
+	serialized, err := proto.Marshal(index)
+	if err != nil {
 		return err
 	}
 
-	return nil
+	return os.WriteFile(outputFile, serialized, os.ModePerm)
 }
 
 // inferMissingCodeIntelUploadFlags updates the flags values which were not explicitly
