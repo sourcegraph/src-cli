@@ -298,16 +298,24 @@ func convertLSIFToSCIP(out *output.Output, inputFile, outputFile string) error {
 		out.Writef("%s  Converting %s into %s", output.EmojiInfo, inputFile, outputFile)
 	}
 
+	ctx := context.Background()
+	uploadID := -time.Now().Nanosecond()
+	root := codeintelUploadFlags.root
+
+	if !isFlagSet(codeintelUploadFlagSet, "root") {
+		// Best-effort infer the root; we have a strange cyclic init order where we're
+		// currently trying to determine the filename that determines the root, but we
+		// need the root when converting from LSIF to SCIP.
+		root, _ = inferIndexRoot()
+	}
+
 	rc, err := os.Open(inputFile)
 	if err != nil {
 		return err
 	}
 	defer rc.Close()
 
-	ctx := context.Background()
-	uploadID := -time.Now().Nanosecond()
-
-	index, err := libscip.ConvertLSIF(ctx, uploadID, rc, getOrInferRoot())
+	index, err := libscip.ConvertLSIF(ctx, uploadID, rc, root)
 	if err != nil {
 		return err
 	}
@@ -317,18 +325,6 @@ func convertLSIFToSCIP(out *output.Output, inputFile, outputFile string) error {
 	}
 
 	return os.WriteFile(outputFile, serialized, os.ModePerm)
-}
-
-func getOrInferRoot() string {
-	if isFlagSet(codeintelUploadFlagSet, "root") {
-		return codeintelUploadFlags.root
-	}
-
-	// Infer this on-demand when translating LSIF -> SCIP. We have a weird init order and this
-	// was a small diff to get this working while we still care about LSIF -> SCIP support as
-	// well. Most of this file is more cluttered than it will need to be in ~ two months.
-	root, _ := inferIndexRoot()
-	return root
 }
 
 // inferMissingCodeIntelUploadFlags updates the flags values which were not explicitly
