@@ -73,10 +73,12 @@ query getInactiveUsers {
 	site {
 		users {
 			nodes {
+				id
 				username
 				email
 				siteAdmin
 				lastActiveAt
+				deletedAt
 			}
 		}
 	}
@@ -103,6 +105,10 @@ query getInactiveUsers {
 			}
 			// never remove user issuing command
 			if user.Username == currentUserResult.Data.CurrentUser.Username {
+				continue
+			}
+			// filter out soft deleted users returned by site graphql endpoint
+			if user.DeletedAt != "" {
 				continue
 			}
 			if !hasLastActive && !*removeNoLastActive {
@@ -152,9 +158,9 @@ query getInactiveUsers {
 	})
 }
 
-// computes days since last usage from current day and time and UsageStatistics.LastActiveTime, uses time.Parse
+// computes days since last usage from current day and time and aggregated_user_statistics.lastActiveAt, uses time.Parse
 func computeDaysSinceLastUse(user SiteUser) (timeDiff int, hasLastActive bool, _ error) {
-	// handle for null LastActiveAt returned from
+	// handle for null LastActiveAt, users who have never been active
 	if user.LastActiveAt == "" {
 		hasLastActive = false
 		return 0, hasLastActive, nil
