@@ -9,13 +9,14 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+	"time"
 
+	"github.com/sourcegraph/scip/bindings/go/scip"
+	libscip "github.com/sourcegraph/sourcegraph/lib/codeintel/lsif/scip"
+	"github.com/sourcegraph/sourcegraph/lib/codeintel/upload"
 	"github.com/sourcegraph/sourcegraph/lib/errors"
 	"github.com/sourcegraph/sourcegraph/lib/output"
 	"google.golang.org/protobuf/proto"
-
-	"github.com/sourcegraph/scip/bindings/go/scip"
-	"github.com/sourcegraph/sourcegraph/lib/codeintel/upload"
 
 	"github.com/sourcegraph/src-cli/internal/api"
 	"github.com/sourcegraph/src-cli/internal/codeintel"
@@ -118,6 +119,10 @@ func parseAndValidateCodeIntelUploadFlags(args []string, isSCIPAvailable bool) (
 		if err := handleSCIP(out); err != nil {
 			return nil, err
 		}
+	} else {
+		if err := handleLSIF(out); err != nil {
+			return nil, err
+		}
 	}
 
 	if inferenceErrors := inferMissingCodeIntelUploadFlags(); len(inferenceErrors) > 0 {
@@ -194,7 +199,7 @@ func replaceBaseName(oldPath string, newBaseName string) string {
 func handleSCIP(out *output.Output) error {
 	fileExt := path.Ext(codeintelUploadFlags.file)
 	if len(fileExt) == 0 {
-		return errors.Newf("missing file extension for %s; expected .scip", codeintelUploadFlags.file)
+		return errors.Newf("missing file extension for %s; expected .scip or .lsif", codeintelUploadFlags.file)
 	}
 	inputFile := codeintelUploadFlags.file
 	if fileExt == ".scip" || fileExt == ".lsif-typed" {
@@ -269,6 +274,57 @@ func convertSCIPToLSIFGraph(out *output.Output, inputFile, outputFile string) er
 		return err
 	}
 	return nil
+}
+
+func handleLSIF(out *output.Output) error {
+	fileExt := path.Ext(codeintelUploadFlags.file)
+	if len(fileExt) == 0 {
+		return errors.Newf("missing file extension for %s; expected .scip or .lsif", codeintelUploadFlags.file)
+	}
+
+	if fileExt == ".lsif" {
+		inputFile := codeintelUploadFlags.file
+		outputFile := replaceExtension(inputFile, ".scip")
+		codeintelUploadFlags.file = outputFile
+		return convertLSIFToSCIP(out, inputFile, outputFile)
+	}
+
+	return nil
+}
+
+// Reads the LSIF encoded input file and writes the corresponding SCIP encoded output file.
+func convertLSIFToSCIP(out *output.Output, inputFile, outputFile string) error {
+	if out != nil {
+		out.Writef("%s  Converting %s into %s", output.EmojiInfo, inputFile, outputFile)
+	}
+
+	ctx := context.Background()
+	uploadID := -time.Now().Nanosecond()
+	root := codeintelUploadFlags.root
+
+	if !isFlagSet(codeintelUploadFlagSet, "root") {
+		// Best-effort infer the root; we have a strange cyclic init order where we're
+		// currently trying to determine the filename that determines the root, but we
+		// need the root when converting from LSIF to SCIP.
+		root, _ = inferIndexRoot()
+	}
+
+	rc, err := os.Open(inputFile)
+	if err != nil {
+		return err
+	}
+	defer rc.Close()
+
+	index, err := libscip.ConvertLSIF(ctx, uploadID, rc, root)
+	if err != nil {
+		return err
+	}
+	serialized, err := proto.Marshal(index)
+	if err != nil {
+		return err
+	}
+
+	return os.WriteFile(outputFile, serialized, os.ModePerm)
 }
 
 // inferMissingCodeIntelUploadFlags updates the flags values which were not explicitly
