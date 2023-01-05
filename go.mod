@@ -22,9 +22,9 @@ require (
 	github.com/sourcegraph/go-diff v0.6.1
 	github.com/sourcegraph/jsonx v0.0.0-20200629203448-1a936bd500cf
 	github.com/sourcegraph/scip v0.2.3
-	github.com/sourcegraph/sourcegraph/lib v0.0.0-20230103194635-ec39f9ff7aaf
+	github.com/sourcegraph/sourcegraph/lib v0.0.0-20230105185702-2d2c86bb8dd7
 	github.com/stretchr/testify v1.8.0
-	golang.org/x/net v0.3.0
+	golang.org/x/net v0.5.0
 	golang.org/x/sync v0.1.0
 	google.golang.org/api v0.102.0
 	google.golang.org/protobuf v1.28.1
@@ -114,10 +114,10 @@ require (
 	golang.org/x/crypto v0.0.0-20210921155107-089bfa567519 // indirect
 	golang.org/x/mod v0.7.0 // indirect
 	golang.org/x/oauth2 v0.0.0-20221014153046-6fdb5e3db783 // indirect
-	golang.org/x/sys v0.3.0 // indirect
-	golang.org/x/term v0.3.0 // indirect
-	golang.org/x/text v0.5.0 // indirect
-	golang.org/x/tools v0.4.0 // indirect
+	golang.org/x/sys v0.4.0 // indirect
+	golang.org/x/term v0.4.0 // indirect
+	golang.org/x/text v0.6.0 // indirect
+	golang.org/x/tools v0.5.0 // indirect
 	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/genproto v0.0.0-20221024183307-1bc688fe9f3e // indirect
@@ -128,5 +128,3 @@ require (
 
 // See: https://github.com/ghodss/yaml/pull/65
 replace github.com/ghodss/yaml => github.com/sourcegraph/yaml v1.0.1-0.20200714132230-56936252f152
-
-replace github.com/sourcegraph/sourcegraph/lib => /Users/efritz/dev/sourcegraph/sourcegraph/lib
