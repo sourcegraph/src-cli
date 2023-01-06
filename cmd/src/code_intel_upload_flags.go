@@ -59,7 +59,7 @@ var (
 )
 
 func init() {
-	codeintelUploadFlagSet.StringVar(&codeintelUploadFlags.file, "file", "./dump.lsif", `The path to the LSIF dump file.`)
+	codeintelUploadFlagSet.StringVar(&codeintelUploadFlags.file, "file", "", `The path to the LSIF dump file.`)
 
 	// UploadRecordOptions
 	codeintelUploadFlagSet.StringVar(&codeintelUploadFlags.repo, "repo", "", `The name of the repository (e.g. github.com/gorilla/mux). By default, derived from the origin remote.`)
@@ -115,6 +115,23 @@ func parseAndValidateCodeIntelUploadFlags(args []string, isSCIPAvailable bool) (
 		return nil, err
 	}
 
+	if !isFlagSet(codeintelUploadFlagSet, "file") {
+		defaultFile, err := inferDefaultFile()
+		if err != nil {
+			return nil, err
+		}
+		codeintelUploadFlags.file = defaultFile
+	}
+
+	// Check to see if input file exists
+	if _, err := os.Stat(codeintelUploadFlags.file); os.IsNotExist(err) {
+		if !isFlagSet(codeintelUploadFlagSet, "file") {
+			return nil, formatInferenceError(argumentInferenceError{"file", err})
+		}
+
+		return nil, errors.Newf("file %q does not exist", codeintelUploadFlags.file)
+	}
+
 	if !isSCIPAvailable {
 		if err := handleSCIP(out); err != nil {
 			return nil, err
@@ -125,16 +142,14 @@ func parseAndValidateCodeIntelUploadFlags(args []string, isSCIPAvailable bool) (
 		}
 	}
 
+	// Check for new file existence after transformation
+	if _, err := os.Stat(codeintelUploadFlags.file); os.IsNotExist(err) {
+		return nil, errors.Newf("file %q does not exist", codeintelUploadFlags.file)
+	}
+
+	// Infer the remaining default arguments (may require reading from new file)
 	if inferenceErrors := inferMissingCodeIntelUploadFlags(); len(inferenceErrors) > 0 {
-		return nil, errorWithHint{
-			err: inferenceErrors[0].err, hint: strings.Join([]string{
-				fmt.Sprintf(
-					"Unable to determine %s from environment. Check your working directory or supply -%s={value} explicitly",
-					inferenceErrors[0].argument,
-					inferenceErrors[0].argument,
-				),
-			}, "\n"),
-		}
+		return nil, formatInferenceError(inferenceErrors[0])
 	}
 
 	if err := validateCodeIntelUploadFlags(); err != nil {
@@ -276,6 +291,53 @@ func convertSCIPToLSIFGraph(out *output.Output, inputFile, outputFile string) er
 	return nil
 }
 
+func inferDefaultFile() (string, error) {
+	hasSCIP := true
+	const scipFilename = "index.scip"
+	if _, err := os.Stat(scipFilename); err != nil {
+		if os.IsNotExist(err) {
+			hasSCIP = false
+		} else {
+			return "", err
+		}
+	}
+
+	hasLSIF := true
+	const lsifFilename = "dump.lsif"
+	if _, err := os.Stat(lsifFilename); err != nil {
+		if os.IsNotExist(err) {
+			hasLSIF = false
+		} else {
+			return "", err
+		}
+	}
+
+	if hasSCIP && hasLSIF {
+		return "", errors.Newf("both %s and %s exists - cannot determine unambiguous choice", scipFilename, lsifFilename)
+	}
+	if !(hasSCIP || hasLSIF) {
+		return "", formatInferenceError(argumentInferenceError{"file", errors.Newf("neither %s nor %s exists", scipFilename, lsifFilename)})
+	}
+
+	if hasSCIP {
+		return scipFilename, nil
+	}
+
+	return lsifFilename, nil
+}
+
+func formatInferenceError(inferenceErr argumentInferenceError) error {
+	return errorWithHint{
+		err: inferenceErr.err, hint: strings.Join([]string{
+			fmt.Sprintf(
+				"Unable to determine %s from environment. Check your working directory or supply -%s={value} explicitly",
+				inferenceErr.argument,
+				inferenceErr.argument,
+			),
+		}, "\n"),
+	}
+}
+
 func handleLSIF(out *output.Output) error {
 	fileExt := path.Ext(codeintelUploadFlags.file)
 	if len(fileExt) == 0 {
@@ -285,6 +347,9 @@ func handleLSIF(out *output.Output) error {
 	if fileExt == ".lsif" {
 		inputFile := codeintelUploadFlags.file
 		outputFile := replaceExtension(inputFile, ".scip")
+		if inputFile == "dump.lsif" {
+			outputFile = "index.scip"
+		}
 		codeintelUploadFlags.file = outputFile
 		return convertLSIFToSCIP(out, inputFile, outputFile)
 	}
@@ -333,10 +398,6 @@ func convertLSIFToSCIP(out *output.Output, inputFile, outputFile string) error {
 //
 // Note: This function must not be called before codeintelUploadFlagset.Parse.
 func inferMissingCodeIntelUploadFlags() (inferErrors []argumentInferenceError) {
-	if _, err := os.Stat(codeintelUploadFlags.file); os.IsNotExist(err) {
-		inferErrors = append(inferErrors, argumentInferenceError{"file", err})
-	}
-
 	indexerName, indexerVersion, readIndexerNameAndVersionErr := readIndexerNameAndVersion()
 	getIndexerName := func() (string, error) { return indexerName, readIndexerNameAndVersionErr }
 	getIndexerVersion := func() (string, error) { return indexerVersion, readIndexerNameAndVersionErr }
