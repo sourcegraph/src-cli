@@ -347,9 +347,6 @@ func handleLSIF(out *output.Output) error {
 	if fileExt == ".lsif" {
 		inputFile := codeintelUploadFlags.file
 		outputFile := replaceExtension(inputFile, ".scip")
-		if inputFile == "dump.lsif" {
-			outputFile = "index.scip"
-		}
 		codeintelUploadFlags.file = outputFile
 		return convertLSIFToSCIP(out, inputFile, outputFile)
 	}
