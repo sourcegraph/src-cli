@@ -42,6 +42,10 @@ type validationSpec struct {
 		Config         map[string]interface{} `yaml:"config"`
 		DeleteWhenDone bool                   `yaml:"deleteWhenDone"`
 	} `yaml:"externalService"`
+	CreateInsight struct {
+		Title      string                   `yaml:"title"`
+		DataSeries []map[string]interface{} `yaml:"dataSeries"`
+	} `yaml:"createInsight"`
 }
 
 type validator struct {
@@ -275,6 +279,16 @@ func (vd *validator) validate(script []byte, scriptContext map[string]string, is
 		}
 	}
 
+	if vspec.CreateInsight.Title != "" {
+		id, err := vd.createInsight(vspec.CreateInsight.Title, vspec.CreateInsight.DataSeries)
+		if err != nil {
+			return err
+		}
+		for i := 0; i < len(vspec.CreateInsight.DataSeries); i++ {
+		}
+		fmt.Printf("insight %s(%s) is being added \n", vspec.CreateInsight.Title, id)
+	}
+
 	return nil
 }
 
@@ -404,6 +418,35 @@ func (vd *validator) waitRepoCloned(repoName string, sleepSeconds int, maxTries 
 		time.Sleep(time.Second * time.Duration(sleepSeconds))
 	}
 	return false, nil
+}
+
+const vdAddCodeInsight = `
+mutation CreateLineChartSearchInsight($input: LineChartSearchInsightInput!) {
+	createLineChartSearchInsight(input: $input) {
+	  view {
+		id
+	  }
+	}
+}`
+
+func (vd *validator) createInsight(title string, ds []map[string]interface{}) (string, error) {
+	var resp struct {
+		CreateLineChartSearchInsight struct {
+			View struct {
+				ID string `json:"id"`
+			} `json:"view"`
+		} `json:"createLineChartSearchInsight"`
+	}
+
+	err := vd.graphQL(vdAddCodeInsight,
+		map[string]interface{}{"input": map[string]interface{}{
+			"options":    map[string]interface{}{"title": title},
+			"dataSeries": ds}}, &resp)
+	if err != nil {
+		return "", err
+	}
+
+	return resp.CreateLineChartSearchInsight.View.ID, nil
 }
 
 const vdUserQuery = `
