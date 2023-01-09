@@ -73,6 +73,27 @@ const defaultVspec = `{
 		"sleepBetweenTriesSeconds": 5
 	},
 	"searchQuery": ["repo:^github.com/gorilla/mux$ Router", "repo:^github.com/gorilla/mux$@v1.8.0 Router"]
+	"createInsight": {
+		"title": "test insight",
+		"dataSeries": [
+			{
+				"query": "lang:javascript",
+				"label": "javascript",
+				"repositoryScope": [],
+				"lineColor": "#6495ED",
+				"timeScopeUnit": "MONTH",
+				"timeScopeValue": 1
+			  },
+			 {
+				"query": "lang:typescript",
+				"label": "typescript",
+				"lineColor": "#DE3163",
+				"repositoryScope": [],
+				"timeScopeUnit": "MONTH",
+				"timeScopeValue": 1
+			 }
+		]
+	}
 }`
 
 func init() {
@@ -284,8 +305,7 @@ func (vd *validator) validate(script []byte, scriptContext map[string]string, is
 		if err != nil {
 			return err
 		}
-		for i := 0; i < len(vspec.CreateInsight.DataSeries); i++ {
-		}
+
 		fmt.Printf("insight %s(%s) is being added \n", vspec.CreateInsight.Title, id)
 	}
 
@@ -429,7 +449,7 @@ mutation CreateLineChartSearchInsight($input: LineChartSearchInsightInput!) {
 	}
 }`
 
-func (vd *validator) createInsight(title string, ds []map[string]interface{}) (string, error) {
+func (vd *validator) createInsight(title string, dataseries []map[string]interface{}) (string, error) {
 	var resp struct {
 		CreateLineChartSearchInsight struct {
 			View struct {
@@ -437,7 +457,26 @@ func (vd *validator) createInsight(title string, ds []map[string]interface{}) (s
 			} `json:"view"`
 		} `json:"createLineChartSearchInsight"`
 	}
-
+	var ds []map[string]interface{}
+	for _, d := range dataseries {
+		var series = map[string]interface{}{
+			"query": d["query"],
+			"options": map[string]interface{}{
+				"label":     d["label"],
+				"lineColor": d["lineColor"],
+			},
+			"repositoryScope": map[string]interface{}{
+				"repositories": d["repositoryScope"],
+			},
+			"timeScope": map[string]interface{}{
+				"stepInterval": map[string]interface{}{
+					"unit":  d["timeScopeUnit"],
+					"value": d["timeScopeValue"],
+				},
+			},
+		}
+		ds = append(ds, series)
+	}
 	err := vd.graphQL(vdAddCodeInsight,
 		map[string]interface{}{"input": map[string]interface{}{
 			"options":    map[string]interface{}{"title": title},
