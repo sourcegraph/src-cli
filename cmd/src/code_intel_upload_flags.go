@@ -344,7 +344,7 @@ func handleLSIF(out *output.Output) error {
 		return errors.Newf("missing file extension for %s; expected .scip or .lsif", codeintelUploadFlags.file)
 	}
 
-	if fileExt == ".lsif" {
+	if fileExt == ".lsif" || fileExt == ".dump" {
 		inputFile := codeintelUploadFlags.file
 		outputFile := replaceExtension(inputFile, ".scip")
 		codeintelUploadFlags.file = outputFile

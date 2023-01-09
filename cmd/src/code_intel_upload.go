@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -145,7 +146,7 @@ func codeintelUploadOptions(out *output.Output, isSCIPAvailable bool) upload.Upl
 
 	cfg.AdditionalHeaders["Content-Type"] = "application/x-ndjson+lsif"
 	path := codeintelUploadFlags.uploadRoute
-	if isSCIPAvailable {
+	if isSCIPAvailable && filepath.Ext(codeintelUploadFlags.file) == ".scip" {
 		cfg.AdditionalHeaders["Content-Type"] = "application/x-protobuf+scip"
 		path = "/.api/scip/upload"
 	}
