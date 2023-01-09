@@ -72,7 +72,7 @@ const defaultVspec = `{
 		"maxTries": 5,
 		"sleepBetweenTriesSeconds": 5
 	},
-	"searchQuery": ["repo:^github.com/gorilla/mux$ Router", "repo:^github.com/gorilla/mux$@v1.8.0 Router"]
+	"searchQuery": ["repo:^github.com/gorilla/mux$ Router", "repo:^github.com/gorilla/mux$@v1.8.0 Router"],
 	"createInsight": {
 		"title": "test insight",
 		"dataSeries": [
