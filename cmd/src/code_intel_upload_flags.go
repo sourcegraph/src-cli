@@ -56,6 +56,11 @@ var (
 	// Used to include the insecure-skip-verify flag in the help output, as we don't use any of the
 	// other api.Client methods, so only the insecureSkipVerify flag is relevant here.
 	dummyflag bool
+
+	// Used to skip the LSIF -> SCIP conversion during the migration. Not expected to be used outside
+	// of codeintel-qa pipelines and not expected to last much longer than a few releases while we
+	// deprecate all LSIF code paths.
+	skipConversionToSCIP bool
 )
 
 func init() {
@@ -84,6 +89,9 @@ func init() {
 	codeintelUploadFlagSet.BoolVar(&codeintelUploadFlags.json, "json", false, `Output relevant state in JSON on success.`)
 	codeintelUploadFlagSet.BoolVar(&codeintelUploadFlags.open, "open", false, `Open the LSIF upload page in your browser.`)
 	codeintelUploadFlagSet.BoolVar(&dummyflag, "insecure-skip-verify", false, "Skip validation of TLS certificates against trusted chains")
+
+	// Testing flags
+	codeintelUploadFlagSet.BoolVar(&skipConversionToSCIP, "skip-scip", false, "Skip converting LSIF index to SCIP if the instance supports it; this option should only used for debugging")
 }
 
 // parseAndValidateCodeIntelUploadFlags calls codeintelUploadFlagset.Parse, then infers values for
@@ -339,6 +347,10 @@ func formatInferenceError(inferenceErr argumentInferenceError) error {
 }
 
 func handleLSIF(out *output.Output) error {
+	if skipConversionToSCIP {
+		return nil
+	}
+
 	fileExt := path.Ext(codeintelUploadFlags.file)
 	if len(fileExt) == 0 {
 		return errors.Newf("missing file extension for %s; expected .scip or .lsif", codeintelUploadFlags.file)
