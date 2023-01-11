@@ -137,7 +137,9 @@ query getTotalUsers {
 			if ok, err := client.NewRequest(getInactiveUsersQuery, pagVars).Do(ctx, &usersResult); err != nil || !ok {
 				return err
 			}
+			// increment graphql request offset by the length of the last user set returned
 			offset = offset + len(usersResult.Site.Users.Nodes)
+			// append graphql user results to aggregated users to be processed against user removal conditions
 			aggregatedUsers.Site.Users.Nodes = append(aggregatedUsers.Site.Users.Nodes, usersResult.Site.Users.Nodes...)
 		}
 
