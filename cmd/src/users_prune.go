@@ -35,6 +35,7 @@ Examples:
 		removeAdmin        = flagSet.Bool("remove-admin", false, "prune admin accounts")
 		removeNoLastActive = flagSet.Bool("remove-null-users", false, "removes users with no last active value")
 		skipConfirmation   = flagSet.Bool("force", false, "skips user confirmation step allowing programmatic use")
+		displayUsersToDelete = flagSet.Bool("display-users", false, "display table of users to be deleted by prune")
 		apiFlags           = api.NewFlags(flagSet)
 	)
 
@@ -86,7 +87,6 @@ query getTotalUsers {
 		if ok, err := cfg.apiClient(apiFlags, flagSet.Output()).NewRequest(totalUsersQuery, nil).Do(context.Background(), &totalUsers); err != nil || !ok {
 			return err
 		}
-		fmt.Printf("Total Users: %v\n\n", totalUsers)
 
 		// get 100 site users
 		getInactiveUsersQuery := `
@@ -114,11 +114,12 @@ query getTotalUsers {
 				}
 			}
 		}
-		fmt.Printf("Agg Users: %v\n\n", len(aggregatedUsers.Site.Users.Nodes))
-
+		
+		// pagination variables, limit set to maximum possible users returned per request
 		offset := 0
 		const limit int = 100
-
+		
+		// paginate requests until all site users have been checked -- this includes soft deleted users
 		for len(aggregatedUsers.Site.Users.Nodes) < int(totalUsers.Site.Users.TotalCount) {			
 			pagVars := map[string]interface{}{
 				"offset": offset,
@@ -136,12 +137,9 @@ query getTotalUsers {
 			if ok, err := client.NewRequest(getInactiveUsersQuery, pagVars).Do(ctx, &usersResult); err != nil || !ok {
 				return err
 			}
-			fmt.Printf("\nSite Users: %v\nAggUsers: %v\n\n", usersResult.Site.Users.Nodes, len(aggregatedUsers.Site.Users.Nodes))
 			offset = offset + len(usersResult.Site.Users.Nodes)
-			fmt.Printf("offset: %v\npagVars: %v", offset, pagVars)
 			aggregatedUsers.Site.Users.Nodes = append(aggregatedUsers.Site.Users.Nodes, usersResult.Site.Users.Nodes...)
 		}
-		fmt.Printf("\nEXITED AGGREGATOR AT %v TOTAL USERS\n", len(aggregatedUsers.Site.Users.Nodes))
 
 
 		// filter users for deletion
@@ -159,17 +157,20 @@ query getTotalUsers {
 			if user.DeletedAt != "" {
 				continue
 			}
+			// don't remove users with no last active value unless option flag is set
 			if !hasLastActive && !*removeNoLastActive {
 				continue
 			}
+			// don't remove admins unless option flag is set
 			if !*removeAdmin && user.SiteAdmin {
 				continue
 			}
+			// remove users who have been inactive for longer than the threshold set by the -days flag
 			if daysSinceLastUse <= *daysToDelete && hasLastActive {
 				continue
 			}
+			// serialize user to print in table as part of confirmUserRemoval, add to delete slice
 			userToDelete := UserToDelete{user, daysSinceLastUse}
-
 			usersToDelete = append(usersToDelete, userToDelete)
 		}
 
@@ -183,7 +184,7 @@ query getTotalUsers {
 		}
 
 		// confirm and remove users
-		if confirmed, _ := confirmUserRemoval(usersToDelete); !confirmed {
+		if confirmed, _ := confirmUserRemoval(usersToDelete, int(totalUsers.Site.Users.TotalCount), *daysToDelete, *displayUsersToDelete); !confirmed {
 			fmt.Println("Aborting removal")
 			return nil
 		} else {
@@ -244,25 +245,27 @@ type UserToDelete struct {
 }
 
 // Verify user wants to remove users with table of users and a command prompt for [y/N]
-func confirmUserRemoval(usersToRemove []UserToDelete) (bool, error) {
-	fmt.Printf("Users to remove from instance at %s\n", cfg.Endpoint)
-	t := table.NewWriter()
-	t.SetOutputMirror(os.Stdout)
-	t.AppendHeader(table.Row{"Username", "Email", "Days Since Last Active"})
-	for _, user := range usersToRemove {
-		if user.User.Email != "" {
-			t.AppendRow([]interface{}{user.User.Username, user.User.Email, user.DaysSinceLastUse})
-			t.AppendSeparator()
-		} else {
-			t.AppendRow([]interface{}{user.User.Username, "", user.DaysSinceLastUse})
-			t.AppendSeparator()
+func confirmUserRemoval(usersToDelete []UserToDelete, totalUsers int, daysThreshold int, displayUsers bool) (bool, error) {
+	if displayUsers {
+		fmt.Printf("Users to remove from %s\n", cfg.Endpoint)
+		t := table.NewWriter()
+		t.SetOutputMirror(os.Stdout)
+		t.AppendHeader(table.Row{"Username", "Email", "Days Since Last Active"})
+		for _, user := range usersToDelete {
+			if user.User.Email != "" {
+				t.AppendRow([]interface{}{user.User.Username, user.User.Email, user.DaysSinceLastUse})
+				t.AppendSeparator()
+			} else {
+				t.AppendRow([]interface{}{user.User.Username, "", user.DaysSinceLastUse})
+				t.AppendSeparator()
+			}
 		}
+		t.SetStyle(table.StyleRounded)
+		t.Render()
 	}
-	t.SetStyle(table.StyleRounded)
-	t.Render()
 	input := ""
 	for strings.ToLower(input) != "y" && strings.ToLower(input) != "n" {
-		fmt.Printf("Do you  wish to proceed with user removal [y/N]: ")
+		fmt.Printf("%v of %v users were inactive for more than %v days on %v.\nDo you  wish to proceed with user removal [y/N]: ", len(usersToDelete), totalUsers, daysThreshold, cfg.Endpoint)
 		if _, err := fmt.Scanln(&input); err != nil {
 			return false, err
 		}
