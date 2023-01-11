@@ -50,6 +50,7 @@ Examples:
 		ctx := context.Background()
 		client := cfg.apiClient(apiFlags, flagSet.Output())
 
+		// get current user so as not to delete issuer of the prune request
 		currentUserQuery := `
 query getCurrentUser {
 	currentUser {
@@ -67,12 +68,34 @@ query getCurrentUser {
 		if ok, err := cfg.apiClient(apiFlags, flagSet.Output()).NewRequest(currentUserQuery, nil).DoRaw(context.Background(), &currentUserResult); err != nil || !ok {
 			return err
 		}
-
-		getInactiveUsersQuery := `
-query getInactiveUsers {
+		
+		// get total users to paginate over
+		totalUsersQuery := `
+query getTotalUsers {
 	site {
 		users {
-			nodes {
+			totalCount
+		}
+	}
+}`
+		var totalUsers struct {
+			Site struct {
+				Users struct {
+					TotalCount float64
+				}
+			}
+		}
+		if ok, err := cfg.apiClient(apiFlags, flagSet.Output()).NewRequest(totalUsersQuery, nil).DoRaw(context.Background(), &totalUsers); err != nil || !ok {
+			return err
+		}
+		fmt.Printf("Total Users: %v\n\n", totalUsers)
+
+		// get 100 site users
+		getInactiveUsersQuery := `
+		query getInactiveUsers($limit: Int $offset: Int) {
+	site {
+		users {
+			nodes (limit: $limit offset: $offset) {
 				id
 				username
 				email
@@ -84,21 +107,48 @@ query getInactiveUsers {
 	}
 }
 `
-
-		var usersResult struct {
+		
+		// paginate through users
+		var aggregatedUsers struct {
 			Site struct {
 				Users struct {
 					Nodes []SiteUser
 				}
 			}
 		}
+		fmt.Printf("Agg Users: %v\n\n", len(aggregatedUsers.Site.Users.Nodes))
 
-		if ok, err := client.NewRequest(getInactiveUsersQuery, nil).Do(ctx, &usersResult); err != nil || !ok {
-			return err
+		offset := 0
+		const limit int = 10
+
+		for len(aggregatedUsers.Site.Users.Nodes) < 56 {			
+			pagVars := map[string]interface{}{
+				"offset": offset,
+				"limit": limit,
+			}
+
+			var usersResult struct {
+				Site struct {
+					Users struct {
+						Nodes []SiteUser
+					}
+					TotalCount float64
+				}
+			}
+			if ok, err := client.NewRequest(getInactiveUsersQuery, pagVars).Do(ctx, &usersResult); err != nil || !ok {
+				return err
+			}
+			fmt.Printf("\nSite Users: %v\nAggUsers: %v\n\n", usersResult.Site.Users.Nodes, len(aggregatedUsers.Site.Users.Nodes))
+			offset = offset + len(usersResult.Site.Users.Nodes)
+			fmt.Printf("offset: %v\npagVars: %v", offset, pagVars)
+			aggregatedUsers.Site.Users.Nodes = append(aggregatedUsers.Site.Users.Nodes, usersResult.Site.Users.Nodes...)
 		}
+		fmt.Printf("\nEXITED AGGREGATOR AT %v TOTAL USERS\n", len(aggregatedUsers.Site.Users.Nodes))
 
+
+		// filter users for deletion
 		usersToDelete := make([]UserToDelete, 0)
-		for _, user := range usersResult.Site.Users.Nodes {
+		for _, user := range aggregatedUsers.Site.Users.Nodes {
 			daysSinceLastUse, hasLastActive, err := computeDaysSinceLastUse(user)
 			if err != nil {
 				return err
@@ -120,9 +170,9 @@ query getInactiveUsers {
 			if daysSinceLastUse <= *daysToDelete && hasLastActive {
 				continue
 			}
-			deleteUser := UserToDelete{user, daysSinceLastUse}
+			userToDelete := UserToDelete{user, daysSinceLastUse}
 
-			usersToDelete = append(usersToDelete, deleteUser)
+			usersToDelete = append(usersToDelete, userToDelete)
 		}
 
 		if *skipConfirmation {
