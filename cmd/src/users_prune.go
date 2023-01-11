@@ -31,12 +31,12 @@ Examples:
 		fmt.Println(usage)
 	}
 	var (
-		daysToDelete       = flagSet.Int("days", 60, "Days threshold on which to remove users, must be 60 days or greater and defaults to this value ")
-		removeAdmin        = flagSet.Bool("remove-admin", false, "prune admin accounts")
-		removeNoLastActive = flagSet.Bool("remove-null-users", false, "removes users with no last active value")
-		skipConfirmation   = flagSet.Bool("force", false, "skips user confirmation step allowing programmatic use")
+		daysToDelete         = flagSet.Int("days", 60, "Days threshold on which to remove users, must be 60 days or greater and defaults to this value ")
+		removeAdmin          = flagSet.Bool("remove-admin", false, "prune admin accounts")
+		removeNoLastActive   = flagSet.Bool("remove-null-users", false, "removes users with no last active value")
+		skipConfirmation     = flagSet.Bool("force", false, "skips user confirmation step allowing programmatic use")
 		displayUsersToDelete = flagSet.Bool("display-users", false, "display table of users to be deleted by prune")
-		apiFlags           = api.NewFlags(flagSet)
+		apiFlags             = api.NewFlags(flagSet)
 	)
 
 	handler := func(args []string) error {
@@ -67,7 +67,7 @@ query getCurrentUser {
 		if ok, err := cfg.apiClient(apiFlags, flagSet.Output()).NewRequest(currentUserQuery, nil).Do(context.Background(), &currentUserResult); err != nil || !ok {
 			return err
 		}
-		
+
 		// get total users to paginate over
 		totalUsersQuery := `
 query getTotalUsers {
@@ -105,7 +105,7 @@ query getTotalUsers {
 	}
 }
 `
-		
+
 		// paginate through users
 		var aggregatedUsers struct {
 			Site struct {
@@ -114,16 +114,16 @@ query getTotalUsers {
 				}
 			}
 		}
-		
+
 		// pagination variables, limit set to maximum possible users returned per request
 		offset := 0
 		const limit int = 100
-		
+
 		// paginate requests until all site users have been checked -- this includes soft deleted users
-		for len(aggregatedUsers.Site.Users.Nodes) < int(totalUsers.Site.Users.TotalCount) {			
+		for len(aggregatedUsers.Site.Users.Nodes) < int(totalUsers.Site.Users.TotalCount) {
 			pagVars := map[string]interface{}{
 				"offset": offset,
-				"limit": limit,
+				"limit":  limit,
 			}
 
 			var usersResult struct {
@@ -140,7 +140,6 @@ query getTotalUsers {
 			offset = offset + len(usersResult.Site.Users.Nodes)
 			aggregatedUsers.Site.Users.Nodes = append(aggregatedUsers.Site.Users.Nodes, usersResult.Site.Users.Nodes...)
 		}
-
 
 		// filter users for deletion
 		usersToDelete := make([]UserToDelete, 0)
