@@ -59,13 +59,11 @@ query getCurrentUser {
 }
 `
 		var currentUserResult struct {
-			Data struct {
-				CurrentUser struct {
-					Username string
-				}
+			CurrentUser struct {
+				Username string
 			}
 		}
-		if ok, err := cfg.apiClient(apiFlags, flagSet.Output()).NewRequest(currentUserQuery, nil).DoRaw(context.Background(), &currentUserResult); err != nil || !ok {
+		if ok, err := cfg.apiClient(apiFlags, flagSet.Output()).NewRequest(currentUserQuery, nil).Do(context.Background(), &currentUserResult); err != nil || !ok {
 			return err
 		}
 		
@@ -85,7 +83,7 @@ query getTotalUsers {
 				}
 			}
 		}
-		if ok, err := cfg.apiClient(apiFlags, flagSet.Output()).NewRequest(totalUsersQuery, nil).DoRaw(context.Background(), &totalUsers); err != nil || !ok {
+		if ok, err := cfg.apiClient(apiFlags, flagSet.Output()).NewRequest(totalUsersQuery, nil).Do(context.Background(), &totalUsers); err != nil || !ok {
 			return err
 		}
 		fmt.Printf("Total Users: %v\n\n", totalUsers)
@@ -119,9 +117,9 @@ query getTotalUsers {
 		fmt.Printf("Agg Users: %v\n\n", len(aggregatedUsers.Site.Users.Nodes))
 
 		offset := 0
-		const limit int = 10
+		const limit int = 100
 
-		for len(aggregatedUsers.Site.Users.Nodes) < 56 {			
+		for len(aggregatedUsers.Site.Users.Nodes) < int(totalUsers.Site.Users.TotalCount) {			
 			pagVars := map[string]interface{}{
 				"offset": offset,
 				"limit": limit,
@@ -154,7 +152,7 @@ query getTotalUsers {
 				return err
 			}
 			// never remove user issuing command
-			if user.Username == currentUserResult.Data.CurrentUser.Username {
+			if user.Username == currentUserResult.CurrentUser.Username {
 				continue
 			}
 			// filter out soft deleted users returned by site graphql endpoint
