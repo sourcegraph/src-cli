@@ -93,7 +93,7 @@ Examples:
 
 		validationSpec.ExternalService.Config.GitHub.Token = cfg.GithubToken
 
-		return validate.Validate(context.Background(), client, validationSpec)
+		return validate.Installation(context.Background(), client, validationSpec)
 	}
 
 	validateCommands = append(validateCommands, &command{

@@ -147,9 +147,9 @@ func LoadJsonConfig(userConfig []byte) (*ValidationSpec, error) {
 	return &config, nil
 }
 
-// Validate runs a series of validation checks such as cloning a repository, running search queries, and
+// Installation runs a series of validation checks such as cloning a repository, running search queries, and
 // creating insights, based on the configuration provided.
-func Validate(ctx context.Context, client api.Client, config *ValidationSpec) error {
+func Installation(ctx context.Context, client api.Client, config *ValidationSpec) error {
 	if config.ExternalService.DisplayName != "" {
 		srvID, err := addExternalService(ctx, client, config.ExternalService)
 		if err != nil {
