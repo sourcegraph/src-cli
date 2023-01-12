@@ -3,6 +3,7 @@ package ui
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"time"
 
@@ -118,10 +119,15 @@ type prefixedWriter struct {
 
 func (w *prefixedWriter) Write(p []byte) (int, error) {
 	var prefixedLines []byte
+	fmt.Println("=====================")
+	fmt.Println("'", string(p), "'")
+	fmt.Println("=====================")
 	for _, line := range bytes.Split(p, []byte("\n")) {
-		// We run into a weird situation where the output from a docker container
-		// contains an extra new line with spaces. This results in n*2 times the log
-		// output expected from an execution. We use this check to remove such blank lines
+		// When we split a byte slice on every new line, we get atleast two sub-slice.
+		// I'll use a string to demonstrate, if I have a string "Peppermint\n", splitting
+		// this string on a new line will return a slice with two items: ["Peppermint", ""].
+		// Using this logic, we can then skip empty lines from being added to the log output.
+		// SideNote: This means when one logs an actual empty line, we'll also discard that.
 		if len(bytes.TrimSpace(line)) == 0 {
 			continue
 		}

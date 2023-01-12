@@ -50,6 +50,10 @@ func TestIntervalWriter(t *testing.T) {
 	stderrWriter.Write([]byte("4"))
 	stdoutWriter.Write([]byte("5"))
 	stderrWriter.Write([]byte("5"))
+	stdoutWriter.Write([]byte(`Hello world: 772
+	`))
+	stderrWriter.Write([]byte(`Hello world: 772
+	`))
 
 	select {
 	case <-ch:
@@ -65,7 +69,8 @@ func TestIntervalWriter(t *testing.T) {
 		want := "stdout: 2\nstderr: 2\n" +
 			"stdout: 3\nstderr: 3\n" +
 			"stdout: 4\nstderr: 4\n" +
-			"stdout: 5\nstderr: 5\n"
+			"stdout: 5\nstderr: 5\n" +
+			"stdout: Hello world: 772\nstderr: Hello world: 772\n"
 
 		if d != want {
 			t.Fatalf("wrong data in sink. want")
