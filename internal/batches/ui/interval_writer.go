@@ -119,6 +119,12 @@ type prefixedWriter struct {
 func (w *prefixedWriter) Write(p []byte) (int, error) {
 	var prefixedLines []byte
 	for _, line := range bytes.Split(p, []byte("\n")) {
+		// We run into a weird situation where the output from a docker container
+		// contains an extra new line with spaces. This results in n*2 times the log
+		// output expected from an execution. We use this check to remove such blank lines
+		if len(bytes.TrimSpace(line)) == 0 {
+			continue
+		}
 		prefixedLine := append([]byte(w.prefix), line...)
 		prefixedLine = append(prefixedLine, []byte("\n")...)
 
