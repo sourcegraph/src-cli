@@ -32,6 +32,10 @@ Examples:
 
 		$ src validate install config.json
 
+Environmental variables
+
+	SRC_GITHUB_TOKEN	GitHub access token for validation features
+
 `
 
 	flagSet := flag.NewFlagSet("install", flag.ExitOnError)
@@ -91,7 +95,9 @@ Examples:
 			validationSpec = validate.DefaultConfig()
 		}
 
-		validationSpec.ExternalService.Config.GitHub.Token = cfg.GithubToken
+		envGithubToken := os.Getenv("SRC_GITHUB_TOKEN")
+
+		validationSpec.ExternalService.Config.GitHub.Token = envGithubToken
 
 		return validate.Installation(context.Background(), client, validationSpec)
 	}
