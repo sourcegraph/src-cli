@@ -3,7 +3,6 @@ package ui
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"io"
 	"time"
 
@@ -119,9 +118,6 @@ type prefixedWriter struct {
 
 func (w *prefixedWriter) Write(p []byte) (int, error) {
 	var prefixedLines []byte
-	fmt.Println("=====================")
-	fmt.Println("'", string(p), "'")
-	fmt.Println("=====================")
 	for _, line := range bytes.Split(p, []byte("\n")) {
 		// When we split a byte slice on every new line, we get atleast two sub-slice.
 		// I'll use a string to demonstrate, if I have a string "Peppermint\n", splitting
