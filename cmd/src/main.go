@@ -80,6 +80,7 @@ var cfg *config
 type config struct {
 	Endpoint          string            `json:"endpoint"`
 	AccessToken       string            `json:"accessToken"`
+	GithubToken       string            `json:"githubToken"`
 	AdditionalHeaders map[string]string `json:"additionalHeaders"`
 
 	ConfigFilePath string
@@ -133,6 +134,7 @@ func readConfig() (*config, error) {
 
 	envToken := os.Getenv("SRC_ACCESS_TOKEN")
 	envEndpoint := os.Getenv("SRC_ENDPOINT")
+	envGithubToken := os.Getenv("SRC_GITHUB_TOKEN")
 
 	if userSpecified {
 		// If a config file is present, either zero or both environment variables must be present.
@@ -148,6 +150,9 @@ func readConfig() (*config, error) {
 	// Apply config overrides.
 	if envToken != "" {
 		cfg.AccessToken = envToken
+	}
+	if envGithubToken != "" {
+		cfg.GithubToken = envGithubToken
 	}
 	if envEndpoint != "" {
 		cfg.Endpoint = envEndpoint
