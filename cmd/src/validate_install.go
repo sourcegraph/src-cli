@@ -13,6 +13,11 @@ import (
 	"github.com/sourcegraph/src-cli/internal/validate"
 
 	"github.com/sourcegraph/sourcegraph/lib/errors"
+	"github.com/sourcegraph/sourcegraph/lib/output"
+)
+
+var (
+	validateWarningEmoji = output.EmojiWarning
 )
 
 func init() {
@@ -96,6 +101,11 @@ Environmental variables
 		}
 
 		envGithubToken := os.Getenv("SRC_GITHUB_TOKEN")
+
+		// will work for now with only GitHub supported but will need to be revisited when other code hosts are supported
+		if envGithubToken == "" {
+			return errors.Newf("%s failed to read `SRC_GITHUB_TOKEN` environment variable", validateWarningEmoji)
+		}
 
 		validationSpec.ExternalService.Config.GitHub.Token = envGithubToken
 
