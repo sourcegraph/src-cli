@@ -122,13 +122,10 @@ var newLineByteSlice = []byte("\n")
 // It then writes the content as a single line to the inner writer, regardless of if the provided line
 // had a newline or not. That is, because our encoding requires exactly one line per formatted line.
 func (w *prefixedWriter) Write(p []byte) (int, error) {
-	var prefixedLine []byte
-	// We remove new lines appended to the log output so all of the stream can have
-	// only one new line separating them. This ensures the previous behavior for the log
-	// structure is preserved.
-	p = bytes.TrimRight(p, "\n")
-	prefixedLine = append([]byte(w.prefix), p...)
-	prefixedLine = append(prefixedLine, newLineByteSlice...)
+	prefixedLine := append([]byte(w.prefix), p...)
+	if prefixedLine[len(prefixedLine)-1] != newLineByteSlice {
+		prefixedLine = append(prefixedLine, newLineByteSlice...)
+    }
 	w.writes <- prefixedLine
 	<-w.writesDone
 	return len(p), nil
