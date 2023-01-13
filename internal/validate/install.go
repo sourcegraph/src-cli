@@ -11,14 +11,6 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/sourcegraph/sourcegraph/lib/errors"
-	"github.com/sourcegraph/sourcegraph/lib/output"
-)
-
-var (
-	validateEmojiFingerPointRight = output.EmojiFingerPointRight
-	validateFailureEmoji          = output.EmojiFailure
-	validateHourglassEmoji        = output.EmojiHourglass
-	validateSuccessEmoji          = output.EmojiSuccess
 )
 
 type ExternalService struct {
