@@ -118,6 +118,9 @@ type prefixedWriter struct {
 
 var newLineByteSlice = []byte("\n")
 
+// Write is only ever called with a single line. That line may or may not end with a newline character.
+// It then writes the content as a single line to the inner writer, regardless of if the provided line
+// had a newline or not. That is, because our encoding requires exactly one line per formatted line.
 func (w *prefixedWriter) Write(p []byte) (int, error) {
 	var prefixedLine []byte
 	// We remove new lines appended to the log output so all of the stream can have
