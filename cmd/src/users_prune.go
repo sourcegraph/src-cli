@@ -107,20 +107,13 @@ query getTotalUsers {
 `
 
 		// paginate through users
-		var aggregatedUsers struct {
-			Site struct {
-				Users struct {
-					Nodes []SiteUser
-				}
-			}
-		}
-
+		var aggregatedUsers []SiteUser
 		// pagination variables, limit set to maximum possible users returned per request
 		offset := 0
 		const limit int = 100
 
 		// paginate requests until all site users have been checked -- this includes soft deleted users
-		for len(aggregatedUsers.Site.Users.Nodes) < int(totalUsers.Site.Users.TotalCount) {
+		for len(aggregatedUsers) < int(totalUsers.Site.Users.TotalCount) {
 			pagVars := map[string]interface{}{
 				"offset": offset,
 				"limit":  limit,
@@ -140,16 +133,12 @@ query getTotalUsers {
 			// increment graphql request offset by the length of the last user set returned
 			offset = offset + len(usersResult.Site.Users.Nodes)
 			// append graphql user results to aggregated users to be processed against user removal conditions
-			aggregatedUsers.Site.Users.Nodes = append(aggregatedUsers.Site.Users.Nodes, usersResult.Site.Users.Nodes...)
+			aggregatedUsers = append(aggregatedUsers, usersResult.Site.Users.Nodes...)
 		}
 
 		// filter users for deletion
 		usersToDelete := make([]UserToDelete, 0)
-		for _, user := range aggregatedUsers.Site.Users.Nodes {
-			daysSinceLastUse, hasLastActive, err := computeDaysSinceLastUse(user)
-			if err != nil {
-				return err
-			}
+		for _, user := range aggregatedUsers {
 			// never remove user issuing command
 			if user.Username == currentUserResult.CurrentUser.Username {
 				continue
@@ -157,6 +146,11 @@ query getTotalUsers {
 			// filter out soft deleted users returned by site graphql endpoint
 			if user.DeletedAt != "" {
 				continue
+			}
+			//compute days since last use
+			daysSinceLastUse, hasLastActive, err := computeDaysSinceLastUse(user)
+			if err != nil {
+				return err
 			}
 			// don't remove users with no last active value unless option flag is set
 			if !hasLastActive && !*removeNoLastActive {
@@ -266,7 +260,7 @@ func confirmUserRemoval(usersToDelete []UserToDelete, totalUsers int, daysThresh
 	}
 	input := ""
 	for strings.ToLower(input) != "y" && strings.ToLower(input) != "n" {
-		fmt.Printf("%v of %v users were inactive for more than %v days on %v.\nDo you  wish to proceed with user removal [y/N]: ", len(usersToDelete), totalUsers, daysThreshold, cfg.Endpoint)
+		fmt.Printf("%v users were inactive for more than %v days on %v.\nDo you  wish to proceed with user removal [y/N]: ", len(usersToDelete), daysThreshold, cfg.Endpoint)
 		if _, err := fmt.Scanln(&input); err != nil {
 			return false, err
 		}
