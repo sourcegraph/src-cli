@@ -9,12 +9,23 @@
 
 All notable changes to `src-cli` are documented in this file.
 
-## Unreleased
+## Unreleased (4.5)
+
+### Added
+
+- `src codeintel upload` will now upload SCIP indexes (over LSIF indexes) when the target instance supports it. [#897](https://github.com/sourcegraph/src-cli/pull/897)
+
+### Changed
+
+### Fixed
+
+### Removed
+
+## Unreleased (4.4)
 
 ### Added
 
 - `src validate` has an added check to determine if an instance is able to create a basic code insight. [#912](https://github.com/sourcegraph/src-cli/pull/912)
-- `src codeintel upload` will now upload SCIP indexes (over LSIF indexes) when the target instance supports it. [#897](https://github.com/sourcegraph/src-cli/pull/897)
 
 ### Changed
 
