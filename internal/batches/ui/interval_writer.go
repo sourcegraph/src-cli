@@ -116,23 +116,17 @@ type prefixedWriter struct {
 	prefix     string
 }
 
-func (w *prefixedWriter) Write(p []byte) (int, error) {
-	var prefixedLines []byte
-	for _, line := range bytes.Split(p, []byte("\n")) {
-		// When we split a byte slice on every new line, we get atleast two sub-slice.
-		// I'll use a string to demonstrate, if I have a string "Peppermint\n", splitting
-		// this string on a new line will return a slice with two items: ["Peppermint", ""].
-		// Using this logic, we can then skip empty lines from being added to the log output.
-		// SideNote: This means when one logs an actual empty line, we'll also discard that.
-		if len(bytes.TrimSpace(line)) == 0 {
-			continue
-		}
-		prefixedLine := append([]byte(w.prefix), line...)
-		prefixedLine = append(prefixedLine, []byte("\n")...)
+var newLineByteSlice = []byte("\n")
 
-		prefixedLines = append(prefixedLines, prefixedLine...)
-	}
-	w.writes <- prefixedLines
+func (w *prefixedWriter) Write(p []byte) (int, error) {
+	var prefixedLine []byte
+	// We remove new lines appended to the log output so all of the stream can have
+	// only one new line separating them. This ensures the previous behavior for the log
+	// structure is preserved.
+	p = bytes.TrimRight(p, "\n")
+	prefixedLine = append([]byte(w.prefix), p...)
+	prefixedLine = append(prefixedLine, newLineByteSlice...)
+	w.writes <- prefixedLine
 	<-w.writesDone
 	return len(p), nil
 }

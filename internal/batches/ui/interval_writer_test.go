@@ -50,10 +50,10 @@ func TestIntervalWriter(t *testing.T) {
 	stderrWriter.Write([]byte("4"))
 	stdoutWriter.Write([]byte("5"))
 	stderrWriter.Write([]byte("5"))
-	stdoutWriter.Write([]byte(`Hello world: 772
-	`))
-	stderrWriter.Write([]byte(`Hello world: 772
-	`))
+	stdoutWriter.Write([]byte(`Hello world: 1
+`))
+	stderrWriter.Write([]byte(`Hello world: 1
+`))
 
 	select {
 	case <-ch:
@@ -70,10 +70,10 @@ func TestIntervalWriter(t *testing.T) {
 			"stdout: 3\nstderr: 3\n" +
 			"stdout: 4\nstderr: 4\n" +
 			"stdout: 5\nstderr: 5\n" +
-			"stdout: Hello world: 772\nstderr: Hello world: 772\n"
+			"stdout: Hello world: 1\nstderr: Hello world: 1\n"
 
 		if d != want {
-			t.Fatalf("wrong data in sink. want")
+			t.Fatalf("wrong data in sink. want=%q, have=%q", want, d)
 		}
 	case <-time.After(1 * time.Second):
 		t.Fatalf("ch has NO data")
