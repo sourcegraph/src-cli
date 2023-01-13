@@ -80,7 +80,11 @@ type ValidationSpec struct {
 // DefaultConfig returns a default configuration to be used for testing.
 func DefaultConfig() *ValidationSpec {
 	return &ValidationSpec{
-		SearchQuery: []string{"repo:^github\\.com/gorilla/mux$ Router", "repo:^github\\.com/gorilla/mux$@v1.8.0 Router"},
+		SearchQuery: []string{
+			"repo:^github.com/sourcegraph/src-cli$ config",
+			"repo:^github.com/sourcegraph/src-cli$@4.0.0 config",
+			"repo:^github.com/sourcegraph/src-cli$ type:symbol config",
+		},
 		ExternalService: ExternalService{
 			Kind:        "GITHUB",
 			DisplayName: "sourcegraph-test",
@@ -89,7 +93,7 @@ func DefaultConfig() *ValidationSpec {
 					URL:   "https://github.com",
 					Token: "",
 					Orgs:  []string{},
-					Repos: []string{"gorilla/mux"},
+					Repos: []string{"sourcegraph/src-cli"},
 				},
 			},
 			MaxRetries:          5,
