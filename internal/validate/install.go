@@ -15,9 +15,10 @@ import (
 )
 
 var (
-	validateFailureEmoji   = output.EmojiFailure
-	validateSuccessEmoji   = output.EmojiSuccess
-	validateHourglassEmoji = output.EmojiHourglass
+	validateEmojiFingerPointRight = output.EmojiFingerPointRight
+	validateFailureEmoji          = output.EmojiFailure
+	validateHourglassEmoji        = output.EmojiHourglass
+	validateSuccessEmoji          = output.EmojiSuccess
 )
 
 type ExternalService struct {
@@ -150,23 +151,25 @@ func LoadJsonConfig(userConfig []byte) (*ValidationSpec, error) {
 // Installation runs a series of validation checks such as cloning a repository, running search queries, and
 // creating insights, based on the configuration provided.
 func Installation(ctx context.Context, client api.Client, config *ValidationSpec) error {
+	log.Printf("%s validating external service", validateEmojiFingerPointRight)
+
 	if config.ExternalService.DisplayName != "" {
 		srvID, err := addExternalService(ctx, client, config.ExternalService)
 		if err != nil {
 			return err
 		}
 
-		log.Printf("%s external service %s is being added\n", validateHourglassEmoji, config.ExternalService.DisplayName)
+		log.Printf("%s external service %s is being added", validateHourglassEmoji, config.ExternalService.DisplayName)
 
 		defer func() {
 			if srvID != "" && config.ExternalService.DeleteWhenDone {
 				_ = removeExternalService(ctx, client, srvID)
-				log.Printf("%s external service %s has been removed\n", validateSuccessEmoji, config.ExternalService.DisplayName)
+				log.Printf("%s external service %s has been removed", validateSuccessEmoji, config.ExternalService.DisplayName)
 			}
 		}()
 	}
 
-	log.Printf("%s cloning repository\n", validateHourglassEmoji)
+	log.Printf("%s cloning repository", validateHourglassEmoji)
 
 	cloned, err := repoCloneTimeout(ctx, client, config.ExternalService)
 	if err != nil {
@@ -176,7 +179,9 @@ func Installation(ctx context.Context, client api.Client, config *ValidationSpec
 		return errors.Newf("%s validate failed, repo did not clone\n", validateFailureEmoji)
 	}
 
-	log.Printf("%s repositry successfully cloned\n", validateSuccessEmoji)
+	log.Printf("%s repositry successfully cloned", validateSuccessEmoji)
+
+	log.Printf("%s validating search queries", validateEmojiFingerPointRight)
 
 	if config.SearchQuery != nil {
 		for i := 0; i < len(config.SearchQuery); i++ {
@@ -187,24 +192,26 @@ func Installation(ctx context.Context, client api.Client, config *ValidationSpec
 			if matchCount == 0 {
 				return errors.Newf("validate failed, search query %s returned no results", config.SearchQuery[i])
 			}
-			log.Printf("%s search query '%s' was successful\n", validateSuccessEmoji, config.SearchQuery[i])
+			log.Printf("%s search query '%s' was successful", validateSuccessEmoji, config.SearchQuery[i])
 		}
 	}
 
+	log.Printf("%s validating code insight", validateEmojiFingerPointRight)
+
 	if config.Insight.Title != "" {
-		log.Printf("%s insight %s is being added\n", validateHourglassEmoji, config.Insight.Title)
+		log.Printf("%s insight %s is being added", validateHourglassEmoji, config.Insight.Title)
 
 		insightId, err := createInsight(ctx, client, config.Insight)
 		if err != nil {
 			return err
 		}
 
-		log.Printf("%s insight successfully added\n", validateSuccessEmoji)
+		log.Printf("%s insight successfully added", validateSuccessEmoji)
 
 		defer func() {
 			if insightId != "" {
 				_ = removeInsight(ctx, client, insightId)
-				log.Printf("%s insight %s has been removed\n", validateSuccessEmoji, config.Insight.Title)
+				log.Printf("%s insight %s has been removed", validateSuccessEmoji, config.Insight.Title)
 
 			}
 		}()
