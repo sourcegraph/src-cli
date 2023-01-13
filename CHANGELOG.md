@@ -14,13 +14,26 @@ All notable changes to `src-cli` are documented in this file.
 ### Added
 
 - Batch Changes: Watchdog that checks for docker responsiveness while running commands has been added. [#898](https://github.com/sourcegraph/src-cli/pull/898)
+- `src validate` has an added check to determine if an instance is able to create a basic code insight. [#912](https://github.com/sourcegraph/src-cli/pull/912)
 - `src codeintel upload` will now upload SCIP indexes (over LSIF indexes) when the target instance supports it. [#897](https://github.com/sourcegraph/src-cli/pull/897)
 
 ### Changed
 
+- Renamed `src users clean` command to `src users prune` [#901](https://github.com/sourcegraph/src-cli/pull/901)
+- Failed code-intel uploads now print every error encountered while retrying instead of only the error encountered in the final retry attempt. [#46281](https://github.com/sourcegraph/sourcegraph/pull/46281)
+
 ### Fixed
 
+- Fix network timeout in `src users clean` occuring in instances with many users [#901](https://github.com/sourcegraph/src-cli/pull/901)
+- Aligned parsing of spec file parameter of `src batch repos` with other commands. [#919](https://github.com/sourcegraph/src-cli/pull/919)
+
 ### Removed
+
+## 4.3.0
+
+### Added
+
+- Batch Changes: Watchdog that checks for docker responsiveness while running commands has been added. [#898](https://github.com/sourcegraph/src-cli/pull/898)
 
 ## 4.2.1
 
@@ -107,7 +120,6 @@ No noteworthy changes, mechanical release to match Sourcegraph release.
 
 - INTERNAL ONLY: Fixed src batch exec not logging errors.
 
-
 ## 3.42.2
 
 ### Fixed
@@ -150,7 +162,6 @@ No noteworthy changes, mechanical release to match Sourcegraph release.
 ### Fixed
 
 - The preview link shown when running `src batch remote` to create a new batch change no longer 404s. [sourcegraph/src-cli](https://github.com/sourcegraph/src-cli/pull/787)
-
 
 ## 3.40.11
 
