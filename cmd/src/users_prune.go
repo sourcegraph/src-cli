@@ -52,13 +52,7 @@ Examples:
 		client := cfg.apiClient(apiFlags, flagSet.Output())
 
 		// get current user so as not to delete issuer of the prune request
-		currentUserQuery := `
-query getCurrentUser {
-	currentUser {
-		username
-	}
-}
-`
+		currentUserQuery := `query getCurrentUser { currentUser { username }}`
 		var currentUserResult struct {
 			CurrentUser struct {
 				Username string
@@ -69,14 +63,7 @@ query getCurrentUser {
 		}
 
 		// get total users to paginate over
-		totalUsersQuery := `
-query getTotalUsers {
-	site {
-		users {
-			totalCount
-		}
-	}
-}`
+		totalUsersQuery := `query getTotalUsers { site { users { totalCount }}}`
 		var totalUsers struct {
 			Site struct {
 				Users struct {
@@ -220,11 +207,7 @@ func computeDaysSinceLastUse(user SiteUser) (timeDiff int, hasLastActive bool, _
 
 // Issue graphQL api request to remove user
 func removeUser(user SiteUser, client api.Client, ctx context.Context) error {
-	query := `mutation DeleteUser($user: ID!) {
-  deleteUser(user: $user) {
-    alwaysNil
-  }
-}`
+	query := `mutation DeleteUser($user: ID!) { deleteUser(user: $user) { alwaysNil }}`
 	vars := map[string]interface{}{
 		"user": user.ID,
 	}
