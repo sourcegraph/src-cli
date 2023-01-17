@@ -9,21 +9,11 @@
 
 All notable changes to `src-cli` are documented in this file.
 
-## Unreleased (4.5)
+## Unreleased
 
 ### Added
 
 - `src codeintel upload` will now upload SCIP indexes (over LSIF indexes) when the target instance supports it. [#897](https://github.com/sourcegraph/src-cli/pull/897)
-
-### Changed
-
-### Fixed
-
-### Removed
-
-## Unreleased (4.4)
-
-### Added
 
 ### Changed
 
