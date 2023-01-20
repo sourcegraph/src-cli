@@ -80,6 +80,8 @@ func Validate(ctx context.Context, clientSet *kubernetes.Clientset, restConfig *
 		{Connections, "validating connections", "connections validated", "validating connections failed"},
 	}
 
+	var totalFailCount int
+
 	for _, v := range validations {
 		log.Printf("%s %s...", validate.HourglassEmoji, v.WaitMsg)
 		results, err := v.Validate(ctx, config)
@@ -111,9 +113,7 @@ func Validate(ctx context.Context, clientSet *kubernetes.Clientset, restConfig *
 		if failCount > 0 {
 			log.Printf("  %s %d total failure(s)", validate.EmojiFingerPointRight, failCount)
 
-			if config.exitStatus {
-				return errors.Newf("validation failed: %d failures", failCount)
-			}
+			totalFailCount = totalFailCount + failCount
 		}
 
 		if warnCount > 0 {
@@ -123,6 +123,10 @@ func Validate(ctx context.Context, clientSet *kubernetes.Clientset, restConfig *
 		if failCount == 0 && warnCount == 0 {
 			log.Printf("%s %s!", validate.SuccessEmoji, v.SuccessMsg)
 		}
+	}
+
+	if totalFailCount > 0 {
+		return errors.Newf("validation failed: %d failures", totalFailCount)
 	}
 
 	return nil
