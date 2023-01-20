@@ -45,7 +45,7 @@ func init() {
 		// use the current context in kubeConfig
 		config, err := clientcmd.BuildConfigFromFlags("", *kubeConfig)
 		if err != nil {
-			return errors.Wrap(err, "failed to kubernetes config")
+			return errors.Wrap(err, "failed to load kubernetes config")
 		}
 
 		clientSet, err := kubernetes.NewForConfig(config)
