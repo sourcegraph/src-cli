@@ -17,6 +17,17 @@ import (
 
 func init() {
 	usage := `'src validate kube' is a tool that validates a Kubernetes based Sourcegraph deployment
+	
+Examples:
+
+	Run default deployment validation:
+		$ src validate kube
+		
+	Specify Kubernetes namespace:
+		$ src validate kube --namespace sourcegraph
+		
+	Specify the kubeconfig file location:
+		$ src validate kube --kubeconfig ~/user/.kube/config
 `
 
 	flagSet := flag.NewFlagSet("kube", flag.ExitOnError)
