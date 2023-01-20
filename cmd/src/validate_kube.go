@@ -27,18 +27,17 @@ func init() {
 	}
 
 	var (
-		namespace = flagSet.String("namespace", "", "specify the kubernetes namespace to use")
+		namespace  = flagSet.String("namespace", "", "(optional) specify the kubernetes namespace to use")
+		kubeConfig *string
 	)
 
+	if home := homedir.HomeDir(); home != "" {
+		kubeConfig = flagSet.String("kubeconfig", filepath.Join(home, ".kube", "config"), "(optional) absolute path to the kubeconfig file")
+	} else {
+		kubeConfig = flagSet.String("kubeconfig", "", "absolute path to the kubeconfig file")
+	}
+
 	handler := func(args []string) error {
-		var kubeConfig *string
-
-		if home := homedir.HomeDir(); home != "" {
-			kubeConfig = flagSet.String("kubeconfig", filepath.Join(home, ".kube", "config"), "(optional) absolute path to the kubeconfig file")
-		} else {
-			kubeConfig = flagSet.String("kubeconfig", "", "absolute path to the kubeconfig file")
-		}
-
 		if err := flagSet.Parse(args); err != nil {
 			return err
 		}
