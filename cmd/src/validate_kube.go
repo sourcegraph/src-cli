@@ -27,7 +27,7 @@ Examples:
 		$ src validate kube --namespace sourcegraph
 		
 	Specify the kubeconfig file location:
-		$ src validate kube --kubeconfig ~/user/.kube/config
+		$ src validate kube --kubeconfig ~/.kube/config
 `
 
 	flagSet := flag.NewFlagSet("kube", flag.ExitOnError)
