@@ -28,6 +28,9 @@ Examples:
 		
 	Specify the kubeconfig file location:
 		$ src validate kube --kubeconfig ~/.kube/config
+	
+	Suppress output (useful for CI/CD pipelines)
+		$ src validate kube --quiet
 `
 
 	flagSet := flag.NewFlagSet("kube", flag.ExitOnError)
@@ -38,8 +41,9 @@ Examples:
 	}
 
 	var (
-		namespace  = flagSet.String("namespace", "", "(optional) specify the kubernetes namespace to use")
 		kubeConfig *string
+		namespace  = flagSet.String("namespace", "", "(optional) specify the kubernetes namespace to use")
+		quiet      = flagSet.Bool("quiet", false, "(optional) suppress output and return exit status only")
 	)
 
 	if home := homedir.HomeDir(); home != "" {
@@ -64,14 +68,18 @@ Examples:
 			return errors.Wrap(err, "failed to create kubernetes client")
 		}
 
-		if namespace != nil {
-			ns := *namespace
-			return kube.Validate(context.Background(), clientSet, config, kube.WithNamespace(ns))
+		// parse through flag options
+		var options []kube.Option
+
+		if *namespace != "" {
+			options = append(options, kube.WithNamespace(*namespace))
 		}
 
-		// no namespace specified
-		return kube.Validate(context.Background(), clientSet, config)
+		if *quiet {
+			options = append(options, kube.Quiet())
+		}
 
+		return kube.Validate(context.Background(), clientSet, config, options...)
 	}
 
 	validateCommands = append(validateCommands, &command{

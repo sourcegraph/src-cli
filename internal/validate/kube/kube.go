@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"log"
+	"os"
 	"regexp"
 
 	corev1 "k8s.io/api/core/v1"
@@ -29,6 +31,8 @@ type Option = func(config *Config)
 
 type Config struct {
 	namespace  string
+	output     io.Writer
+	exitStatus bool
 	clientSet  *kubernetes.Clientset
 	restConfig *rest.Config
 }
@@ -39,12 +43,21 @@ func WithNamespace(namespace string) Option {
 	}
 }
 
+func Quiet() Option {
+	return func(config *Config) {
+		config.output = io.Discard
+		config.exitStatus = true
+	}
+}
+
 type validation func(ctx context.Context, config *Config) ([]validate.Result, error)
 
 // Validate will call a series of validation functions in a table driven tests style.
 func Validate(ctx context.Context, clientSet *kubernetes.Clientset, restConfig *rest.Config, opts ...Option) error {
 	config := &Config{
 		namespace:  "default",
+		output:     os.Stdout,
+		exitStatus: false,
 		clientSet:  clientSet,
 		restConfig: restConfig,
 	}
@@ -52,6 +65,8 @@ func Validate(ctx context.Context, clientSet *kubernetes.Clientset, restConfig *
 	for _, opt := range opts {
 		opt(config)
 	}
+
+	log.SetOutput(config.output)
 
 	var validations = []struct {
 		Validate   validation
@@ -95,6 +110,10 @@ func Validate(ctx context.Context, clientSet *kubernetes.Clientset, restConfig *
 
 		if failCount > 0 {
 			log.Printf("  %s %d total failure(s)", validate.EmojiFingerPointRight, failCount)
+
+			if config.exitStatus {
+				return errors.Newf("validation failed: %d failures", failCount)
+			}
 		}
 
 		if warnCount > 0 {
