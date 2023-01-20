@@ -6,10 +6,11 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"github.com/sourcegraph/src-cli/internal/validate/kube"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/util/homedir"
+
+	"github.com/sourcegraph/src-cli/internal/validate/kube"
 
 	"github.com/sourcegraph/sourcegraph/lib/errors"
 )
@@ -30,11 +31,8 @@ func init() {
 	)
 
 	handler := func(args []string) error {
-		if err := flagSet.Parse(args); err != nil {
-			return err
-		}
-
 		var kubeConfig *string
+
 		if home := homedir.HomeDir(); home != "" {
 			kubeConfig = flagSet.String("kubeconfig", filepath.Join(home, ".kube", "config"), "(optional) absolute path to the kubeconfig file")
 		} else {
@@ -56,14 +54,13 @@ func init() {
 			return errors.Wrap(err, "failed to create kubernetes client")
 		}
 
-		// if a user specifies a namespace
 		if namespace != nil {
 			ns := *namespace
-			return kube.Validate(context.Background(), clientSet, kube.WithNamespace(ns))
+			return kube.Validate(context.Background(), clientSet, config, kube.WithNamespace(ns))
 		}
 
 		// no namespace specified
-		return kube.Validate(context.Background(), clientSet)
+		return kube.Validate(context.Background(), clientSet, config)
 
 	}
 

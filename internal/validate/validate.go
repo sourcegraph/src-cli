@@ -1,10 +1,23 @@
 package validate
 
-import "github.com/sourcegraph/sourcegraph/lib/output"
-
 var (
-	validateEmojiFingerPointRight = output.EmojiFingerPointRight
-	validateFailureEmoji          = output.EmojiFailure
-	validateSuccessEmoji          = output.EmojiSuccess
-	validateHourglassEmoji        = output.EmojiHourglass
+	EmojiFingerPointRight = "👉"
+	FailureEmoji          = "🛑"
+	FlashingLightEmoji    = "🚨"
+	HourglassEmoji        = "⌛"
+	SuccessEmoji          = "✅"
+	WarningSign           = "⚠️ " // why does this need an extra space to align?!?!
 )
+
+type Status string
+
+const (
+	Failure Status = "Failure"
+	Warning Status = "Warning"
+	Success Status = "Success"
+)
+
+type Result struct {
+	Status  Status
+	Message string
+}
