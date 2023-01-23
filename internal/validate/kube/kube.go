@@ -141,7 +141,6 @@ func Pods(ctx context.Context, config *Config) ([]validate.Result, error) {
 
 	var results []validate.Result
 
-	//TODO make concurrent
 	for _, pod := range pods.Items {
 		r := validatePod(&pod)
 		results = append(results, r...)
@@ -222,7 +221,6 @@ func Services(ctx context.Context, config *Config) ([]validate.Result, error) {
 
 	var results []validate.Result
 
-	//TODO make concurrent
 	for _, service := range services.Items {
 		r := validateService(&service)
 		results = append(results, r...)
@@ -258,7 +256,6 @@ func PVCs(ctx context.Context, config *Config) ([]validate.Result, error) {
 
 	var results []validate.Result
 
-	//TODO make concurrent
 	for _, pvc := range pvcs.Items {
 		r := validatePVC(&pvc)
 		results = append(results, r...)
