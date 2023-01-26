@@ -48,7 +48,7 @@ const getInstanceInfo = `query SourcegraphVersion {
 	site {
 		productVersion
 	}
-		maxUnlicensedChangesets
+	maxUnlicensedChangesets
 	batchChanges(first: 1) {
 		nodes {
 			id
