@@ -44,7 +44,7 @@ func New(opts *Opts) *Service {
 // changes in an unsupported environment sooner, since the version check is typically the
 // first thing we do.
 
-const getInstanceInfo = `query SourcegraphVersion {
+const getInstanceInfo = `query InstanceInfo {
 	site {
 		productVersion
 	}
