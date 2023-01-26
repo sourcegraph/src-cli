@@ -31,7 +31,6 @@ To help with that, you can compile your src binary (or run the tests) with the `
 ```
 go build -tags debug -o ~/src ./cmd/src
 ```
-//recompile changes and see logs. after saves
 
 This will cause the `./internal/batches/debug.go` file to be included in the build. In that file the `log` default package logger is setup to log to `~/.sourcegraph/src-cli.debug.log`.
 
