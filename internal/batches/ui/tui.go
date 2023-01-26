@@ -217,8 +217,8 @@ func (ui *TUI) CreatingBatchSpecSuccess(previewURL string) {
 	batchCompletePending(ui.pending, "Creating batch spec on Sourcegraph")
 }
 
-func (ui *TUI) CreatingBatchSpecError(err error) error {
-	return prettyPrintBatchUnlicensedError(ui.Out, err)
+func (ui *TUI) CreatingBatchSpecError(lr int, err error) error {
+	return prettyPrintBatchUnlicensedError(ui.Out, lr, err)
 }
 
 func (ui *TUI) DockerWatchDogWarning(err error) {
@@ -307,7 +307,7 @@ func (ui *TUI) RemoteSuccess(url string) {
 // is, then a better message is output. Regardless, the return value of this
 // function should be used to replace the original error passed in to ensure
 // that the displayed output is sensible.
-func prettyPrintBatchUnlicensedError(out *output.Output, err error) error {
+func prettyPrintBatchUnlicensedError(out *output.Output, lr int, err error) error {
 	// Pull apart the error to see if it's a licensing error: if so, we should
 	// display a friendlier and more actionable message than the usual GraphQL
 	// error output.
@@ -321,14 +321,14 @@ func prettyPrintBatchUnlicensedError(out *output.Output, err error) error {
 				// verbose mode, but let the original error bubble up rather
 				// than this one.
 				out.Verbosef("Unexpected error parsing the GraphQL error: %v", cerr)
-			} else if code == "ErrBatchChangesUnlicensed" {
+			} else if code == "ErrBatchChangesUnlicensed" || code == "ErrBatchChangesOverLimit" {
 				// OK, let's print a better message, then return an
 				// exitCodeError to suppress the normal automatic error block.
 				// Note that we have hand wrapped the output at 80 (printable)
 				// characters: having automatic wrapping some day would be nice,
 				// but this should be sufficient for now.
 				block := out.Block(output.Line("🪙", output.StyleWarning, "Batch Changes is a paid feature of Sourcegraph. All users can create sample"))
-				block.WriteLine(output.Linef("", output.StyleWarning, "batch changes with up to 10 changesets without a license. Contact Sourcegraph"))
+				block.WriteLine(output.Linef("", output.StyleWarning, "batch changes with up to %s changesets without a license. Contact Sourcegraph", lr))
 				block.WriteLine(output.Linef("", output.StyleWarning, "sales at %shttps://about.sourcegraph.com/contact/sales/%s to obtain a trial", output.StyleSearchLink, output.StyleWarning))
 				block.WriteLine(output.Linef("", output.StyleWarning, "license."))
 				block.Write("")

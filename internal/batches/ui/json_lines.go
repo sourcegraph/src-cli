@@ -149,7 +149,7 @@ func (ui *JSONLines) CreatingBatchSpecSuccess(batchSpecURL string) {
 	})
 }
 
-func (ui *JSONLines) CreatingBatchSpecError(err error) error {
+func (ui *JSONLines) CreatingBatchSpecError(lr int, err error) error {
 	logOperationFailure(batcheslib.LogEventOperationCreatingBatchSpec, &batcheslib.CreatingBatchSpecMetadata{})
 	return err
 }
