@@ -57,12 +57,12 @@ const getInstanceInfo = `query InstanceInfo {
 }
 `
 
-// getSourcegraphVersion queries the Sourcegraph GraphQL API to get the
-// current version of the Sourcegraph instance.
+// getSourcegraphVersionAndMaxChangesetsCount queries the Sourcegraph GraphQL API to get the
+// current version and max unlicensed changesets count for the Sourcegraph instance.
 
 func (svc *Service) getSourcegraphVersionAndMaxChangesetsCount(ctx context.Context) (string, int, error) {
 	var result struct {
-		maxUnlicensedChangesets int
+		MaxUnlicensedChangesets int
 		Site                    struct {
 			ProductVersion string
 		}
@@ -73,12 +73,11 @@ func (svc *Service) getSourcegraphVersionAndMaxChangesetsCount(ctx context.Conte
 		return "", 0, err
 	}
 
-	//add to return
-	return result.Site.ProductVersion, result.maxUnlicensedChangesets, err
+	return result.Site.ProductVersion, result.MaxUnlicensedChangesets, err
 }
 
-// DetermineFeatureFlagsAndLicense fetches the version of the configured Sourcegraph and
-// returns the enabled features.
+// DetermineFeatureFlagsAndLicense returns the enabled features and license restrictions
+// configured for the Sourcegraph instance.
 
 func (svc *Service) DetermineFeatureFlagsAndLicense(ctx context.Context) (*batches.LicenseRestrictions, *batches.FeatureFlags, error) {
 	version, mc, err := svc.getSourcegraphVersionAndMaxChangesetsCount(ctx)
@@ -91,7 +90,6 @@ func (svc *Service) DetermineFeatureFlagsAndLicense(ctx context.Context) (*batch
 	}
 
 	ffs := &batches.FeatureFlags{}
-
 	return lr, ffs, ffs.SetFromVersion(version)
 
 }
@@ -133,7 +131,6 @@ mutation CreateBatchSpec(
     ) {
         id
         applyURL
-
     }
 }
 `
