@@ -328,12 +328,12 @@ func prettyPrintBatchUnlicensedError(out *output.Output, maxUnlicensedCS int, er
 				// characters: having automatic wrapping some day would be nice,
 				// but this should be sufficient for now.
 				block := out.Block(output.Line("🪙", output.StyleWarning, "Batch Changes is a paid feature of Sourcegraph. All users can create sample"))
-				block.WriteLine(output.Linef("", output.StyleWarning, "batch changes with up to %s changesets without a license. Contact Sourcegraph", maxUnlicensedCS))
+				block.WriteLine(output.Linef("", output.StyleWarning, "batch changes with up to %v changesets without a license. Contact Sourcegraph", maxUnlicensedCS))
 				block.WriteLine(output.Linef("", output.StyleWarning, "sales at %shttps://about.sourcegraph.com/contact/sales/%s to obtain a trial", output.StyleSearchLink, output.StyleWarning))
 				block.WriteLine(output.Linef("", output.StyleWarning, "license."))
 				block.Write("")
-				block.WriteLine(output.Linef("", output.StyleWarning, "To proceed with this batch change, you will need to create %s or fewer", maxUnlicensedCS))
-				block.WriteLine(output.Linef("", output.StyleWarning, "changesets. To do so, you could try adding %scount:%s%s to your", output.StyleSearchAlertProposedQuery, maxUnlicensedCS, output.StyleWarning))
+				block.WriteLine(output.Linef("", output.StyleWarning, "To proceed with this batch change, you will need to create %v or fewer", maxUnlicensedCS))
+				block.WriteLine(output.Linef("", output.StyleWarning, "changesets. To do so, you could try adding %scount:%v%s to your", output.StyleSearchAlertProposedQuery, maxUnlicensedCS, output.StyleWarning))
 				block.WriteLine(output.Linef("", output.StyleWarning, "%srepositoriesMatchingQuery%s search, or reduce the number of changesets in", output.StyleReset, output.StyleWarning))
 				block.WriteLine(output.Linef("", output.StyleWarning, "%simportChangesets%s.", output.StyleReset, output.StyleWarning))
 				block.Close()
