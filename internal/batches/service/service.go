@@ -82,7 +82,7 @@ func (svc *Service) getSourcegraphVersionAndMaxChangesetsCount(ctx context.Conte
 func (svc *Service) DetermineFeatureFlagsAndLicense(ctx context.Context) (*batches.LicenseRestrictions, *batches.FeatureFlags, error) {
 	version, mc, err := svc.getSourcegraphVersionAndMaxChangesetsCount(ctx)
 	if err != nil {
-		return nil, nil, errors.Wrap(err, "failed to query Sourcegraph version and license info for instance capabilities")
+		return nil, nil, errors.Wrap(err, "failed to query Sourcegraph version and license info for instance")
 	}
 
 	lr := &batches.LicenseRestrictions{
