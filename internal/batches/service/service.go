@@ -78,7 +78,6 @@ func (svc *Service) getSourcegraphVersionAndMaxChangesetsCount(ctx context.Conte
 
 // DetermineFeatureFlagsAndLicense returns the enabled features and license restrictions
 // configured for the Sourcegraph instance.
-
 func (svc *Service) DetermineFeatureFlagsAndLicense(ctx context.Context) (*batches.LicenseRestrictions, *batches.FeatureFlags, error) {
 	version, mc, err := svc.getSourcegraphVersionAndMaxChangesetsCount(ctx)
 	if err != nil {
