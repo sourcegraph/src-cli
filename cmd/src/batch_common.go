@@ -290,7 +290,7 @@ func executeBatchSpec(ctx context.Context, opts executeBatchSpecOpts) (err error
 		Client: opts.client,
 	})
 
-	lr, ffs, err := svc.DetermineFeatureFlagsAndLicense(ctx)
+	lr, ffs, err := svc.DetermineLicenseAndFeatureFlags(ctx)
 	if err != nil {
 		return err
 	}
