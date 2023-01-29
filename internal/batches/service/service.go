@@ -59,7 +59,6 @@ const getInstanceInfo = `query InstanceInfo {
 
 // getSourcegraphVersionAndMaxChangesetsCount queries the Sourcegraph GraphQL API to get the
 // current version and max unlicensed changesets count for the Sourcegraph instance.
-
 func (svc *Service) getSourcegraphVersionAndMaxChangesetsCount(ctx context.Context) (string, int, error) {
 	var result struct {
 		MaxUnlicensedChangesets int
