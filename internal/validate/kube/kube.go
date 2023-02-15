@@ -16,6 +16,8 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/remotecommand"
 
+    "github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/eks"
 	"github.com/sourcegraph/src-cli/internal/validate"
 
 	"github.com/sourcegraph/sourcegraph/lib/errors"
@@ -35,6 +37,8 @@ type Config struct {
 	exitStatus bool
 	clientSet  *kubernetes.Clientset
 	restConfig *rest.Config
+	eks        bool
+    eksClient *eks.Client
 }
 
 func WithNamespace(namespace string) Option {
@@ -50,41 +54,59 @@ func Quiet() Option {
 	}
 }
 
+func Eks() Option {
+	cfg, err := config.LoadDefaultConfig(context.TODO())
+	if err != nil {
+		log.Fatal(err)
+	}
+    
+	return func(config *Config) {
+		config.eks = true
+		config.eksClient = eks.NewFromConfig(cfg)
+	}
+}
+
 type validation func(ctx context.Context, config *Config) ([]validate.Result, error)
+type validationGroup struct {
+	Validate   validation
+	WaitMsg    string
+	SuccessMsg string
+	ErrMsg     string
+}
 
 // Validate will call a series of validation functions in a table driven tests style.
 func Validate(ctx context.Context, clientSet *kubernetes.Clientset, restConfig *rest.Config, opts ...Option) error {
-	config := &Config{
+	cfg := &Config{
 		namespace:  "default",
 		output:     os.Stdout,
 		exitStatus: false,
 		clientSet:  clientSet,
 		restConfig: restConfig,
+		eks:        false,
 	}
 
+	// this is where options are read.
 	for _, opt := range opts {
-		opt(config)
+		opt(cfg)
 	}
 
-	log.SetOutput(config.output)
+	log.SetOutput(cfg.output)
 
-	var validations = []struct {
-		Validate   validation
-		WaitMsg    string
-		SuccessMsg string
-		ErrMsg     string
-	}{
-		{Pods, "validating pods", "pods validated", "validating pods failed"},
-		{Services, "validating services", "services validated", "validating services failed"},
-		{PVCs, "validating pvcs", "pvcs validated", "validating pvcs failed"},
-		{Connections, "validating connections", "connections validated", "validating connections failed"},
+	var validations []validationGroup
+	validations = append(validations, validationGroup{Pods, "validating pods", "pods validated", "validating pods failed"})
+	validations = append(validations, validationGroup{Services, "validating services", "services validated", "validating services failed"})
+	validations = append(validations, validationGroup{PVCs, "validating pvcs", "pvcs validated", "validating pvcs failed"})
+	validations = append(validations, validationGroup{Connections, "validating connections", "connections validated", "validating connections failed"})
+
+	if cfg.eks == true {
+        validations = append(validations, validationGroup{EksEbs, "EKS: validating ebs-csi drivers", "EKS: ebs-csi drivers validated", "EKS: validating ebs-csi drivers failed"})
 	}
 
 	var totalFailCount int
 
 	for _, v := range validations {
 		log.Printf("%s %s...", validate.HourglassEmoji, v.WaitMsg)
-		results, err := v.Validate(ctx, config)
+		results, err := v.Validate(ctx, cfg)
 		if err != nil {
 			return errors.Wrapf(err, v.ErrMsg)
 		}
@@ -131,6 +153,7 @@ func Validate(ctx context.Context, clientSet *kubernetes.Clientset, restConfig *
 
 	return nil
 }
+
 
 // Pods will validate all pods in a given namespace.
 func Pods(ctx context.Context, config *Config) ([]validate.Result, error) {
@@ -386,4 +409,38 @@ func Connections(ctx context.Context, config *Config) ([]validate.Result, error)
 	}
 
 	return results, nil
+}
+
+func contains(sl []string, t string) bool {
+    for _, s := range sl {
+        if s == t {
+            return true
+        }
+    }
+    return false
+}
+
+// EksEbs will validate that EKS cluster has ebs-cli drivers installed
+func EksEbs(ctx context.Context, config *Config) ([]validate.Result, error) {
+    var results []validate.Result
+    clusterName := "sourcegraph-cluster"
+    inputs := &eks.ListAddonsInput{ClusterName: &clusterName} 
+    outputs, err := config.eksClient.ListAddons(ctx, inputs) 
+    
+    if err != nil {
+        results = append(results, validate.Result{
+            Status: validate.Failure,
+            Message: "validate ebs-csi driver failed",
+        })
+        return results, err
+    }
+    
+    if contains(outputs.Addons, "aws-ebs-csi-driver") {
+        results = append(results, validate.Result{
+            Status: validate.Success, 
+            Message: "EKS: ebs-csi driver validated",
+        })
+    }
+    
+    return results, nil
 }
