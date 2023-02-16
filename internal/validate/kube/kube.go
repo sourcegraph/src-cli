@@ -469,6 +469,7 @@ func EksEbs(ctx context.Context, config *Config) ([]validate.Result, error) {
 	return results, nil
 }
 
+// EksVpc checks if a valid vpc available
 func EksVpc(ctx context.Context, config *Config) ([]validate.Result, error) {
 	var results []validate.Result
 	if config.ec2Client == nil {
