@@ -420,8 +420,8 @@ func Connections(ctx context.Context, config *Config) ([]validate.Result, error)
 	return results, nil
 }
 
-func contains(sl []string, t string) bool {
-	for _, s := range sl {
+func contains(sl *[]string, t string) bool {
+	for _, s := range *sl {
 		if s == t {
 			return true
 		}
@@ -452,21 +452,27 @@ func EksEbs(ctx context.Context, config *Config) ([]validate.Result, error) {
 		})
 		return results, err
 	}
+    
+    r := validateEbsCsi(&outputs.Addons)
+    results = append(results, r...)
 
-	if contains(outputs.Addons, "aws-ebs-csi-driver") {
-		results = append(results, validate.Result{
+	return results, nil
+}
+
+func validateEbsCsi(addons *[]string) (result []validate.Result) {
+	if contains(addons, "aws-ebs-csi-driver") {
+		result = append(result, validate.Result{
 			Status:  validate.Success,
 			Message: "EKS: ebs-csi driver validated",
 		})
-		return results, nil
+		return result
 	}
 
-	results = append(results, validate.Result{
+	result = append(result, validate.Result{
 		Status:  validate.Failure,
 		Message: "EKS: validate ebs-csi driver failed",
 	})
-
-	return results, nil
+    return result
 }
 
 // EksVpc checks if a valid vpc available
