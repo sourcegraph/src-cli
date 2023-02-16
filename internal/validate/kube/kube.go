@@ -76,6 +76,7 @@ func Eks() Option {
 }
 
 type validation func(ctx context.Context, config *Config) ([]validate.Result, error)
+
 type validationGroup struct {
 	Validate   validation
 	WaitMsg    string
@@ -452,9 +453,9 @@ func EksEbs(ctx context.Context, config *Config) ([]validate.Result, error) {
 		})
 		return results, err
 	}
-    
-    r := validateEbsCsi(&outputs.Addons)
-    results = append(results, r...)
+
+	r := validateEbsCsi(&outputs.Addons)
+	results = append(results, r...)
 
 	return results, nil
 }
@@ -472,7 +473,7 @@ func validateEbsCsi(addons *[]string) (result []validate.Result) {
 		Status:  validate.Failure,
 		Message: "EKS: validate ebs-csi driver failed",
 	})
-    return result
+	return result
 }
 
 // EksVpc checks if a valid vpc available

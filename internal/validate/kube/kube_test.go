@@ -392,14 +392,14 @@ func TestValidateEbsCsi(t *testing.T) {
 			},
 		},
 		{
-			name:   "ebs csi drivers not installed",
+			name: "ebs csi drivers not installed",
 			addons: func(ListAddonsOutput *eks.ListAddonsOutput) {
-                ListAddonsOutput.Addons = []string{}
-            },
+				ListAddonsOutput.Addons = []string{}
+			},
 			result: []validate.Result{
 				{
 					Status:  validate.Failure,
-                    Message: "EKS: validate ebs-csi driver failed",
+					Message: "EKS: validate ebs-csi driver failed",
 				},
 			},
 		},
