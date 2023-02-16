@@ -315,15 +315,15 @@ func TestValidateVpc(t *testing.T) {
 	}{
 		{
 			name: "valid vpc",
-            vpc: func(vpc *types.Vpc) {
-                vpc.State = "available" 
-            },
-            result: []validate.Result{
-                {
-                    Status: validate.Success,
-                    Message: "VPC is validated",
-                },
-            },
+			vpc: func(vpc *types.Vpc) {
+				vpc.State = "available"
+			},
+			result: []validate.Result{
+				{
+					Status:  validate.Success,
+					Message: "VPC is validated",
+				},
+			},
 		},
 		{
 			name: "invalid vpc: pending",
@@ -461,6 +461,6 @@ func testPVC() *corev1.PersistentVolumeClaim {
 
 func testVPC() *types.Vpc {
 	return &types.Vpc{
-        State: "available",
-    }
+		State: "available",
+	}
 }
