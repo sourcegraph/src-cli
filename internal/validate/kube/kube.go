@@ -57,7 +57,8 @@ func Quiet() Option {
 func Eks() Option {
 	cfg, err := config.LoadDefaultConfig(context.TODO())
 	if err != nil {
-		log.Fatal(err)
+		log.Printf(err)
+        return
 	}
     
 	return func(config *Config) {
@@ -423,6 +424,15 @@ func contains(sl []string, t string) bool {
 // EksEbs will validate that EKS cluster has ebs-cli drivers installed
 func EksEbs(ctx context.Context, config *Config) ([]validate.Result, error) {
     var results []validate.Result
+    
+    if config.eksClient == nil {
+        results = append(results, validate.Result{
+            Status: validate.Failure,
+            Message: "EKS: validate ebs-csi driver failed",
+        })
+        
+    }
+    
     clusterName := "sourcegraph-cluster"
     inputs := &eks.ListAddonsInput{ClusterName: &clusterName} 
     outputs, err := config.eksClient.ListAddons(ctx, inputs) 
@@ -430,7 +440,7 @@ func EksEbs(ctx context.Context, config *Config) ([]validate.Result, error) {
     if err != nil {
         results = append(results, validate.Result{
             Status: validate.Failure,
-            Message: "validate ebs-csi driver failed",
+            Message: "EKS: validate ebs-csi driver failed",
         })
         return results, err
     }
@@ -440,7 +450,13 @@ func EksEbs(ctx context.Context, config *Config) ([]validate.Result, error) {
             Status: validate.Success, 
             Message: "EKS: ebs-csi driver validated",
         })
-    }
+        return results, nil
+    } 
+    
+    results = append(results, validate.Result{
+        Status: validate.Failure,
+        Message: "EKS: validate ebs-csi driver failed"
+    })
     
     return results, nil
 }
