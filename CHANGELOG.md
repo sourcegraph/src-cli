@@ -15,6 +15,16 @@ All notable changes to `src-cli` are documented in this file.
 
 ### Changed
 
+##Fixed
+
+###Removed
+
+## 4.6.0
+
+### Added
+
+### Changed
+
 ### Fixed
 
 ### Removed
