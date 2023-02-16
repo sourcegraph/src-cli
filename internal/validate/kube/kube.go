@@ -16,7 +16,9 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/remotecommand"
 
-    "github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/ec2"
+	"github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/aws/aws-sdk-go-v2/service/eks"
 	"github.com/sourcegraph/src-cli/internal/validate"
 
@@ -38,7 +40,8 @@ type Config struct {
 	clientSet  *kubernetes.Clientset
 	restConfig *rest.Config
 	eks        bool
-    eksClient *eks.Client
+	eksClient  *eks.Client
+	ec2Client  *ec2.Client
 }
 
 func WithNamespace(namespace string) Option {
@@ -55,15 +58,20 @@ func Quiet() Option {
 }
 
 func Eks() Option {
-	cfg, err := config.LoadDefaultConfig(context.TODO())
+	eksConfig, err := config.LoadDefaultConfig(context.TODO())
 	if err != nil {
-		log.Printf(err)
-        return
+		log.Printf("error while loading config: %s", err)
 	}
-    
+
+	ec2Config, err := config.LoadDefaultConfig(context.TODO())
+	if err != nil {
+		log.Printf("error while loading config: %s", err)
+	}
+
 	return func(config *Config) {
 		config.eks = true
-		config.eksClient = eks.NewFromConfig(cfg)
+		config.eksClient = eks.NewFromConfig(eksConfig)
+		config.ec2Client = ec2.NewFromConfig(ec2Config)
 	}
 }
 
@@ -100,7 +108,8 @@ func Validate(ctx context.Context, clientSet *kubernetes.Clientset, restConfig *
 	validations = append(validations, validationGroup{Connections, "validating connections", "connections validated", "validating connections failed"})
 
 	if cfg.eks == true {
-        validations = append(validations, validationGroup{EksEbs, "EKS: validating ebs-csi drivers", "EKS: ebs-csi drivers validated", "EKS: validating ebs-csi drivers failed"})
+		validations = append(validations, validationGroup{EksEbs, "EKS: validating ebs-csi drivers", "EKS: ebs-csi drivers validated", "EKS: validating ebs-csi drivers failed"})
+		validations = append(validations, validationGroup{EksVpc, "EKS: validating vpc", "EKS: vpc validated", "EKS: validating vpc failed"})
 	}
 
 	var totalFailCount int
@@ -154,7 +163,6 @@ func Validate(ctx context.Context, clientSet *kubernetes.Clientset, restConfig *
 
 	return nil
 }
-
 
 // Pods will validate all pods in a given namespace.
 func Pods(ctx context.Context, config *Config) ([]validate.Result, error) {
@@ -413,50 +421,124 @@ func Connections(ctx context.Context, config *Config) ([]validate.Result, error)
 }
 
 func contains(sl []string, t string) bool {
-    for _, s := range sl {
-        if s == t {
-            return true
-        }
-    }
-    return false
+	for _, s := range sl {
+		if s == t {
+			return true
+		}
+	}
+	return false
 }
 
 // EksEbs will validate that EKS cluster has ebs-cli drivers installed
 func EksEbs(ctx context.Context, config *Config) ([]validate.Result, error) {
-    var results []validate.Result
-    
-    if config.eksClient == nil {
-        results = append(results, validate.Result{
-            Status: validate.Failure,
-            Message: "EKS: validate ebs-csi driver failed",
-        })
-        
-    }
-    
-    clusterName := "sourcegraph-cluster"
-    inputs := &eks.ListAddonsInput{ClusterName: &clusterName} 
-    outputs, err := config.eksClient.ListAddons(ctx, inputs) 
-    
-    if err != nil {
-        results = append(results, validate.Result{
-            Status: validate.Failure,
-            Message: "EKS: validate ebs-csi driver failed",
-        })
-        return results, err
-    }
-    
-    if contains(outputs.Addons, "aws-ebs-csi-driver") {
-        results = append(results, validate.Result{
-            Status: validate.Success, 
-            Message: "EKS: ebs-csi driver validated",
-        })
-        return results, nil
-    } 
-    
-    results = append(results, validate.Result{
-        Status: validate.Failure,
-        Message: "EKS: validate ebs-csi driver failed"
-    })
-    
-    return results, nil
+	var results []validate.Result
+
+	if config.eksClient == nil {
+		results = append(results, validate.Result{
+			Status:  validate.Failure,
+			Message: "EKS: validate ebs-csi driver failed",
+		})
+		return results, nil
+	}
+
+	clusterName := "sourcegraph-cluster"
+	inputs := &eks.ListAddonsInput{ClusterName: &clusterName}
+	outputs, err := config.eksClient.ListAddons(ctx, inputs)
+
+	if err != nil {
+		results = append(results, validate.Result{
+			Status:  validate.Failure,
+			Message: "EKS: validate ebs-csi driver failed",
+		})
+		return results, err
+	}
+
+	if contains(outputs.Addons, "aws-ebs-csi-driver") {
+		results = append(results, validate.Result{
+			Status:  validate.Success,
+			Message: "EKS: ebs-csi driver validated",
+		})
+		return results, nil
+	}
+
+	results = append(results, validate.Result{
+		Status:  validate.Failure,
+		Message: "EKS: validate ebs-csi driver failed",
+	})
+
+	return results, nil
 }
+
+func EksVpc(ctx context.Context, config *Config) ([]validate.Result, error) {
+	var results []validate.Result
+	if config.ec2Client == nil {
+		results = append(results, validate.Result{
+			Status:  validate.Failure,
+			Message: "EKS: validate VPC failed",
+		})
+	}
+
+	inputs := &ec2.DescribeVpcsInput{}
+	outputs, err := config.ec2Client.DescribeVpcs(ctx, inputs)
+
+	if err != nil {
+		results = append(results, validate.Result{
+			Status:  validate.Failure,
+			Message: "EKS: Validate VPC failed",
+		})
+		return results, nil
+	}
+
+	if len(outputs.Vpcs) == 0 {
+		results = append(results, validate.Result{
+			Status:  validate.Failure,
+			Message: "EKS: Validate VPC failed: No VPC configured",
+		})
+		return results, nil
+	}
+    
+	for _, vpc := range outputs.Vpcs {
+        r := validateVpc(vpc)
+		results = append(results, r...)
+	}
+
+	return results, nil
+}
+
+func validateVpc(vpc types.Vpc) (result []validate.Result) {
+	cidrBlockAssociationSet := vpc.CidrBlockAssociationSet
+	state := vpc.State
+
+	for _, set := range cidrBlockAssociationSet {
+		if set.CidrBlockState.State != "associated" {
+			result = append(result, validate.Result{
+				Status:  validate.Warning,
+				Message: fmt.Sprintf("WARNING: VPC with id %v has an association set that is not associated", vpc.VpcId),
+			})
+		}
+	}
+
+	if state == "available" {
+        var isDefault bool
+        isDefault = *vpc.IsDefault
+		if isDefault {
+			result = append(result, validate.Result{
+				Status:  validate.Success,
+				Message: "EKS: Default VPC validated",
+			})
+		} else {
+			result = append(result, validate.Result{
+				Status:  validate.Success,
+				Message: fmt.Sprintf("EKS: VPC with id %v validated", vpc.VpcId),
+			})
+		}
+	} else {
+		result = append(result, validate.Result{
+			Status:  validate.Failure,
+			Message: fmt.Sprintf("State of vpc with id %v not available", vpc.VpcId),
+		})
+	}
+	return result
+}
+
+// func EksIam(ctx context.Context, config *Config) ([]validate.Result, error) {}
