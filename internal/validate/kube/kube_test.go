@@ -6,6 +6,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/sourcegraph/src-cli/internal/validate"
 )
 
@@ -306,6 +307,70 @@ func TestValidatePVC(t *testing.T) {
 	}
 }
 
+func TestValidateVpc(t *testing.T) {
+	cases := []struct {
+		name   string
+		vpc    func(vpc *types.Vpc)
+		result []validate.Result
+	}{
+		{
+			name: "valid vpc",
+            vpc: func(vpc *types.Vpc) {
+                vpc.State = "available" 
+            },
+            result: []validate.Result{
+                {
+                    Status: validate.Success,
+                    Message: "VPC is validated",
+                },
+            },
+		},
+		{
+			name: "invalid vpc: pending",
+			vpc: func(vpc *types.Vpc) {
+				vpc.State = "pending"
+			},
+			result: []validate.Result{
+				{
+					Status:  validate.Failure,
+					Message: "vpc.State stuck in pending state",
+				},
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			vpc := testVPC()
+			if tc.vpc != nil {
+				tc.vpc(vpc)
+			}
+			result := validateVpc(vpc)
+
+			// test should error
+			if len(tc.result) > 0 {
+				if result == nil {
+					t.Fatal("validate should return result")
+					return
+				}
+				if result[0].Status != tc.result[0].Status {
+					t.Errorf("result status\nwant: %v\n got: %v", tc.result[0].Status, result[0].Status)
+				}
+				if result[0].Message != tc.result[0].Message {
+					t.Errorf("result msg\nwant: %s\n got: %s", tc.result[0].Message, result[0].Message)
+				}
+				return
+			}
+
+			// test should not error
+			if result != nil {
+				t.Fatalf("ValidateService error: %v", result)
+			}
+		})
+	}
+}
+
 // helper test function to return a valid pod
 func testPod() *corev1.Pod {
 	return &corev1.Pod{
@@ -392,4 +457,10 @@ func testPVC() *corev1.PersistentVolumeClaim {
 			Phase: "Bound",
 		},
 	}
+}
+
+func testVPC() *types.Vpc {
+	return &types.Vpc{
+        State: "available",
+    }
 }

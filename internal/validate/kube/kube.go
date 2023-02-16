@@ -496,46 +496,27 @@ func EksVpc(ctx context.Context, config *Config) ([]validate.Result, error) {
 		})
 		return results, nil
 	}
-    
+
 	for _, vpc := range outputs.Vpcs {
-        r := validateVpc(vpc)
+		r := validateVpc(&vpc)
 		results = append(results, r...)
 	}
 
 	return results, nil
 }
 
-func validateVpc(vpc types.Vpc) (result []validate.Result) {
-	cidrBlockAssociationSet := vpc.CidrBlockAssociationSet
+func validateVpc(vpc *types.Vpc) (result []validate.Result) {
 	state := vpc.State
 
-	for _, set := range cidrBlockAssociationSet {
-		if set.CidrBlockState.State != "associated" {
-			result = append(result, validate.Result{
-				Status:  validate.Warning,
-				Message: fmt.Sprintf("WARNING: VPC with id %v has an association set that is not associated", vpc.VpcId),
-			})
-		}
-	}
-
 	if state == "available" {
-        var isDefault bool
-        isDefault = *vpc.IsDefault
-		if isDefault {
-			result = append(result, validate.Result{
-				Status:  validate.Success,
-				Message: "EKS: Default VPC validated",
-			})
-		} else {
-			result = append(result, validate.Result{
-				Status:  validate.Success,
-				Message: fmt.Sprintf("EKS: VPC with id %v validated", vpc.VpcId),
-			})
-		}
+		result = append(result, validate.Result{
+			Status:  validate.Success,
+			Message: "VPC is validated",
+		})
 	} else {
 		result = append(result, validate.Result{
 			Status:  validate.Failure,
-			Message: fmt.Sprintf("State of vpc with id %v not available", vpc.VpcId),
+			Message: "vpc.State stuck in pending state",
 		})
 	}
 	return result
