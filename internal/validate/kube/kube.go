@@ -529,5 +529,3 @@ func validateVpc(vpc *types.Vpc) (result []validate.Result) {
 	}
 	return result
 }
-
-// func EksIam(ctx context.Context, config *Config) ([]validate.Result, error) {}
