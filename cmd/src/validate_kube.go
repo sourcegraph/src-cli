@@ -80,9 +80,9 @@ Examples:
 			options = append(options, kube.Quiet())
 		}
 
-        if *eks {
-            options = append(options, kube.Eks())
-        }
+		if *eks {
+			options = append(options, kube.Eks())
+		}
 
 		return kube.Validate(context.Background(), clientSet, config, options...)
 	}

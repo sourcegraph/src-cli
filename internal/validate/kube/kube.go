@@ -108,9 +108,9 @@ func Validate(ctx context.Context, clientSet *kubernetes.Clientset, restConfig *
 	validations = append(validations, validationGroup{Connections, "validating connections", "connections validated", "validating connections failed"})
 
 	if cfg.eks == true {
-        if !CurrentContextSetToEKSCluster() {
-            return fmt.Errorf("🛑 set current context to EKS cluster to use --eks flag")
-        }
+		if !CurrentContextSetToEKSCluster() {
+			return fmt.Errorf("🛑 set current context to EKS cluster to use --eks flag")
+		}
 		validations = append(validations, validationGroup{EksEbs, "EKS: validating ebs-csi drivers", "EKS: ebs-csi drivers validated", "EKS: validating ebs-csi drivers failed"})
 		validations = append(validations, validationGroup{EksVpc, "EKS: validating vpc", "EKS: vpc validated", "EKS: validating vpc failed"})
 	}
