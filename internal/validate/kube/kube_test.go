@@ -381,8 +381,9 @@ func TestValidateEbsCsi(t *testing.T) {
 		{
 			name: "ebs csi drivers installed",
 			addons: func(ListAddonsOutput *eks.ListAddonsOutput) {
-				addons := ListAddonsOutput.Addons
-				addons = append(addons, "aws-ebs-csi-driver")
+				ListAddonsOutput.Addons = []string{
+                    "aws-ebs-csi-driver",
+                }
 			},
 			result: []validate.Result{
 				{
