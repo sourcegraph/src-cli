@@ -39,7 +39,7 @@ func CurrentContextSetToEKSCluster() bool {
 	want := []string{"arn", "aws", "eks"}
 
 	if len(got) >= 3 {
-		got := got[:3]
+		got = got[:3]
 		if reflect.DeepEqual(got, want) {
 			return true
 		}

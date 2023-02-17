@@ -111,8 +111,20 @@ func Validate(ctx context.Context, clientSet *kubernetes.Clientset, restConfig *
 		if !CurrentContextSetToEKSCluster() {
 			return fmt.Errorf("🛑 set current context to EKS cluster to use --eks flag")
 		}
-		validations = append(validations, validationGroup{EksEbs, "EKS: validating ebs-csi drivers", "EKS: ebs-csi drivers validated", "EKS: validating ebs-csi drivers failed"})
-		validations = append(validations, validationGroup{EksVpc, "EKS: validating vpc", "EKS: vpc validated", "EKS: validating vpc failed"})
+
+		validations = append(validations, validationGroup{
+			Validate:   EksEbsCsiDrivers,
+			WaitMsg:    "EKS: validating ebs-csi drivers",
+			SuccessMsg: "EKS: ebs-csi drivers validated",
+			ErrMsg:     "EKS: validating ebs-csi drivers failed",
+		})
+
+		validations = append(validations, validationGroup{
+			Validate:   EksVpc,
+			WaitMsg:    "EKS: validating vpc",
+			SuccessMsg: "EKS: vpc validated",
+			ErrMsg:     "EKS: validating vpc failed",
+		})
 	}
 
 	var totalFailCount int
@@ -423,10 +435,11 @@ func Connections(ctx context.Context, config *Config) ([]validate.Result, error)
 	return results, nil
 }
 
-// EksEbs will validate that EKS cluster has ebs-cli drivers installed
-func EksEbs(ctx context.Context, config *Config) ([]validate.Result, error) {
+// EksEbsCsiDrivers will validate that EKS cluster has ebs-cli drivers installed
+func EksEbsCsiDrivers(ctx context.Context, config *Config) ([]validate.Result, error) {
 	var results []validate.Result
 
+	// if eksClient fails to initialize, return failure
 	if config.eksClient == nil {
 		results = append(results, validate.Result{
 			Status:  validate.Failure,
@@ -447,13 +460,13 @@ func EksEbs(ctx context.Context, config *Config) ([]validate.Result, error) {
 		return results, err
 	}
 
-	r := validateEbsCsi(&outputs.Addons)
+	r := validateEbsCsiDrivers(&outputs.Addons)
 	results = append(results, r...)
 
 	return results, nil
 }
 
-func validateEbsCsi(addons *[]string) (result []validate.Result) {
+func validateEbsCsiDrivers(addons *[]string) (result []validate.Result) {
 	if Contains(addons, "aws-ebs-csi-driver") {
 		result = append(result, validate.Result{
 			Status:  validate.Success,
@@ -514,11 +527,13 @@ func validateVpc(vpc *types.Vpc) (result []validate.Result) {
 			Status:  validate.Success,
 			Message: "VPC is validated",
 		})
-	} else {
-		result = append(result, validate.Result{
-			Status:  validate.Failure,
-			Message: "vpc.State stuck in pending state",
-		})
+		return result
 	}
+    
+	result = append(result, validate.Result{
+		Status:  validate.Failure,
+		Message: "vpc.State stuck in pending state",
+	})
+
 	return result
 }
