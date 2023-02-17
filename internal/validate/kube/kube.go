@@ -95,7 +95,6 @@ func Validate(ctx context.Context, clientSet *kubernetes.Clientset, restConfig *
 		eks:        false,
 	}
 
-	// this is where options are read.
 	for _, opt := range opts {
 		opt(cfg)
 	}
@@ -109,6 +108,9 @@ func Validate(ctx context.Context, clientSet *kubernetes.Clientset, restConfig *
 	validations = append(validations, validationGroup{Connections, "validating connections", "connections validated", "validating connections failed"})
 
 	if cfg.eks == true {
+        if !CurrentContextSetToEKSCluster() {
+            return fmt.Errorf("🛑 set current context to EKS cluster to use --eks flag")
+        }
 		validations = append(validations, validationGroup{EksEbs, "EKS: validating ebs-csi drivers", "EKS: ebs-csi drivers validated", "EKS: validating ebs-csi drivers failed"})
 		validations = append(validations, validationGroup{EksVpc, "EKS: validating vpc", "EKS: vpc validated", "EKS: validating vpc failed"})
 	}
@@ -421,15 +423,6 @@ func Connections(ctx context.Context, config *Config) ([]validate.Result, error)
 	return results, nil
 }
 
-func contains(sl *[]string, t string) bool {
-	for _, s := range *sl {
-		if s == t {
-			return true
-		}
-	}
-	return false
-}
-
 // EksEbs will validate that EKS cluster has ebs-cli drivers installed
 func EksEbs(ctx context.Context, config *Config) ([]validate.Result, error) {
 	var results []validate.Result
@@ -461,7 +454,7 @@ func EksEbs(ctx context.Context, config *Config) ([]validate.Result, error) {
 }
 
 func validateEbsCsi(addons *[]string) (result []validate.Result) {
-	if contains(addons, "aws-ebs-csi-driver") {
+	if Contains(addons, "aws-ebs-csi-driver") {
 		result = append(result, validate.Result{
 			Status:  validate.Success,
 			Message: "EKS: ebs-csi driver validated",
