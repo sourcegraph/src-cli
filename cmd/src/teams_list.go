@@ -22,10 +22,6 @@ Examples:
 
     	$ src teams list -query='myquery'
 
-  List *all* teams (may be slow!):
-
-    	$ src teams list -first='-1'
-
 `
 
 	flagSet := flag.NewFlagSet("list", flag.ExitOnError)
@@ -35,7 +31,7 @@ Examples:
 		fmt.Println(usage)
 	}
 	var (
-		firstFlag  = flagSet.Int("first", 1000, "Returns the first n teams from the list. (use -1 for unlimited)")
+		firstFlag  = flagSet.Int("first", 1000, "Returns the first n teams from the list.")
 		queryFlag  = flagSet.String("query", "", `Returns teams whose name or displayname match the query. (e.g. "engineering")`)
 		formatFlag = flagSet.String("f", "{{.Name}}", `Format for the output, using the syntax of Go package text/template. (e.g. "{{.Name}}: {{.DisplayName}}" or "{{.|json}}")`)
 		jsonFlag   = flagSet.Bool("json", false, `Format for the output as json`)
@@ -56,11 +52,11 @@ Examples:
 
 		query := `query Teams(
 	$first: Int,
-	$query: String
+	$search: String
 ) {
 	teams(
 		first: $first,
-		query: $query
+		search: $search
 	) {
 		nodes {
 			...TeamFields
@@ -75,8 +71,8 @@ Examples:
 			}
 		}
 		if ok, err := client.NewRequest(query, map[string]interface{}{
-			"first": api.NullInt(*firstFlag),
-			"query": api.NullString(*queryFlag),
+			"first":  api.NullInt(*firstFlag),
+			"search": api.NullString(*queryFlag),
 		}).Do(context.Background(), &result); err != nil || !ok {
 			return err
 		}

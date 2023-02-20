@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/sourcegraph/sourcegraph/lib/errors"
+
 	"github.com/sourcegraph/src-cli/internal/api"
 )
 
@@ -37,7 +39,7 @@ Examples:
 		nameFlag   = flagSet.String("name", "", "The team of which to return members")
 		firstFlag  = flagSet.Int("first", 1000, "Returns the first n teams from the list. (use -1 for unlimited)")
 		queryFlag  = flagSet.String("query", "", `Returns teams whose name or displayname match the query. (e.g. "engineering")`)
-		formatFlag = flagSet.String("f", "{{.Name}}", `Format for the output, using the syntax of Go package text/template. (e.g. "{{.Name}}: {{.DisplayName}}" or "{{.|json}}")`)
+		formatFlag = flagSet.String("f", "{{.Username}}", `Format for the output, using the syntax of Go package text/template. (e.g. "{{.Name}}: {{.DisplayName}}" or "{{.|json}}")`)
 		jsonFlag   = flagSet.Bool("json", false, `Format for the output as json`)
 		apiFlags   = api.NewFlags(flagSet)
 	)
@@ -45,6 +47,10 @@ Examples:
 	handler := func(args []string) error {
 		if err := flagSet.Parse(args); err != nil {
 			return err
+		}
+
+		if *nameFlag == "" {
+			return errors.New("must provide -name")
 		}
 
 		tmpl, err := parseTemplate(*formatFlag)
@@ -55,14 +61,14 @@ Examples:
 		client := cfg.apiClient(apiFlags, flagSet.Output())
 
 		query := `query TeamMembers(
-	$name: String,
+	$name: String!,
 	$first: Int,
-	$query: String
+	$search: String
 ) {
 	team(name: $name) {
 		members (
 			first: $first,
-			query: $query
+			search: $search
 		) {
 			nodes {
 				...TeamMemberFields
@@ -80,9 +86,9 @@ Examples:
 			}
 		}
 		if ok, err := client.NewRequest(query, map[string]interface{}{
-			"name":  *nameFlag,
-			"first": api.NullInt(*firstFlag),
-			"query": api.NullString(*queryFlag),
+			"name":   *nameFlag,
+			"first":  api.NullInt(*firstFlag),
+			"search": api.NullString(*queryFlag),
 		}).Do(context.Background(), &result); err != nil || !ok {
 			return err
 		}

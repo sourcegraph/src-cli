@@ -4,12 +4,10 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"strings"
 
 	"github.com/sourcegraph/sourcegraph/lib/errors"
 
 	"github.com/sourcegraph/src-cli/internal/api"
-	"github.com/sourcegraph/src-cli/internal/cmderrors"
 )
 
 func init() {
@@ -53,7 +51,7 @@ Examples:
 		alwaysNil		
 	}
 }
-` + teamFragment
+`
 
 		var result struct {
 			DeleteTeam any
@@ -61,15 +59,6 @@ Examples:
 		if ok, err := client.NewRequest(query, map[string]interface{}{
 			"name": *nameFlag,
 		}).Do(context.Background(), &result); err != nil || !ok {
-			var gqlErr api.GraphQlErrors
-			if errors.As(err, &gqlErr) {
-				for _, e := range gqlErr {
-					// todo
-					if strings.Contains(e.Error(), "team name is already taken") {
-						return cmderrors.ExitCode(3, err)
-					}
-				}
-			}
 			return err
 		}
 

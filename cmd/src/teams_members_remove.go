@@ -14,13 +14,13 @@ func init() {
 	usage := `
 Examples:
 
-  Add a team member:
+  Remove a team member:
 
-    	$ src teams members add -team-name='engineering' [-email='alice@sourcegraph.com'] [-username='alice'] [-id='VXNlcjox'] [-external-account-service-id='https://github.com/' -external-account-service-type='github' [-external-account-account-id='123123123'] [-external-account-login='alice']]
+    	$ src teams members remove -team-name='engineering' [-email='alice@sourcegraph.com'] [-username='alice'] [-id='VXNlcjox'] [-external-account-service-id='https://github.com/' -external-account-service-type='github' [-external-account-account-id='123123123'] [-external-account-login='alice']]
 
 `
 
-	flagSet := flag.NewFlagSet("add", flag.ExitOnError)
+	flagSet := flag.NewFlagSet("remove", flag.ExitOnError)
 	usageFunc := func() {
 		fmt.Fprintf(flag.CommandLine.Output(), "Usage of 'src teams %s':\n", flagSet.Name())
 		flagSet.PrintDefaults()
@@ -49,7 +49,7 @@ Examples:
 
 		client := cfg.apiClient(apiFlags, flagSet.Output())
 
-		query := `mutation AddTeamMember(
+		query := `mutation RemoveTeamMember(
 	$teamName: String!
 	$id: ID,
 	$email: String,
@@ -59,7 +59,7 @@ Examples:
 	$externalAccountAccountID: String,
 	$externalAccountLogin: String,
 ) {
-	addTeamMembers(
+	removeTeamMembers(
 		teamName: $teamName,
 		members: [{
 			id: $id,
@@ -77,7 +77,7 @@ Examples:
 ` + teamFragment
 
 		var result struct {
-			AddTeamMembers Team
+			RemoveTeamMembers Team
 		}
 		if ok, err := client.NewRequest(query, map[string]interface{}{
 			"teamName":                   *teamNameFlag,
