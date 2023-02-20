@@ -47,6 +47,7 @@ fragment TeamFields on Team {
     id
     name
     displayName
+	readonly
 }
 `
 
@@ -54,6 +55,5 @@ type Team struct {
 	ID          string `json:"id"`
 	Name        string `json:"name"`
 	DisplayName string `json:"displayName"`
-	CreatedAt   string `json:"createdAt"`
-	UpdatedAt   string `json:"updatedAt"`
+	Readonly    bool   `json:"readonly"`
 }

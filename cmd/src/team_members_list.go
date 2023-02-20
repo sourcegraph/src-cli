@@ -16,20 +16,20 @@ Examples:
 
   List team members:
 
-    	$ src team members list -name=<name>
+    	$ src team members list -name=<teamName>
 
-  List team members names match the query:
+  List team members whose names match the query:
 
-    	$ src team members list -name=<name> -query='myquery'
+    	$ src team members list -name=<teamName> -query='myquery'
 
 	List *all* team members (may be slow!):
 
-    	$ src team members list -name=<name> -first='-1'
+    	$ src team members list -name=<teamName> -first='-1'
 `
 
 	flagSet := flag.NewFlagSet("list", flag.ExitOnError)
 	usageFunc := func() {
-		fmt.Fprintf(flag.CommandLine.Output(), "Usage of 'src teams %s':\n", flagSet.Name())
+		fmt.Fprintf(flag.CommandLine.Output(), "Usage of 'src team members %s':\n", flagSet.Name())
 		flagSet.PrintDefaults()
 		fmt.Println(usage)
 	}

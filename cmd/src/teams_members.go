@@ -8,20 +8,19 @@ import (
 var teamMembersCommands commander
 
 func init() {
-	usage := `'src teams members' is a tool that manages teams in a Sourcegraph instance.
+	usage := `'src teams members' is a tool that manages team membership in a Sourcegraph instance.
 
 Usage:
 
-	src teams command [command options]
+	src team members command [command options]
 
 The commands are:
 
-	list	lists teams
-	create	create a team
-	delete	delete a team
-	members	manage team members, use "src teams members [command] -h" for more information.
+	list	lists team members
+	add		add team members
+	remove	remove team members
 
-Use "src teams [command] -h" for more information about a command.
+Use "src team members [command] -h" for more information about a command.
 `
 
 	flagSet := flag.NewFlagSet("members", flag.ExitOnError)
