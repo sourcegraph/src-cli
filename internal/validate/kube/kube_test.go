@@ -318,8 +318,8 @@ func TestValidateEbsCsi(t *testing.T) {
 			name: "ebs csi drivers installed",
 			addons: func(ListAddonsOutput *eks.ListAddonsOutput) {
 				ListAddonsOutput.Addons = []string{
-                    "aws-ebs-csi-driver",
-                }
+					"aws-ebs-csi-driver",
+				}
 			},
 			result: []validate.Result{
 				{
@@ -437,7 +437,6 @@ func TestValidateVpc(t *testing.T) {
 		})
 	}
 }
-
 
 // helper test function to return a valid pod
 func testPod() *corev1.Pod {
