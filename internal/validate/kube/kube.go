@@ -529,7 +529,7 @@ func validateVpc(vpc *types.Vpc) (result []validate.Result) {
 		})
 		return result
 	}
-    
+
 	result = append(result, validate.Result{
 		Status:  validate.Failure,
 		Message: "vpc.State stuck in pending state",
