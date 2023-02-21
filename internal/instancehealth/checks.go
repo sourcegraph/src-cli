@@ -139,7 +139,7 @@ func checkPermissionsSyncing(
 			continue
 		}
 		syncCount += 1
-		if sync.State == "ERROR" {
+		if sync.State == "ERROR" || sync.State == "FAILED" {
 			syncErrors = append(syncErrors, sync.FailureMessage)
 		}
 		for _, p := range sync.CodeHostStates {
@@ -149,9 +149,7 @@ func checkPermissionsSyncing(
 			}
 			// Just track one message per state for reference
 			seenProviders[key][p.Status] = p.Message
-			out.WriteLine(output.Linef(output.EmojiInfo, output.StyleBold, "%s %s %s %s", p.ProviderID, p.ProviderType, p.Message, p.Status))
 		}
-		out.WriteLine(output.Linef(output.EmojiInfo, output.StyleBold, "%s %s %s", sync.State, sync.FailureMessage, sync.FinishedAt.String()))
 	}
 
 	if syncCount == 0 {
