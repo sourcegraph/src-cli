@@ -113,7 +113,7 @@ func Validate(ctx context.Context, clientSet *kubernetes.Clientset, restConfig *
 	validations = append(validations, validation{Connections, "validating connections", "connections validated", "validating connections failed"})
 
 	if cfg.eks {
-        if err := CurrentContextSetToEKSCluster(); err != nil {
+		if err := CurrentContextSetToEKSCluster(); err != nil {
 			return errors.Newf("%s %s", validate.FailureEmoji, err)
 		}
 
@@ -439,4 +439,3 @@ func Connections(ctx context.Context, config *Config) ([]validate.Result, error)
 
 	return results, nil
 }
-

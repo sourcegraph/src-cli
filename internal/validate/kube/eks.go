@@ -17,7 +17,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/eks"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 	"github.com/sourcegraph/src-cli/internal/validate"
-    
+
 	"github.com/sourcegraph/sourcegraph/lib/errors"
 )
 
@@ -178,7 +178,7 @@ func CurrentContextSetToEKSCluster() error {
 		}).RawConfig()
 
 	if err != nil {
-        return err
+		return err
 	}
 
 	got := strings.Split(config.CurrentContext, ":")
@@ -243,9 +243,9 @@ func getEBSCSIRole(ctx context.Context, client *iam.Client, SAName string) (Role
 		policyName = policy.PolicyName
 		if *policyName == "AmazonEBSCSIDriverPolicy" {
 			return RolePolicy{
-                PolicyName: policy.PolicyName,
-                PolicyArn: policy.PolicyArn,
-            }, nil
+				PolicyName: policy.PolicyName,
+				PolicyArn:  policy.PolicyArn,
+			}, nil
 		}
 	}
 
