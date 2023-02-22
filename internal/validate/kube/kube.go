@@ -18,8 +18,8 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
-	"github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/aws/aws-sdk-go-v2/service/eks"
+	"github.com/aws/aws-sdk-go-v2/service/iam"
 	"github.com/sourcegraph/src-cli/internal/validate"
 
 	"github.com/sourcegraph/sourcegraph/lib/errors"
@@ -42,6 +42,7 @@ type Config struct {
 	eks        bool
 	eksClient  *eks.Client
 	ec2Client  *ec2.Client
+	iamClient  *iam.Client
 }
 
 func WithNamespace(namespace string) Option {
@@ -60,25 +61,29 @@ func Quiet() Option {
 func Eks() Option {
 	eksConfig, err := config.LoadDefaultConfig(context.TODO())
 	if err != nil {
-		log.Printf("error while loading config: %s", err)
+		log.Printf("error while loading config: %s\n", err)
 	}
 
 	ec2Config, err := config.LoadDefaultConfig(context.TODO())
 	if err != nil {
-		log.Printf("error while loading config: %s", err)
+		log.Printf("error while loading config: %s\n", err)
+	}
+
+	iamConfig, err := config.LoadDefaultConfig(context.TODO())
+	if err != nil {
+		log.Printf("error while loading config: %s\n", err)
 	}
 
 	return func(config *Config) {
 		config.eks = true
 		config.eksClient = eks.NewFromConfig(eksConfig)
 		config.ec2Client = ec2.NewFromConfig(ec2Config)
+		config.iamClient = iam.NewFromConfig(iamConfig)
 	}
 }
 
-type validation func(ctx context.Context, config *Config) ([]validate.Result, error)
-
-type validationGroup struct {
-	Validate   validation
+type validation struct {
+	Validate   func(ctx context.Context, config *Config) ([]validate.Result, error)
 	WaitMsg    string
 	SuccessMsg string
 	ErrMsg     string
@@ -101,25 +106,25 @@ func Validate(ctx context.Context, clientSet *kubernetes.Clientset, restConfig *
 
 	log.SetOutput(cfg.output)
 
-	var validations []validationGroup
-	validations = append(validations, validationGroup{Pods, "validating pods", "pods validated", "validating pods failed"})
-	validations = append(validations, validationGroup{Services, "validating services", "services validated", "validating services failed"})
-	validations = append(validations, validationGroup{PVCs, "validating pvcs", "pvcs validated", "validating pvcs failed"})
-	validations = append(validations, validationGroup{Connections, "validating connections", "connections validated", "validating connections failed"})
+	var validations []validation
+	validations = append(validations, validation{Pods, "validating pods", "pods validated", "validating pods failed"})
+	validations = append(validations, validation{Services, "validating services", "services validated", "validating services failed"})
+	validations = append(validations, validation{PVCs, "validating pvcs", "pvcs validated", "validating pvcs failed"})
+	validations = append(validations, validation{Connections, "validating connections", "connections validated", "validating connections failed"})
 
-	if cfg.eks == true {
-		if !CurrentContextSetToEKSCluster() {
-			return fmt.Errorf("🛑 set current context to EKS cluster to use --eks flag")
+	if cfg.eks {
+        if err := CurrentContextSetToEKSCluster(); err != nil {
+			return errors.Newf("%s %s", validate.FailureEmoji, err)
 		}
 
-		validations = append(validations, validationGroup{
+		validations = append(validations, validation{
 			Validate:   EksEbsCsiDrivers,
 			WaitMsg:    "EKS: validating ebs-csi drivers",
 			SuccessMsg: "EKS: ebs-csi drivers validated",
 			ErrMsg:     "EKS: validating ebs-csi drivers failed",
 		})
 
-		validations = append(validations, validationGroup{
+		validations = append(validations, validation{
 			Validate:   EksVpc,
 			WaitMsg:    "EKS: validating vpc",
 			SuccessMsg: "EKS: vpc validated",
@@ -435,105 +440,3 @@ func Connections(ctx context.Context, config *Config) ([]validate.Result, error)
 	return results, nil
 }
 
-// EksEbsCsiDrivers will validate that EKS cluster has ebs-cli drivers installed
-func EksEbsCsiDrivers(ctx context.Context, config *Config) ([]validate.Result, error) {
-	var results []validate.Result
-
-	// if eksClient fails to initialize, return failure
-	if config.eksClient == nil {
-		results = append(results, validate.Result{
-			Status:  validate.Failure,
-			Message: "EKS: validate ebs-csi driver failed",
-		})
-		return results, nil
-	}
-
-	clusterName := "sourcegraph-cluster"
-	inputs := &eks.ListAddonsInput{ClusterName: &clusterName}
-	outputs, err := config.eksClient.ListAddons(ctx, inputs)
-
-	if err != nil {
-		results = append(results, validate.Result{
-			Status:  validate.Failure,
-			Message: "EKS: validate ebs-csi driver failed",
-		})
-		return results, err
-	}
-
-	r := validateEbsCsiDrivers(&outputs.Addons)
-	results = append(results, r...)
-
-	return results, nil
-}
-
-func validateEbsCsiDrivers(addons *[]string) (result []validate.Result) {
-	if Contains(addons, "aws-ebs-csi-driver") {
-		result = append(result, validate.Result{
-			Status:  validate.Success,
-			Message: "EKS: ebs-csi driver validated",
-		})
-		return result
-	}
-
-	result = append(result, validate.Result{
-		Status:  validate.Failure,
-		Message: "EKS: validate ebs-csi driver failed",
-	})
-	return result
-}
-
-// EksVpc checks if a valid vpc available
-func EksVpc(ctx context.Context, config *Config) ([]validate.Result, error) {
-	var results []validate.Result
-	if config.ec2Client == nil {
-		results = append(results, validate.Result{
-			Status:  validate.Failure,
-			Message: "EKS: validate VPC failed",
-		})
-	}
-
-	inputs := &ec2.DescribeVpcsInput{}
-	outputs, err := config.ec2Client.DescribeVpcs(ctx, inputs)
-
-	if err != nil {
-		results = append(results, validate.Result{
-			Status:  validate.Failure,
-			Message: "EKS: Validate VPC failed",
-		})
-		return results, nil
-	}
-
-	if len(outputs.Vpcs) == 0 {
-		results = append(results, validate.Result{
-			Status:  validate.Failure,
-			Message: "EKS: Validate VPC failed: No VPC configured",
-		})
-		return results, nil
-	}
-
-	for _, vpc := range outputs.Vpcs {
-		r := validateVpc(&vpc)
-		results = append(results, r...)
-	}
-
-	return results, nil
-}
-
-func validateVpc(vpc *types.Vpc) (result []validate.Result) {
-	state := vpc.State
-
-	if state == "available" {
-		result = append(result, validate.Result{
-			Status:  validate.Success,
-			Message: "VPC is validated",
-		})
-		return result
-	}
-
-	result = append(result, validate.Result{
-		Status:  validate.Failure,
-		Message: "vpc.State stuck in pending state",
-	})
-
-	return result
-}

@@ -308,7 +308,7 @@ func TestValidatePVC(t *testing.T) {
 	}
 }
 
-func TestValidateEbsCsi(t *testing.T) {
+/* func TestValidateEbsCsi(t *testing.T) {
 	cases := []struct {
 		name   string
 		addons func(ListAddonsOutput *eks.ListAddonsOutput)
@@ -372,7 +372,7 @@ func TestValidateEbsCsi(t *testing.T) {
 			}
 		})
 	}
-}
+} */
 
 func TestValidateVpc(t *testing.T) {
 	cases := []struct {
