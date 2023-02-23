@@ -28,6 +28,7 @@ Examples:
 	}
 	var (
 		teamNameFlag                   = flagSet.String("team-name", "", "The team name")
+		skipUnmatchedMembersFlag       = flagSet.Bool("skip-unmatched-members", false, "If true, members that don't match a Sourcegraph user or team will be silently skipped")
 		emailFlag                      = flagSet.String("email", "", "Email to match the user by")
 		usernameFlag                   = flagSet.String("username", "", "Username to match the user by")
 		idFlag                         = flagSet.String("id", "", "Sourcegraph user ID to match the user by")
@@ -58,6 +59,7 @@ Examples:
 	$externalAccountServiceType: String,
 	$externalAccountAccountID: String,
 	$externalAccountLogin: String,
+	$skipUnmatchedMembers: Boolean,
 ) {
 	addTeamMembers(
 		teamName: $teamName,
@@ -69,7 +71,8 @@ Examples:
 			externalAccountServiceType: $externalAccountServiceType,
 			externalAccountAccountID: $externalAccountAccountID,
 			externalAccountLogin: $externalAccountLogin,
-		}]
+		}],
+		skipUnmatchedMembers: $skipUnmatchedMembers,
 	) {
 		...TeamFields
 	}
@@ -81,6 +84,7 @@ Examples:
 		}
 		if ok, err := client.NewRequest(query, map[string]interface{}{
 			"teamName":                   *teamNameFlag,
+			"skipUnmatchedMembers":       *skipUnmatchedMembersFlag,
 			"id":                         api.NullString(*idFlag),
 			"email":                      api.NullString(*emailFlag),
 			"username":                   api.NullString(*usernameFlag),
