@@ -27,90 +27,11 @@ type EbsTestObjects struct {
     ebsRolePolicy  RolePolicy
 }
 
-// EksEbsCsiDrivers will validate that EKS cluster has ebs-cli drivers installed and configured
-func EksEbsCsiDrivers(ctx context.Context, config *Config) ([]validate.Result, error) {
-    var results []validate.Result
-    var ebsTestParams EbsTestObjects
-
-    addons, err := getAddons(ctx, config.eksClient)
-    if err != nil {
-        results = append(results, validate.Result{
-            Status:  validate.Failure,
-            Message: "EKS: could not validate ebs in addons",
-        })
-        return results, err
-    }
-
-    ebsSA, err := getEbsSA(ctx, config.clientSet)
-    if err != nil {
-        results = append(results, validate.Result{
-            Status:  validate.Failure,
-            Message: "EKS: could not validate ebs service account",
-        })
-        return results, err
-    }
-
-    EBSCSIRole, err := getEBSCSIRole(ctx, config.iamClient, ebsSA)
-    if err != nil {
-        results = append(results, validate.Result{
-            Status:  validate.Failure,
-            Message: "EKS: could not validate ebs role policy",
-        })
-    }
-
-    ebsTestParams.addons = addons
-    ebsTestParams.serviceAccount = ebsSA
-    ebsTestParams.ebsRolePolicy = EBSCSIRole
-
-    r := validateEbsCsiDrivers(ebsTestParams)
-    results = append(results, r...)
-
-    return results, nil
+type RolePolicy struct {
+    PolicyName *string
+    PolicyArn  *string
 }
 
-func validateEbsCsiDrivers(testers EbsTestObjects) (result []validate.Result) {
-    for _, addon := range testers.addons {
-        if addon == "aws-ebs-csi-driver" {
-            result = append(result, validate.Result{
-                Status:  validate.Success,
-                Message: "EKS: ebs-csi driver validated",
-            })
-        } else {
-            result = append(result, validate.Result{
-                Status:  validate.Failure,
-                Message: "EKS: no 'aws-ebs-csi-driver' present in addons",
-            })
-        }
-    }
-
-    if testers.serviceAccount != "" {
-        result = append(result, validate.Result{
-            Status:  validate.Success,
-            Message: "EKS: ebs service account validated",
-        })
-    } else {
-        result = append(result, validate.Result{
-            Status:  validate.Failure,
-            Message: "EKS: no 'ebs-csi-controller-sa' service account present in cluster",
-        })
-    }
-
-    if *testers.ebsRolePolicy.PolicyName == "AmazonEBSCSIDriverPolicy" {
-        result = append(result, validate.Result{
-            Status:  validate.Success,
-            Message: "EKS: service account ebs role policy validated",
-        })
-    } else {
-        result = append(result, validate.Result{
-            Status:  validate.Failure,
-            Message: "EKS: no 'AmazonEBSCSIDriverPolicy' attached to role",
-        })
-    }
-
-    return result
-}
-
-// EksVpc checks if a valid vpc available
 func EksVpc(ctx context.Context, config *Config) ([]validate.Result, error) {
     var results []validate.Result
     if config.ec2Client == nil {
@@ -128,6 +49,7 @@ func EksVpc(ctx context.Context, config *Config) ([]validate.Result, error) {
             Status:  validate.Failure,
             Message: "EKS: Validate VPC failed",
         })
+
         return results, nil
     }
 
@@ -136,6 +58,7 @@ func EksVpc(ctx context.Context, config *Config) ([]validate.Result, error) {
             Status:  validate.Failure,
             Message: "EKS: Validate VPC failed: No VPC configured",
         })
+
         return results, nil
     }
 
@@ -155,6 +78,7 @@ func validateVpc(vpc *types.Vpc) (result []validate.Result) {
             Status:  validate.Success,
             Message: "VPC is validated",
         })
+
         return result
     }
 
@@ -166,7 +90,112 @@ func validateVpc(vpc *types.Vpc) (result []validate.Result) {
     return result
 }
 
-// checks if current context is set to EKS cluster
+func EksEbsCsiDrivers(ctx context.Context, config *Config) ([]validate.Result, error) {
+    var results []validate.Result
+    var ebsTestParams EbsTestObjects
+
+    addons, err := getAddons(ctx, config.eksClient)
+    if err != nil {
+        results = append(results, validate.Result{
+            Status:  validate.Failure,
+            Message: "EKS: could not validate ebs in addons",
+        })
+
+        return results, err
+    }
+
+    ebsSA, err := getEbsSA(ctx, config.clientSet)
+    if err != nil {
+        results = append(results, validate.Result{
+            Status:  validate.Failure,
+            Message: "EKS: could not validate ebs service account",
+        })
+
+        return results, err
+    }
+
+    EBSCSIRole, err := getEBSCSIRole(ctx, config.iamClient, ebsSA)
+    if err != nil {
+        results = append(results, validate.Result{
+            Status:  validate.Failure,
+            Message: "EKS: could not validate ebs role policy",
+        })
+
+        return results, err
+    }
+
+    ebsTestParams.addons = addons
+    ebsTestParams.serviceAccount = ebsSA
+    ebsTestParams.ebsRolePolicy = EBSCSIRole
+
+    result := validateEbsCsiDrivers(ebsTestParams)
+    results = append(results, result...)
+
+    return results, nil
+}
+
+func validateEbsCsiDrivers(testers EbsTestObjects) (result []validate.Result) {
+    result = append(result, validateAddons(testers.addons)...)
+    result = append(result, validateServiceAccount(testers.serviceAccount)...)
+    result = append(result, validateRolePolicy(testers.ebsRolePolicy)...)
+
+    return result
+}
+
+func validateAddons(addons []string) (result []validate.Result) {
+    for _, addon := range addons {
+        if addon == "aws-ebs-csi-driver" {
+            result = append(result, validate.Result{
+                Status:  validate.Success,
+                Message: "EKS: 'aws-ebs-csi-driver' present in addons",
+            })
+            return result
+        }
+    }
+
+    result = append(result, validate.Result{
+        Status:  validate.Failure,
+        Message: "EKS: no 'aws-ebs-csi-driver' present in addons",
+    })
+
+    return result
+}
+
+func validateServiceAccount(sa string) (result []validate.Result) {
+    if sa != "" {
+        result = append(result, validate.Result{
+            Status:  validate.Success,
+            Message: "EKS: 'ebs-csi-controller-sa' present on cluster",
+        })
+        return result
+    }
+
+    result = append(result, validate.Result{
+        Status:  validate.Failure,
+        Message: "EKS: no 'ebs-csi-controller-sa' service account present in cluster",
+    })
+
+    return result
+}
+
+func validateRolePolicy(rolePolicy RolePolicy) (result []validate.Result) {
+    if *rolePolicy.PolicyName == "AmazonEBSCSIDriverPolicy" {
+        result = append(result, validate.Result{
+            Status:  validate.Success,
+            Message: "EKS: 'AmazonEBSCSIDriverPolicy' bound to role",
+        })
+
+        return result
+    }
+
+    result = append(result, validate.Result{
+        Status:  validate.Failure,
+        Message: "EKS: no 'AmazonEBSCSIDriverPolicy' bound to role",
+    })
+
+    return result
+}
+
 func CurrentContextSetToEKSCluster() error {
     home := homedir.HomeDir()
     pathToKubeConfig := filepath.Join(home, ".kube", "config")
@@ -225,17 +254,16 @@ func getEbsSA(ctx context.Context, client *kubernetes.Clientset) (string, error)
     return ebsControllerSA, nil
 }
 
-type RolePolicy struct {
-    PolicyName *string
-    PolicyArn  *string
-}
-
-func getEBSCSIRole(ctx context.Context, client *iam.Client, SAName string) (RolePolicy, error) {
-    inputs := iam.ListAttachedRolePoliciesInput{RoleName: &SAName}
+func getEBSCSIRole(ctx context.Context, client *iam.Client, sa string) (RolePolicy, error) {
+    inputs := iam.ListAttachedRolePoliciesInput{RoleName: &sa}
     outputs, err := client.ListAttachedRolePolicies(ctx, &inputs)
 
     if err != nil {
         return RolePolicy{}, err
+    }
+
+    if len(outputs.AttachedPolicies) == 0 {
+        return RolePolicy{}, nil
     }
 
     var policyName *string
@@ -269,5 +297,6 @@ func getClusterName(ctx context.Context, client *eks.Client) *string {
 
     currentContext := strings.Split(config.CurrentContext, "/")
     clusterName := currentContext[len(currentContext)-1]
+
     return &clusterName
 }
