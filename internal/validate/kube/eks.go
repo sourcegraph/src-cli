@@ -7,6 +7,7 @@ import (
     "reflect"
     "strings"
 
+    corev1 "k8s.io/api/core/v1"
     metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
     "k8s.io/client-go/kubernetes"
     "k8s.io/client-go/tools/clientcmd"
@@ -22,9 +23,10 @@ import (
 )
 
 type EbsTestObjects struct {
-    addons         []string
-    serviceAccount string
-    ebsRolePolicy  RolePolicy
+    addons             []string
+    serviceAccount     *corev1.ServiceAccount
+    serviceAccountRole string
+    ebsRolePolicy      RolePolicy
 }
 
 type RolePolicy struct {
@@ -104,7 +106,7 @@ func EksEbsCsiDrivers(ctx context.Context, config *Config) ([]validate.Result, e
         return results, err
     }
 
-    ebsSA, err := getEbsSA(ctx, config.clientSet)
+    ebsServiceAccount, err := getEBSServiceAccount(ctx, config.clientSet)
     if err != nil {
         results = append(results, validate.Result{
             Status:  validate.Failure,
@@ -114,7 +116,17 @@ func EksEbsCsiDrivers(ctx context.Context, config *Config) ([]validate.Result, e
         return results, err
     }
 
-    EBSCSIRole, err := getEBSCSIRole(ctx, config.iamClient, ebsSA)
+    ebsServiceAccountRole, err := getEBSServiceAccountRole(ebsServiceAccount)
+    if err != nil {
+        results = append(results, validate.Result{
+            Status:  validate.Failure,
+            Message: "EKS: could not validate ebs service account attached to role",
+        })
+
+        return results, err
+    }
+
+    ebsRolePolicy, err := getEBSCSIPolicy(ctx, config.iamClient, ebsServiceAccountRole)
     if err != nil {
         results = append(results, validate.Result{
             Status:  validate.Failure,
@@ -125,8 +137,9 @@ func EksEbsCsiDrivers(ctx context.Context, config *Config) ([]validate.Result, e
     }
 
     ebsTestParams.addons = addons
-    ebsTestParams.serviceAccount = ebsSA
-    ebsTestParams.ebsRolePolicy = EBSCSIRole
+    ebsTestParams.serviceAccount = ebsServiceAccount
+    ebsTestParams.serviceAccountRole = ebsServiceAccountRole
+    ebsTestParams.ebsRolePolicy = ebsRolePolicy
 
     result := validateEbsCsiDrivers(ebsTestParams)
     results = append(results, result...)
@@ -137,6 +150,7 @@ func EksEbsCsiDrivers(ctx context.Context, config *Config) ([]validate.Result, e
 func validateEbsCsiDrivers(testers EbsTestObjects) (result []validate.Result) {
     result = append(result, validateAddons(testers.addons)...)
     result = append(result, validateServiceAccount(testers.serviceAccount)...)
+    result = append(result, validateServiceAccountRole(testers.serviceAccountRole)...)
     result = append(result, validateRolePolicy(testers.ebsRolePolicy)...)
 
     return result
@@ -161,8 +175,8 @@ func validateAddons(addons []string) (result []validate.Result) {
     return result
 }
 
-func validateServiceAccount(sa string) (result []validate.Result) {
-    if sa != "" {
+func validateServiceAccount(serviceAccount *corev1.ServiceAccount) (result []validate.Result) {
+    if serviceAccount.Name == "ebs-csi-controller-sa" {
         result = append(result, validate.Result{
             Status:  validate.Success,
             Message: "EKS: 'ebs-csi-controller-sa' present on cluster",
@@ -172,7 +186,24 @@ func validateServiceAccount(sa string) (result []validate.Result) {
 
     result = append(result, validate.Result{
         Status:  validate.Failure,
-        Message: "EKS: no 'ebs-csi-controller-sa' service account present in cluster",
+        Message: "EKS: no 'ebs-csi-controller-sa' present on cluster",
+    })
+
+    return result
+}
+
+func validateServiceAccountRole(serviceAccountRole string) (result []validate.Result) {
+    if serviceAccountRole != "" {
+        result = append(result, validate.Result{
+            Status:  validate.Success,
+            Message: "EKS: role attached to 'ebs-csi-controller-sa' service account",
+        })
+        return result
+    }
+
+    result = append(result, validate.Result{
+        Status:  validate.Failure,
+        Message: "EKS: no role attached to 'ebs-csi-controller-sa' service account",
     })
 
     return result
@@ -235,7 +266,7 @@ func getAddons(ctx context.Context, client *eks.Client) ([]string, error) {
     return outputs.Addons, nil
 }
 
-func getEbsSA(ctx context.Context, client *kubernetes.Clientset) (string, error) {
+func getEBSServiceAccount(ctx context.Context, client *kubernetes.Clientset) (*corev1.ServiceAccount, error) {
     serviceAccounts := client.CoreV1().ServiceAccounts("kube-system")
     ebsSA, err := serviceAccounts.Get(
         ctx,
@@ -244,17 +275,35 @@ func getEbsSA(ctx context.Context, client *kubernetes.Clientset) (string, error)
     )
 
     if err != nil {
-        return "", err
+        return nil, err
     }
 
-    annotations := ebsSA.GetAnnotations()
-    roleArn := strings.Split(annotations["eks.amazonaws.com/role-arn"], "/")
-    ebsControllerSA := roleArn[len(roleArn)-1]
+    return ebsSA, nil
+}
 
+func getEBSServiceAccountRole(sa *corev1.ServiceAccount) (string, error) {
+    annotations := sa.GetAnnotations()
+    if _, ok := annotations["eks.amazonaws.com/role-arn"]; !ok {
+        return "", errors.Newf(
+            "%s no role attached to service account",
+            validate.FailureEmoji,
+        )
+    }
+
+    roleArn := strings.Split(annotations["eks.amazonaws.com/role-arn"], "/")
+    if len(roleArn) != 2 {
+        return "", errors.Newf(
+            "%s value of 'eks.amazonaws.com/role-arn' invalid",
+            validate.FailureEmoji,
+        )
+    }
+
+    ebsControllerSA := roleArn[1]
     return ebsControllerSA, nil
 }
 
-func getEBSCSIRole(ctx context.Context, client *iam.Client, sa string) (RolePolicy, error) {
+// getEbsCSIPolicy
+func getEBSCSIPolicy(ctx context.Context, client *iam.Client, sa string) (RolePolicy, error) {
     inputs := iam.ListAttachedRolePoliciesInput{RoleName: &sa}
     outputs, err := client.ListAttachedRolePolicies(ctx, &inputs)
 

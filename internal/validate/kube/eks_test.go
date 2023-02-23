@@ -178,7 +178,7 @@ func TestValidateServiceAccount(t *testing.T) {
             result: []validate.Result{
                 {
                     Status:  validate.Failure,
-                    Message: "EKS: no 'ebs-csi-controller-sa' service account present in cluster",
+                    Message: "EKS: no 'ebs-csi-controller-sa' present on cluster",
                 },
             },
         },
@@ -191,7 +191,7 @@ func TestValidateServiceAccount(t *testing.T) {
             if tc.sa != nil {
                 tc.sa(sa)
             }
-            result := validateServiceAccount(sa.ObjectMeta.Name)
+            result := validateServiceAccount(sa)
 
             // test should error
             if len(tc.result) > 0 {
