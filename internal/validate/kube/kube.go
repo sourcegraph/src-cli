@@ -16,7 +16,6 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/remotecommand"
 
-	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/aws/aws-sdk-go-v2/service/eks"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
@@ -58,29 +57,6 @@ func Quiet() Option {
 	}
 }
 
-func Eks() Option {
-	eksConfig, err := config.LoadDefaultConfig(context.TODO())
-	if err != nil {
-		log.Printf("error while loading config: %s\n", err)
-	}
-
-	ec2Config, err := config.LoadDefaultConfig(context.TODO())
-	if err != nil {
-		log.Printf("error while loading config: %s\n", err)
-	}
-
-	iamConfig, err := config.LoadDefaultConfig(context.TODO())
-	if err != nil {
-		log.Printf("error while loading config: %s\n", err)
-	}
-
-	return func(config *Config) {
-		config.eks = true
-		config.eksClient = eks.NewFromConfig(eksConfig)
-		config.ec2Client = ec2.NewFromConfig(ec2Config)
-		config.iamClient = iam.NewFromConfig(iamConfig)
-	}
-}
 
 type validation struct {
 	Validate   func(ctx context.Context, config *Config) ([]validate.Result, error)
@@ -117,6 +93,8 @@ func Validate(ctx context.Context, clientSet *kubernetes.Clientset, restConfig *
 		if err := CurrentContextSetToEKSCluster(); err != nil {
 			return errors.Newf("%s %s", validate.FailureEmoji, err)
 		}
+        
+        GenerateAWSClients(ctx)
 
 		validations = append(validations, validation{
 			Validate:   EksEbsCsiDrivers,

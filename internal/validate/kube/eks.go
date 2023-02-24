@@ -3,6 +3,7 @@ package kube
 import (
 	"context"
 	"fmt"
+	"log"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -13,6 +14,7 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/util/homedir"
 
+	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/aws/aws-sdk-go-v2/service/eks"
@@ -32,6 +34,30 @@ type EbsTestObjects struct {
 type RolePolicy struct {
 	PolicyName *string
 	PolicyArn  *string
+}
+
+func GenerateAWSClients(ctx context.Context) Option {
+	eksConfig, err := config.LoadDefaultConfig(ctx)
+	if err != nil {
+		log.Printf("error while loading config: %s\n", err)
+	}
+
+	ec2Config, err := config.LoadDefaultConfig(ctx)
+	if err != nil {
+		log.Printf("error while loading config: %s\n", err)
+	}
+
+	iamConfig, err := config.LoadDefaultConfig(ctx)
+	if err != nil {
+		log.Printf("error while loading config: %s\n", err)
+	}
+
+	return func(config *Config) {
+		config.eks = true
+		config.eksClient = eks.NewFromConfig(eksConfig)
+		config.ec2Client = ec2.NewFromConfig(ec2Config)
+		config.iamClient = iam.NewFromConfig(iamConfig)
+	}
 }
 
 func EksVpc(ctx context.Context, config *Config) ([]validate.Result, error) {
