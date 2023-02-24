@@ -106,11 +106,12 @@ func Validate(ctx context.Context, clientSet *kubernetes.Clientset, restConfig *
 
     log.SetOutput(cfg.output)
 
-    var validations []validation
-    validations = append(validations, validation{Pods, "validating pods", "pods validated", "validating pods failed"})
-    validations = append(validations, validation{Services, "validating services", "services validated", "validating services failed"})
-    validations = append(validations, validation{PVCs, "validating pvcs", "pvcs validated", "validating pvcs failed"})
-    validations = append(validations, validation{Connections, "validating connections", "connections validated", "validating connections failed"})
+ validations := []validation{
+    {Pods, "validating pods", "pods validated", "validating pods failed"},
+    {Services, "validating services", "services validated", "validating services failed"},
+    {PVCs, "validating pvcs", "pvcs validated", "validating pvcs failed"},
+    {Connections, "validating connections", "connections validated", "validating connections failed"},
+}
 
     if cfg.eks {
         if err := CurrentContextSetToEKSCluster(); err != nil {
