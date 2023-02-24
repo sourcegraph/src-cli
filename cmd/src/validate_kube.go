@@ -81,7 +81,7 @@ Examples:
 		}
 
 		if *eks {
-			options = append(options, kube.Eks())
+			options = append(options, kube.GenerateAWSClients(context.Background()))
 		}
 
 		return kube.Validate(context.Background(), clientSet, config, options...)

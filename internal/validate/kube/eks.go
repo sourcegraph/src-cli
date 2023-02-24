@@ -277,7 +277,7 @@ func CurrentContextSetToEKSCluster() error {
 		}
 	}
 
-return errors.New("no eks cluster configured")
+	return errors.New("no eks cluster configured")
 }
 
 func getAddons(ctx context.Context, client *eks.Client) ([]string, error) {

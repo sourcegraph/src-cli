@@ -57,7 +57,6 @@ func Quiet() Option {
 	}
 }
 
-
 type validation struct {
 	Validate   func(ctx context.Context, config *Config) ([]validate.Result, error)
 	WaitMsg    string
@@ -93,8 +92,8 @@ func Validate(ctx context.Context, clientSet *kubernetes.Clientset, restConfig *
 		if err := CurrentContextSetToEKSCluster(); err != nil {
 			return errors.Newf("%s %s", validate.FailureEmoji, err)
 		}
-        
-        GenerateAWSClients(ctx)
+
+		GenerateAWSClients(ctx)
 
 		validations = append(validations, validation{
 			Validate:   EksEbsCsiDrivers,
