@@ -23,10 +23,6 @@ Examples:
   List team members whose names match the query:
 
     	$ src team members list -name=<teamName> -query='myquery'
-
-	List *all* team members (may be slow!):
-
-    	$ src team members list -name=<teamName> -first='-1'
 `
 
 	flagSet := flag.NewFlagSet("list", flag.ExitOnError)
@@ -37,7 +33,7 @@ Examples:
 	}
 	var (
 		nameFlag   = flagSet.String("name", "", "The team of which to return members")
-		firstFlag  = flagSet.Int("first", 1000, "Returns the first n teams from the list. (use -1 for unlimited)")
+		firstFlag  = flagSet.Int("first", 1000, "Returns the first n teams from the list")
 		queryFlag  = flagSet.String("query", "", `Returns teams whose name or displayname match the query. (e.g. "engineering")`)
 		formatFlag = flagSet.String("f", "{{.Username}}", `Format for the output, using the syntax of Go package text/template. (e.g. "{{.Name}}: {{.DisplayName}}" or "{{.|json}}")`)
 		jsonFlag   = flagSet.Bool("json", false, `Format for the output as json`)

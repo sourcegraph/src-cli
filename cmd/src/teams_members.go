@@ -17,7 +17,7 @@ Usage:
 The commands are:
 
 	list	lists team members
-	add		add team members
+	add	add team members
 	remove	remove team members
 
 Use "src team members [command] -h" for more information about a command.

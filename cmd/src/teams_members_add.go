@@ -64,7 +64,7 @@ Examples:
 	addTeamMembers(
 		teamName: $teamName,
 		members: [{
-			id: $id,
+			userID: $id,
 			email: $email,
 			username: $username,
 			externalAccountServiceID: $externalAccountServiceID,
