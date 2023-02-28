@@ -22,6 +22,8 @@ import (
 	"github.com/sourcegraph/src-cli/internal/validate"
 
 	"github.com/sourcegraph/sourcegraph/lib/errors"
+  	_ "k8s.io/client-go/plugin/pkg/client/auth/azure"
+    _ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 )
 
 var (
