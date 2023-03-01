@@ -13,7 +13,6 @@ import (
 	"strings"
 
 	"cloud.google.com/go/container"
-	"google.golang.org/genproto/googleapis/cloud/gkehub/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -53,7 +52,6 @@ type Config struct {
 	ec2Client  *ec2.Client
 	iamClient  *iam.Client
 	gcpClient  *container.Client
-    gkeClient  *gkehub.GkeHubClient
 }
 
 func WithNamespace(namespace string) Option {
@@ -128,15 +126,14 @@ func Validate(ctx context.Context, clientSet *kubernetes.Clientset, restConfig *
 			return errors.Newf("%s %s", validate.FailureEmoji, err)
 		}
 
-        // c, err := container.NewClusterManagerClient(ctx)
 		Gke(ctx)
 
-        validations = append(validations, validation{
-            Validate: GkeGcePersistentDiskCSIDrivers,
-            WaitMsg: "GKE: validating persistent volumes",
-            SuccessMsg: "GKE: persistent volumes validated",
-            ErrMsg: "GKE: validating peristent volumes failed",
-        })
+		validations = append(validations, validation{
+			Validate:   GkeGcePersistentDiskCSIDrivers,
+			WaitMsg:    "GKE: validating persistent volumes",
+			SuccessMsg: "GKE: persistent volumes validated",
+			ErrMsg:     "GKE: validating peristent volumes failed",
+		})
 	}
 
 	var totalFailCount int
@@ -448,20 +445,20 @@ func Connections(ctx context.Context, config *Config) ([]validate.Result, error)
 }
 
 func CurrentContextSetTo(clusterService string) error {
-    currentContext, err := GetCurrentContext()
+	currentContext, err := GetCurrentContext()
 	if err != nil {
 		return err
 	}
 
 	if clusterService == "gke" {
-        got := strings.Split(currentContext, "_")[0]
-        want := clusterService
+		got := strings.Split(currentContext, "_")[0]
+		want := clusterService
 		if got != want {
 			return errors.New("no gke cluster configured")
 		}
 	} else if clusterService == "eks" {
-        got := strings.Split(currentContext, ":")
-        want := []string{"arn", "aws", clusterService}
+		got := strings.Split(currentContext, ":")
+		want := []string{"arn", "aws", clusterService}
 
 		if len(got) >= 3 {
 			got = got[:3]
@@ -488,5 +485,5 @@ func GetCurrentContext() (string, error) {
 		return "", err
 	}
 
-    return config.CurrentContext, nil
+	return config.CurrentContext, nil
 }
