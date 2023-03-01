@@ -191,7 +191,6 @@ func executeBatchSpecInWorkspaces(ctx context.Context, flags *executorModeFlags)
 
 	dockerPrefix, ok := environ["DOCKER_PREFIX_REGISTRY_URL"]
 	if ok {
-
 		for i := 0; i < len(task.Steps); i++ {
 			step := &task.Steps[i]
 			step.Container = fmt.Sprintf("%s/%s", dockerPrefix, step.Container)
