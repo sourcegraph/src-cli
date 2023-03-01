@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/sourcegraph/src-cli/internal/batches/docker"
@@ -174,6 +175,29 @@ func executeBatchSpecInWorkspaces(ctx context.Context, flags *executorModeFlags)
 		return errors.New("invalid execution, no steps to process")
 	}
 
+	// Pass the os.Environ to run steps to allow access to the secrets set
+	// in the executor environment.
+	// The executor runtime takes care of not forwarding any sensitive secrets
+	// from the host, so this is safe.
+	globalEnv := os.Environ()
+
+	// If the docker prefix registry is set, inject it into each step's container
+	// to fully qualify the container name
+	environ := map[string]string{}
+	for _, e := range globalEnv {
+		pair := strings.SplitN(e, "=", 2)
+		environ[pair[0]] = pair[1]
+	}
+
+	dockerPrefix, ok := environ["DOCKER_PREFIX_REGISTRY_URL"]
+	if ok {
+
+		for i := 0; i < len(task.Steps); i++ {
+			step := &task.Steps[i]
+			step.Container = fmt.Sprintf("%s/%s", dockerPrefix, step.Container)
+		}
+	}
+
 	imageCache := docker.NewImageCache()
 
 	ui.PreparingContainerImages()
@@ -193,12 +217,6 @@ func executeBatchSpecInWorkspaces(ctx context.Context, flags *executorModeFlags)
 	taskExecUI := ui.ExecutingTasks(false, 1)
 	taskExecUI.Start([]*executor.Task{task})
 	taskExecUI.TaskStarted(task)
-
-	// Pass the os.Environ to run steps to allow access to the secrets set
-	// in the executor environment.
-	// The executor runtime takes care of not forwarding any sensitive secrets
-	// from the host, so this is safe.
-	globalEnv := os.Environ()
 
 	opts := &executor.RunStepsOpts{
 		Logger:      &log.NoopTaskLogger{},
