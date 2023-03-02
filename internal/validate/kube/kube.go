@@ -19,7 +19,6 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 
-	// "k8s.io/client-go/tools/clientcmd/api"
 	"k8s.io/client-go/tools/remotecommand"
 	"k8s.io/client-go/util/homedir"
 
@@ -124,7 +123,7 @@ func Validate(ctx context.Context, clientSet *kubernetes.Clientset, restConfig *
 			return errors.Newf("%s %s", validate.FailureEmoji, err)
 		}
 
-		Gke(ctx)
+		Gke()
 
 		validations = append(validations, validation{
 			Validate:   GkeGcePersistentDiskCSIDrivers,

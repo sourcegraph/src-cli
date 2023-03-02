@@ -93,7 +93,7 @@ Examples:
 		}
 
 		if *gke {
-			options = append(options, kube.Gke(ctx))
+			options = append(options, kube.Gke())
 		}
 
 		return kube.Validate(context.Background(), clientSet, config, options...)

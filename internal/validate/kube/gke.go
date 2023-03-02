@@ -14,7 +14,7 @@ type ClusterInfo struct {
 	ClusterName string
 }
 
-func Gke(ctx context.Context) Option {
+func Gke() Option {
 	return func(config *Config) {
 		config.gke = true
 	}
