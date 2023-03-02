@@ -3,7 +3,6 @@ module github.com/sourcegraph/src-cli
 go 1.18
 
 require (
-	cloud.google.com/go/container v1.7.0
 	cloud.google.com/go/storage v1.28.0
 	github.com/aws/aws-sdk-go-v2/config v1.18.13
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.86.0
@@ -37,7 +36,6 @@ require (
 	k8s.io/api v0.26.1
 	k8s.io/apimachinery v0.26.1
 	k8s.io/client-go v0.26.1
-	k8s.io/kubernetes v1.26.2
 )
 
 require (

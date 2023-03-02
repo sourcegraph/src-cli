@@ -2,10 +2,6 @@ package kube
 
 import (
 	"context"
-	"log"
-	"strings"
-
-	"cloud.google.com/go/container"
 
 	"github.com/sourcegraph/src-cli/internal/validate"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -19,55 +15,66 @@ type ClusterInfo struct {
 }
 
 func Gke(ctx context.Context) Option {
-	gcpClient, err := container.NewClient(ctx, "beatrix-test-overlay")
-	if err != nil {
-		log.Println("error while loading config: ", err)
-	}
-
 	return func(config *Config) {
 		config.gke = true
-		config.gcpClient = gcpClient
 	}
 }
 
 func GkeGcePersistentDiskCSIDrivers(ctx context.Context, config *Config) ([]validate.Result, error) {
-	var result []validate.Result
+	var results []validate.Result
+
+	checkStorageClassesResults, err := validateStorageClasses(ctx, config)
+	if err != nil {
+		results = append(results, validate.Result{
+			Status:  validate.Failure,
+			Message: "GKE: could not check StorageClasses",
+		})
+		return results, nil
+	}
+
+	results = append(results, checkStorageClassesResults...)
+	return results, nil
+}
+
+/*
+   validateStorageClasses checks for GKE specific storageClasses:
+
+   After the compute engine persistent disk CSI driver is enabled,
+   gke automatically installs the standard-rwo and the premium-rwo
+   storage classes. This function checks that those storage
+   classes exist on the cluster.
+
+   Ref: shorturl.at/dnKV0
+*/
+func validateStorageClasses(ctx context.Context, config *Config) ([]validate.Result, error) {
+	var results []validate.Result
+
 	storageClient := config.clientSet.StorageV1()
-    storageClasses, err := storageClient.StorageClasses().List(ctx, metav1.ListOptions{})
-    
+	storageClasses, err := storageClient.StorageClasses().List(ctx, metav1.ListOptions{})
 	if err != nil {
 		return nil, err
 	}
 
+	classes := 0
 	for _, item := range storageClasses.Items {
-		if item.Name == "sourcegraph" {
-			if item.Provisioner == "kubernetes.io/gce-pd" {
-				result = append(result, validate.Result{
-					Status:  validate.Success,
-					Message: "persistent volume provisioner present",
-				})
-				return result, nil
-			}
+		if item.Name == "premium-rwo" || item.Name == "standard-rwo" {
+			classes += 1
 		}
 	}
-    
-	result = append(result, validate.Result{
-		Status:  validate.Failure,
-		Message: "persistent volume provisioner not present on sourcegraph storageclass",
-	})
 
-	return result, nil
-}
+	if classes == 2 {
+		results = append(results, validate.Result{
+			Status:  validate.Success,
+			Message: "persistent volumes enabled: validated",
+		})
 
-func GetClusterInfo(currentContextString string) *ClusterInfo {
-	clusterValues := strings.Split(currentContextString, "_")
-
-	clusterInfo := ClusterInfo{
-		ServiceType: clusterValues[0],
-		ProjectId:   clusterValues[1],
-		Region:      clusterValues[2],
-		ClusterName: clusterValues[3],
+		return results, nil
 	}
 
-	return &clusterInfo
+	results = append(results, validate.Result{
+		Status:  validate.Failure,
+		Message: "validate persistent volumes enabled: failed",
+	})
+
+	return results, nil
 }

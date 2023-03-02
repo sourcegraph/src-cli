@@ -12,7 +12,6 @@ import (
 	"regexp"
 	"strings"
 
-	"cloud.google.com/go/container"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -51,7 +50,6 @@ type Config struct {
 	eksClient  *eks.Client
 	ec2Client  *ec2.Client
 	iamClient  *iam.Client
-	gcpClient  *container.Client
 }
 
 func WithNamespace(namespace string) Option {
