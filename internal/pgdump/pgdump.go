@@ -30,9 +30,19 @@ type Target struct {
 	Password string `yaml:"password"`
 }
 
-// Command generates a pg_dump command that can be used for on-prem-to-Cloud migrations.
-func Command(t Target) string {
-	dump := fmt.Sprintf("pg_dump --no-owner --format=p --no-acl --username=%s --dbname=%s",
+// RestoreCommand generates a psql command that can be used for migrations.
+func RestoreCommad(t Target) string {
+	dump := fmt.Sprintf("psql --username=%s --dbname=%s",
+		t.Username, t.DBName)
+	if t.Password == "" {
+		return dump
+	}
+	return fmt.Sprintf("PGPASSWORD=%s %s", t.Password, dump)
+}
+
+// DumpCommand generates a pg_dump command that can be used for on-prem-to-Cloud migrations.
+func DumpCommand(t Target) string {
+	dump := fmt.Sprintf("pg_dump --no-owner --format=p --no-acl --clean --if-exists --username=%s --dbname=%s",
 		t.Username, t.DBName)
 	if t.Password == "" {
 		return dump
@@ -64,14 +74,19 @@ type CommandBuilder func(Target) (string, error)
 
 // BuildCommands generates commands that output Postgres dumps and sends them to predefined
 // files for each target database.
-func BuildCommands(outDir string, commandBuilder CommandBuilder, targets Targets) ([]string, error) {
+func BuildCommands(outDir string, commandBuilder CommandBuilder, targets Targets, dump bool) ([]string, error) {
 	var commands []string
 	for _, t := range Outputs(outDir, targets) {
 		c, err := commandBuilder(t.Target)
 		if err != nil {
 			return nil, errors.Wrapf(err, "generating command for %q", t.Output)
 		}
-		commands = append(commands, fmt.Sprintf("%s > %s", c, t.Output))
+
+		if dump {
+			commands = append(commands, fmt.Sprintf("%s > %s", c, t.Output))
+		} else {
+			commands = append(commands, fmt.Sprintf("%s < %s", c, t.Output))
+		}
 	}
 	return commands, nil
 }

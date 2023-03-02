@@ -15,11 +15,11 @@ import (
 )
 
 func init() {
-	usage := `'src snapshot databases' generates commands to export Sourcegraph database dumps.
+	usage := `'src snapshot restore' restores a Sourcegraph instance using Sourcegraph database dumps.
 Note that these commands are intended for use as reference - you may need to adjust the commands for your deployment.
 
 USAGE
-	src [-v] snapshot databases [--targets=<docker|k8s|"targets.yaml">] [--run] <pg_dump|docker|kubectl> 
+	src [-v] snapshot restore [--targets<docker|k8s|"targets.yaml">] [--run] <pg_dump|docker|kubectl>
 
 TARGETS FILES
 	Predefined targets are available based on default Sourcegraph configurations ('docker', 'k8s').
@@ -37,7 +37,8 @@ TARGETS FILES
 
 	See the pgdump.Targets type for more details.
 `
-	flagSet := flag.NewFlagSet("databases", flag.ExitOnError)
+
+	flagSet := flag.NewFlagSet("restore", flag.ExitOnError)
 	targetsKeyFlag := flagSet.String("targets", "auto", "predefined targets ('docker' or 'k8s'), or a custom targets.yaml file")
 	run := flagSet.Bool("run", false, "Automatically run the commands")
 
@@ -60,7 +61,7 @@ TARGETS FILES
 			case "pg_dump", "":
 				targetKey = "local"
 				commandBuilder = func(t pgdump.Target) (string, error) {
-					cmd := pgdump.DumpCommand(t)
+					cmd := pgdump.RestoreCommad(t)
 					if t.Target != "" {
 						return fmt.Sprintf("%s --host=%s", cmd, t.Target), nil
 					}
@@ -68,12 +69,12 @@ TARGETS FILES
 				}
 			case "docker":
 				commandBuilder = func(t pgdump.Target) (string, error) {
-					return fmt.Sprintf("docker exec -i %s sh -c '%s'", t.Target, pgdump.DumpCommand(t)), nil
+					return fmt.Sprintf("docker exec -i %s sh -c '%s'", t.Target, pgdump.RestoreCommad(t)), nil
 				}
 			case "kubectl":
 				targetKey = "k8s"
 				commandBuilder = func(t pgdump.Target) (string, error) {
-					return fmt.Sprintf("kubectl exec -i %s -- bash -c '%s'", t.Target, pgdump.DumpCommand(t)), nil
+					return fmt.Sprintf("kubectl exec -i %s -- bash -c '%s'", t.Target, pgdump.RestoreCommad(t)), nil
 				}
 			default:
 				return errors.Newf("unknown or invalid template type %q", builder)
@@ -96,13 +97,10 @@ TARGETS FILES
 				out.WriteLine(output.Emojif(output.EmojiInfo, "Using predefined targets for %s environments", targetKey))
 			}
 
-			commands, err := pgdump.BuildCommands(srcSnapshotDir, commandBuilder, targets, true)
+			commands, err := pgdump.BuildCommands(srcSnapshotDir, commandBuilder, targets, false)
 			if err != nil {
 				return errors.Wrap(err, "failed to build commands")
 			}
-
-			_ = os.MkdirAll(srcSnapshotDir, os.ModePerm)
-
 			if *run {
 				for _, c := range commands {
 					out.WriteLine(output.Emojif(output.EmojiInfo, "Running command: %q", c))
@@ -113,77 +111,19 @@ TARGETS FILES
 					}
 				}
 
-				out.WriteLine(output.Emoji(output.EmojiSuccess, "Sucessfully completed dump commands"))
+				out.WriteLine(output.Emoji(output.EmojiSuccess, "Sucessfully completed restore commands"))
+				out.WriteLine(output.Styledf(output.StyleSuggestion, "It may be necessary to restart your Sourcegraph instance after restoring"))
 			} else {
-				b := out.Block(output.Emoji(output.EmojiSuccess, "Run these commands to generate the required database dumps:"))
+				b := out.Block(output.Emoji(output.EmojiSuccess, "Run these commands to restore the databases:"))
 				b.Write("\n" + strings.Join(commands, "\n"))
 				b.Close()
 
 				out.WriteLine(output.Styledf(output.StyleSuggestion, "Note that you may need to do some additional setup, such as authentication, beforehand."))
 			}
+
 			return nil
 		},
+
 		usageFunc: func() { fmt.Fprint(flag.CommandLine.Output(), usage) },
 	})
-}
-
-// predefinedDatabaseDumpTargets is based on default Sourcegraph configurations.
-var predefinedDatabaseDumpTargets = map[string]pgdump.Targets{
-	"local": {
-		Primary: pgdump.Target{
-			DBName:   "sg",
-			Username: "sg",
-			Password: "sg",
-		},
-		CodeIntel: pgdump.Target{
-			DBName:   "sg",
-			Username: "sg",
-			Password: "sg",
-		},
-		CodeInsights: pgdump.Target{
-			DBName:   "postgres",
-			Username: "postgres",
-			Password: "password",
-		},
-	},
-	"docker": { // based on deploy-sourcegraph-managed
-		Primary: pgdump.Target{
-			Target:   "pgsql",
-			DBName:   "sg",
-			Username: "sg",
-			Password: "sg",
-		},
-		CodeIntel: pgdump.Target{
-			Target:   "codeintel-db",
-			DBName:   "sg",
-			Username: "sg",
-			Password: "sg",
-		},
-		CodeInsights: pgdump.Target{
-			Target:   "codeinsights-db",
-			DBName:   "postgres",
-			Username: "postgres",
-			Password: "password",
-		},
-	},
-	"k8s": { // based on deploy-sourcegraph-helm
-		Primary: pgdump.Target{
-			Target:   "statefulset/pgsql",
-			DBName:   "sg",
-			Username: "sg",
-			Password: "sg",
-		},
-		CodeIntel: pgdump.Target{
-			Target:   "statefulset/codeintel-db",
-			DBName:   "sg",
-			Username: "sg",
-			Password: "sg",
-		},
-		CodeInsights: pgdump.Target{
-			Target:   "statefulset/codeinsights-db",
-			DBName:   "postgres",
-			Username: "postgres",
-			Password: "password",
-		},
-	},
 }
