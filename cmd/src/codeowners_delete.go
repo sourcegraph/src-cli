@@ -4,10 +4,12 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"strings"
 
 	"github.com/sourcegraph/sourcegraph/lib/errors"
 
 	"github.com/sourcegraph/src-cli/internal/api"
+	"github.com/sourcegraph/src-cli/internal/cmderrors"
 )
 
 func init() {
@@ -43,11 +45,10 @@ Examples:
 
 		query := `mutation DeleteCodeownersFile(
 	$repoName: String!,
-	$content: String!
 ) {
-	deleteCodeownersFile(
+	deleteCodeownersFiles(repositories: [{
 		repoName: $repoName,
-	) {
+	}]) {
 		alwaysNil
 	}
 }
@@ -59,6 +60,17 @@ Examples:
 		if ok, err := client.NewRequest(query, map[string]interface{}{
 			"repoName": *repoFlag,
 		}).Do(context.Background(), &result); err != nil || !ok {
+			var gqlErr api.GraphQlErrors
+			if errors.As(err, &gqlErr) {
+				for _, e := range gqlErr {
+					if strings.Contains(e.Error(), "repo not found:") {
+						return cmderrors.ExitCode(2, errors.Newf("repository %q not found", *repoFlag))
+					}
+					if strings.Contains(e.Error(), "codeowners file not found:") {
+						return cmderrors.ExitCode(2, errors.Newf("no data found for repository %q", *repoFlag))
+					}
+				}
+			}
 			return err
 		}
 

@@ -43,11 +43,11 @@ Examples:
 
 		client := cfg.apiClient(apiFlags, flagSet.Output())
 
-		query := `mutation GetCodeownersFile(
+		query := `query GetCodeownersFile(
 	$repoName: String!
 ) {
-	repo(name: $repoName) {
-		ingestedCodeownersFile {
+	repository(name: $repoName) {
+		ingestedCodeowners {
 			...CodeownersFileFields			
 		}
 	}
@@ -55,8 +55,8 @@ Examples:
 ` + codeownersFragment
 
 		var result struct {
-			Repo *struct {
-				IngestedCodeownersFile CodeownersIngestedFile
+			Repository *struct {
+				IngestedCodeowners *CodeownersIngestedFile
 			}
 		}
 		if ok, err := client.NewRequest(query, map[string]interface{}{
@@ -65,11 +65,15 @@ Examples:
 			return err
 		}
 
-		if result.Repo == nil {
+		if result.Repository == nil {
 			return cmderrors.ExitCode(2, errors.Newf("repository %q not found", *repoFlag))
 		}
 
-		fmt.Fprintf(os.Stdout, "%s", result.Repo.IngestedCodeownersFile.Contents)
+		if result.Repository.IngestedCodeowners == nil {
+			return cmderrors.ExitCode(2, errors.Newf("no codeowners data found for %q", *repoFlag))
+		}
+
+		fmt.Fprintf(os.Stdout, "%s", result.Repository.IngestedCodeowners.Contents)
 
 		return nil
 	}

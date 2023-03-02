@@ -5,10 +5,12 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"strings"
 
 	"github.com/sourcegraph/sourcegraph/lib/errors"
 
 	"github.com/sourcegraph/src-cli/internal/api"
+	"github.com/sourcegraph/src-cli/internal/cmderrors"
 )
 
 func init() {
@@ -65,10 +67,10 @@ Examples:
 	$repoName: String!,
 	$content: String!
 ) {
-	updateCodeownersFile(
+	updateCodeownersFile(input: {
 		repoName: $repoName,
 		fileContents: $content,
-	) {
+	}) {
 		...CodeownersFileFields
 	}
 }
@@ -81,6 +83,17 @@ Examples:
 			"repoName": *repoFlag,
 			"content":  string(content),
 		}).Do(context.Background(), &result); err != nil || !ok {
+			var gqlErr api.GraphQlErrors
+			if errors.As(err, &gqlErr) {
+				for _, e := range gqlErr {
+					if strings.Contains(e.Error(), "repo not found:") {
+						return cmderrors.ExitCode(2, errors.Newf("repository %q not found", *repoFlag))
+					}
+					if strings.Contains(e.Error(), "could not update codeowners file: codeowners file not found:") {
+						return cmderrors.ExitCode(2, errors.New("no codeowners data has been found for this repository"))
+					}
+				}
+			}
 			return err
 		}
 
