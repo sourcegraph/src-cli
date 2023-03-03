@@ -4,6 +4,7 @@ go 1.18
 
 require (
 	cloud.google.com/go/storage v1.28.0
+	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.4.0
 	github.com/aws/aws-sdk-go-v2/config v1.18.13
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.86.0
 	github.com/aws/aws-sdk-go-v2/service/eks v1.27.3
@@ -43,6 +44,7 @@ require (
 	cloud.google.com/go/compute v1.18.0 // indirect
 	cloud.google.com/go/compute/metadata v0.2.3 // indirect
 	cloud.google.com/go/iam v0.12.0 // indirect
+	github.com/Azure/azure-sdk-for-go/sdk/internal v1.1.2 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20210617225240-d185dfc1b5a1 // indirect
 	github.com/Masterminds/semver v1.5.0 // indirect
 	github.com/Masterminds/sprig v2.15.0+incompatible // indirect

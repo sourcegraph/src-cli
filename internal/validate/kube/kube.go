@@ -22,6 +22,7 @@ import (
 	"k8s.io/client-go/tools/remotecommand"
 	"k8s.io/client-go/util/homedir"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/aws/aws-sdk-go-v2/service/eks"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
@@ -46,9 +47,11 @@ type Config struct {
 	restConfig *rest.Config
 	eks        bool
 	gke        bool
+	aks        bool
 	eksClient  *eks.Client
 	ec2Client  *ec2.Client
 	iamClient  *iam.Client
+	aksClient  *azcore.Client
 }
 
 func WithNamespace(namespace string) Option {
@@ -81,6 +84,7 @@ func Validate(ctx context.Context, clientSet *kubernetes.Clientset, restConfig *
 		restConfig: restConfig,
 		eks:        false,
 		gke:        false,
+		aks:        false,
 	}
 
 	for _, opt := range opts {
@@ -130,6 +134,21 @@ func Validate(ctx context.Context, clientSet *kubernetes.Clientset, restConfig *
 			WaitMsg:    "GKE: validating persistent volumes",
 			SuccessMsg: "GKE: persistent volumes validated",
 			ErrMsg:     "GKE: validating peristent volumes failed",
+		})
+	}
+
+	if cfg.aks {
+		if err := CurrentContextSetTo("aks"); err != nil {
+			return errors.Newf("%s %s", validate.FailureEmoji, err)
+		}
+
+		Aks()
+
+		validations = append(validations, validation{
+			Validate:   AksCsiDrivers,
+			WaitMsg:    "AKS: validating persistent volumes",
+			SuccessMsg: "AKS: persistent volumes validated",
+			ErrMsg:     "AKS: validating persistent volumes failed",
 		})
 	}
 
@@ -462,6 +481,14 @@ func CurrentContextSetTo(clusterService string) error {
 			if !reflect.DeepEqual(got, want) {
 				return errors.New("no eks cluster configured")
 			}
+		}
+	} else if clusterService == "aks" {
+		got := currentContext
+		// TODO don't hardcode cluster name
+		want := "sourcegraph-cluster"
+
+		if got != want {
+			return errors.New("no aks cluster configured")
 		}
 	}
 

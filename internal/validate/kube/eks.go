@@ -253,7 +253,7 @@ func validateRolePolicy(rolePolicy RolePolicy) (result []validate.Result) {
 }
 
 func getAddons(ctx context.Context, client *eks.Client) ([]string, error) {
-	clusterName := getClusterName(ctx, client)
+	clusterName := getClusterName()
 	inputs := &eks.ListAddonsInput{ClusterName: clusterName}
 	outputs, err := client.ListAddons(ctx, inputs)
 
@@ -327,7 +327,7 @@ func getEBSCSIPolicy(ctx context.Context, client *iam.Client, sa string) (RolePo
 	return RolePolicy{}, nil
 }
 
-func getClusterName(ctx context.Context, client *eks.Client) *string {
+func getClusterName() *string {
 	home := homedir.HomeDir()
 	pathToKubeConfig := filepath.Join(home, ".kube", "config")
 
