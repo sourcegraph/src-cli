@@ -113,7 +113,7 @@ TARGETS FILES
 					}
 				}
 
-				out.WriteLine(output.Emoji(output.EmojiSuccess, "Sucessfully completed dump commands"))
+				out.WriteLine(output.Emoji(output.EmojiSuccess, "Successfully completed dump commands"))
 			} else {
 				b := out.Block(output.Emoji(output.EmojiSuccess, "Run these commands to generate the required database dumps:"))
 				b.Write("\n" + strings.Join(commands, "\n"))

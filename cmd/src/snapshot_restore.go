@@ -61,7 +61,7 @@ TARGETS FILES
 			case "pg_dump", "":
 				targetKey = "local"
 				commandBuilder = func(t pgdump.Target) (string, error) {
-					cmd := pgdump.RestoreCommad(t)
+					cmd := pgdump.RestoreCommand(t)
 					if t.Target != "" {
 						return fmt.Sprintf("%s --host=%s", cmd, t.Target), nil
 					}
@@ -69,12 +69,12 @@ TARGETS FILES
 				}
 			case "docker":
 				commandBuilder = func(t pgdump.Target) (string, error) {
-					return fmt.Sprintf("docker exec -i %s sh -c '%s'", t.Target, pgdump.RestoreCommad(t)), nil
+					return fmt.Sprintf("docker exec -i %s sh -c '%s'", t.Target, pgdump.RestoreCommand(t)), nil
 				}
 			case "kubectl":
 				targetKey = "k8s"
 				commandBuilder = func(t pgdump.Target) (string, error) {
-					return fmt.Sprintf("kubectl exec -i %s -- bash -c '%s'", t.Target, pgdump.RestoreCommad(t)), nil
+					return fmt.Sprintf("kubectl exec -i %s -- bash -c '%s'", t.Target, pgdump.RestoreCommand(t)), nil
 				}
 			default:
 				return errors.Newf("unknown or invalid template type %q", builder)
@@ -111,7 +111,7 @@ TARGETS FILES
 					}
 				}
 
-				out.WriteLine(output.Emoji(output.EmojiSuccess, "Sucessfully completed restore commands"))
+				out.WriteLine(output.Emoji(output.EmojiSuccess, "Successfully completed restore commands"))
 				out.WriteLine(output.Styledf(output.StyleSuggestion, "It may be necessary to restart your Sourcegraph instance after restoring"))
 			} else {
 				b := out.Block(output.Emoji(output.EmojiSuccess, "Run these commands to restore the databases:"))

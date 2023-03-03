@@ -31,7 +31,7 @@ type Target struct {
 }
 
 // RestoreCommand generates a psql command that can be used for migrations.
-func RestoreCommad(t Target) string {
+func RestoreCommand(t Target) string {
 	dump := fmt.Sprintf("psql --username=%s --dbname=%s",
 		t.Username, t.DBName)
 	if t.Password == "" {
