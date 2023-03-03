@@ -49,35 +49,13 @@ TARGETS FILES
 			}
 			out := output.NewOutput(flagSet.Output(), output.OutputOpts{Verbose: *verbose})
 
-			var builder string
-			if len(args) > 0 {
-				builder = args[len(args)-1]
-			}
+			builder := flagSet.Arg(0)
 
-			targetKey := "docker"
-			var commandBuilder pgdump.CommandBuilder
-			switch builder {
-			case "pg_dump", "":
-				targetKey = "local"
-				commandBuilder = func(t pgdump.Target) (string, error) {
-					cmd := pgdump.DumpCommand(t)
-					if t.Target != "" {
-						return fmt.Sprintf("%s --host=%s", cmd, t.Target), nil
-					}
-					return cmd, nil
-				}
-			case "docker":
-				commandBuilder = func(t pgdump.Target) (string, error) {
-					return fmt.Sprintf("docker exec -i %s sh -c '%s'", t.Target, pgdump.DumpCommand(t)), nil
-				}
-			case "kubectl":
-				targetKey = "k8s"
-				commandBuilder = func(t pgdump.Target) (string, error) {
-					return fmt.Sprintf("kubectl exec -i %s -- bash -c '%s'", t.Target, pgdump.DumpCommand(t)), nil
-				}
-			default:
+			commandBuilder, targetKey := pgdump.Builder(builder, pgdump.DumpCommand)
+			if targetKey == "" {
 				return errors.Newf("unknown or invalid template type %q", builder)
 			}
+
 			if *targetsKeyFlag != "auto" {
 				targetKey = *targetsKeyFlag
 			}

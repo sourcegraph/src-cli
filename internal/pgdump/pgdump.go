@@ -71,6 +71,35 @@ func Outputs(dir string, targets Targets) []Output {
 }
 
 type CommandBuilder func(Target) (string, error)
+type PGCommand func(Target) string
+
+// Builder generates the CommandBuilder and targetKey for a given builder and PGCommand
+func Builder(builder string, command PGCommand) (commandBuilder CommandBuilder, targetKey string) {
+	switch builder {
+	case "pg_dump", "":
+		targetKey = "local"
+		commandBuilder = func(t Target) (string, error) {
+			cmd := command(t)
+			if t.Target != "" {
+				return fmt.Sprintf("%s --host=%s", cmd, t.Target), nil
+			}
+			return cmd, nil
+		}
+	case "docker":
+		targetKey = "docker"
+		commandBuilder = func(t Target) (string, error) {
+			return fmt.Sprintf("docker exec -i %s sh -c '%s'", t.Target, command(t)), nil
+		}
+	case "kubectl":
+		targetKey = "k8s"
+		commandBuilder = func(t Target) (string, error) {
+			return fmt.Sprintf("kubectl exec -i %s -- bash -c '%s'", t.Target, command(t)), nil
+		}
+	default:
+		return commandBuilder, targetKey
+	}
+	return commandBuilder, targetKey
+}
 
 // BuildCommands generates commands that output Postgres dumps and sends them to predefined
 // files for each target database.
@@ -83,8 +112,10 @@ func BuildCommands(outDir string, commandBuilder CommandBuilder, targets Targets
 		}
 
 		if dump {
+			// When dumping use output redirection to dump command stdout to target file
 			commands = append(commands, fmt.Sprintf("%s > %s", c, t.Output))
 		} else {
+			// When restoring use input redirection to pass target file to command stdin
 			commands = append(commands, fmt.Sprintf("%s < %s", c, t.Output))
 		}
 	}
