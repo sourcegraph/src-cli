@@ -48,7 +48,8 @@ Examples:
 		quiet      = flagSet.Bool("quiet", false, "(optional) suppress output and return exit status only")
 		eks        = flagSet.Bool("eks", false, "(optional) validate EKS cluster")
 		gke        = flagSet.Bool("gke", false, "(optional) validate GKE cluster")
-        aks        = flagSet.Bool("aks", false, "(optional) validate AKS cluster")
+    aks        = flagSet.Bool("aks", false, "(optional) validate AKS cluster")
+
 	)
 
 	if home := homedir.HomeDir(); home != "" {
@@ -99,6 +100,7 @@ Examples:
         
 		if *aks {
 			options = append(options, kube.Aks())
+
 		}
 
 		return kube.Validate(context.Background(), clientSet, config, options...)
