@@ -38,7 +38,7 @@ Examples:
 		}
 
 		if *repoFlag == "" {
-			return errors.New("provide a repo name")
+			return errors.New("provide a repo name using -repo")
 		}
 
 		client := cfg.apiClient(apiFlags, flagSet.Output())

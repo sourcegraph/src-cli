@@ -33,9 +33,10 @@ Examples:
 		fmt.Println(usage)
 	}
 	var (
-		repoFlag = flagSet.String("repo", "", "The repository to attach the data to")
-		fileFlag = flagSet.String("f", "", "File path to read ownership information from (- for stdin)")
-		apiFlags = api.NewFlags(flagSet)
+		repoFlag      = flagSet.String("repo", "", "The repository to attach the data to")
+		fileFlag      = flagSet.String("file", "", "File path to read ownership information from (- for stdin)")
+		fileShortFlag = flagSet.String("f", "", "File path to read ownership information from (- for stdin). Alias for -file")
+		apiFlags      = api.NewFlags(flagSet)
 	)
 
 	handler := func(args []string) error {
@@ -44,11 +45,17 @@ Examples:
 		}
 
 		if *repoFlag == "" {
-			return errors.New("provide a repo name")
+			return errors.New("provide a repo name using -repo")
 		}
 
-		if *fileFlag == "" {
-			return errors.New("provide a file")
+		if *fileFlag == "" && *fileShortFlag == "" {
+			return errors.New("provide a file using -file")
+		}
+		if *fileFlag != "" && *fileShortFlag != "" {
+			return errors.New("have to provide either -file or -f")
+		}
+		if *fileShortFlag != "" {
+			*fileFlag = *fileShortFlag
 		}
 
 		file, err := readFile(*fileFlag)
