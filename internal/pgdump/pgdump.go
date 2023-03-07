@@ -32,7 +32,7 @@ type Target struct {
 
 // RestoreCommand generates a psql command that can be used for migrations.
 func RestoreCommand(t Target) string {
-	dump := fmt.Sprintf("psql --username=%s --dbname=%s",
+	dump := fmt.Sprintf("psql --username=%s --dbname=%s 1>/dev/null",
 		t.Username, t.DBName)
 	if t.Password == "" {
 		return dump

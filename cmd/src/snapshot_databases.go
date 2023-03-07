@@ -85,9 +85,10 @@ TARGETS FILES
 				for _, c := range commands {
 					out.WriteLine(output.Emojif(output.EmojiInfo, "Running command: %q", c))
 					command := exec.Command("bash", "-c", c)
-					out, err := command.CombinedOutput()
+					output, err := command.CombinedOutput()
+					out.Write(string(output))
 					if err != nil {
-						return errors.Wrapf(err, "failed to run command: %q\n%q", c, string(out))
+						return errors.Wrapf(err, "failed to run command: %q", c)
 					}
 				}
 
