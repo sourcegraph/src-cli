@@ -7,14 +7,20 @@ import (
 	"io"
 	"log"
 	"os"
+	"path/filepath"
+	"reflect"
 	"regexp"
+	"strings"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
+
 	"k8s.io/client-go/tools/remotecommand"
+	"k8s.io/client-go/util/homedir"
 
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/aws/aws-sdk-go-v2/service/eks"
@@ -39,6 +45,8 @@ type Config struct {
 	clientSet  *kubernetes.Clientset
 	restConfig *rest.Config
 	eks        bool
+	gke        bool
+	aks        bool
 	eksClient  *eks.Client
 	ec2Client  *ec2.Client
 	iamClient  *iam.Client
@@ -73,6 +81,8 @@ func Validate(ctx context.Context, clientSet *kubernetes.Clientset, restConfig *
 		clientSet:  clientSet,
 		restConfig: restConfig,
 		eks:        false,
+		gke:        false,
+		aks:        false,
 	}
 
 	for _, opt := range opts {
@@ -89,7 +99,7 @@ func Validate(ctx context.Context, clientSet *kubernetes.Clientset, restConfig *
 	}
 
 	if cfg.eks {
-		if err := CurrentContextSetToEKSCluster(); err != nil {
+		if err := CurrentContextSetTo("eks"); err != nil {
 			return errors.Newf("%s %s", validate.FailureEmoji, err)
 		}
 
@@ -107,6 +117,36 @@ func Validate(ctx context.Context, clientSet *kubernetes.Clientset, restConfig *
 			WaitMsg:    "EKS: validating vpc",
 			SuccessMsg: "EKS: vpc validated",
 			ErrMsg:     "EKS: validating vpc failed",
+		})
+	}
+
+	if cfg.gke {
+		if err := CurrentContextSetTo("gke"); err != nil {
+			return errors.Newf("%s %s", validate.FailureEmoji, err)
+		}
+
+		Gke()
+
+		validations = append(validations, validation{
+			Validate:   GkeGcePersistentDiskCSIDrivers,
+			WaitMsg:    "GKE: validating persistent volumes",
+			SuccessMsg: "GKE: persistent volumes validated",
+			ErrMsg:     "GKE: validating peristent volumes failed",
+		})
+	}
+
+	if cfg.aks {
+		if err := CurrentContextSetTo("aks"); err != nil {
+			return errors.Newf("%s %s", validate.FailureEmoji, err)
+		}
+
+		Aks()
+
+		validations = append(validations, validation{
+			Validate:   AksCsiDrivers,
+			WaitMsg:    "AKS: validating persistent volumes",
+			SuccessMsg: "AKS: persistent volumes validated",
+			ErrMsg:     "AKS: validating persistent volumes failed",
 		})
 	}
 
@@ -170,6 +210,18 @@ func Pods(ctx context.Context, config *Config) ([]validate.Result, error) {
 	}
 
 	var results []validate.Result
+
+	if len(pods.Items) == 0 {
+		results = append(results, validate.Result{
+			Status: validate.Warning,
+			Message: fmt.Sprintf(
+				"No pods exist on namespace '%s'. check namespace/cluster",
+				config.namespace,
+			),
+		})
+
+		return results, nil
+	}
 
 	for _, pod := range pods.Items {
 		r := validatePod(&pod)
@@ -251,6 +303,18 @@ func Services(ctx context.Context, config *Config) ([]validate.Result, error) {
 
 	var results []validate.Result
 
+	if len(services.Items) <= 1 {
+		results = append(results, validate.Result{
+			Status: validate.Warning,
+			Message: fmt.Sprintf(
+				"unexpected number of services on namespace '%s'; check namespace/cluster",
+				config.namespace,
+			),
+		})
+
+		return results, nil
+	}
+
 	for _, service := range services.Items {
 		r := validateService(&service)
 		results = append(results, r...)
@@ -285,6 +349,18 @@ func PVCs(ctx context.Context, config *Config) ([]validate.Result, error) {
 	}
 
 	var results []validate.Result
+
+	if len(pvcs.Items) == 0 {
+		results = append(results, validate.Result{
+			Status: validate.Warning,
+			Message: fmt.Sprintf(
+				"no PVCs exist in namespace '%s'; check namespace/cluster",
+				config.namespace,
+			),
+		})
+
+		return results, nil
+	}
 
 	for _, pvc := range pvcs.Items {
 		r := validatePVC(&pvc)
@@ -326,6 +402,18 @@ func Connections(ctx context.Context, config *Config) ([]validate.Result, error)
 	pods, err := config.clientSet.CoreV1().Pods(config.namespace).List(ctx, metav1.ListOptions{})
 	if err != nil {
 		return nil, err
+	}
+
+	if len(pods.Items) == 0 {
+		results = append(results, validate.Result{
+			Status: validate.Warning,
+			Message: fmt.Sprintf(
+				"cannot check connections: zero pods exist in namespace '%s'",
+				config.namespace,
+			),
+		})
+
+		return results, nil
 	}
 
 	// iterate through pods looking for specific pod name prefixes, then construct
@@ -416,4 +504,60 @@ func Connections(ctx context.Context, config *Config) ([]validate.Result, error)
 	}
 
 	return results, nil
+}
+
+func CurrentContextSetTo(clusterService string) error {
+	currentContext, err := GetCurrentContext()
+	if err != nil {
+		return err
+	}
+
+	if clusterService == "gke" {
+		got := strings.Split(currentContext, "_")[0]
+		want := clusterService
+		if got != want {
+			return errors.New("no gke cluster configured")
+		}
+	} else if clusterService == "eks" {
+		got := strings.Split(currentContext, ":")
+		want := []string{"arn", "aws", clusterService}
+
+		if got[0] != "arn" {
+			return errors.New("no eks cluster configured")
+		}
+
+		if len(got) >= 3 {
+			got = got[:3]
+			if !reflect.DeepEqual(got, want) {
+				return errors.New("no eks cluster configured")
+			}
+		}
+	} else if clusterService == "aks" {
+		colons := strings.Split(currentContext, ":")      // aws string
+		underscores := strings.Split(currentContext, "_") // gke string
+
+		// if current context has 'arn' or 'gke' in string, return error
+		if colons[0] == "arn" || underscores[0] == "gke" {
+			return errors.New("no aks cluster configured")
+		}
+	}
+
+	return nil
+}
+
+func GetCurrentContext() (string, error) {
+	home := homedir.HomeDir()
+	pathToKubeConfig := filepath.Join(home, ".kube", "config")
+
+	config, err := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
+		&clientcmd.ClientConfigLoadingRules{ExplicitPath: pathToKubeConfig},
+		&clientcmd.ConfigOverrides{
+			CurrentContext: "",
+		}).RawConfig()
+
+	if err != nil {
+		return "", err
+	}
+
+	return config.CurrentContext, nil
 }
