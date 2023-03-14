@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"os"
 
 	"github.com/sourcegraph/src-cli/internal/users"
 
@@ -15,7 +16,16 @@ Examples:
 
 	Create an initial admin user on a new Sourcegraph deployment:
 
+		$ src admin create -url https://your-sourcegraph-url -username admin -email admin@yourcompany.com -with-token
+
+	Create an initial admin user on a new Sourcegraph deployment using '-password' flag. 
+	WARNING: for security purposes we strongly recommend using the SRC_ADMIN_PASS environment variable when possible.
+
 		$ src admin create -url https://your-sourcegraph-url -username admin -email admin@yourcompany.com -password p@55w0rd -with-token
+
+Environmental variables
+
+	SRC_ADMIN_PASS		The new admin user's password
 `
 
 	flagSet := flag.NewFlagSet("create", flag.ExitOnError)
@@ -46,9 +56,25 @@ Examples:
 			return errors.New("failed to create admin, site already initialized")
 		}
 
-		client, err := users.SiteAdminInit(*urlFlag, *emailFlag, *usernameFlag, *passwordFlag)
-		if err != nil {
-			return err
+		envAdminPass := os.Getenv("SRC_ADMIN_PASS")
+
+		var client *users.Client
+
+		switch {
+		case envAdminPass != "" && *passwordFlag == "":
+			client, err = users.SiteAdminInit(*urlFlag, *emailFlag, *usernameFlag, envAdminPass)
+			if err != nil {
+				return err
+			}
+		case envAdminPass == "" && *passwordFlag != "":
+			client, err = users.SiteAdminInit(*urlFlag, *emailFlag, *usernameFlag, *passwordFlag)
+			if err != nil {
+				return err
+			}
+		case envAdminPass != "" && *passwordFlag != "":
+			return errors.New("failed to read admin password: environment variable and -password flag both set")
+		case envAdminPass == "" && *passwordFlag == "":
+			return errors.New("failed to read admin password from 'SRC_ADMIN_PASS' environment variable or -password flag")
 		}
 
 		if *tokenFlag {
@@ -57,7 +83,7 @@ Examples:
 				return err
 			}
 
-			_, err = fmt.Fprintf(flag.CommandLine.Output(), "%s", token)
+			_, err = fmt.Fprintf(flag.CommandLine.Output(), "%s\n", token)
 			if err != nil {
 				return err
 			}
