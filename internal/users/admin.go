@@ -17,7 +17,7 @@ import (
 func NeedsSiteInit(baseURL string) (bool, string, error) {
 	resp, err := http.Get(baseURL + "/sign-in")
 	if err != nil {
-		return false, "", errors.Wrap(err, "get page")
+		return false, "", errors.Wrap(err, "sign-in page")
 	}
 	defer func() { _ = resp.Body.Close() }()
 
@@ -112,7 +112,7 @@ func NewClient(baseURL string, requestLogger, responseLogger logFunc) (*Client, 
 	}, nil
 }
 
-// authenticate is used to send a HTTP POST request to an URL that is able to authenticate
+// authenticate is used to send an HTTP POST request to a URL that is able to authenticate
 // a user with given body (marshalled to JSON), e.g. site admin init, sign in. Once the
 // client is authenticated, the session cookie will be stored as a proof of authentication.
 func (c *Client) authenticate(path string, body any) error {
@@ -185,7 +185,6 @@ func (c *Client) CurrentUserID(token string) (string, error) {
 		} `json:"data"`
 	}
 	err := c.GraphQL(token, query, nil, &resp)
-	// err = c.oldgraphQL(token, query, nil, &resp)
 	if err != nil {
 		return "", errors.Wrap(err, "request GraphQL")
 	}
