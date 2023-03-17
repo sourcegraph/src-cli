@@ -27,7 +27,7 @@ All notable changes to `src-cli` are documented in this file.
 
 ### Fixed
 
-- Fixed `srv validate install` requiring `SRC_GITHUB_TOKEN` in all cases. [958](https://github.com/sourcegraph/src-cli/pull/958) 
+- Fixed `src validate install` requiring `SRC_GITHUB_TOKEN` in all cases. [958](https://github.com/sourcegraph/src-cli/pull/958) 
 
 ## 5.0.1
 
