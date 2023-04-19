@@ -7,5 +7,3 @@ release
 .env
 .envrc
 src-snapshot/
-# for `nix build`
-result

@@ -18,8 +18,8 @@
       rec {
         packages.src-cli = with pkgs; buildGoModule.override { go = pkgs.go_1_19; } {
           pname = "src-cli";
-          version = self.shortRev or "dirty";;
-          src = ./.;
+          version = self.shortRev or "dirty";
+          src = ../.;
 
           subPackages = [ "cmd/src" ];
 
