@@ -16,9 +16,9 @@
         pkgs = import nixpkgs { inherit system; };
       in
       rec {
-        packages.src-cli = with pkgs; buildGoModule {
+        packages.src-cli = with pkgs; buildGoModule.override { go = pkgs.go_1_19; } {
           pname = "src-cli";
-          version = "latest";
+          version = self.shortRev or "dirty";;
           src = ./.;
 
           subPackages = [ "cmd/src" ];
