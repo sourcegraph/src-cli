@@ -2,6 +2,7 @@ name: Go CI
 
 on:
   - push
+  - pull-request
 
 jobs:
   go-test:
