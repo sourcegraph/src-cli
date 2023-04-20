@@ -99,7 +99,7 @@ func handleCodeIntelUpload(args []string) error {
 		return handleUploadError(out, err)
 	}
 
-	uploadURL, err := makeCodeIntelUploadURL(uploadID)
+	uploadURL, err := makeCodeIntelUploadURL(uploadID, isSCIPAvailable)
 	if err != nil {
 		return err
 	}
@@ -207,14 +207,20 @@ func printInferredArguments(out *output.Output) {
 
 // makeCodeIntelUploadURL constructs a URL to the upload with the given internal identifier.
 // The base of the URL is constructed from the configured Sourcegraph instance.
-func makeCodeIntelUploadURL(uploadID int) (string, error) {
+func makeCodeIntelUploadURL(uploadID int, isSCIPAvailable bool) (string, error) {
 	url, err := url.Parse(cfg.Endpoint)
 	if err != nil {
 		return "", err
 	}
 
 	graphqlID := base64.URLEncoding.EncodeToString([]byte(fmt.Sprintf(`LSIFUpload:%d`, uploadID)))
-	url.Path = codeintelUploadFlags.repo + "/-/code-intelligence/uploads/" + graphqlID
+
+	codeGraphPart := "code-graph"
+	if !isSCIPAvailable {
+		codeGraphPart = "code-intelligence"
+	}
+
+	url.Path = codeintelUploadFlags.repo + "/-/" + codeGraphPart + "/uploads/" + graphqlID
 	url.User = nil
 	return url.String(), nil
 }
