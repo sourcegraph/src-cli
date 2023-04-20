@@ -46,6 +46,53 @@ func Validate(ctx context.Context, client api.Client, config *ValidationSpec) er
 			log.Printf("%s search query '%s' was successful", validate.SuccessEmoji, config.SearchQuery[i])
 		}
 	}
+	
+	// run executor queries
+	// if config.Executor != nil {
+
+	// 	if config.Executor.Enabled {
+	// 		log.Printf("%s validating executor connections", validate.EmojiFingerPointRight)
+
+	// 		findExecutors, err := checkExecutors(ctx, client)
+	// 		if err != nil {
+	// 			return err
+	// 		}
+	// 		if findExecutors == 0 {
+	// 			return errors.Newf("validate failed, no executors found")
+	// 		}
+	// 		log.Printf("%s executors found, '%s' executors connected to Sourcegraph instance", validate.SuccessEmoji, findExecutors)
+
+	// 	}
+		
+	// }
+
+	if config.Executor.Enabled {  
+		log.Printf("%s validating executor connections", validate.EmojiFingerPointRight)
+	
+		executorQuery := `query executors($query: String, $active: Boolean, $first: Int, $after: String) {
+						executors(query: $query, active: $active, first: $first, after: $after){
+							totalCount
+						} 
+					}`
+		executorVars := map[string]interface{}{
+			"query": "",
+			"active": true,
+			"first": 100,
+			"after": "",
+		}
+	
+		totalCount, err := checkExecutors(ctx, client, executorQuery, executorVars)
+		if err != nil {
+			return err 
+		}
+		if totalCount == 0 {
+			log.Printf("%s validation failed, 0 executors found", validate.FlashingLightEmoji)
+		}
+		if totalCount >= 1 {
+			log.Printf("%s executors found, %d executor(s) connected to Sourcegraph instance", validate.SuccessEmoji, totalCount)
+		}
+	}
+	
 
 	if config.Insight.Title != "" {
 		log.Printf("%s validating code insight", validate.EmojiFingerPointRight)
@@ -69,6 +116,65 @@ func Validate(ctx context.Context, client api.Client, config *ValidationSpec) er
 	}
 
 	return nil
+}
+
+// func checkExecutors(ctx context.Context, client api.Client) error {
+// 	q := clientQuery{
+// 		opName: "CheckExecutorConnection",
+// 		query: `query executors($query: String, $active, Boolean, $first, Int, $after, String) {
+// 					executors(query: $query, active: $active, first: $first, after: $after){
+// 						totalCount
+// 					} 
+// 				}`,
+// 		variables: jsonVars{
+// 			"query": "",
+// 			"active": true,
+// 			"first": 100,
+// 			"after": "",
+// 		},
+// 	}
+
+// 	var result struct {
+// 		Executor struct {
+// 			Data struct {
+// 				TotalCount int `json:"totalCount"`
+// 			} `json:"data"`
+// 		} `json:"executors"`
+// 	}
+
+// 	ok, err := client.NewRequest(q.query, q.variables).Do(ctx, &result)
+// 	if err != nil {
+// 		return errors.Wrap(err, "checkExecutors failed")
+// 	}
+// 	if !ok {
+// 		return errors.New("checkExecutors failed, no data to unmarshal")
+// 	}
+
+// 	return result.Executor.Data.TotalCount, nil
+// }
+
+func checkExecutors(ctx context.Context, client api.Client, query string, variables map[string]interface{}) (int, error) {
+    q := clientQuery{
+        opName: "CheckExecutorConnection",
+        query: query,
+        variables: variables,
+    }
+
+    var result struct {
+        Executor struct {
+                TotalCount int `json:"totalCount"`
+        } `json:"executors"`
+    }
+
+    ok, err := client.NewRequest(q.query, q.variables).Do(ctx, &result)
+    if err != nil {
+        return 0, errors.Wrap(err, "checkExecutors failed")
+    }
+    if !ok {
+        return 0, errors.New("checkExecutors failed, no data to unmarshal")
+    }
+
+    return result.Executor.TotalCount, nil
 }
 
 func removeExternalService(ctx context.Context, client api.Client, id string) error {
