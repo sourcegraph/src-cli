@@ -13,23 +13,25 @@ func init() {
 	usage := `
 Examples:
 
-  Update the value for a key on a repository:
+  Update the metadata value for a metadata key on a repository:
 
-    	$ src repos update-kvp -repo=repoID -key=my-key -value=new-value
+    	$ src repos update-metadata -repo=repoID -key=my-key -value=new-value
 
   Omitting -value will set the value of the key to null.
+
+  [DEPRECATED] Note that 'update-kvp' is deprecated and will be removed in future release. Use 'update-metadata' instead.
 `
 
-	flagSet := flag.NewFlagSet("update-kvp", flag.ExitOnError)
+	flagSet := flag.NewFlagSet("update-metadata", flag.ExitOnError)
 	usageFunc := func() {
 		fmt.Fprintf(flag.CommandLine.Output(), "Usage of 'src repos %s':\n", flagSet.Name())
 		flagSet.PrintDefaults()
 		fmt.Println(usage)
 	}
 	var (
-		repoFlag  = flagSet.String("repo", "", `The ID of the repo with the key to be updated (required)`)
-		keyFlag   = flagSet.String("key", "", `The name of the key to be updated (required)`)
-		valueFlag = flagSet.String("value", "", `The new value of the key to be set. Defaults to null.`)
+		repoFlag  = flagSet.String("repo", "", `The ID of the repo with the metadata key to be updated (required)`)
+		keyFlag   = flagSet.String("key", "", `The name of the metadata key to be updated (required)`)
+		valueFlag = flagSet.String("value", "", `The new metadata value of the metadata key to be set. Defaults to null.`)
 		apiFlags  = api.NewFlags(flagSet)
 	)
 
@@ -60,7 +62,7 @@ Examples:
 
 		client := cfg.apiClient(apiFlags, flagSet.Output())
 
-		query := `mutation updateKVP(
+		query := `mutation updateMetadata(
   $repo: ID!,
   $key: String!,
   $value: String,
@@ -93,6 +95,7 @@ Examples:
 	// Register the command.
 	reposCommands = append(reposCommands, &command{
 		flagSet:   flagSet,
+		aliases:   []string{"update-kvp"},
 		handler:   handler,
 		usageFunc: usageFunc,
 	})

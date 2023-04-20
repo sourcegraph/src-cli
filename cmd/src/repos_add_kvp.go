@@ -13,23 +13,25 @@ func init() {
 	usage := `
 Examples:
 
-  Add a key-value pair to a repository:
+  Add a key-value pair metadata to a repository:
 
-    	$ src repos add-kvp -repo=repoID -key=mykey -value=myvalue
+    	$ src repos add-metadata -repo=repoID -key=mykey -value=myvalue
 
   Omitting -value will create a tag (a key with a null value).
+
+  [DEPRECATED] Note that 'add-kvp' is deprecated and will be removed in future release. Use 'add-metadata' instead.
 `
 
-	flagSet := flag.NewFlagSet("add-kvp", flag.ExitOnError)
+	flagSet := flag.NewFlagSet("add-metadata", flag.ExitOnError)
 	usageFunc := func() {
 		fmt.Fprintf(flag.CommandLine.Output(), "Usage of 'src repos %s':\n", flagSet.Name())
 		flagSet.PrintDefaults()
 		fmt.Println(usage)
 	}
 	var (
-		repoFlag  = flagSet.String("repo", "", `The ID of the repo to add the key-value pair to (required)`)
-		keyFlag   = flagSet.String("key", "", `The name of the key to add (required)`)
-		valueFlag = flagSet.String("value", "", `The value associated with the key. Defaults to null.`)
+		repoFlag  = flagSet.String("repo", "", `The ID of the repo to add the key-value pair metadata to (required)`)
+		keyFlag   = flagSet.String("key", "", `The name of the  metadata key to add (required)`)
+		valueFlag = flagSet.String("value", "", `The  metadata value associated with the  metadata key. Defaults to null.`)
 		apiFlags  = api.NewFlags(flagSet)
 	)
 
@@ -60,7 +62,7 @@ Examples:
 
 		client := cfg.apiClient(apiFlags, flagSet.Output())
 
-		query := `mutation addKVP(
+		query := `mutation addRepoMetadata(
   $repo: ID!,
   $key: String!,
   $value: String,
@@ -83,9 +85,9 @@ Examples:
 		}
 
 		if valueFlag != nil {
-			fmt.Printf("Key-value pair '%s:%v' created.\n", *keyFlag, *valueFlag)
+			fmt.Printf("Key-value pair metadata '%s:%v' created.\n", *keyFlag, *valueFlag)
 		} else {
-			fmt.Printf("Key-value pair '%s:<nil>' created.\n", *keyFlag)
+			fmt.Printf("Key-value pair metadata '%s:<nil>' created.\n", *keyFlag)
 		}
 		return nil
 	}
@@ -93,6 +95,7 @@ Examples:
 	// Register the command.
 	reposCommands = append(reposCommands, &command{
 		flagSet:   flagSet,
+		aliases:   []string{"add-kvp"},
 		handler:   handler,
 		usageFunc: usageFunc,
 	})
