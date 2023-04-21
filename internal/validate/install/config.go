@@ -53,7 +53,8 @@ type Insight struct {
 }
 
 type Smtp struct {
-	Test bool `yaml:"test"`
+	Test bool   `yaml:"test"`
+	To   string `yaml:"to"`
 }
 
 type ValidationSpec struct {
@@ -117,6 +118,7 @@ func DefaultConfig() *ValidationSpec {
 		},
 		Smtp: Smtp{
 			Test: true,
+			To: "example@domain.com"
 		},
 	}
 }
