@@ -47,19 +47,19 @@ func Validate(ctx context.Context, client api.Client, config *ValidationSpec) er
 		}
 	}
 
-	if config.Smtp.Test {  
+	if config.Smtp.Test {
 		log.Printf("%s validating smtp connection", validate.EmojiFingerPointRight)
-	
+
 		smtpQuery := `mutation sendTestEmail($to: String!) {
 			sendTestEmail(to: $to)
 		  }`
 		smtpVars := map[string]interface{}{
 			"to": config.Smtp.To,
 		}
-	
+
 		result, err := checkSmtp(ctx, client, smtpQuery, smtpVars)
 		if err != nil {
-			return err 
+			return err
 		}
 		log.Printf("%s '%s'", validate.SuccessEmoji, result)
 	}
@@ -148,24 +148,24 @@ func searchMatchCount(ctx context.Context, client api.Client, searchExpr string)
 }
 
 func checkSmtp(ctx context.Context, client api.Client, query string, variables map[string]interface{}) (string, error) {
-    q := clientQuery{
-        opName: "CheckSmtpConfig",
-        query: query,
-        variables: variables,
-    }
+	q := clientQuery{
+		opName:    "CheckSmtpConfig",
+		query:     query,
+		variables: variables,
+	}
 
-    var result struct {
-        SendTestEmail string `json:"sendTestEmail"`
-    }
+	var result struct {
+		SendTestEmail string `json:"sendTestEmail"`
+	}
 
-    ok, err := client.NewRequest(q.query, q.variables).Do(ctx, &result)
-    if err != nil {
-        return "", errors.Wrap(err, "sendTestEmail failed")
-    }
-    if !ok {
-        return "", errors.New("sendTestEmail failed, no data to unmarshal")
-    }
-    return result.SendTestEmail, nil
+	ok, err := client.NewRequest(q.query, q.variables).Do(ctx, &result)
+	if err != nil {
+		return "", errors.Wrap(err, "sendTestEmail failed")
+	}
+	if !ok {
+		return "", errors.New("sendTestEmail failed, no data to unmarshal")
+	}
+	return result.SendTestEmail, nil
 }
 
 func repoCloneTimeout(ctx context.Context, client api.Client, repo string, srv ExternalService) (bool, error) {

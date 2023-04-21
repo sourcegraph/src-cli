@@ -118,7 +118,7 @@ func DefaultConfig() *ValidationSpec {
 		},
 		Smtp: Smtp{
 			Test: true,
-			To: "example@domain.com",
+			To:   "example@domain.com",
 		},
 	}
 }
