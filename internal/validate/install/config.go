@@ -53,8 +53,8 @@ type Insight struct {
 }
 
 type Smtp struct {
-	Test bool   `yaml:"test"`
-	To   string `yaml:"to"`
+	Enabled bool   `yaml:"enabled"`
+	To      string `yaml:"to"`
 }
 
 type ValidationSpec struct {
@@ -117,8 +117,8 @@ func DefaultConfig() *ValidationSpec {
 			DeleteWhenDone: true,
 		},
 		Smtp: Smtp{
-			Test: true,
-			To:   "example@domain.com",
+			Enabled: false,
+			To:      "example@domain.com",
 		},
 	}
 }

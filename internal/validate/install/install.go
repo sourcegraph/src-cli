@@ -47,7 +47,7 @@ func Validate(ctx context.Context, client api.Client, config *ValidationSpec) er
 		}
 	}
 
-	if config.Smtp.Test {
+	if config.Smtp.Enabled {
 		log.Printf("%s validating smtp connection", validate.EmojiFingerPointRight)
 
 		smtpQuery := `mutation sendTestEmail($to: String!) {
