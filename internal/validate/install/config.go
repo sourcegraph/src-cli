@@ -119,7 +119,6 @@ func DefaultConfig() *ValidationSpec {
 		},
 		Executor: Executor{
 			Enabled: false,
-			Count: false,
 		},
 	}
 }
