@@ -46,26 +46,26 @@ func Validate(ctx context.Context, client api.Client, config *ValidationSpec) er
 			log.Printf("%s search query '%s' was successful", validate.SuccessEmoji, config.SearchQuery[i])
 		}
 	}
-	
+
 	// run executor queries
-	if config.Executor.Enabled {  
+	if config.Executor.Enabled {
 		log.Printf("%s validating executor connections", validate.EmojiFingerPointRight)
-	
+
 		executorQuery := `query executors($query: String, $active: Boolean, $first: Int, $after: String) {
 						executors(query: $query, active: $active, first: $first, after: $after){
 							totalCount
 						} 
 					}`
 		executorVars := map[string]interface{}{
-			"query": "",
+			"query":  "",
 			"active": true,
-			"first": 100,
-			"after": "",
+			"first":  100,
+			"after":  "",
 		}
-	
+
 		totalCount, err := checkExecutors(ctx, client, executorQuery, executorVars)
 		if err != nil {
-			return err 
+			return err
 		}
 		if totalCount == 0 {
 			log.Printf("%s validation failed, 0 executors found", validate.FlashingLightEmoji)
@@ -74,7 +74,6 @@ func Validate(ctx context.Context, client api.Client, config *ValidationSpec) er
 			log.Printf("%s executors found, %d executor(s) connected to Sourcegraph instance", validate.SuccessEmoji, totalCount)
 		}
 	}
-	
 
 	if config.Insight.Title != "" {
 		log.Printf("%s validating code insight", validate.EmojiFingerPointRight)
@@ -101,27 +100,27 @@ func Validate(ctx context.Context, client api.Client, config *ValidationSpec) er
 }
 
 func checkExecutors(ctx context.Context, client api.Client, query string, variables map[string]interface{}) (int, error) {
-    q := clientQuery{
-        opName: "CheckExecutorConnection",
-        query: query,
-        variables: variables,
-    }
+	q := clientQuery{
+		opName:    "CheckExecutorConnection",
+		query:     query,
+		variables: variables,
+	}
 
-    var result struct {
-        Executor struct {
-                TotalCount int `json:"totalCount"`
-        } `json:"executors"`
-    }
+	var result struct {
+		Executor struct {
+			TotalCount int `json:"totalCount"`
+		} `json:"executors"`
+	}
 
-    ok, err := client.NewRequest(q.query, q.variables).Do(ctx, &result)
-    if err != nil {
-        return 0, errors.Wrap(err, "checkExecutors failed")
-    }
-    if !ok {
-        return 0, errors.New("checkExecutors failed, no data to unmarshal")
-    }
+	ok, err := client.NewRequest(q.query, q.variables).Do(ctx, &result)
+	if err != nil {
+		return 0, errors.Wrap(err, "checkExecutors failed")
+	}
+	if !ok {
+		return 0, errors.New("checkExecutors failed, no data to unmarshal")
+	}
 
-    return result.Executor.TotalCount, nil
+	return result.Executor.TotalCount, nil
 }
 
 func removeExternalService(ctx context.Context, client api.Client, id string) error {

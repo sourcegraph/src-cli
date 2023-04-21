@@ -60,17 +60,16 @@ type Executor struct {
 type ValidationSpec struct {
 	// Search queries used for validation testing, e.g. "repo:^github\\.com/gorilla/mux$ Router".
 	SearchQuery []string `yaml:"searchQuery"`
-	
+
 	// External Service configuration.
 	ExternalService ExternalService `yaml:"externalService"`
-	
+
 	// Insight used for validation testing.
 	Insight Insight `yaml:"insight"`
 
 	// Executor check configuration
 	Executor Executor `yaml:"executor"`
 }
-
 
 // DefaultConfig returns a default configuration to be used for testing.
 func DefaultConfig() *ValidationSpec {
