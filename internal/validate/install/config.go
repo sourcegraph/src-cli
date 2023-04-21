@@ -68,7 +68,7 @@ type ValidationSpec struct {
 	Insight Insight `yaml:"insight"`
 
 	//Test SMTP configuration
-	Smtp Smtp `yaml:"test"`
+	Smtp Smtp `yaml:"smtp"`
 }
 
 // DefaultConfig returns a default configuration to be used for testing.
@@ -118,7 +118,7 @@ func DefaultConfig() *ValidationSpec {
 		},
 		Smtp: Smtp{
 			Test: true,
-			To: "example@domain.com"
+			To: "example@domain.com",
 		},
 	}
 }

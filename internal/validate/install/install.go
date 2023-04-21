@@ -47,6 +47,23 @@ func Validate(ctx context.Context, client api.Client, config *ValidationSpec) er
 		}
 	}
 
+	if config.Smtp.Test {  
+		log.Printf("%s validating smtp connection", validate.EmojiFingerPointRight)
+	
+		smtpQuery := `mutation sendTestEmail($to: String!) {
+			sendTestEmail(to: $to)
+		  }`
+		smtpVars := map[string]interface{}{
+			"to": config.Smtp.To,
+		}
+	
+		result, err := checkSmtp(ctx, client, smtpQuery, smtpVars)
+		if err != nil {
+			return err 
+		}
+		log.Printf("%s '%s'", validate.SuccessEmoji, result)
+	}
+
 	if config.Insight.Title != "" {
 		log.Printf("%s validating code insight", validate.EmojiFingerPointRight)
 
@@ -148,7 +165,6 @@ func checkSmtp(ctx context.Context, client api.Client, query string, variables m
     if !ok {
         return "", errors.New("sendTestEmail failed, no data to unmarshal")
     }
-
     return result.SendTestEmail, nil
 }
 
