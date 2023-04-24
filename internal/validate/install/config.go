@@ -57,6 +57,11 @@ type Executor struct {
 	Count   bool `yaml:"count"`
 }
 
+type Smtp struct {
+	Enabled bool   `yaml:"enabled"`
+	To      string `yaml:"to"`
+}
+
 type ValidationSpec struct {
 	// Search queries used for validation testing, e.g. "repo:^github\\.com/gorilla/mux$ Router".
 	SearchQuery []string `yaml:"searchQuery"`
@@ -69,6 +74,9 @@ type ValidationSpec struct {
 
 	// Executor check configuration
 	Executor Executor `yaml:"executor"`
+
+	//Test SMTP configuration
+	Smtp Smtp `yaml:"smtp"`
 }
 
 // DefaultConfig returns a default configuration to be used for testing.
@@ -118,6 +126,10 @@ func DefaultConfig() *ValidationSpec {
 		},
 		Executor: Executor{
 			Enabled: false,
+		},
+		Smtp: Smtp{
+			Enabled: false,
+			To:      "example@domain.com",
 		},
 	}
 }
