@@ -114,10 +114,10 @@ func checkExecutors(ctx context.Context, client api.Client, query string, variab
 
 	ok, err := client.NewRequest(q.query, q.variables).Do(ctx, &result)
 	if err != nil {
-		return 0, errors.Wrap(err, "checkExecutors failed")
+		return -1, errors.Wrap(err, "checkExecutors failed")
 	}
 	if !ok {
-		return 0, errors.New("checkExecutors failed, no data to unmarshal")
+		return -1, errors.New("checkExecutors failed, no data to unmarshal")
 	}
 
 	return result.Executor.TotalCount, nil
