@@ -28,8 +28,8 @@ Examples:
 		fmt.Println(usage)
 	}
 	var (
-		repoFlag     = flagSet.String("repo", "", `The ID of the repo with the key-value pair metadata to be deleted (required)`)
-		repoNameFlag = flagSet.String("repo-name", "", `The ID of the repo to add the key-value pair metadata to (required)`)
+		repoFlag     = flagSet.String("repo", "", `The ID of the repo with the key-value pair metadata to be deleted (required if -repo-name is not specified)`)
+		repoNameFlag = flagSet.String("repo-name", "", `The name of the repo to add the key-value pair metadata to (required if -repo is not specified)`)
 		keyFlag      = flagSet.String("key", "", `The name of the  metadata key to be deleted (required)`)
 		apiFlags     = api.NewFlags(flagSet)
 	)

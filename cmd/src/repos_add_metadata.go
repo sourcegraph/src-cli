@@ -30,8 +30,8 @@ Examples:
 		fmt.Println(usage)
 	}
 	var (
-		repoFlag     = flagSet.String("repo", "", `The ID of the repo to add the key-value pair metadata to (required)`)
-		repoNameFlag = flagSet.String("repo-name", "", `The ID of the repo to add the key-value pair metadata to (required)`)
+		repoFlag     = flagSet.String("repo", "", `The ID of the repo to add the key-value pair metadata to (required if -repo-name is not specified)`)
+		repoNameFlag = flagSet.String("repo-name", "", `The name of the repo to add the key-value pair metadata to (required if -repo is not specified)`)
 		keyFlag      = flagSet.String("key", "", `The name of the  metadata key to add (required)`)
 		valueFlag    = flagSet.String("value", "", `The  metadata value associated with the  metadata key. Defaults to null.`)
 		apiFlags     = api.NewFlags(flagSet)
