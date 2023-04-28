@@ -3,11 +3,12 @@ package resources
 import (
 	"context"
 	"fmt"
+	"os"
+	"text/tabwriter"
 
 	_ "github.com/docker/docker/api/types"
 	"github.com/docker/docker/client"
-	"github.com/sourcegraph/src-cli/internal/scout"
-    "github.com/sourcegraph/sourcegraph/lib/errors"
+	"github.com/sourcegraph/sourcegraph/lib/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -47,51 +48,36 @@ func ResourcesK8s(ctx context.Context, clientSet *kubernetes.Clientset, restConf
 		opt(cfg)
 	}
 
-	// Get a PodInterface for all namespaces (use an empty string "" as the namespace).
 	podInterface := clientSet.CoreV1().Pods(cfg.namespace)
-
-	// List all pods.
 	podList, err := podInterface.List(ctx, metav1.ListOptions{})
 	if err != nil {
 		return errors.Wrap(err, "Error listing pods: ")
 	}
 
-	// Iterate over the list of pods and print their names and namespaces.
+	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+	fmt.Fprintln(w, "POD\tCPU LIMITS\tCPU REQUESTS\tMEM LIMITS\tMEM REQUESTS\tDISK")
+
 	for _, pod := range podList.Items {
 		if pod.GetNamespace() == cfg.namespace {
-			if len(pod.Spec.Containers) > 1 {
-				fmt.Printf("%s %s:\n", scout.EmojiFingerPointRight, pod.Name)
-				for _, container := range pod.Spec.Containers {
-					cpuLimits := container.Resources.Limits.Cpu()
-					cpuRequests := container.Resources.Requests.Cpu()
-					memLimits := container.Resources.Limits.Memory()
-					memRequests := container.Resources.Requests.Memory()
-                    fmt.Printf(
-                        "\t%s: \n\t\tCPU: (%v, %v), \n\t\tMemory: (%v, %v)\n",
-                        container.Name, 
-                        cpuLimits,
-                        cpuRequests,
-                        memLimits, 
-                        memRequests,
-                    )
-				}
-			} else if len(pod.Spec.Containers) == 1 {
-                fmt.Printf("%s %s: ", scout.EmojiFingerPointRight, pod.Name)
-                c := pod.Spec.Containers[0]
-				cpuLimits := c.Resources.Limits.Cpu()
-				cpuRequests := c.Resources.Requests.Cpu()
-				memLimits := c.Resources.Limits.Memory()
-				memRequests := c.Resources.Requests.Memory()
-                fmt.Printf(
-                    "\n\tCPU: (%v, %v), \n\tLimits: (%v, %v)\n", 
-                    cpuLimits, 
-                    cpuRequests, 
-                    memLimits, 
-                    memRequests,
-                )
+			for _, container := range pod.Spec.Containers {
+				cpuLimits := container.Resources.Limits.Cpu()
+				cpuRequests := container.Resources.Requests.Cpu()
+				memLimits := container.Resources.Limits.Memory()
+				memRequests := container.Resources.Requests.Memory()
+				fmt.Fprintf(
+					w,
+					"%s\t%s\t%s\t%s\t%s\t\n",
+					container.Name,
+					cpuLimits,
+					cpuRequests,
+					memLimits,
+					memRequests,
+				)
 			}
 		}
-	}  
+	}
+
+	w.Flush()
 
 	return nil
 }
