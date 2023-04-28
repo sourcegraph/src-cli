@@ -47,6 +47,51 @@ func Validate(ctx context.Context, client api.Client, config *ValidationSpec) er
 		}
 	}
 
+	// run executor queries
+	if config.Executor.Enabled {
+		log.Printf("%s validating executor connections", validate.EmojiFingerPointRight)
+
+		executorQuery := `query executors($query: String, $active: Boolean, $first: Int, $after: String) {
+						executors(query: $query, active: $active, first: $first, after: $after){
+							totalCount
+						} 
+					}`
+		executorVars := map[string]interface{}{
+			"query":  "",
+			"active": true,
+			"first":  100,
+			"after":  "",
+		}
+
+		totalCount, err := checkExecutors(ctx, client, executorQuery, executorVars)
+		if err != nil {
+			return err
+		}
+		if totalCount == 0 {
+			log.Printf("%s validation failed, 0 executors found", validate.FlashingLightEmoji)
+		}
+		if totalCount >= 1 {
+			log.Printf("%s executors found, %d executor(s) connected to Sourcegraph instance", validate.SuccessEmoji, totalCount)
+		}
+	}
+
+	if config.Smtp.Enabled {
+		log.Printf("%s validating smtp connection", validate.EmojiFingerPointRight)
+
+		smtpQuery := `mutation sendTestEmail($to: String!) {
+			sendTestEmail(to: $to)
+		  }`
+		smtpVars := map[string]interface{}{
+			"to": config.Smtp.To,
+		}
+
+		result, err := checkSmtp(ctx, client, smtpQuery, smtpVars)
+		if err != nil {
+			return err
+		}
+		log.Printf("%s '%s'", validate.SuccessEmoji, result)
+	}
+
 	if config.Insight.Title != "" {
 		log.Printf("%s validating code insight", validate.EmojiFingerPointRight)
 
@@ -69,6 +114,30 @@ func Validate(ctx context.Context, client api.Client, config *ValidationSpec) er
 	}
 
 	return nil
+}
+
+func checkExecutors(ctx context.Context, client api.Client, query string, variables map[string]interface{}) (int, error) {
+	q := clientQuery{
+		opName:    "CheckExecutorConnection",
+		query:     query,
+		variables: variables,
+	}
+
+	var result struct {
+		Executor struct {
+			TotalCount int `json:"totalCount"`
+		} `json:"executors"`
+	}
+
+	ok, err := client.NewRequest(q.query, q.variables).Do(ctx, &result)
+	if err != nil {
+		return -1, errors.Wrap(err, "checkExecutors failed")
+	}
+	if !ok {
+		return -1, errors.New("checkExecutors failed, no data to unmarshal")
+	}
+
+	return result.Executor.TotalCount, nil
 }
 
 func removeExternalService(ctx context.Context, client api.Client, id string) error {
@@ -128,6 +197,27 @@ func searchMatchCount(ctx context.Context, client api.Client, searchExpr string)
 	}
 
 	return result.Search.Results.MatchCount, nil
+}
+
+func checkSmtp(ctx context.Context, client api.Client, query string, variables map[string]interface{}) (string, error) {
+	q := clientQuery{
+		opName:    "CheckSmtpConfig",
+		query:     query,
+		variables: variables,
+	}
+
+	var result struct {
+		SendTestEmail string `json:"sendTestEmail"`
+	}
+
+	ok, err := client.NewRequest(q.query, q.variables).Do(ctx, &result)
+	if err != nil {
+		return "", errors.Wrap(err, "sendTestEmail failed")
+	}
+	if !ok {
+		return "", errors.New("sendTestEmail failed, no data to unmarshal")
+	}
+	return result.SendTestEmail, nil
 }
 
 func repoCloneTimeout(ctx context.Context, client api.Client, repo string, srv ExternalService) (bool, error) {
