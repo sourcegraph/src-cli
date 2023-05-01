@@ -6,7 +6,6 @@ import (
 	"os"
 	"text/tabwriter"
 
-	_ "github.com/docker/docker/api/types"
 	"github.com/docker/docker/client"
 	"github.com/sourcegraph/sourcegraph/lib/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
