@@ -60,13 +60,13 @@ func init() {
 
 		config, err := clientcmd.BuildConfigFromFlags("", *kubeConfig)
 		if err != nil {
-            // todo: switch out for sourcegraph error package
+			// todo: switch out for sourcegraph error package
 			return errors.New(fmt.Sprintf("%v: failed to load kubernetes config", err))
 		}
 
 		clientSet, err := kubernetes.NewForConfig(config)
 		if err != nil {
-            // todo: switch out for sourcegraph error package
+			// todo: switch out for sourcegraph error package
 			return errors.New(fmt.Sprintf("%v: failed to load kubernetes config", err))
 		}
 
@@ -78,9 +78,9 @@ func init() {
 
 		if *docker {
 			options = append(options, resources.UsesDocker())
+            // @TODO:
 			// return ResourcesDocker()
-        }
-
+		}
 
 		return resources.ResourcesK8s(context.Background(), clientSet, config, options...)
 	}
