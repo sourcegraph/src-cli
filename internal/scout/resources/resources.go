@@ -123,7 +123,7 @@ type DockerClientInterface interface {
 }
 
 // ResourcesDocker prints the CPU and memory resource limits and requests for running Docker containers.
-func ResourcesDocker(ctx context.Context, dockerClient DockerClientInterface) error {
+func Docker(ctx context.Context, dockerClient DockerClientInterface) error {
 	containers, err := dockerClient.ContainerList(ctx, types.ContainerListOptions{})
 	if err != nil {
 		return fmt.Errorf("Error listing Docker containers: %v", err)
