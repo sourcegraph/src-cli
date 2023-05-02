@@ -173,7 +173,7 @@ func Docker(ctx context.Context, dockerClient DockerClientInterface) error {
 // getMemUnits converts a byte value to the appropriate memory unit.
 func getMemUnits(valToConvert int64) (string, int64, error) {
 	if valToConvert < 0 {
-		return "", valToConvert, fmt.Errorf("Invalid memory value: %d", valToConvert)
+		return "", valToConvert, fmt.Errorf("invalid memory value: %d", valToConvert)
 	}
 
 	var memUnit string
