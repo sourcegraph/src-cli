@@ -17,7 +17,7 @@ import (
 
 func init() {
 	usage := `'src scout resources' is a tool that provides an overview of resource usage
-    across an instance of Sourcegraph.
+    across an instance of Sourcegraph. Part of the EXPERIMENTAL "src scout" tool.
     
     Examples
         List pods and resource allocations in a Kubernetes deployment:
