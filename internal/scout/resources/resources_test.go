@@ -82,6 +82,7 @@ func TestResourcesDocker(t *testing.T) {
 	dockerClient.On("ContainerList", mock.Anything, mock.Anything).Return([]types.Container{
 		{ID: "container1"},
 		{ID: "container2"},
+		{ID: "container3"},
 	}, nil)
 
 	dockerClient.On("ContainerInspect", mock.Anything, "container1").Return(types.ContainerJSON{
@@ -91,7 +92,8 @@ func TestResourcesDocker(t *testing.T) {
 				Resources: container.Resources{
 					NanoCPUs:          2000000000,
 					CPUPeriod:         100000,
-					Memory:            536870912,
+					CPUQuota:          50000,
+					Memory:            1536870912,
 					MemoryReservation: 268435456,
 				},
 			},
@@ -105,8 +107,24 @@ func TestResourcesDocker(t *testing.T) {
 				Resources: container.Resources{
 					NanoCPUs:          1000000000,
 					CPUPeriod:         50000,
+					CPUQuota:          25000,
 					Memory:            268435456,
 					MemoryReservation: 134217728,
+				},
+			},
+		},
+	}, nil)
+
+	dockerClient.On("ContainerInspect", mock.Anything, "container3").Return(types.ContainerJSON{
+		ContainerJSONBase: &types.ContainerJSONBase{
+			Name: "container3",
+			HostConfig: &container.HostConfig{
+				Resources: container.Resources{
+					NanoCPUs:          4000000000,
+					CPUPeriod:         150000,
+					CPUQuota:          65000,
+					Memory:            5268435456,
+					MemoryReservation: 4134217728,
 				},
 			},
 		},
@@ -117,9 +135,10 @@ func TestResourcesDocker(t *testing.T) {
 	var expectedOutput strings.Builder
 	expectedW := tabwriter.NewWriter(&expectedOutput, 0, 0, 2, ' ', 0)
 
-	fmt.Fprintln(expectedW, "Container\tCPU Limits\tCPU Requests\tMem Limits\tMem Requests")
-	fmt.Fprintf(expectedW, "container1\t2000000000\t100000\t536870912\t268435456\n")
-	fmt.Fprintf(expectedW, "container2\t1000000000\t50000\t268435456\t134217728\n")
+	fmt.Fprintln(expectedW, "Container\tCPU Limits\tCPU Period\tCPU Quota\tMem Limits\tMem Requests")
+	fmt.Fprintf(expectedW, "container1\t2\t100 MS\t50%%\t1 GB\t268 MB\n")
+	fmt.Fprintf(expectedW, "container2\t1\t50 MS\t50%%\t268 MB\t134 MB\n")
+	fmt.Fprintf(expectedW, "container3\t4\t150 MS\t44%%\t5 GB\t4 GB\n")
 	expectedW.Flush()
 
 	oldStdout := os.Stdout

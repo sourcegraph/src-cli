@@ -3,12 +3,14 @@ package resources
 import (
 	"context"
 	"fmt"
+	"math"
 	"os"
 	"text/tabwriter"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/client"
 	"github.com/sourcegraph/sourcegraph/lib/errors"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -36,7 +38,7 @@ func UsesDocker() Option {
 	}
 }
 
-// ResourcesK8s prints the CPU, memory, and storage resource limits, requests and capacity for Kubernetes pods.
+// ResourcesK8s prints the CPU and memory resource limits and requests for all pods in the given namespace.
 func ResourcesK8s(ctx context.Context, clientSet *kubernetes.Clientset, restConfig *rest.Config, opts ...Option) error {
 	cfg := &Config{
 		namespace:    "default",
@@ -49,7 +51,11 @@ func ResourcesK8s(ctx context.Context, clientSet *kubernetes.Clientset, restConf
 		opt(cfg)
 	}
 
-	podInterface := clientSet.CoreV1().Pods(cfg.namespace)
+	return listPodResources(ctx, cfg)
+}
+
+func listPodResources(ctx context.Context, cfg *Config) error {
+	podInterface := cfg.k8sClient.CoreV1().Pods(cfg.namespace)
 	podList, err := podInterface.List(ctx, metav1.ListOptions{})
 	if err != nil {
 		return errors.Wrap(err, "Error listing pods: ")
@@ -66,29 +72,9 @@ func ResourcesK8s(ctx context.Context, clientSet *kubernetes.Clientset, restConf
 				memLimits := container.Resources.Limits.Memory()
 				memRequests := container.Resources.Requests.Memory()
 
-				var capacity string
-				for _, volumeMount := range container.VolumeMounts {
-					for _, volume := range pod.Spec.Volumes {
-						fmt.Println(pod.Spec.Volumes)
-						if volume.Name == volumeMount.Name && volume.PersistentVolumeClaim != nil {
-							pvc, err := clientSet.CoreV1().PersistentVolumeClaims(cfg.namespace).Get(
-								ctx,
-								volume.PersistentVolumeClaim.ClaimName,
-								metav1.GetOptions{},
-							)
-
-							if err != nil {
-								return errors.Wrapf(
-									err,
-									"Error getting PVC %s",
-									volume.PersistentVolumeClaim.ClaimName,
-								)
-							}
-
-							capacity = pvc.Status.Capacity.Storage().String()
-							break
-						}
-					}
+				capacity, err := getPVCCapacity(ctx, cfg, container, pod)
+				if err != nil {
+					return err
 				}
 
 				fmt.Fprintf(
@@ -109,6 +95,33 @@ func ResourcesK8s(ctx context.Context, clientSet *kubernetes.Clientset, restConf
 	return nil
 }
 
+func getPVCCapacity(ctx context.Context, cfg *Config, container v1.Container, pod v1.Pod) (string, error) {
+	var capacity string
+	for _, volumeMount := range container.VolumeMounts {
+		for _, volume := range pod.Spec.Volumes {
+			if volume.Name == volumeMount.Name && volume.PersistentVolumeClaim != nil {
+				pvc, err := cfg.k8sClient.CoreV1().PersistentVolumeClaims(cfg.namespace).Get(
+					ctx,
+					volume.PersistentVolumeClaim.ClaimName,
+					metav1.GetOptions{},
+				)
+
+				if err != nil {
+					return "", errors.Wrapf(
+						err,
+						"Error getting PVC %s",
+						volume.PersistentVolumeClaim.ClaimName,
+					)
+				}
+
+				capacity = pvc.Status.Capacity.Storage().String()
+				break
+			}
+		}
+	}
+	return capacity, nil
+}
+
 // DockerClientInterface defines the interface for interacting with the Docker API.
 type DockerClientInterface interface {
 	ContainerList(ctx context.Context, options types.ContainerListOptions) ([]types.Container, error)
@@ -124,7 +137,7 @@ func ResourcesDocker(ctx context.Context, dockerClient DockerClientInterface) er
 	}
 
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(w, "Container\tCPU Limits\tCPU Requests\tMem Limits\tMem Requests")
+	fmt.Fprintln(w, "Container\tCPU Limits\tCPU Period\tCPU Quota\tMem Limits\tMem Requests")
 
 	for _, container := range containers {
 		containerInfo, err := dockerClient.ContainerInspect(ctx, container.ID)
@@ -133,20 +146,53 @@ func ResourcesDocker(ctx context.Context, dockerClient DockerClientInterface) er
 		}
 
 		cpuLimits := containerInfo.HostConfig.NanoCPUs
-		cpuRequests := containerInfo.HostConfig.CPUPeriod
+		cpuPeriod := containerInfo.HostConfig.CPUPeriod
+		cpuQuota := containerInfo.HostConfig.CPUQuota
 		memLimits := containerInfo.HostConfig.Memory
 		memRequests := containerInfo.HostConfig.MemoryReservation
+
+		limUnit, limVal, err := getMemUnits(memLimits)
+		if err != nil {
+			return err
+		}
+
+		reqUnit, reqVal, err := getMemUnits(memRequests)
+		if err != nil {
+			return err
+		}
+
 		fmt.Fprintf(
 			w,
-			"%s\t%d\t%d\t%d\t%d\n",
+			"%s\t%d\t%v\t%v\t%v\t%v\n",
 			containerInfo.Name,
-			cpuLimits,
-			cpuRequests,
-			memLimits,
-			memRequests,
+			cpuLimits/1e9,
+			fmt.Sprintf("%d MS", cpuPeriod/1000),
+			fmt.Sprintf(`%v%%`, math.Ceil((float64(cpuQuota)/float64(cpuPeriod))*100)),
+			fmt.Sprintf("%d %s", limVal, limUnit),
+			fmt.Sprintf("%d %s", reqVal, reqUnit),
 		)
 	}
 
 	w.Flush()
 	return nil
+}
+
+// getMemUnits converts a byte value to the appropriate memory unit.
+func getMemUnits(valToConvert int64) (string, int64, error) {
+	if valToConvert < 0 {
+		return "", valToConvert, fmt.Errorf("Invalid memory value: %d", valToConvert)
+	}
+
+	var memUnit string
+	if valToConvert < 1000000 {
+		memUnit = "KB"
+	} else if valToConvert < 1000000000 {
+		memUnit = "MB"
+		valToConvert = valToConvert / 1000000
+	} else {
+		memUnit = "GB"
+		valToConvert = valToConvert / 1000000000
+	}
+
+	return memUnit, valToConvert, nil
 }
