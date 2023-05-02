@@ -32,7 +32,7 @@ func WithNamespace(namespace string) Option {
 }
 
 // ResourcesK8s prints the CPU and memory resource limits and requests for all pods in the given namespace.
-func ResourcesK8s(ctx context.Context, clientSet *kubernetes.Clientset, restConfig *rest.Config, opts ...Option) error {
+func K8s(ctx context.Context, clientSet *kubernetes.Clientset, restConfig *rest.Config, opts ...Option) error {
 	cfg := &Config{
 		namespace:    "default",
 		docker:       false,
