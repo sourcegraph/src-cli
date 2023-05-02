@@ -142,7 +142,7 @@ func Docker(ctx context.Context, dockerClient DockerClientInterface) error {
 	for _, container := range containers {
 		containerInfo, err := dockerClient.ContainerInspect(ctx, container.ID)
 		if err != nil {
-			return fmt.Errorf("Error inspecting container %s: %v", container.ID, err)
+			return fmt.Errorf("error inspecting container %s: %v", container.ID, err)
 		}
 
 		cpuLimits := containerInfo.HostConfig.NanoCPUs
