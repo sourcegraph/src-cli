@@ -19,7 +19,6 @@ import (
 type Option = func(config *Config)
 
 type Config struct {
-	kubeConfig   *string
 	namespace    string
 	docker       bool
 	k8sClient    *kubernetes.Clientset
@@ -29,12 +28,6 @@ type Config struct {
 func WithNamespace(namespace string) Option {
 	return func(config *Config) {
 		config.namespace = namespace
-	}
-}
-
-func UsesDocker() Option {
-	return func(config *Config) {
-		config.docker = true
 	}
 }
 

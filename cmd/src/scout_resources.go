@@ -79,7 +79,6 @@ func init() {
 		}
 
 		if *docker {
-			options = append(options, resources.UsesDocker())
 			dockerClient, err := client.NewClientWithOpts(client.FromEnv)
 			if err != nil {
 				return errors.Wrap(err, "Error creating docker client: ")

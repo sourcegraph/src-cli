@@ -3,12 +3,11 @@ package resources
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 	"testing"
 	"text/tabwriter"
-
-	"io/ioutil"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
@@ -158,7 +157,7 @@ func TestResourcesDocker(t *testing.T) {
 	w.Close()
 	os.Stdout = oldStdout
 
-	output, err := ioutil.ReadAll(r)
+	output, err := io.ReadAll(r)
 	if err != nil {
 		t.Fatalf("Error reading from pipe: %v", err)
 	}
