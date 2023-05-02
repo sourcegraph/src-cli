@@ -17,12 +17,13 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/client-go/util/homedir"
 )
 
 func TestResourcesK8s(t *testing.T) {
 	ctx := context.Background()
 
-	config, err := clientcmd.BuildConfigFromFlags("", "/Users/sourcegraph/.kube/config")
+	config, err := clientcmd.BuildConfigFromFlags("", homedir.HomeDir()+"/.kube/config")
 	if err != nil {
 		t.Fatal(errors.Wrap(err, "Error getting in cluster config"))
 	}
