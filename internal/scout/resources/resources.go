@@ -51,7 +51,7 @@ func listPodResources(ctx context.Context, cfg *Config) error {
 	podInterface := cfg.k8sClient.CoreV1().Pods(cfg.namespace)
 	podList, err := podInterface.List(ctx, metav1.ListOptions{})
 	if err != nil {
-		return errors.Wrap(err, "Error listing pods: ")
+		return errors.Wrap(err, "error listing pods: ")
 	}
 
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
