@@ -3,7 +3,6 @@ package resources
 import (
 	"context"
 	"fmt"
-	"math"
 	"os"
 	"text/tabwriter"
 
@@ -56,7 +55,7 @@ func listPodResources(ctx context.Context, cfg *Config) error {
 
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
 	defer func() {
-		_ = w.Flush()
+        _ = w.Flush()
 	}()
 
 	fmt.Fprintln(w, "CONTAINER\tCPU LIMITS\tCPU REQUESTS\tMEM LIMITS\tMEM REQUESTS\tCAPACITY")
@@ -137,37 +136,36 @@ func Docker(ctx context.Context, dockerClient DockerClientInterface) error {
 		_ = w.Flush()
 	}()
 
-	fmt.Fprintln(w, "Container\tCPU Limits\tCPU Period\tCPU Quota\tMem Limits\tMem Requests")
+	fmt.Fprintln(w, "Container\tCPU Cores\tCPU Shares\tMem Limits\tMem Reservations")
 
 	for _, container := range containers {
+        
 		containerInfo, err := dockerClient.ContainerInspect(ctx, container.ID)
 		if err != nil {
 			return fmt.Errorf("error inspecting container %s: %v", container.ID, err)
 		}
 
-		cpuLimits := containerInfo.HostConfig.NanoCPUs
-		cpuPeriod := containerInfo.HostConfig.CPUPeriod
-		cpuQuota := containerInfo.HostConfig.CPUQuota
+		cpuCores := containerInfo.HostConfig.NanoCPUs
+        cpuShares := containerInfo.HostConfig.CPUShares
 		memLimits := containerInfo.HostConfig.Memory
-		memRequests := containerInfo.HostConfig.MemoryReservation
+		memReservations := containerInfo.HostConfig.MemoryReservation
 
 		limUnit, limVal, err := getMemUnits(memLimits)
 		if err != nil {
 			return err
 		}
 
-		reqUnit, reqVal, err := getMemUnits(memRequests)
+		reqUnit, reqVal, err := getMemUnits(memReservations)
 		if err != nil {
 			return err
 		}
 
 		fmt.Fprintf(
 			w,
-			"%s\t%d\t%v\t%v\t%v\t%v\n",
+			"%s\t%d\t%v\t%v\t%v\n",
 			containerInfo.Name,
-			cpuLimits/1e9,
-			fmt.Sprintf("%d MS", cpuPeriod/1000),
-			fmt.Sprintf(`%v%%`, math.Ceil((float64(cpuQuota)/float64(cpuPeriod))*100)),
+			cpuCores/1e9,
+            cpuShares,
 			fmt.Sprintf("%d %s", limVal, limUnit),
 			fmt.Sprintf("%d %s", reqVal, reqUnit),
 		)

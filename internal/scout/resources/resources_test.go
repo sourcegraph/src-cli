@@ -91,8 +91,7 @@ func TestResourcesDocker(t *testing.T) {
 			HostConfig: &container.HostConfig{
 				Resources: container.Resources{
 					NanoCPUs:          2000000000,
-					CPUPeriod:         100000,
-					CPUQuota:          50000,
+					CPUShares:         512,
 					Memory:            1536870912,
 					MemoryReservation: 268435456,
 				},
@@ -106,8 +105,7 @@ func TestResourcesDocker(t *testing.T) {
 			HostConfig: &container.HostConfig{
 				Resources: container.Resources{
 					NanoCPUs:          1000000000,
-					CPUPeriod:         50000,
-					CPUQuota:          25000,
+					CPUShares:         1024,
 					Memory:            268435456,
 					MemoryReservation: 134217728,
 				},
@@ -121,8 +119,7 @@ func TestResourcesDocker(t *testing.T) {
 			HostConfig: &container.HostConfig{
 				Resources: container.Resources{
 					NanoCPUs:          4000000000,
-					CPUPeriod:         150000,
-					CPUQuota:          65000,
+					CPUShares:         2048,
 					Memory:            5268435456,
 					MemoryReservation: 4134217728,
 				},
@@ -135,10 +132,10 @@ func TestResourcesDocker(t *testing.T) {
 	var expectedOutput strings.Builder
 	expectedW := tabwriter.NewWriter(&expectedOutput, 0, 0, 2, ' ', 0)
 
-	fmt.Fprintln(expectedW, "Container\tCPU Limits\tCPU Period\tCPU Quota\tMem Limits\tMem Requests")
-	fmt.Fprintf(expectedW, "container1\t2\t100 MS\t50%%\t1 GB\t268 MB\n")
-	fmt.Fprintf(expectedW, "container2\t1\t50 MS\t50%%\t268 MB\t134 MB\n")
-	fmt.Fprintf(expectedW, "container3\t4\t150 MS\t44%%\t5 GB\t4 GB\n")
+	fmt.Fprintln(expectedW, "Container\tCPU Cores\tCPU Shares\tMem Limits\tMem Reservations")
+	fmt.Fprintf(expectedW, "container1\t2\t512\t1 GB\t268 MB\n")
+	fmt.Fprintf(expectedW, "container2\t1\t1024\t268 MB\t134 MB\n")
+	fmt.Fprintf(expectedW, "container3\t4\t2048\t5 GB\t4 GB\n")
 	expectedW.Flush()
 
 	oldStdout := os.Stdout
