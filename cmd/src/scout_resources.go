@@ -82,10 +82,10 @@ func init() {
 				return errors.Wrap(err, "Error creating docker client: ")
 			}
 
-			return resources.ResourcesDocker(context.Background(), dockerClient)
+			return resources.Docker(context.Background(), dockerClient)
 		}
 
-		return resources.ResourcesK8s(context.Background(), clientSet, config, options...)
+		return resources.K8s(context.Background(), clientSet, config, options...)
 	}
 
 	scoutCommands = append(scoutCommands, &command{

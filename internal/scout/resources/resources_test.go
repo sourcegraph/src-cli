@@ -51,7 +51,7 @@ func TestResourcesK8s(t *testing.T) {
 	k8sClientSet.CoreV1().Pods("test").Create(ctx, pod1, metav1.CreateOptions{})
 	k8sClientSet.CoreV1().Pods("other").Create(ctx, pod2, metav1.CreateOptions{})
 
-	err = ResourcesK8s(ctx, k8sClientSet, nil, WithNamespace("test"))
+	err = K8s(ctx, k8sClientSet, nil, WithNamespace("test"))
 	if err != nil {
 		t.Fatal(errors.Wrap(err, "Error calling ResourcesK8s"))
 	}
@@ -145,7 +145,7 @@ func TestResourcesDocker(t *testing.T) {
 	r, w, _ := os.Pipe()
 	os.Stdout = w
 
-	err := ResourcesDocker(context.Background(), dockerClient)
+	err := Docker(context.Background(), dockerClient)
 	if err != nil {
 		t.Fatalf("ResourcesDocker returned an error: %v", err)
 	}

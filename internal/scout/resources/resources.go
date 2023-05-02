@@ -55,9 +55,9 @@ func listPodResources(ctx context.Context, cfg *Config) error {
 	}
 
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-    defer func () {
-        _ = w.Flush()
-    }()
+	defer func() {
+		_ = w.Flush()
+	}()
 
 	fmt.Fprintln(w, "CONTAINER\tCPU LIMITS\tCPU REQUESTS\tMEM LIMITS\tMEM REQUESTS\tCAPACITY")
 
@@ -133,9 +133,9 @@ func Docker(ctx context.Context, dockerClient DockerClientInterface) error {
 	}
 
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-    defer func () {
-        _ = w.Flush()
-    }()
+	defer func() {
+		_ = w.Flush()
+	}()
 
 	fmt.Fprintln(w, "Container\tCPU Limits\tCPU Period\tCPU Quota\tMem Limits\tMem Requests")
 
