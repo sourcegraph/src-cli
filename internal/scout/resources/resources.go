@@ -55,7 +55,7 @@ func listPodResources(ctx context.Context, cfg *Config) error {
 
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
 	defer func() {
-        _ = w.Flush()
+		_ = w.Flush()
 	}()
 
 	fmt.Fprintln(w, "CONTAINER\tCPU LIMITS\tCPU REQUESTS\tMEM LIMITS\tMEM REQUESTS\tCAPACITY")
@@ -139,14 +139,13 @@ func Docker(ctx context.Context, dockerClient DockerClientInterface) error {
 	fmt.Fprintln(w, "Container\tCPU Cores\tCPU Shares\tMem Limits\tMem Reservations")
 
 	for _, container := range containers {
-        
 		containerInfo, err := dockerClient.ContainerInspect(ctx, container.ID)
 		if err != nil {
 			return fmt.Errorf("error inspecting container %s: %v", container.ID, err)
 		}
 
 		cpuCores := containerInfo.HostConfig.NanoCPUs
-        cpuShares := containerInfo.HostConfig.CPUShares
+		cpuShares := containerInfo.HostConfig.CPUShares
 		memLimits := containerInfo.HostConfig.Memory
 		memReservations := containerInfo.HostConfig.MemoryReservation
 
@@ -165,7 +164,7 @@ func Docker(ctx context.Context, dockerClient DockerClientInterface) error {
 			"%s\t%d\t%v\t%v\t%v\n",
 			containerInfo.Name,
 			cpuCores/1e9,
-            cpuShares,
+			cpuShares,
 			fmt.Sprintf("%d %s", limVal, limUnit),
 			fmt.Sprintf("%d %s", reqVal, reqUnit),
 		)
