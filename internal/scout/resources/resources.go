@@ -126,7 +126,7 @@ type DockerClientInterface interface {
 func Docker(ctx context.Context, dockerClient DockerClientInterface) error {
 	containers, err := dockerClient.ContainerList(ctx, types.ContainerListOptions{})
 	if err != nil {
-		return fmt.Errorf("Error listing Docker containers: %v", err)
+		return fmt.Errorf("error listing docker containers: %v", err)
 	}
 
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
