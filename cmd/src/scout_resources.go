@@ -67,7 +67,6 @@ func init() {
 
 		clientSet, err := kubernetes.NewForConfig(config)
 		if err != nil {
-			// todo: switch out for sourcegraph error package
 			return errors.New(fmt.Sprintf("%v: failed to load kubernetes config", err))
 		}
 
