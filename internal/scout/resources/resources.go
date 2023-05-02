@@ -102,7 +102,7 @@ func getPVCCapacity(ctx context.Context, cfg *Config, container v1.Container, po
 				if err != nil {
 					return "", errors.Wrapf(
 						err,
-						"Error getting PVC %s",
+						"error getting PVC %s",
 						volume.PersistentVolumeClaim.ClaimName,
 					)
 				}
