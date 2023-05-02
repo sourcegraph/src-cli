@@ -2,17 +2,17 @@ package main
 
 import (
 	"context"
-	"errors"
 	"flag"
 	"fmt"
 	"path/filepath"
 
-	// "github.com/docker/docker/client"
-	// "github.com/sourcegraph/src-cli/internal/scout"
-	"github.com/sourcegraph/src-cli/internal/scout/resources"
+	"github.com/docker/docker/client"
+	"github.com/sourcegraph/sourcegraph/lib/errors"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/util/homedir"
+
+	"github.com/sourcegraph/src-cli/internal/scout/resources"
 )
 
 func init() {
@@ -41,6 +41,8 @@ func init() {
 		kubeConfig *string
 		namespace  = flagSet.String("namespace", "", "(optional) specify the kubernetes namespace to use")
 		docker     = flagSet.Bool("docker", false, "(optional) using docker deployment")
+		// TODO: option for getting resource allocation of the Node
+		// nodes      = flagSet.Bool("node", false, "(optional) view resources for node(s)")
 	)
 
 	if home := homedir.HomeDir(); home != "" {
@@ -78,8 +80,12 @@ func init() {
 
 		if *docker {
 			options = append(options, resources.UsesDocker())
-            // @TODO:
-			// return ResourcesDocker()
+			dockerClient, err := client.NewClientWithOpts(client.FromEnv)
+			if err != nil {
+				return errors.Wrap(err, "Error creating docker client: ")
+			}
+
+			return resources.ResourcesDocker(context.Background(), dockerClient)
 		}
 
 		return resources.ResourcesK8s(context.Background(), clientSet, config, options...)
