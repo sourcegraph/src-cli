@@ -20,7 +20,7 @@ func init() {
     The commands are:
         
         resources       print all known sourcegraph resources
-        estimate        (coming soon) reccommend resource allocation for one or many services
+        estimate        (coming soon) recommend resource allocation for one or many services
         usage           (coming soon) get CPU, memory and current disk usage
         spy             (coming soon) track resource usage in real time
 

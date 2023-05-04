@@ -1,4 +1,4 @@
-package resources
+package resource
 
 import (
 	"context"
@@ -30,7 +30,7 @@ func WithNamespace(namespace string) Option {
 	}
 }
 
-// ResourcesK8s prints the CPU and memory resource limits and requests for all pods in the given namespace.
+// K8s prints the CPU and memory resource limits and requests for all pods in the given namespace.
 func K8s(ctx context.Context, clientSet *kubernetes.Clientset, restConfig *rest.Config, opts ...Option) error {
 	cfg := &Config{
 		namespace:    "default",
@@ -91,7 +91,6 @@ func listPodResources(ctx context.Context, cfg *Config) error {
 }
 
 func getPVCCapacity(ctx context.Context, cfg *Config, container v1.Container, pod v1.Pod) (string, error) {
-	var capacity string
 	for _, volumeMount := range container.VolumeMounts {
 		for _, volume := range pod.Spec.Volumes {
 			if volume.Name == volumeMount.Name && volume.PersistentVolumeClaim != nil {
@@ -100,21 +99,14 @@ func getPVCCapacity(ctx context.Context, cfg *Config, container v1.Container, po
 					volume.PersistentVolumeClaim.ClaimName,
 					metav1.GetOptions{},
 				)
-
 				if err != nil {
-					return "", errors.Wrapf(
-						err,
-						"error getting PVC %s",
-						volume.PersistentVolumeClaim.ClaimName,
-					)
+					return "", errors.Wrapf(err, "error getting PVC %s", volume.PersistentVolumeClaim.ClaimName)
 				}
-
-				capacity = pvc.Status.Capacity.Storage().String()
-				break
+				return pvc.Status.Capacity.Storage().String(), nil
 			}
 		}
 	}
-	return capacity, nil
+	return "", nil
 }
 
 // DockerClientInterface defines the interface for interacting with the Docker API.
@@ -124,7 +116,7 @@ type DockerClientInterface interface {
 	Close() error
 }
 
-// ResourcesDocker prints the CPU and memory resource limits and requests for running Docker containers.
+// Docker prints the CPU and memory resource limits and requests for running Docker containers.
 func Docker(ctx context.Context, dockerClient DockerClientInterface) error {
 	containers, err := dockerClient.ContainerList(ctx, types.ContainerListOptions{})
 	if err != nil {
@@ -180,12 +172,13 @@ func getMemUnits(valToConvert int64) (string, int64, error) {
 	}
 
 	var memUnit string
-	if valToConvert < 1000000 {
+	switch {
+	case valToConvert < 1000000:
 		memUnit = "KB"
-	} else if valToConvert < 1000000000 {
+	case valToConvert < 1000000000:
 		memUnit = "MB"
 		valToConvert = valToConvert / 1000000
-	} else {
+	default:
 		memUnit = "GB"
 		valToConvert = valToConvert / 1000000000
 	}

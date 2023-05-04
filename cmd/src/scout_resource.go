@@ -12,25 +12,25 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/util/homedir"
 
-	"github.com/sourcegraph/src-cli/internal/scout/resources"
+	"github.com/sourcegraph/src-cli/internal/scout/resource"
 )
 
 func init() {
-	usage := `'src scout resources' is a tool that provides an overview of resource usage
+	usage := `'src scout resource' is a tool that provides an overview of resource usage
     across an instance of Sourcegraph. Part of the EXPERIMENTAL "src scout" tool.
     
     Examples
         List pods and resource allocations in a Kubernetes deployment:
-        $ src scout resources
+        $ src scout resource
 
         List containers and resource allocations in a Docker deployment:
-        $ src scout resources --docker
+        $ src scout resource --docker
 
         Add namespace if using namespace in a Kubernetes cluster
-        $ src scout resources --namespace sg
+        $ src scout resource --namespace sg
     `
 
-	flagSet := flag.NewFlagSet("resources", flag.ExitOnError)
+	flagSet := flag.NewFlagSet("resource", flag.ExitOnError)
 	usageFunc := func() {
 		fmt.Fprintf(flag.CommandLine.Output(), "Usage of 'src scout %s':\n", flagSet.Name())
 		flagSet.PrintDefaults()
@@ -70,22 +70,22 @@ func init() {
 			return errors.New(fmt.Sprintf("%v: failed to load kubernetes config", err))
 		}
 
-		var options []resources.Option
+		var options []resource.Option
 
 		if *namespace != "" {
-			options = append(options, resources.WithNamespace(*namespace))
+			options = append(options, resource.WithNamespace(*namespace))
 		}
 
 		if *docker {
 			dockerClient, err := client.NewClientWithOpts(client.FromEnv)
 			if err != nil {
-				return errors.Wrap(err, "Error creating docker client: ")
+				return errors.Wrap(err, "error creating docker client: ")
 			}
 
-			return resources.Docker(context.Background(), dockerClient)
+			return resource.Docker(context.Background(), dockerClient)
 		}
 
-		return resources.K8s(context.Background(), clientSet, config, options...)
+		return resource.K8s(context.Background(), clientSet, config, options...)
 	}
 
 	scoutCommands = append(scoutCommands, &command{
