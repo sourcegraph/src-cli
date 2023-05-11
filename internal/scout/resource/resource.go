@@ -109,15 +109,8 @@ func getPVCCapacity(ctx context.Context, cfg *Config, container v1.Container, po
 	return "", nil
 }
 
-// DockerClientInterface defines the interface for interacting with the Docker API.
-type DockerClientInterface interface {
-	ContainerList(ctx context.Context, options types.ContainerListOptions) ([]types.Container, error)
-	ContainerInspect(ctx context.Context, containerID string) (types.ContainerJSON, error)
-	Close() error
-}
-
 // Docker prints the CPU and memory resource limits and requests for running Docker containers.
-func Docker(ctx context.Context, dockerClient DockerClientInterface) error {
+func Docker(ctx context.Context, dockerClient client.Client) error {
 	containers, err := dockerClient.ContainerList(ctx, types.ContainerListOptions{})
 	if err != nil {
 		return fmt.Errorf("error listing docker containers: %v", err)
@@ -136,30 +129,7 @@ func Docker(ctx context.Context, dockerClient DockerClientInterface) error {
 			return fmt.Errorf("error inspecting container %s: %v", container.ID, err)
 		}
 
-		cpuCores := containerInfo.HostConfig.NanoCPUs
-		cpuShares := containerInfo.HostConfig.CPUShares
-		memLimits := containerInfo.HostConfig.Memory
-		memReservations := containerInfo.HostConfig.MemoryReservation
-
-		limUnit, limVal, err := getMemUnits(memLimits)
-		if err != nil {
-			return err
-		}
-
-		reqUnit, reqVal, err := getMemUnits(memReservations)
-		if err != nil {
-			return err
-		}
-
-		fmt.Fprintf(
-			w,
-			"%s\t%d\t%v\t%v\t%v\n",
-			containerInfo.Name,
-			cpuCores/1e9,
-			cpuShares,
-			fmt.Sprintf("%d %s", limVal, limUnit),
-			fmt.Sprintf("%d %s", reqVal, reqUnit),
-		)
+        getResourceInfo(&containerInfo, w)
 	}
 
 	return nil
@@ -185,3 +155,30 @@ func getMemUnits(valToConvert int64) (string, int64, error) {
 
 	return memUnit, valToConvert, nil
 }
+
+func getResourceInfo(container *types.ContainerJSON, w *tabwriter.Writer) error {
+		cpuCores := container.HostConfig.NanoCPUs
+		cpuShares := container.HostConfig.CPUShares
+		memLimits := container.HostConfig.Memory
+		memReservations := container.HostConfig.MemoryReservation
+
+		limUnit, limVal, err := getMemUnits(memLimits)
+		if err != nil {
+			return errors.Wrap(err, "error while getting limit units")
+		}
+
+		reqUnit, reqVal, err := getMemUnits(memReservations)
+		if err != nil {
+			return errors.Wrap(err, "error while getting request units")
+		}
+
+		fmt.Fprintf(
+			w,
+			"%s\t%d\t%v\t%v\t%v\n",
+			container.Name,
+			cpuCores/1e9,
+			cpuShares,
+			fmt.Sprintf("%d %s", limVal, limUnit),
+			fmt.Sprintf("%d %s", reqVal, reqUnit),
+		)
+} 
