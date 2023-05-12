@@ -129,7 +129,7 @@ func Docker(ctx context.Context, dockerClient client.Client) error {
 			return fmt.Errorf("error inspecting container %s: %v", container.ID, err)
 		}
 
-        getResourceInfo(&containerInfo, w)
+		getResourceInfo(&containerInfo, w)
 	}
 
 	return nil
@@ -157,28 +157,29 @@ func getMemUnits(valToConvert int64) (string, int64, error) {
 }
 
 func getResourceInfo(container *types.ContainerJSON, w *tabwriter.Writer) error {
-		cpuCores := container.HostConfig.NanoCPUs
-		cpuShares := container.HostConfig.CPUShares
-		memLimits := container.HostConfig.Memory
-		memReservations := container.HostConfig.MemoryReservation
+	cpuCores := container.HostConfig.NanoCPUs
+	cpuShares := container.HostConfig.CPUShares
+	memLimits := container.HostConfig.Memory
+	memReservations := container.HostConfig.MemoryReservation
 
-		limUnit, limVal, err := getMemUnits(memLimits)
-		if err != nil {
-			return errors.Wrap(err, "error while getting limit units")
-		}
+	limUnit, limVal, err := getMemUnits(memLimits)
+	if err != nil {
+		return errors.Wrap(err, "error while getting limit units")
+	}
 
-		reqUnit, reqVal, err := getMemUnits(memReservations)
-		if err != nil {
-			return errors.Wrap(err, "error while getting request units")
-		}
+	reqUnit, reqVal, err := getMemUnits(memReservations)
+	if err != nil {
+		return errors.Wrap(err, "error while getting request units")
+	}
 
-		fmt.Fprintf(
-			w,
-			"%s\t%d\t%v\t%v\t%v\n",
-			container.Name,
-			cpuCores/1e9,
-			cpuShares,
-			fmt.Sprintf("%d %s", limVal, limUnit),
-			fmt.Sprintf("%d %s", reqVal, reqUnit),
-		)
-} 
+	fmt.Fprintf(
+		w,
+		"%s\t%d\t%v\t%v\t%v\n",
+		container.Name,
+		cpuCores/1e9,
+		cpuShares,
+		fmt.Sprintf("%d %s", limVal, limUnit),
+		fmt.Sprintf("%d %s", reqVal, reqUnit),
+	)
+	return nil
+}
