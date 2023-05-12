@@ -22,7 +22,7 @@ func init() {
         resources       print all known sourcegraph resources
         estimate        (coming soon) recommend resource allocation for one or many services
         usage           (coming soon) get CPU, memory and current disk usage
-        spy             (coming soon) track resource usage in real time
+        advise          (coming soon) recommend lowering or raising resource allocations based on actual usage
 
     Use "src scout [command] -h" for more information about a command.
     `
