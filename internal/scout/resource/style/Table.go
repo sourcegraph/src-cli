@@ -40,10 +40,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					copiedMessage,
 				),
 			)
-		case "C":
-			return m, tea.Batch(
-				tea.Printf("pressing C has correct action"),
-			)
 		}
 	}
 	m.table, cmd = m.table.Update(msg)
@@ -53,7 +49,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m model) View() string {
 	s := "\n > Press 'j' and 'k' to go up and down\n"
 	s += " > Press 'c' to copy highlighted row to clipboard\n"
-	// s += " > Press 'C' to copy all rows to clipboard\n"
 	s += " > Press 'q' to quit\n\n"
 	s += baseStyle.Render(m.table.View()) + "\n"
 	return s

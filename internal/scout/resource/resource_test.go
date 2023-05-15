@@ -4,13 +4,13 @@ import (
 	"context"
 	"fmt"
 
-	"testing"
 	"github.com/sourcegraph/sourcegraph/lib/errors"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/util/homedir"
+	"testing"
 )
 
 func TestResourcesK8s(t *testing.T) {
@@ -101,13 +101,13 @@ func TestGetMemUnits(t *testing.T) {
 				t.Errorf("got %v want %v", gotValue, tc.wantValue)
 			}
 
-            if gotError == nil && tc.wantError != nil {
-                t.Error("got nil want error")
-            }
+			if gotError == nil && tc.wantError != nil {
+				t.Error("got nil want error")
+			}
 
-            if gotError != nil && tc.wantError == nil {
-                t.Error("got error want nil")
-            }
+			if gotError != nil && tc.wantError == nil {
+				t.Error("got error want nil")
+			}
 
 			return
 		})
