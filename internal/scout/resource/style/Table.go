@@ -56,7 +56,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				))
 			return m, tea.Batch(
 				tea.Printf(
-                    savedMessage,
+					savedMessage,
 				),
 			)
 		}
@@ -68,7 +68,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m model) View() string {
 	s := "\n > Press 'j' and 'k' to go up and down\n"
 	s += " > Press 'c' to copy highlighted row to clipboard\n"
-    s += " > Press 'C' to copy all rows to a file\n"
+	s += " > Press 'C' to copy all rows to a file\n"
 	s += " > Press 'q' to quit\n\n"
 	s += baseStyle.Render(m.table.View()) + "\n"
 	return s
@@ -79,63 +79,63 @@ func (m model) dumpResources(rows []table.Row, filePath string) error {
 	if err != nil {
 		return errors.Wrap(err, "error while creating new file")
 	}
-    
-    defer func() {
-        dumpFile.Close()
-    }()
+
+	defer func() {
+		dumpFile.Close()
+	}()
 
 	tw := tabwriter.NewWriter(dumpFile, 0, 0, 3, ' ', 0)
 	defer func() {
 		tw.Flush()
 	}()
 
-    if len(rows[0]) == 6 {
-        _, err = fmt.Fprintf(tw, fmt.Sprintf("NAME\tCPU LIMITS\tCPU REQUESTS\tMEM LIMITS\tMEM REQUESTS\tCAPACITY\n"))
-        if err != nil {
-            return errors.Wrap(err, "error while appending columns to filepath")
-        }
+	if len(rows[0]) == 6 {
+		_, err = fmt.Fprintf(tw, fmt.Sprintf("NAME\tCPU LIMITS\tCPU REQUESTS\tMEM LIMITS\tMEM REQUESTS\tCAPACITY\n"))
+		if err != nil {
+			return errors.Wrap(err, "error while appending columns to filepath")
+		}
 
-        for _, row := range rows {
-            name := row[0]
-            cpuLimits := row[1]
-            cpuRequests := row[2]
-            memLimits := row[3]
-            memRequests := row[4]
-            capacity := row[5]
-            fmt.Fprintf(
-                tw,
-                "%s\t%s\t%s\t%s\t%s\t%s\n",
-                name,
-                cpuLimits,
-                cpuRequests,
-                memLimits,
-                memRequests,
-                capacity,
-            )
-        }
-    } else if len(rows[0]) == 5 {
-        _, err = fmt.Fprintf(tw, fmt.Sprintf("NAME\tCPU CORES\tCPU SHARES\tMEM LIMITS\tMEM RESERVATIONS\n"))
-        if err != nil {
-            return errors.Wrap(err, "error while appending columns to filepath")
-        }
+		for _, row := range rows {
+			name := row[0]
+			cpuLimits := row[1]
+			cpuRequests := row[2]
+			memLimits := row[3]
+			memRequests := row[4]
+			capacity := row[5]
+			fmt.Fprintf(
+				tw,
+				"%s\t%s\t%s\t%s\t%s\t%s\n",
+				name,
+				cpuLimits,
+				cpuRequests,
+				memLimits,
+				memRequests,
+				capacity,
+			)
+		}
+	} else if len(rows[0]) == 5 {
+		_, err = fmt.Fprintf(tw, fmt.Sprintf("NAME\tCPU CORES\tCPU SHARES\tMEM LIMITS\tMEM RESERVATIONS\n"))
+		if err != nil {
+			return errors.Wrap(err, "error while appending columns to filepath")
+		}
 
-        for _, row := range rows {
-            name := row[0]
-            cpuCores := row[1]
-            cpuShares := row[2]
-            memLimits := row[3]
-            memReservations := row[4]
-            fmt.Fprintf(
-                tw,
-                "%s\t%s\t%s\t%s\t%s\n",
-                name,
-                cpuCores,
-                cpuShares,
-                memLimits,
-                memReservations,
-            )
-        }
-    }
+		for _, row := range rows {
+			name := row[0]
+			cpuCores := row[1]
+			cpuShares := row[2]
+			memLimits := row[3]
+			memReservations := row[4]
+			fmt.Fprintf(
+				tw,
+				"%s\t%s\t%s\t%s\t%s\n",
+				name,
+				cpuCores,
+				cpuShares,
+				memLimits,
+				memReservations,
+			)
+		}
+	}
 
 	return nil
 }
