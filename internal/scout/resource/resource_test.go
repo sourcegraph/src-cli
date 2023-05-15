@@ -4,17 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	/* "fmt"
-	"io"
-	"os"
-	"strings" */
 	"testing"
-	// "text/tabwriter"
-
-	// "github.com/docker/docker/api/types"
-	// "github.com/docker/docker/api/types/container"
 	"github.com/sourcegraph/sourcegraph/lib/errors"
-	// "github.com/stretchr/testify/mock"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -58,53 +49,6 @@ func TestResourcesK8s(t *testing.T) {
 		t.Fatal(errors.Wrap(err, "Error calling ResourcesK8s"))
 	}
 }
-
-/* func TestGetResourceInfo(t *testing.T) {
-	cases := []struct {
-		name      string
-		container func(*types.ContainerJSONBase)
-		expected  string
-	}{
-		{
-			name: "bad format: bad input",
-			container: func(container *types.ContainerJSONBase) {
-				container.Name = "container1"
-				container.HostConfig.Resources.NanoCPUs = 2000000000
-				container.HostConfig.Resources.CPUShares = 512
-				container.HostConfig.Resources.Memory = 1536870912
-				container.HostConfig.Resources.MemoryReservation = 268435456
-			},
-			expected: "",
-		},
-	}
-
-	for _, tc := range cases {
-		// why does this have to be here to work?
-		tc := tc
-		t.Run(tc.name, func(t *testing.T) {
-			container := containerHelper()
-			if tc.container != nil {
-				tc.container(container)
-			}
-			// TODO: logic for testing
-			// call function then validate the output
-		})
-	}
-}
-
-func containerHelper() *types.ContainerJSONBase {
-	return &types.ContainerJSONBase{
-		Name: "",
-		HostConfig: &container.HostConfig{
-			Resources: container.Resources{
-				NanoCPUs:          0,
-				CPUShares:         0,
-				Memory:            0,
-				MemoryReservation: 0,
-			},
-		},
-	}
-} */
 
 func TestGetMemUnits(t *testing.T) {
 	cases := []struct {
