@@ -79,12 +79,15 @@ func (m model) dumpResources(rows []table.Row, filePath string) error {
 	if err != nil {
 		return errors.Wrap(err, "error while creating new file")
 	}
+    
+    defer func() {
+        dumpFile.Close()
+    }()
 
 	tw := tabwriter.NewWriter(dumpFile, 0, 0, 3, ' ', 0)
 	defer func() {
 		tw.Flush()
 	}()
-    fmt.Println(len(rows))
 
     if len(rows[0]) == 6 {
         _, err = fmt.Fprintf(tw, fmt.Sprintf("NAME\tCPU LIMITS\tCPU REQUESTS\tMEM LIMITS\tMEM REQUESTS\tCAPACITY\n"))
@@ -111,7 +114,6 @@ func (m model) dumpResources(rows []table.Row, filePath string) error {
             )
         }
     } else if len(rows[0]) == 5 {
-        fmt.Println("got here!")
         _, err = fmt.Fprintf(tw, fmt.Sprintf("NAME\tCPU CORES\tCPU SHARES\tMEM LIMITS\tMEM RESERVATIONS\n"))
         if err != nil {
             return errors.Wrap(err, "error while appending columns to filepath")
