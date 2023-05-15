@@ -168,5 +168,4 @@ func TestGetMemUnits(t *testing.T) {
 			return
 		})
 	}
-
 }

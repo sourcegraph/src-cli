@@ -4,11 +4,13 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"text/tabwriter"
 
+	"github.com/charmbracelet/bubbles/table"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/client"
 	"github.com/sourcegraph/sourcegraph/lib/errors"
+	"github.com/sourcegraph/src-cli/internal/scout/resource/style"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -53,13 +55,30 @@ func listPodResources(ctx context.Context, cfg *Config) error {
 		return errors.Wrap(err, "error listing pods: ")
 	}
 
-	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-	defer func() {
-		_ = w.Flush()
-	}()
+	columns := []table.Column{
+		{Title: "CONTAINER", Width: 20},
+		{Title: "CPU LIMITS", Width: 10},
+		{Title: "CPU REQUESTS", Width: 12},
+		{Title: "MEM LIMITS", Width: 10},
+		{Title: "MEM REQUESTS", Width: 12},
+		{Title: "CAPACITY", Width: 8},
+	}
 
-	fmt.Fprintln(w, "CONTAINER\tCPU LIMITS\tCPU REQUESTS\tMEM LIMITS\tMEM REQUESTS\tCAPACITY")
+	if len(podList.Items) == 0 {
+		msg := lipgloss.NewStyle().Foreground(lipgloss.Color("#FFA500"))
+		fmt.Println(msg.Render(`
+        No pods exist in this namespace. 
+        Did you mean to use the --namespace flag?
+        
+        If you are attemptying to check 
+        resources for a docker deployment, you 
+        must use the --docker flag.
+        See --help for more info.
+        `))
+		os.Exit(1)
+	}
 
+	var rows []table.Row
 	for _, pod := range podList.Items {
 		if pod.GetNamespace() == cfg.namespace {
 			for _, container := range pod.Spec.Containers {
@@ -73,20 +92,24 @@ func listPodResources(ctx context.Context, cfg *Config) error {
 					return err
 				}
 
-				fmt.Fprintf(
-					w,
-					"%s\t%s\t%s\t%s\t%s\t%s\t\n",
+				if capacity == "" {
+					capacity = "N/A"
+				}
+
+				row := table.Row{
 					container.Name,
-					cpuLimits,
-					cpuRequests,
-					memLimits,
-					memRequests,
+					cpuLimits.String(),
+					cpuRequests.String(),
+					memLimits.String(),
+					memRequests.String(),
 					capacity,
-				)
+				}
+				rows = append(rows, row)
 			}
 		}
 	}
 
+	style.ResourceTable(columns, rows)
 	return nil
 }
 
@@ -116,12 +139,23 @@ func Docker(ctx context.Context, dockerClient client.Client) error {
 		return fmt.Errorf("error listing docker containers: %v", err)
 	}
 
-	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-	defer func() {
-		_ = w.Flush()
-	}()
+	if len(containers) == 0 {
+		msg := lipgloss.NewStyle().Foreground(lipgloss.Color("#FFA500"))
+		fmt.Println(msg.Render(`
+        There are no containers, or the Docker Daemon is not running
+        `))
+		os.Exit(1)
+	}
 
-	fmt.Fprintln(w, "Container\tCPU Cores\tCPU Shares\tMem Limits\tMem Reservations")
+	columns := []table.Column{
+		{Title: "Container", Width: 20},
+		{Title: "CPU Cores", Width: 15},
+		{Title: "CPU Shares", Width: 15},
+		{Title: "Mem Limits", Width: 15},
+		{Title: "Mem Reservations", Width: 17},
+	}
+
+	var rows []table.Row
 
 	for _, container := range containers {
 		containerInfo, err := dockerClient.ContainerInspect(ctx, container.ID)
@@ -129,10 +163,43 @@ func Docker(ctx context.Context, dockerClient client.Client) error {
 			return fmt.Errorf("error inspecting container %s: %v", container.ID, err)
 		}
 
-		getResourceInfo(&containerInfo, w)
+		row, err := getResourceInfo(&containerInfo, rows)
+		if err != nil {
+			return errors.Wrap(err, "error while getting resource info from container: ")
+		}
+
+		rows = append(rows, row)
 	}
 
+	style.ResourceTable(columns, rows)
 	return nil
+}
+
+func getResourceInfo(container *types.ContainerJSON, rows []table.Row) (table.Row, error) {
+	cpuCores := container.HostConfig.NanoCPUs
+	cpuShares := container.HostConfig.CPUShares
+	memLimits := container.HostConfig.Memory
+	memReservations := container.HostConfig.MemoryReservation
+
+	reqUnit, reqVal, err := getMemUnits(memReservations)
+	if err != nil {
+		return table.Row{}, errors.Wrap(err, "error while getting request units")
+	}
+
+	limUnit, limVal, err := getMemUnits(memLimits)
+	if err != nil {
+		return table.Row{}, errors.Wrap(err, "error while getting limit units")
+	}
+
+	row := table.Row{
+		container.Name,
+		fmt.Sprintf("%v", float64(cpuCores/1e9)),
+		fmt.Sprint(cpuShares),
+		fmt.Sprintf("%d%s", limVal, limUnit),
+		fmt.Sprintf("%d%s", reqVal, reqUnit),
+	}
+
+	return row, nil
 }
 
 // getMemUnits converts a byte value to the appropriate memory unit.
@@ -154,32 +221,4 @@ func getMemUnits(valToConvert int64) (string, int64, error) {
 	}
 
 	return memUnit, valToConvert, nil
-}
-
-func getResourceInfo(container *types.ContainerJSON, w *tabwriter.Writer) error {
-	cpuCores := container.HostConfig.NanoCPUs
-	cpuShares := container.HostConfig.CPUShares
-	memLimits := container.HostConfig.Memory
-	memReservations := container.HostConfig.MemoryReservation
-
-	limUnit, limVal, err := getMemUnits(memLimits)
-	if err != nil {
-		return errors.Wrap(err, "error while getting limit units")
-	}
-
-	reqUnit, reqVal, err := getMemUnits(memReservations)
-	if err != nil {
-		return errors.Wrap(err, "error while getting request units")
-	}
-
-	fmt.Fprintf(
-		w,
-		"%s\t%d\t%v\t%v\t%v\n",
-		container.Name,
-		cpuCores/1e9,
-		cpuShares,
-		fmt.Sprintf("%d %s", limVal, limUnit),
-		fmt.Sprintf("%d %s", reqVal, reqUnit),
-	)
-	return nil
 }

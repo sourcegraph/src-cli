@@ -82,7 +82,7 @@ func init() {
 				return errors.Wrap(err, "error creating docker client: ")
 			}
 
-			return resource.Docker(context.Background(), dockerClient)
+			return resource.Docker(context.Background(), *dockerClient)
 		}
 
 		return resource.K8s(context.Background(), clientSet, config, options...)
