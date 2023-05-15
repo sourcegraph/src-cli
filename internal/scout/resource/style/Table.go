@@ -2,12 +2,16 @@ package style
 
 import (
 	"fmt"
+	"path/filepath"
+	"text/tabwriter"
+
+	"os"
 
 	"github.com/charmbracelet/bubbles/table"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/sourcegraph/sourcegraph/lib/errors"
 	"golang.design/x/clipboard"
-	"os"
 )
 
 var baseStyle = lipgloss.NewStyle().
@@ -40,6 +44,21 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					copiedMessage,
 				),
 			)
+		case "C":
+			tmpDir := os.TempDir()
+			filePath := filepath.Join(tmpDir, "resource-dump.txt")
+			m.dumpResources(m.table.Rows(), filePath)
+			savedMessage := lipgloss.NewStyle().
+				Foreground(lipgloss.Color("#32CD32")).
+				Render(fmt.Sprintf(
+					"saved resource allocations to %s",
+					filePath,
+				))
+			return m, tea.Batch(
+				tea.Printf(
+                    savedMessage,
+				),
+			)
 		}
 	}
 	m.table, cmd = m.table.Update(msg)
@@ -49,9 +68,74 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m model) View() string {
 	s := "\n > Press 'j' and 'k' to go up and down\n"
 	s += " > Press 'c' to copy highlighted row to clipboard\n"
+    s += " > Press 'C' to copy all rows to a file\n"
 	s += " > Press 'q' to quit\n\n"
 	s += baseStyle.Render(m.table.View()) + "\n"
 	return s
+}
+
+func (m model) dumpResources(rows []table.Row, filePath string) error {
+	dumpFile, err := os.Create(filePath)
+	if err != nil {
+		return errors.Wrap(err, "error while creating new file")
+	}
+
+	tw := tabwriter.NewWriter(dumpFile, 0, 0, 3, ' ', 0)
+	defer func() {
+		tw.Flush()
+	}()
+    fmt.Println(len(rows))
+
+    if len(rows[0]) == 6 {
+        _, err = fmt.Fprintf(tw, fmt.Sprintf("NAME\tCPU LIMITS\tCPU REQUESTS\tMEM LIMITS\tMEM REQUESTS\tCAPACITY\n"))
+        if err != nil {
+            return errors.Wrap(err, "error while appending columns to filepath")
+        }
+
+        for _, row := range rows {
+            name := row[0]
+            cpuLimits := row[1]
+            cpuRequests := row[2]
+            memLimits := row[3]
+            memRequests := row[4]
+            capacity := row[5]
+            fmt.Fprintf(
+                tw,
+                "%s\t%s\t%s\t%s\t%s\t%s\n",
+                name,
+                cpuLimits,
+                cpuRequests,
+                memLimits,
+                memRequests,
+                capacity,
+            )
+        }
+    } else if len(rows[0]) == 5 {
+        fmt.Println("got here!")
+        _, err = fmt.Fprintf(tw, fmt.Sprintf("NAME\tCPU CORES\tCPU SHARES\tMEM LIMITS\tMEM RESERVATIONS\n"))
+        if err != nil {
+            return errors.Wrap(err, "error while appending columns to filepath")
+        }
+
+        for _, row := range rows {
+            name := row[0]
+            cpuCores := row[1]
+            cpuShares := row[2]
+            memLimits := row[3]
+            memReservations := row[4]
+            fmt.Fprintf(
+                tw,
+                "%s\t%s\t%s\t%s\t%s\n",
+                name,
+                cpuCores,
+                cpuShares,
+                memLimits,
+                memReservations,
+            )
+        }
+    }
+
+	return nil
 }
 
 func (m model) copyRowToClipboard(row table.Row) {
