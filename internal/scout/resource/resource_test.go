@@ -108,8 +108,6 @@ func TestGetMemUnits(t *testing.T) {
 			if gotError != nil && tc.wantError == nil {
 				t.Error("got error want nil")
 			}
-
-			return
 		})
 	}
 }
