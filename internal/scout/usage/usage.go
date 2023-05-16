@@ -3,9 +3,16 @@ package usage
 import (
 	"context"
 	"fmt"
+	"os"
 
+	"github.com/charmbracelet/bubbles/table"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/docker/docker/client"
 	"github.com/sourcegraph/sourcegraph/lib/errors"
+	"github.com/sourcegraph/src-cli/internal/scout/style"
+	"k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	metricsv "k8s.io/metrics/pkg/client/clientset/versioned"
@@ -47,7 +54,7 @@ func WithSpy(spy bool) Option {
 	}
 }
 
-func K8s(cxt context.Context, clientSet *kubernetes.Clientset, client *rest.Config, opts ...Option) error {
+func K8s(ctx context.Context, clientSet *kubernetes.Clientset, client *rest.Config, opts ...Option) error {
 	cfg := &Config{
 		namespace:     "default",
 		docker:        false,
@@ -63,8 +70,80 @@ func K8s(cxt context.Context, clientSet *kubernetes.Clientset, client *rest.Conf
 		opt(cfg)
 	}
 
-	fmt.Println("K8s works!")
-	fmt.Printf("config: %v", &cfg)
+	return listPodUsage(ctx, cfg)
+}
+
+func listPodUsage(ctx context.Context, cfg *Config) error {
+	podInterface := cfg.k8sClient.CoreV1().Pods(cfg.namespace)
+	pods, err := podInterface.List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return errors.Wrap(err, "error listing pods: ")
+	}
+
+	columns := []table.Column{
+		{Title: "Container", Width: 20},
+		{Title: "CPU Limits", Width: 10},
+		{Title: "CPU Usage", Width: 12},
+		{Title: "MEM Limits", Width: 10},
+		{Title: "MEM Usage", Width: 12},
+		{Title: "Storage Used", Width: 8},
+	}
+
+	if len(pods.Items) == 0 {
+		msg := lipgloss.NewStyle().Foreground(lipgloss.Color("#FFA500"))
+		fmt.Println(msg.Render(`
+        No pods exist in this namespace. 
+        Did you mean to use the --namespace flag?
+        
+        If you are attemptying to check 
+        resources for a docker deployment, you 
+        must use the --docker flag.
+        See --help for more info.
+        `))
+		os.Exit(1)
+	}
+
+	var rows []table.Row
+	for _, pod := range pods.Items {
+		podMetrics, err := cfg.metricsClient.MetricsV1beta1().PodMetricses(cfg.namespace).Get(ctx, pod.Name, metav1.GetOptions{})
+		if err != nil {
+			return errors.Wrap(err, "error while getting pod metrics")
+		}
+
+		for _, container := range podMetrics.Containers {
+			cpuUsage := container.Usage[v1.ResourceCPU]
+			memUsage := container.Usage[v1.ResourceMemory]
+
+			var cpuLimit resource.Quantity
+			var memLimit resource.Quantity
+			var availableDiskSpace string
+
+			for _, podContainer := range pod.Spec.Containers {
+				if podContainer.Name == container.Name {
+					cpuLimit = podContainer.Resources.Limits[v1.ResourceCPU]
+					memLimit = podContainer.Resources.Limits[v1.ResourceMemory]
+					availableBytes := container.Usage[v1.ResourceStorage]
+					availableDiskSpace = availableBytes.String()
+				}
+			}
+
+			cpuUsageFraction := float64(cpuUsage.MilliValue()) / float64(cpuLimit.MilliValue())
+			memUsageFraction := float64(memUsage.Value()) / float64(memLimit.Value())
+
+			row := table.Row{
+				pod.Name,
+				cpuLimit.String(),
+				fmt.Sprintf("%.2f", cpuUsageFraction),
+				memLimit.String(),
+				fmt.Sprintf("%.2f", memUsageFraction),
+				availableDiskSpace,
+			}
+
+			rows = append(rows, row)
+		}
+	}
+
+	style.ResourceTable(columns, rows)
 	return nil
 }
 
@@ -79,7 +158,7 @@ func Docker(ctx context.Context, client client.Client, opts ...Option) error {
 		dockerClient:  &client,
 		metricsClient: nil,
 	}
-    
+
 	for _, opt := range opts {
 		opt(cfg)
 	}
@@ -93,7 +172,7 @@ func getPercentage(x, y float64) (float64, error) {
 	if x == 0 {
 		return 0, nil
 	}
-    
+
 	if y == 0 {
 		return -1, errors.New("cannot divide by 0")
 	}
