@@ -2,12 +2,12 @@ package style
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/charmbracelet/bubbles/table"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"golang.design/x/clipboard"
-	"os"
 )
 
 var baseStyle = lipgloss.NewStyle().
