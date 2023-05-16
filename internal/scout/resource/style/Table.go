@@ -2,9 +2,12 @@ package style
 
 import (
 	"fmt"
+<<<<<<< HEAD
 	"path/filepath"
 	"text/tabwriter"
 
+=======
+>>>>>>> jhh/src-resource
 	"os"
 
 	"github.com/charmbracelet/bubbles/table"
