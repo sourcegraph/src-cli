@@ -11,7 +11,7 @@ import (
 	"github.com/sourcegraph/sourcegraph/lib/errors"
 	"github.com/sourcegraph/src-cli/internal/scout/style"
 	"k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
+	// "k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -105,12 +105,12 @@ func listPodUsage(ctx context.Context, cfg *Config) error {
 
 	var rows []table.Row
 	for _, pod := range pods.Items {
-		podMetrics, err := cfg.metricsClient.MetricsV1beta1().PodMetricses(cfg.namespace).Get(ctx, pod.Name, metav1.GetOptions{})
+		rawMetrics := cfg.metricsClient.MetricsV1beta1().PodMetricses(cfg.namespace) //.Get(ctx, pod.Name, metav1.GetOptions{})
 		if err != nil {
 			return errors.Wrap(err, "error while getting pod metrics")
 		}
-
-		for _, container := range podMetrics.Containers {
+        fmt.Println(pod.Name, rawMetrics) 
+		/* for _, container := range rawMetrics.Containers {
 			cpuUsage := container.Usage[v1.ResourceCPU]
 			memUsage := container.Usage[v1.ResourceMemory]
 
@@ -140,11 +140,33 @@ func listPodUsage(ctx context.Context, cfg *Config) error {
 			}
 
 			rows = append(rows, row)
-		}
+		} */
 	}
 
 	style.ResourceTable(columns, rows)
 	return nil
+}
+
+func getAvailableDiskSpace(ctx context.Context, clientSet kubernetes.Clientset, metricsClient metricsv.Clientset, namespace string, pod v1.Pod) (string, error) {
+	// Retrieve available disk space metric for the pod
+	metricsClientset := metricsClient.MetricsV1beta1().PodMetricses(namespace)
+	podMetrics, err := metricsClientset.Get(context.TODO(), pod.Name, metav1.GetOptions{})
+	if err != nil {
+		return "", fmt.Errorf("error retrieving pod metrics: %v", err)
+	}
+
+	// Find available disk space metric for the pod
+	var availableDiskSpace string
+	for _, container := range podMetrics.Containers {
+		if container.Name == pod.Name {
+			// Retrieve the available disk space metric for the container
+			availableBytes := container.Usage[v1.ResourceEphemeralStorage]
+			availableDiskSpace = availableBytes.String()
+			break
+		}
+	}
+
+	return availableDiskSpace, nil
 }
 
 func Docker(ctx context.Context, client client.Client, opts ...Option) error {
