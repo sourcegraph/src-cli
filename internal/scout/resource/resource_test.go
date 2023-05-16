@@ -3,6 +3,7 @@ package resource
 import (
 	"context"
 	"fmt"
+	"testing"
 
 	"github.com/sourcegraph/sourcegraph/lib/errors"
 	v1 "k8s.io/api/core/v1"
@@ -10,7 +11,6 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/util/homedir"
-	"testing"
 )
 
 func TestResourcesK8s(t *testing.T) {

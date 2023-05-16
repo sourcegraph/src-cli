@@ -36,7 +36,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			copiedMessage := lipgloss.NewStyle().
 				Foreground(lipgloss.Color("#32CD32")).
 				Render(fmt.Sprintf(
-					"Copied resource allocations for %s to clipboard",
+					"Copied resource allocations for '%s' to clipboard",
 					m.table.SelectedRow()[0],
 				))
 			return m, tea.Batch(
@@ -90,7 +90,7 @@ func (m model) dumpResources(rows []table.Row, filePath string) error {
 	}()
 
 	if len(rows[0]) == 6 {
-		_, err = fmt.Fprintf(tw, fmt.Sprintf("NAME\tCPU LIMITS\tCPU REQUESTS\tMEM LIMITS\tMEM REQUESTS\tCAPACITY\n"))
+		_, err = fmt.Fprintf(tw, "NAME\tCPU LIMITS\tCPU REQUESTS\tMEM LIMITS\tMEM REQUESTS\tCAPACITY\n")
 		if err != nil {
 			return errors.Wrap(err, "error while appending columns to filepath")
 		}
@@ -114,7 +114,7 @@ func (m model) dumpResources(rows []table.Row, filePath string) error {
 			)
 		}
 	} else if len(rows[0]) == 5 {
-		_, err = fmt.Fprintf(tw, fmt.Sprintf("NAME\tCPU CORES\tCPU SHARES\tMEM LIMITS\tMEM RESERVATIONS\n"))
+		_, err = fmt.Fprintf(tw, "NAME\tCPU CORES\tCPU SHARES\tMEM LIMITS\tMEM RESERVATIONS\n")
 		if err != nil {
 			return errors.Wrap(err, "error while appending columns to filepath")
 		}
