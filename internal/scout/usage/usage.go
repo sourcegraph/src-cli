@@ -8,17 +8,20 @@ import (
 	"github.com/sourcegraph/sourcegraph/lib/errors"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+    
 )
 
 
 type Option = func(config *Config)
 type Config struct {
-    namespace string
-    docker bool
-    pod string
-    container string
-    k8sClient *kubernetes.Clientset
-    dockerClient *client.Client
+	namespace     string
+	pod           string
+	container     string
+	spy           bool
+	docker        bool
+	k8sClient     *kubernetes.Clientset
+	dockerClient  *client.Client
+	metricsClient *metricsv
 }
 
 func WithNamespace(namespace string) Option {
