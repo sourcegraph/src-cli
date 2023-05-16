@@ -2,13 +2,10 @@ package style
 
 import (
 	"fmt"
-<<<<<<< HEAD
-	"path/filepath"
-	"text/tabwriter"
-
-=======
->>>>>>> jhh/src-resource
 	"os"
+	"path/filepath"
+	"strings"
+	"text/tabwriter"
 
 	"github.com/charmbracelet/bubbles/table"
 	tea "github.com/charmbracelet/bubbletea"
@@ -82,110 +79,72 @@ func (m model) dumpResources(rows []table.Row, filePath string) error {
 	if err != nil {
 		return errors.Wrap(err, "error while creating new file")
 	}
-
-	defer func() {
-		dumpFile.Close()
-	}()
+	defer dumpFile.Close()
 
 	tw := tabwriter.NewWriter(dumpFile, 0, 0, 3, ' ', 0)
-	defer func() {
-		tw.Flush()
-	}()
+	defer tw.Flush()
 
+	// default to docker terms
+	headers := []string{
+		"NAME",
+		"CPU CORES",
+		"CPU SHARES",
+		"MEM LIMITS",
+		"MEM RESERVATIONS",
+	}
+
+	// kubernetes rows will always have 6 items
+	// change column headers to reflect k8s terms
 	if len(rows[0]) == 6 {
-		_, err = fmt.Fprintf(tw, "NAME\tCPU LIMITS\tCPU REQUESTS\tMEM LIMITS\tMEM REQUESTS\tCAPACITY\n")
-		if err != nil {
-			return errors.Wrap(err, "error while appending columns to filepath")
-		}
-
-		for _, row := range rows {
-			name := row[0]
-			cpuLimits := row[1]
-			cpuRequests := row[2]
-			memLimits := row[3]
-			memRequests := row[4]
-			capacity := row[5]
-			fmt.Fprintf(
-				tw,
-				"%s\t%s\t%s\t%s\t%s\t%s\n",
-				name,
-				cpuLimits,
-				cpuRequests,
-				memLimits,
-				memRequests,
-				capacity,
-			)
-		}
-	} else if len(rows[0]) == 5 {
-		_, err = fmt.Fprintf(tw, "NAME\tCPU CORES\tCPU SHARES\tMEM LIMITS\tMEM RESERVATIONS\n")
-		if err != nil {
-			return errors.Wrap(err, "error while appending columns to filepath")
-		}
-
-		for _, row := range rows {
-			name := row[0]
-			cpuCores := row[1]
-			cpuShares := row[2]
-			memLimits := row[3]
-			memReservations := row[4]
-			fmt.Fprintf(
-				tw,
-				"%s\t%s\t%s\t%s\t%s\n",
-				name,
-				cpuCores,
-				cpuShares,
-				memLimits,
-				memReservations,
-			)
+		headers = []string{
+			"NAME",
+			"CPU LIMITS",
+			"CPU REQUESTS",
+			"MEM LIMITS",
+			"MEM REQUESTS",
+			"CAPACITY",
 		}
 	}
 
+	fmt.Fprintf(tw, strings.Join(headers, "\t")+"\n")
+
+	for _, row := range rows {
+		values := []string{row[0], row[1], row[2], row[3], row[4]}
+		if len(row) == 6 {
+			values = append(values, row[5])
+		}
+		fmt.Fprintf(tw, strings.Join(values, "\t")+"\n")
+	}
 	return nil
 }
 
 func (m model) copyRowToClipboard(row table.Row) {
 	var containerInfo string
 
-	// change output based on the length of row
-	// docker rows will always be length of 5
-	// kubernetes rows will always be length of 6
-	if len(row) == 5 {
-		name := row[0]
-		cpuCores := row[1]
-		cpuShares := row[2]
-		memLimits := row[3]
-		memReservations := row[4]
-		containerInfo = fmt.Sprintf(`container: %s
-            cpu cores: %s 
-            cpu shares: %s
-            mem limits: %s
-            mem reservations: %s`,
-			name,
-			cpuCores,
-			cpuShares,
-			memLimits,
-			memReservations,
-		)
-	} else if len(row) == 6 {
-		name := row[0]
-		cpuLimits := row[1]
-		cpuRequests := row[2]
-		memLimits := row[3]
-		memRequests := row[4]
-		capacity := row[5]
-		containerInfo = fmt.Sprintf(`container: %s
-            cpu limits: %s 
-            cpu requests: %s
-            mem limits: %s
-            mem requests: %s
-            disk capacity: %s`,
-			name,
-			cpuLimits,
-			cpuRequests,
-			memLimits,
-			memRequests,
-			capacity,
-		)
+	// default to docker headers
+	headers := []string{
+		"NAME",
+		"CPU CORES",
+		"CPU SHARES",
+		"MEM LIMITS",
+		"MEM RESERVATIONS",
+	}
+
+	// kubernetes rows will always have 6 items
+	// change column headers to reflect k8s terms
+	if len(row) == 6 {
+		headers = []string{
+			"NAME",
+			"CPU LIMITS",
+			"CPU REQUESTS",
+			"MEM LIMITS",
+			"MEM REQUESTS",
+			"CAPACITY",
+		}
+	}
+
+	for i, header := range headers {
+		containerInfo += fmt.Sprintf("%s: %s\n", header, row[i])
 	}
 
 	clipboard.Write(clipboard.FmtText, []byte(containerInfo))
