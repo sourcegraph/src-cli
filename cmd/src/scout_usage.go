@@ -46,6 +46,7 @@ func init() {
 		kubeConfig *string
 		namespace  = flagSet.String("namespace", "", "(optional) specify the kubernetes namespace to use")
 		docker     = flagSet.Bool("docker", false, "(optional) using docker deployment")
+		spy        = flagSet.Bool("spy", false, "(optional) see resource usage in real time")
 		// TODO: option for getting resource allocation of the Node
 		// nodes      = flagSet.Bool("node", false, "(optional) view resources for node(s)")
 	)
@@ -67,12 +68,12 @@ func init() {
 
 		config, err := clientcmd.BuildConfigFromFlags("", *kubeConfig)
 		if err != nil {
-            return errors.Wrap(err, "failed to load .kube config: ")
+			return errors.Wrap(err, "failed to load .kube config: ")
 		}
 
 		clientSet, err := kubernetes.NewForConfig(config)
 		if err != nil {
-            return errors.Wrap(err, "failed to initiate kubernetes client: ")
+			return errors.Wrap(err, "failed to initiate kubernetes client: ")
 		}
 
 		var options []usage.Option
@@ -80,6 +81,9 @@ func init() {
 		if *namespace != "" {
 			options = append(options, usage.WithNamespace(*namespace))
 		}
+        if *spy {
+            options = append(options, usage.WithSpy(true))
+        }
 
 		if *docker {
 			dockerClient, err := client.NewClientWithOpts(client.FromEnv)
@@ -98,5 +102,5 @@ func init() {
 		handler:   handler,
 		usageFunc: usageFunc,
 	})
-    
+
 }
