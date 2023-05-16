@@ -1,7 +1,7 @@
 package resource
 
 import (
-    "context"
+	"context"
 	"fmt"
 	"os"
 
