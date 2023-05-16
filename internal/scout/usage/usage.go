@@ -5,13 +5,20 @@ import (
 	"fmt"
 	"os"
 
+	// "os"
+
+	// "github.com/charmbracelet/bubbles/table"
+	// "github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/bubbles/table"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/docker/docker/client"
 	"github.com/sourcegraph/sourcegraph/lib/errors"
 	"github.com/sourcegraph/src-cli/internal/scout/style"
+
+	// "github.com/sourcegraph/src-cli/internal/scout/style"
 	"k8s.io/api/core/v1"
 	// "k8s.io/apimachinery/pkg/api/resource"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -54,7 +61,7 @@ func WithSpy(spy bool) Option {
 	}
 }
 
-func K8s(ctx context.Context, clientSet *kubernetes.Clientset, client *rest.Config, opts ...Option) error {
+func K8s(ctx context.Context, clientSet *kubernetes.Clientset, metricsClient *metricsv.Clientset, client *rest.Config, opts ...Option) error {
 	cfg := &Config{
 		namespace:     "default",
 		docker:        false,
@@ -63,7 +70,7 @@ func K8s(ctx context.Context, clientSet *kubernetes.Clientset, client *rest.Conf
 		spy:           false,
 		k8sClient:     clientSet,
 		dockerClient:  nil,
-		metricsClient: &metricsv.Clientset{},
+		metricsClient: metricsClient,
 	}
 
 	for _, opt := range opts {
@@ -75,9 +82,24 @@ func K8s(ctx context.Context, clientSet *kubernetes.Clientset, client *rest.Conf
 
 func listPodUsage(ctx context.Context, cfg *Config) error {
 	podInterface := cfg.k8sClient.CoreV1().Pods(cfg.namespace)
-	pods, err := podInterface.List(ctx, metav1.ListOptions{})
+	podList, err := podInterface.List(ctx, metav1.ListOptions{})
 	if err != nil {
 		return errors.Wrap(err, "error listing pods: ")
+	}
+
+	pods := podList.Items
+	if len(pods) == 0 {
+		msg := lipgloss.NewStyle().Foreground(lipgloss.Color("#FFA500"))
+		fmt.Println(msg.Render(`
+	        No pods exist in this namespace.
+	        Did you mean to use the --namespace flag?
+
+	        If you are attemptying to check
+	        resources for a docker deployment, you
+	        must use the --docker flag.
+	        See --help for more info.
+	        `))
+		os.Exit(1)
 	}
 
 	columns := []table.Column{
@@ -89,84 +111,53 @@ func listPodUsage(ctx context.Context, cfg *Config) error {
 		{Title: "Storage Used", Width: 8},
 	}
 
-	if len(pods.Items) == 0 {
-		msg := lipgloss.NewStyle().Foreground(lipgloss.Color("#FFA500"))
-		fmt.Println(msg.Render(`
-        No pods exist in this namespace. 
-        Did you mean to use the --namespace flag?
-        
-        If you are attemptying to check 
-        resources for a docker deployment, you 
-        must use the --docker flag.
-        See --help for more info.
-        `))
-		os.Exit(1)
-	}
-
 	var rows []table.Row
-	for _, pod := range pods.Items {
-		rawMetrics := cfg.metricsClient.MetricsV1beta1().PodMetricses(cfg.namespace) //.Get(ctx, pod.Name, metav1.GetOptions{})
+	for _, pod := range pods {
+		podMetrics, err := cfg.metricsClient.
+			MetricsV1beta1().
+			PodMetricses(cfg.namespace).
+			Get(ctx, pod.Name, metav1.GetOptions{})
 		if err != nil {
 			return errors.Wrap(err, "error while getting pod metrics")
 		}
-        fmt.Println(pod.Name, rawMetrics) 
-		/* for _, container := range rawMetrics.Containers {
-			cpuUsage := container.Usage[v1.ResourceCPU]
-			memUsage := container.Usage[v1.ResourceMemory]
 
-			var cpuLimit resource.Quantity
-			var memLimit resource.Quantity
-			var availableDiskSpace string
+		var availableDiskSpace string
+		var cpuLimits *resource.Quantity
+		var memLimits *resource.Quantity
+		var cpuUsage resource.Quantity
+		var memUsage resource.Quantity
 
-			for _, podContainer := range pod.Spec.Containers {
-				if podContainer.Name == container.Name {
-					cpuLimit = podContainer.Resources.Limits[v1.ResourceCPU]
-					memLimit = podContainer.Resources.Limits[v1.ResourceMemory]
-					availableBytes := container.Usage[v1.ResourceStorage]
-					availableDiskSpace = availableBytes.String()
+		if pod.GetNamespace() == cfg.namespace {
+			for _, container := range pod.Spec.Containers {
+				cpuLimits = container.Resources.Limits.Cpu()
+				memLimits = container.Resources.Limits.Memory()
+			}
+
+			for _, container := range podMetrics.Containers {
+				cpuUsage = container.Usage[v1.ResourceCPU]
+				memUsage = container.Usage[v1.ResourceMemory]
+                // FIXME this isn't returning anything.
+				availableBytes := container.Usage[v1.ResourceStorage]
+				availableDiskSpace = availableBytes.String()
+
+				// TODO convert to percentages before adding to the row
+				row := table.Row{
+					container.Name,
+					cpuLimits.String(),
+					cpuUsage.String(),
+					memLimits.String(),
+					memUsage.String(),
+					availableDiskSpace,
 				}
+
+				rows = append(rows, row)
 			}
 
-			cpuUsageFraction := float64(cpuUsage.MilliValue()) / float64(cpuLimit.MilliValue())
-			memUsageFraction := float64(memUsage.Value()) / float64(memLimit.Value())
-
-			row := table.Row{
-				pod.Name,
-				cpuLimit.String(),
-				fmt.Sprintf("%.2f", cpuUsageFraction),
-				memLimit.String(),
-				fmt.Sprintf("%.2f", memUsageFraction),
-				availableDiskSpace,
-			}
-
-			rows = append(rows, row)
-		} */
+		}
 	}
 
 	style.ResourceTable(columns, rows)
 	return nil
-}
-
-func getAvailableDiskSpace(ctx context.Context, clientSet kubernetes.Clientset, metricsClient metricsv.Clientset, namespace string, pod v1.Pod) (string, error) {
-	// Retrieve available disk space metric for the pod
-	metricsClientset := metricsClient.MetricsV1beta1().PodMetricses(namespace)
-	podMetrics, err := metricsClientset.Get(context.TODO(), pod.Name, metav1.GetOptions{})
-	if err != nil {
-		return "", fmt.Errorf("error retrieving pod metrics: %v", err)
-	}
-
-	// Find available disk space metric for the pod
-	var availableDiskSpace string
-	for _, container := range podMetrics.Containers {
-		if container.Name == pod.Name {
-			// Retrieve the available disk space metric for the container
-			availableBytes := container.Usage[v1.ResourceEphemeralStorage]
-			availableDiskSpace = availableBytes.String()
-			break
-		}
-	}
-
-	return availableDiskSpace, nil
 }
 
 func Docker(ctx context.Context, client client.Client, opts ...Option) error {

@@ -12,6 +12,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/util/homedir"
+	metricsv "k8s.io/metrics/pkg/client/clientset/versioned"
 )
 
 func init() {
@@ -76,14 +77,19 @@ func init() {
 			return errors.Wrap(err, "failed to initiate kubernetes client: ")
 		}
 
+		metricsClient, err := metricsv.NewForConfig(config)
+        if err != nil {
+            return errors.Wrap(err, "failed to initiate metrics client")
+        }
+
 		var options []usage.Option
 
 		if *namespace != "" {
 			options = append(options, usage.WithNamespace(*namespace))
 		}
-        if *spy {
-            options = append(options, usage.WithSpy(true))
-        }
+		if *spy {
+			options = append(options, usage.WithSpy(true))
+		}
 
 		if *docker {
 			dockerClient, err := client.NewClientWithOpts(client.FromEnv)
@@ -94,7 +100,7 @@ func init() {
 			return usage.Docker(context.Background(), *dockerClient)
 		}
 
-		return usage.K8s(context.Background(), clientSet, config, options...)
+		return usage.K8s(context.Background(), clientSet, metricsClient, config, options...)
 	}
 
 	scoutCommands = append(scoutCommands, &command{
