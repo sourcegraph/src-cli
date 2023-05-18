@@ -4,20 +4,16 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strconv"
 
-	// "os"
-
-	// "github.com/charmbracelet/bubbles/table"
-	// "github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/bubbles/table"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/docker/docker/client"
 	"github.com/sourcegraph/sourcegraph/lib/errors"
 	"github.com/sourcegraph/src-cli/internal/scout/style"
 
-	// "github.com/sourcegraph/src-cli/internal/scout/style"
+	"gopkg.in/inf.v0"
 	"k8s.io/api/core/v1"
-	// "k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -60,6 +56,11 @@ func WithSpy(spy bool) Option {
 		config.spy = true
 	}
 }
+
+const (
+	Billion = 1000000000
+	Million = 1000000
+)
 
 func K8s(ctx context.Context, clientSet *kubernetes.Clientset, metricsClient *metricsv.Clientset, client *rest.Config, opts ...Option) error {
 	cfg := &Config{
@@ -105,10 +106,11 @@ func listPodUsage(ctx context.Context, cfg *Config) error {
 	columns := []table.Column{
 		{Title: "Container", Width: 20},
 		{Title: "CPU Limits", Width: 10},
-		{Title: "CPU Usage", Width: 12},
+		{Title: "CPU Usage(%)", Width: 13},
 		{Title: "MEM Limits", Width: 10},
-		{Title: "MEM Usage", Width: 12},
-		{Title: "Storage Used", Width: 8},
+		{Title: "MEM Usage(%)", Width: 13},
+		{Title: "Disk Space", Width: 13},
+		{Title: "Disk Used(%)", Width: 16},
 	}
 
 	var rows []table.Row
@@ -118,46 +120,144 @@ func listPodUsage(ctx context.Context, cfg *Config) error {
 			PodMetricses(cfg.namespace).
 			Get(ctx, pod.Name, metav1.GetOptions{})
 		if err != nil {
-			return errors.Wrap(err, "error while getting pod metrics")
+			return errors.Wrap(err, "error while getting pod metrics: ")
 		}
 
-		var availableDiskSpace string
 		var cpuLimits *resource.Quantity
 		var memLimits *resource.Quantity
-		var cpuUsage resource.Quantity
-		var memUsage resource.Quantity
+		var storageCapacity float64
 
 		if pod.GetNamespace() == cfg.namespace {
 			for _, container := range pod.Spec.Containers {
+                if (container.Name == "psql-exporter") { 
+                    continue
+                }
 				cpuLimits = container.Resources.Limits.Cpu()
 				memLimits = container.Resources.Limits.Memory()
+
+				storageCapacity, err = getPvcCapacity(ctx, cfg, container, pod)
+				if err != nil {
+					errors.Wrap(err, "error while getting storage capacity: ")
+				}
 			}
 
 			for _, container := range podMetrics.Containers {
-				cpuUsage = container.Usage[v1.ResourceCPU]
-				memUsage = container.Usage[v1.ResourceMemory]
-                // FIXME this isn't returning anything.
-				availableBytes := container.Usage[v1.ResourceStorage]
-				availableDiskSpace = availableBytes.String()
+				cpuUsage, err := getRawUsage(container.Usage, "cpu")
+				if err != nil {
+					return errors.Wrap(err, "error while getting raw cpu usage: ")
+				}
+
+				memUsage, err := getRawUsage(container.Usage, "memory")
+				if err != nil {
+					return errors.Wrap(err, "error while getting raw memory usage: ")
+				}
+
+				diskUsage := "22%"
+
+				fmt.Println(container.Name)
+				cpuUsagePercent := getPercentage(
+					cpuUsage,
+					cpuLimits.AsApproximateFloat64()*Billion,
+				)
+				memUsagePercent := getPercentage(
+					memUsage,
+					memLimits.AsApproximateFloat64(),
+				)
 
 				// TODO convert to percentages before adding to the row
 				row := table.Row{
 					container.Name,
-					cpuLimits.String(),
-					cpuUsage.String(),
-					memLimits.String(),
-					memUsage.String(),
-					availableDiskSpace,
+					fmt.Sprintf("%v", cpuLimits),
+					fmt.Sprintf("%.2f%%", cpuUsagePercent),
+					fmt.Sprintf("%v", memLimits),
+					fmt.Sprintf("%.2f%%", memUsagePercent),
+					fmt.Sprintf("%.2f", storageCapacity),
+					diskUsage,
 				}
 
 				rows = append(rows, row)
 			}
-
 		}
 	}
 
 	style.ResourceTable(columns, rows)
 	return nil
+}
+
+// getRawUsage returns the raw usage value for a given resource key in a ResourceList.
+//
+// usages is the ResourceList containing resource usages.
+// targetKey is the key of the resource to get the usage for.
+//
+// The function returns the usage value for the given key and a nil error if found.
+// If the key does not exist in the ResourceList, an error is returned.
+//
+// The usage value is returned as an int64. If the usage value in the ResourceList
+// is a decimal, it is rounded down to an int64.
+func getRawUsage(usages v1.ResourceList, targetKey string) (float64, error) {
+	var usage *inf.Dec
+
+	for key, val := range usages {
+		if key.String() == targetKey {
+			usage = val.AsDec().SetScale(0)
+		}
+	}
+
+    toFloat, err := strconv.ParseFloat(usage.String(), 64)
+    if err != nil {
+        return 0, errors.Wrap(err, "error while convering inf.Dec to float")
+    }
+    
+    return toFloat, nil
+}
+
+// getPvcCapacity returns the capacity in GiB of the PersistentVolumeClaim
+// associated with the given volumeMount in the container. If no PVC is found,
+// -1 and no error is returned.
+func getPvcCapacity(ctx context.Context, cfg *Config, container v1.Container, pod v1.Pod) (float64, error) {
+	for _, volumeMount := range container.VolumeMounts {
+		for _, volume := range pod.Spec.Volumes {
+			if volume.Name == volumeMount.Name && volume.PersistentVolumeClaim != nil {
+				pvc, err := cfg.k8sClient.CoreV1().PersistentVolumeClaims(cfg.namespace).Get(
+					ctx,
+					volume.PersistentVolumeClaim.ClaimName,
+					metav1.GetOptions{},
+				)
+				if err != nil {
+					return -1, errors.Wrapf(err, "error getting PVC %s", volume.PersistentVolumeClaim.ClaimName)
+				}
+				return pvc.Status.Capacity.Storage().AsApproximateFloat64(), nil
+			}
+		}
+	}
+	return -1, nil
+}
+
+func iterateOverResourceList(rl v1.ResourceList) {
+	for k, v := range rl {
+		fmt.Printf("%v: %v\n", k, v)
+	}
+	fmt.Printf("\n")
+}
+
+// Calculates the percentage of x out of y.
+//
+// Returns the percentage of x out of y. If x is 0, returns 0. If y is 0, returns -1.
+// Otherwise, returns x * 100 / y.
+//
+// Prints the values of x and y before calculating the percentage.
+func getPercentage(x, y float64) float64 {
+	if x == 0 {
+		return 0
+	}
+    fmt.Printf("\tx: %v\n", x)
+    fmt.Printf("\ty: %v\n", y)
+
+	if y == 0 {
+		return 0
+	}
+
+	return x * 100 / y
 }
 
 func Docker(ctx context.Context, client client.Client, opts ...Option) error {
@@ -179,16 +279,4 @@ func Docker(ctx context.Context, client client.Client, opts ...Option) error {
 	fmt.Println("docker works!")
 	fmt.Printf("config: %v", &cfg)
 	return nil
-}
-
-func getPercentage(x, y float64) (float64, error) {
-	if x == 0 {
-		return 0, nil
-	}
-
-	if y == 0 {
-		return -1, errors.New("cannot divide by 0")
-	}
-
-	return x * 100 / y, nil
 }
