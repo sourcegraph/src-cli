@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/charmbracelet/bubbles/table"
 	"github.com/charmbracelet/lipgloss"
@@ -14,7 +15,6 @@ import (
 
 	"gopkg.in/inf.v0"
 	"k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -92,14 +92,14 @@ func listPodUsage(ctx context.Context, cfg *Config) error {
 	if len(pods) == 0 {
 		msg := lipgloss.NewStyle().Foreground(lipgloss.Color("#FFA500"))
 		fmt.Println(msg.Render(`
-	        No pods exist in this namespace.
-	        Did you mean to use the --namespace flag?
+            No pods exist in this namespace.
+            Did you mean to use the --namespace flag?
 
-	        If you are attemptying to check
-	        resources for a docker deployment, you
-	        must use the --docker flag.
-	        See --help for more info.
-	        `))
+            If you are attemptying to check
+            resources for a docker deployment, you
+            must use the --docker flag.
+            See --help for more info.
+            `))
 		os.Exit(1)
 	}
 
@@ -115,6 +115,9 @@ func listPodUsage(ctx context.Context, cfg *Config) error {
 
 	var rows []table.Row
 	for _, pod := range pods {
+		resources := make(map[string]*v1.ResourceList)
+		fmt.Println(pod.Name)
+
 		podMetrics, err := cfg.metricsClient.
 			MetricsV1beta1().
 			PodMetricses(cfg.namespace).
@@ -123,18 +126,14 @@ func listPodUsage(ctx context.Context, cfg *Config) error {
 			return errors.Wrap(err, "error while getting pod metrics: ")
 		}
 
-		var cpuLimits *resource.Quantity
-		var memLimits *resource.Quantity
 		var storageCapacity float64
 
 		if pod.GetNamespace() == cfg.namespace {
 			for _, container := range pod.Spec.Containers {
-                if (container.Name == "psql-exporter") { 
-                    continue
-                }
-				cpuLimits = container.Resources.Limits.Cpu()
-				memLimits = container.Resources.Limits.Memory()
-
+				if isExporter(container.Name) {
+					continue
+				}
+				resources[container.Name] = &container.Resources.Limits
 				storageCapacity, err = getPvcCapacity(ctx, cfg, container, pod)
 				if err != nil {
 					errors.Wrap(err, "error while getting storage capacity: ")
@@ -142,6 +141,10 @@ func listPodUsage(ctx context.Context, cfg *Config) error {
 			}
 
 			for _, container := range podMetrics.Containers {
+				if isExporter(container.Name) {
+					continue
+				}
+                
 				cpuUsage, err := getRawUsage(container.Usage, "cpu")
 				if err != nil {
 					return errors.Wrap(err, "error while getting raw cpu usage: ")
@@ -152,24 +155,25 @@ func listPodUsage(ctx context.Context, cfg *Config) error {
 					return errors.Wrap(err, "error while getting raw memory usage: ")
 				}
 
+				// TODO don't hard code
 				diskUsage := "22%"
 
 				fmt.Println(container.Name)
 				cpuUsagePercent := getPercentage(
 					cpuUsage,
-					cpuLimits.AsApproximateFloat64()*Billion,
+					resources[container.Name].Cpu().AsApproximateFloat64()*Billion,
 				)
 				memUsagePercent := getPercentage(
 					memUsage,
-					memLimits.AsApproximateFloat64(),
+					resources[container.Name].Memory().AsApproximateFloat64(),
 				)
 
 				// TODO convert to percentages before adding to the row
 				row := table.Row{
 					container.Name,
-					fmt.Sprintf("%v", cpuLimits),
+					fmt.Sprintf("%v", resources[container.Name].Cpu()),
 					fmt.Sprintf("%.2f%%", cpuUsagePercent),
-					fmt.Sprintf("%v", memLimits),
+					fmt.Sprintf("%v", resources[container.Name].Memory()),
 					fmt.Sprintf("%.2f%%", memUsagePercent),
 					fmt.Sprintf("%.2f", storageCapacity),
 					diskUsage,
@@ -194,6 +198,7 @@ func listPodUsage(ctx context.Context, cfg *Config) error {
 //
 // The usage value is returned as an int64. If the usage value in the ResourceList
 // is a decimal, it is rounded down to an int64.
+// target key == "cpu" or "memory" every time.
 func getRawUsage(usages v1.ResourceList, targetKey string) (float64, error) {
 	var usage *inf.Dec
 
@@ -203,12 +208,12 @@ func getRawUsage(usages v1.ResourceList, targetKey string) (float64, error) {
 		}
 	}
 
-    toFloat, err := strconv.ParseFloat(usage.String(), 64)
-    if err != nil {
-        return 0, errors.Wrap(err, "error while convering inf.Dec to float")
-    }
-    
-    return toFloat, nil
+	toFloat, err := strconv.ParseFloat(usage.String(), 64)
+	if err != nil {
+		return 0, errors.Wrap(err, "error while converting inf.Dec to float")
+	}
+
+	return toFloat, nil
 }
 
 // getPvcCapacity returns the capacity in GiB of the PersistentVolumeClaim
@@ -250,14 +255,24 @@ func getPercentage(x, y float64) float64 {
 	if x == 0 {
 		return 0
 	}
-    fmt.Printf("\tx: %v\n", x)
-    fmt.Printf("\ty: %v\n", y)
+	/* fmt.Printf("\tx: %v\n", x)
+	   fmt.Printf("\ty: %v\n", y) */
 
 	if y == 0 {
 		return 0
 	}
 
 	return x * 100 / y
+}
+
+func isExporter(containerName string) bool {
+	exporterCheck := strings.Split(containerName, "-")
+	if len(exporterCheck) == 2 {
+		if exporterCheck[1] == "exporter" {
+			return true
+		}
+	}
+	return false
 }
 
 func Docker(ctx context.Context, client client.Client, opts ...Option) error {
