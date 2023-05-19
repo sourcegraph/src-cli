@@ -1,10 +1,14 @@
 package usage
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"os"
+	"os/exec"
+	"regexp"
 	"strconv"
+	"strings"
 
 	"github.com/charmbracelet/bubbles/table"
 	"github.com/charmbracelet/lipgloss"
@@ -17,7 +21,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
-	"k8s.io/metrics/pkg/apis/metrics/v1beta1"
+	metav1beta1 "k8s.io/metrics/pkg/apis/metrics/v1beta1"
 	metricsv "k8s.io/metrics/pkg/client/clientset/versioned"
 )
 
@@ -61,6 +65,15 @@ func K8s(
 	return renderUsageTable(ctx, cfg)
 }
 
+// renderUsageTable renders a table displaying resource usage for pods.
+// It accepts:
+// - ctx: The context for the request
+// - cfg: A config struct containing:
+//   - k8sClient: A Kubernetes clientset for accessing the API server
+//   - namespace: The namespace of the pods
+//
+// It returns:
+// - Any error that occurred while rendering the table
 func renderUsageTable(ctx context.Context, cfg *Config) error {
 	podInterface := cfg.k8sClient.CoreV1().Pods(cfg.namespace)
 	podList, err := podInterface.List(ctx, metav1.ListOptions{})
@@ -85,12 +98,12 @@ func renderUsageTable(ctx context.Context, cfg *Config) error {
 
 	columns := []table.Column{
 		{Title: "Container", Width: 20},
-		{Title: "CPU Limits", Width: 10},
-		{Title: "Usage(%)", Width: 13},
-		{Title: "MEM Limits", Width: 10},
-		{Title: "Usage(%)", Width: 13},
-		{Title: "Capacity", Width: 13},
-		{Title: "Usage(%)", Width: 16},
+		{Title: "Cores", Width: 10},
+		{Title: "Usage(%)", Width: 10},
+		{Title: "Memory", Width: 10},
+		{Title: "Usage(%)", Width: 10},
+		{Title: "Storage", Width: 10},
+		{Title: "Usage(%)", Width: 10},
 	}
 	var rows []table.Row
 
@@ -130,6 +143,34 @@ func renderUsageTable(ctx context.Context, cfg *Config) error {
 				limits.memory.AsApproximateFloat64(),
 			)
 
+			stateless := []string{
+				"cadvisor",
+				"pgsql-exporter",
+				"executor",
+				"dind",
+				"github-proxy",
+				"jaeger",
+				"node-exporter",
+				"otel-agent",
+				"otel-collector",
+				"precise-code-intel-worker",
+				"redis-exporter",
+				"repo-updater",
+				"frontend",
+				"syntect-server",
+				"worker",
+			}
+            
+			var storageUsagePercent string
+			if contains(stateless, container.Name) {
+				storageUsagePercent = "-"
+			} else {
+				storageUsagePercent, err = getStorageUsage(pod.Name, cfg.namespace, container.Name)
+				if err != nil {
+					return errors.Wrap(err, "error while getting storage usage")
+				}
+			}
+
 			storageVal := limits.storage.String()
 			if containerMetrics.limits[container.Name].storage == nil {
 				storageVal = "-"
@@ -142,7 +183,7 @@ func renderUsageTable(ctx context.Context, cfg *Config) error {
 				containerMetrics.limits[container.Name].memory.String(),
 				fmt.Sprintf("%.2f%%", memUsagePercent),
 				storageVal,
-				":-)",
+				storageUsagePercent,
 			}
 			rows = append(rows, row)
 		}
@@ -162,7 +203,7 @@ func renderUsageTable(ctx context.Context, cfg *Config) error {
 // It returns:
 // - podMetrics: The PodMetrics object containing metrics for the pod
 // - err: Any error that occurred while getting the pod metrics
-func getPodMetrics(ctx context.Context, cfg *Config, pod v1.Pod) (*v1beta1.PodMetrics, error) {
+func getPodMetrics(ctx context.Context, cfg *Config, pod v1.Pod) (*metav1beta1.PodMetrics, error) {
 	podMetrics, err := cfg.metricsClient.
 		MetricsV1beta1().
 		PodMetricses(cfg.namespace).
@@ -263,6 +304,24 @@ func getPvcCapacity(ctx context.Context, cfg *Config, container v1.Container, po
 	return nil, nil
 }
 
+// contains checks if a string slice contains a given value.
+//
+// It accepts:
+// - slice: The string slice to search
+// - value: The string value to search for
+//
+// It returns:
+// - true if the slice contains the value
+// - false otherwise
+func contains(slice []string, value string) bool {
+	for _, v := range slice {
+		if v == value {
+			return true
+		}
+	}
+	return false
+}
+
 // getPercentage calculates the percentage of x out of y.
 //
 // It accepts:
@@ -282,4 +341,44 @@ func getPercentage(x, y float64) float64 {
 	}
 
 	return x * 100 / y
+}
+
+// getStorageUsage executes the `df -h` command inside a pod
+// to get the storage usage of a given container.
+//
+// It accepts:
+// - podName: The name of the pod
+// - namespace: The namespace of the pod
+// - containerName: The name of the container
+//
+// It returns:
+// - The storage usage of the container (or "-" if stateless)
+// - Any error that occurred while executing the command
+//
+// When the kubernetes API has a better way of getting storage usage,
+// this should be refactored to use the API.
+func getStorageUsage(podName, namespace, containerName string) (string, error) {
+	cmd := exec.Command("kubectl", "exec", "-it", podName, "-n", namespace, "--", "df", "-h")
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	err := cmd.Run()
+	if err != nil {
+		return "", err
+	}
+
+	lines := strings.Split(out.String(), "\n")
+	for _, line := range lines[1 : len(lines)-1] {
+		fields := strings.Fields(line)
+
+		if acceptedFileSystem(fields[0]) {
+			return fields[4], nil
+		}
+	}
+
+	return "-", nil
+}
+
+func acceptedFileSystem(fileSystem string) bool {
+	matched, _ := regexp.MatchString(`/dev/sd[a-z]`, fileSystem)
+	return matched
 }
