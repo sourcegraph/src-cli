@@ -265,13 +265,20 @@ func getPvcCapacity(ctx context.Context, cfg *Config, container corev1.Container
 	for _, volumeMount := range container.VolumeMounts {
 		for _, volume := range pod.Spec.Volumes {
 			if volume.Name == volumeMount.Name && volume.PersistentVolumeClaim != nil {
-				pvc, err := cfg.k8sClient.CoreV1().PersistentVolumeClaims(cfg.namespace).Get(
-					ctx,
-					volume.PersistentVolumeClaim.ClaimName,
-					metav1.GetOptions{},
-				)
+				pvc, err := cfg.k8sClient.
+					CoreV1().
+					PersistentVolumeClaims(cfg.namespace).
+					Get(
+						ctx,
+						volume.PersistentVolumeClaim.ClaimName,
+						metav1.GetOptions{},
+					)
 				if err != nil {
-					return nil, errors.Wrapf(err, "failed to get PVC %s", volume.PersistentVolumeClaim.ClaimName)
+					return nil, errors.Wrapf(
+						err,
+						"failed to get PVC %s",
+						volume.PersistentVolumeClaim.ClaimName,
+					)
 				}
 				return pvc.Status.Capacity.Storage().ToDec(), nil
 			}
