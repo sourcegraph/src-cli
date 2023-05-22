@@ -339,4 +339,3 @@ func acceptedFileSystem(fileSystem string) bool {
 	matched, _ := regexp.MatchString(`/dev/sd[a-z]$`, fileSystem)
 	return matched
 }
-
