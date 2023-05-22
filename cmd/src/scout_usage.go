@@ -78,9 +78,9 @@ func init() {
 		}
 
 		metricsClient, err := metricsv.NewForConfig(config)
-        if err != nil {
-            return errors.Wrap(err, "failed to initiate metrics client")
-        }
+		if err != nil {
+			return errors.Wrap(err, "failed to initiate metrics client")
+		}
 
 		var options []usage.Option
 
@@ -100,7 +100,13 @@ func init() {
 			return usage.Docker(context.Background(), *dockerClient)
 		}
 
-		return usage.K8s(context.Background(), clientSet, metricsClient, config, options...)
+		return usage.K8s(
+			context.Background(),
+			clientSet,
+			metricsClient,
+			config,
+			options...,
+		)
 	}
 
 	scoutCommands = append(scoutCommands, &command{

@@ -3,7 +3,7 @@ package usage
 import (
 	"testing"
 
-	"k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 )
 
@@ -44,10 +44,10 @@ func TestGetPercentage(t *testing.T) {
 			shouldError: false,
 		},
 		{
-			name:        "should return x if y is 0",
+			name:        "should return 0 if y is 0",
 			x:           75,
 			y:           0,
-			want:        75,
+			want:        0,
 			shouldError: true,
 		},
 	}
@@ -82,21 +82,21 @@ func TestGetRawUsage(t *testing.T) {
 			shouldError: false,
 		},
 		{
-			name:      "return memory usage in KiB",
-			cpu:       resource.NewQuantity(8926483, resource.Format("BinarySI")),
-			mem:       resource.NewQuantity(2332343, resource.Format("BinarySI")),
-			targetKey: "memory",
-			want:      2332343,
+			name:        "return memory usage in KiB",
+			cpu:         resource.NewQuantity(8926483, resource.Format("BinarySI")),
+			mem:         resource.NewQuantity(2332343, resource.Format("BinarySI")),
+			targetKey:   "memory",
+			want:        2332343,
 			shouldError: false,
 		},
-        {
-            name: "should error with non-existant targetKey",
-			cpu:       resource.NewQuantity(8, resource.Format("BinarySI")),
-			mem:       resource.NewQuantity(2, resource.Format("BinarySI")),
-			targetKey: "mem",
-			want:      0,
+		{
+			name:        "should error with non-existant targetKey",
+			cpu:         resource.NewQuantity(8, resource.Format("BinarySI")),
+			mem:         resource.NewQuantity(2, resource.Format("BinarySI")),
+			targetKey:   "mem",
+			want:        0,
 			shouldError: true,
-        },
+		},
 	}
 
 	for _, tc := range cases {
@@ -104,10 +104,10 @@ func TestGetRawUsage(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			resourceList := resourceListHelper(tc.cpu, tc.mem)
 			got, err := getRawUsage(resourceList, tc.targetKey)
-            if !tc.shouldError && err != nil {
-                t.Errorf("unexpected error: %v", err)
-            }
-            
+			if !tc.shouldError && err != nil {
+				t.Errorf("unexpected error: %v", err)
+			}
+
 			want := tc.want
 			if got != want {
 				t.Errorf("got %v, want %v", got, want)
@@ -116,9 +116,76 @@ func TestGetRawUsage(t *testing.T) {
 	}
 }
 
-func resourceListHelper(cpu *resource.Quantity, mem *resource.Quantity) v1.ResourceList {
-	return v1.ResourceList{
-		v1.ResourceCPU:    *cpu,
-		v1.ResourceMemory: *mem,
+func TestContains(t *testing.T) {
+	cases := []struct {
+		name string
+		s    []string
+		val  string
+		want bool
+	}{
+		{
+			name: "should return true if given slice contains given value",
+			s:    []string{"this", "is", "a", "unit", "test"},
+			val:  "unit",
+			want: true,
+		},
+		{
+			name: "should return false if given slice does not contains given value",
+			s:    []string{"this", "is", "a", "unit", "test"},
+			val:  "foobar",
+			want: false,
+		},
+		{
+			name: "should return true if given slice contains for than one instance of the given value",
+			s:    []string{"this", "is", "a", "unit", "unit", "test", "unit"},
+			val:  "unit",
+			want: true,
+		},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			got := contains(tc.s, tc.val)
+			if got != tc.want {
+				t.Errorf("got %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestAcceptedFileSystem(t *testing.T) {
+	cases := []struct {
+		name       string
+		filesystem string
+		want       bool
+	}{
+		{
+			name:       "should return true if filesystem matches 'matched' regular expression",
+			filesystem: "/dev/sda",
+			want:       true,
+		},
+		{
+			name:       "should return false if filesystem doesn't match 'matched' regular expression",
+			filesystem: "/dev/sda1",
+			want:       false,
+		},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			got := acceptedFileSystem(tc.filesystem)
+			if got != tc.want {
+				t.Errorf("got %v want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+func resourceListHelper(cpu *resource.Quantity, mem *resource.Quantity) corev1.ResourceList {
+	return corev1.ResourceList{
+		corev1.ResourceCPU:    *cpu,
+		corev1.ResourceMemory: *mem,
 	}
 }

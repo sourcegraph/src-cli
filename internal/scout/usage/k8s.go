@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"os/exec"
 	"regexp"
 	"strconv"
 	"strings"
@@ -16,18 +15,20 @@ import (
 	"github.com/sourcegraph/src-cli/internal/scout/style"
 
 	"gopkg.in/inf.v0"
-	"k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
+	"k8s.io/client-go/kubernetes/scheme"
+	restclient "k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/remotecommand"
 	metav1beta1 "k8s.io/metrics/pkg/apis/metrics/v1beta1"
 	metricsv "k8s.io/metrics/pkg/client/clientset/versioned"
 )
 
 type ContainerMetrics struct {
-	pod    string
-	limits map[string]Resources
+	podName string
+	limits  map[string]Resources
 }
 
 type Resources struct {
@@ -44,7 +45,7 @@ func K8s(
 	ctx context.Context,
 	clientSet *kubernetes.Clientset,
 	metricsClient *metricsv.Clientset,
-	rest *rest.Config,
+	restConfig *restclient.Config,
 	opts ...Option,
 ) error {
 	cfg := &Config{
@@ -53,6 +54,7 @@ func K8s(
 		pod:           "",
 		container:     "",
 		spy:           false,
+		restConfig:    restConfig,
 		k8sClient:     clientSet,
 		dockerClient:  nil,
 		metricsClient: metricsClient,
@@ -66,19 +68,14 @@ func K8s(
 }
 
 // renderUsageTable renders a table displaying resource usage for pods.
-// It accepts:
-// - ctx: The context for the request
-// - cfg: A config struct containing:
-//   - k8sClient: A Kubernetes clientset for accessing the API server
-//   - namespace: The namespace of the pods
-//
+
 // It returns:
 // - Any error that occurred while rendering the table
 func renderUsageTable(ctx context.Context, cfg *Config) error {
 	podInterface := cfg.k8sClient.CoreV1().Pods(cfg.namespace)
 	podList, err := podInterface.List(ctx, metav1.ListOptions{})
 	if err != nil {
-		return errors.Wrap(err, "error listing pods: ")
+		return errors.Wrap(err, "could not list pods")
 	}
 
 	pods := podList.Items
@@ -88,7 +85,7 @@ func renderUsageTable(ctx context.Context, cfg *Config) error {
             No pods exist in this namespace.
             Did you mean to use the --namespace flag?
 
-            If you are attemptying to check
+            If you are attempting to check
             resources for a docker deployment, you
             must use the --docker flag.
             See --help for more info.
@@ -112,12 +109,12 @@ func renderUsageTable(ctx context.Context, cfg *Config) error {
 		containerMetrics := &ContainerMetrics{podName, map[string]Resources{}}
 		podMetrics, err := getPodMetrics(ctx, cfg, pod)
 		if err != nil {
-			return errors.Wrap(err, "error while getting pod metrics: ")
+			return errors.Wrap(err, "while attempting to fetch pod metrics")
 		}
 
 		err = getLimits(ctx, cfg, &pod, containerMetrics)
 		if err != nil {
-			return errors.Wrap(err, "error while getting container limits: ")
+			return errors.Wrap(err, "failed to get get container metrics")
 		}
 
 		for _, container := range podMetrics.Containers {
@@ -125,12 +122,12 @@ func renderUsageTable(ctx context.Context, cfg *Config) error {
 
 			cpuUsage, err := getRawUsage(container.Usage, "cpu")
 			if err != nil {
-				return errors.Wrap(err, "error while getting raw cpu usage: ")
+				return errors.Wrap(err, "failed to get raw CPU usage")
 			}
 
 			memUsage, err := getRawUsage(container.Usage, "memory")
 			if err != nil {
-				return errors.Wrap(err, "error while getting raw memory usage: ")
+				return errors.Wrap(err, "failed to get raw memory usage")
 			}
 
 			cpuUsagePercent := getPercentage(
@@ -160,14 +157,14 @@ func renderUsageTable(ctx context.Context, cfg *Config) error {
 				"syntect-server",
 				"worker",
 			}
-            
+
 			var storageUsagePercent string
 			if contains(stateless, container.Name) {
 				storageUsagePercent = "-"
 			} else {
-				storageUsagePercent, err = getStorageUsage(pod.Name, cfg.namespace, container.Name)
+				storageUsagePercent, err = getStorageUsage(ctx, cfg, pod.Name, container.Name)
 				if err != nil {
-					return errors.Wrap(err, "error while getting storage usage")
+					return errors.Wrap(err, "failed to get storage usage")
 				}
 			}
 
@@ -194,22 +191,17 @@ func renderUsageTable(ctx context.Context, cfg *Config) error {
 }
 
 // getPodMetrics retrieves metrics for a given pod.
-// It accepts:
-// - ctx: The context for the request
-// - cfg: A config struct containing:
-//   - metricsClient: A metrics clientset for accessing the Kubernetes Metrics API
-//   - namespace: The namespace of the pod
-// - pod: The pod object for which metrics should be retrieved
+//
 // It returns:
 // - podMetrics: The PodMetrics object containing metrics for the pod
 // - err: Any error that occurred while getting the pod metrics
-func getPodMetrics(ctx context.Context, cfg *Config, pod v1.Pod) (*metav1beta1.PodMetrics, error) {
+func getPodMetrics(ctx context.Context, cfg *Config, pod corev1.Pod) (*metav1beta1.PodMetrics, error) {
 	podMetrics, err := cfg.metricsClient.
 		MetricsV1beta1().
 		PodMetricses(cfg.namespace).
 		Get(ctx, pod.Name, metav1.GetOptions{})
 	if err != nil {
-		return nil, errors.Wrap(err, "error while getting pod metrics: ")
+		return nil, errors.Wrap(err, "failed to get pod metrics")
 	}
 
 	return podMetrics, nil
@@ -218,20 +210,16 @@ func getPodMetrics(ctx context.Context, cfg *Config, pod v1.Pod) (*metav1beta1.P
 // getLimits extracts resource limits for containers in a pod and stores
 // them in a ContainerMetrics struct.
 //
-// It accepts:
-// - pod: A Kubernetes pod object
-// - containerMetrics: A ContainerMetrics struct to store the resource limits
-//
 // It populates the containerMetrics struct with:
 // - The name of each container
 // - The CPU, memory, ephemeral storage, and storage resource limits for each container
 // - A print method to print the resource limits for each container
-func getLimits(ctx context.Context, cfg *Config, pod *v1.Pod, containerMetrics *ContainerMetrics) error {
+func getLimits(ctx context.Context, cfg *Config, pod *corev1.Pod, containerMetrics *ContainerMetrics) error {
 	for _, container := range pod.Spec.Containers {
 		containerName := container.Name
 		capacity, err := getPvcCapacity(ctx, cfg, container, pod)
 		if err != nil {
-			return errors.Wrap(err, "error while getting storage capacity of PV: ")
+			return errors.Wrap(err, "while getting storage capacity of PV")
 		}
 		rsrcs := Resources{
 			cpu:     container.Resources.Limits.Cpu().ToDec(),
@@ -246,14 +234,10 @@ func getLimits(ctx context.Context, cfg *Config, pod *v1.Pod, containerMetrics *
 // getRawUsage converts a Kubernetes ResourceList (map[ResourceName]Quantity)
 // into a raw float64 usage value for a given resource.
 //
-// It accepts:
-// - usages: The ResourceList containing usage values
-// - targetKey: The key for the target resource in the ResourceList (e.g. "cpu" or "memory")
-//
 // It returns:
 // - The raw float64 usage value for the target resource
 // - Any error that occurred during conversion
-func getRawUsage(usages v1.ResourceList, targetKey string) (float64, error) {
+func getRawUsage(usages corev1.ResourceList, targetKey string) (float64, error) {
 	var usage *inf.Dec
 
 	for key, val := range usages {
@@ -264,7 +248,7 @@ func getRawUsage(usages v1.ResourceList, targetKey string) (float64, error) {
 
 	toFloat, err := strconv.ParseFloat(usage.String(), 64)
 	if err != nil {
-		return 0, errors.Wrap(err, "error while converting inf.Dec to float")
+		return 0, errors.Wrap(err, "failed to convert inf.Dec type to float")
 	}
 
 	return toFloat, nil
@@ -273,19 +257,11 @@ func getRawUsage(usages v1.ResourceList, targetKey string) (float64, error) {
 // getPvcCapacity retrieves the storage capacity of a PersistentVolumeClaim
 // mounted as a volume by a container.
 //
-// It accepts:
-// - ctx: The context for the request
-// - cfg: A config struct containing:
-//   - k8sClient: A Kubernetes clientset for accessing the API server
-//   - namespace: The namespace of the pod
-// - container: The container object which may have PVC mounts
-// - pod: The pod object which contains the container
-//
 // It returns:
 // - The capacity Quantity of the PVC if a matching PVC mount is found
 // - nil if no PVC mount is found
 // - Any error that occurred while getting the PVC
-func getPvcCapacity(ctx context.Context, cfg *Config, container v1.Container, pod *v1.Pod) (*resource.Quantity, error) {
+func getPvcCapacity(ctx context.Context, cfg *Config, container corev1.Container, pod *corev1.Pod) (*resource.Quantity, error) {
 	for _, volumeMount := range container.VolumeMounts {
 		for _, volume := range pod.Spec.Volumes {
 			if volume.Name == volumeMount.Name && volume.PersistentVolumeClaim != nil {
@@ -295,7 +271,7 @@ func getPvcCapacity(ctx context.Context, cfg *Config, container v1.Container, po
 					metav1.GetOptions{},
 				)
 				if err != nil {
-					return nil, errors.Wrapf(err, "error getting PVC %s", volume.PersistentVolumeClaim.ClaimName)
+					return nil, errors.Wrapf(err, "failed to get PVC %s", volume.PersistentVolumeClaim.ClaimName)
 				}
 				return pvc.Status.Capacity.Storage().ToDec(), nil
 			}
@@ -304,69 +280,44 @@ func getPvcCapacity(ctx context.Context, cfg *Config, container v1.Container, po
 	return nil, nil
 }
 
-// contains checks if a string slice contains a given value.
-//
-// It accepts:
-// - slice: The string slice to search
-// - value: The string value to search for
+// getStorageUsage executes the df -h command in a container and parses the
+// output to get the storage usage percentage for ephemeral storage volumes.
 //
 // It returns:
-// - true if the slice contains the value
-// - false otherwise
-func contains(slice []string, value string) bool {
-	for _, v := range slice {
-		if v == value {
-			return true
-		}
-	}
-	return false
-}
+// - The storage usage percentage for storage volumes
+// - "-" if no storage volumes are found
+// - Any error that occurred while executing the df -h command or parsing the output
+func getStorageUsage(ctx context.Context, cfg *Config, podName, containerName string) (string, error) {
+	req := cfg.k8sClient.CoreV1().RESTClient().Post().
+		Resource("pods").
+		Name(podName).
+		Namespace(cfg.namespace).
+		SubResource("exec")
 
-// getPercentage calculates the percentage of x out of y.
-//
-// It accepts:
-// - x: The numerator value
-// - y: The denominator value
-//
-// It returns:
-// - The percentage of x out of y, rounded to 2 decimal places.
-// - 0 if either x or y are 0 to avoid division by 0.
-func getPercentage(x, y float64) float64 {
-	if x == 0 {
-		return 0
-	}
+	req.VersionedParams(&corev1.PodExecOptions{
+		Container: containerName,
+		Command:   []string{"df", "-h"},
+		Stdin:     false,
+		Stdout:    true,
+		Stderr:    true,
+		TTY:       false,
+	}, scheme.ParameterCodec)
 
-	if y == 0 {
-		return 0
-	}
-
-	return x * 100 / y
-}
-
-// getStorageUsage executes the `df -h` command inside a pod
-// to get the storage usage of a given container.
-//
-// It accepts:
-// - podName: The name of the pod
-// - namespace: The namespace of the pod
-// - containerName: The name of the container
-//
-// It returns:
-// - The storage usage of the container (or "-" if stateless)
-// - Any error that occurred while executing the command
-//
-// When the kubernetes API has a better way of getting storage usage,
-// this should be refactored to use the API.
-func getStorageUsage(podName, namespace, containerName string) (string, error) {
-	cmd := exec.Command("kubectl", "exec", "-it", podName, "-n", namespace, "--", "df", "-h")
-	var out bytes.Buffer
-	cmd.Stdout = &out
-	err := cmd.Run()
+	exec, err := remotecommand.NewSPDYExecutor(cfg.restConfig, "POST", req.URL())
 	if err != nil {
 		return "", err
 	}
 
-	lines := strings.Split(out.String(), "\n")
+	var stdout, stderr bytes.Buffer
+	err = exec.StreamWithContext(ctx, remotecommand.StreamOptions{
+		Stdout: &stdout,
+		Stderr: &stderr,
+	})
+	if err != nil {
+		return "", err
+	}
+
+	lines := strings.Split(stdout.String(), "\n")
 	for _, line := range lines[1 : len(lines)-1] {
 		fields := strings.Fields(line)
 
@@ -378,7 +329,14 @@ func getStorageUsage(podName, namespace, containerName string) (string, error) {
 	return "-", nil
 }
 
+// acceptedFileSystem checks if a given file system, represented
+// as a string, is an accepted system.
+//
+// It returns:
+// - True if the file system matches the pattern '/dev/sd[a-z]$'
+// - False otherwise
 func acceptedFileSystem(fileSystem string) bool {
-	matched, _ := regexp.MatchString(`/dev/sd[a-z]`, fileSystem)
+	matched, _ := regexp.MatchString(`/dev/sd[a-z]$`, fileSystem)
 	return matched
 }
+
