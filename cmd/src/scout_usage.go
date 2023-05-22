@@ -46,7 +46,7 @@ func init() {
 	var (
 		kubeConfig *string
 		namespace  = flagSet.String("namespace", "", "(optional) specify the kubernetes namespace to use")
-		pod        = flagSet.String("namespace", "", "(optional) specify a single pod")
+		pod        = flagSet.String("pod", "", "(optional) specify a single pod")
 		docker     = flagSet.Bool("docker", false, "(optional) using docker deployment")
 		spy        = flagSet.Bool("spy", false, "(optional) see resource usage in real time")
 		// TODO: option for getting resource allocation of the Node
