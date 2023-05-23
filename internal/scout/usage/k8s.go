@@ -43,7 +43,6 @@ type UsageStats struct {
 	cpuUsage      float64
 	memory        *resource.Quantity
 	memoryUsage   float64
-	// TODO change to *resource.Quantity and float64
 	storage      string
 	storageUsage string
 }
@@ -134,11 +133,7 @@ func getPod(cfg *Config, pods []corev1.Pod) (corev1.Pod, error) {
 // It returns:
 // - podMetrics: The PodMetrics object containing metrics for the pod
 // - err: Any error that occurred while getting the pod metrics
-func getPodMetrics(
-	ctx context.Context,
-	cfg *Config,
-	pod corev1.Pod,
-) (*metav1beta1.PodMetrics, error) {
+func getPodMetrics(ctx context.Context, cfg *Config, pod corev1.Pod) (*metav1beta1.PodMetrics, error) {
 	podMetrics, err := cfg.metricsClient.
 		MetricsV1beta1().
 		PodMetricses(cfg.namespace).
@@ -157,12 +152,7 @@ func getPodMetrics(
 // - The name of each container
 // - The CPU, memory, ephemeral storage, and storage resource limits for each container
 // - A print method to print the resource limits for each container
-func getLimits(
-	ctx context.Context,
-	cfg *Config,
-	pod *corev1.Pod,
-	containerMetrics *ContainerMetrics,
-) error {
+func getLimits(ctx context.Context, cfg *Config, pod *corev1.Pod, containerMetrics *ContainerMetrics) error {
 	for _, container := range pod.Spec.Containers {
 		containerName := container.Name
 		capacity, err := getPvcCapacity(ctx, cfg, container, pod)
@@ -396,11 +386,7 @@ func getRawUsage(usages corev1.ResourceList, targetKey string) (float64, error) 
 // - The capacity Quantity of the PVC if a matching PVC mount is found
 // - nil if no PVC mount is found
 // - Any error that occurred while getting the PVC
-func getPvcCapacity(
-	ctx context.Context,
-	cfg *Config, container corev1.Container,
-	pod *corev1.Pod,
-) (*resource.Quantity, error) {
+func getPvcCapacity(ctx context.Context, cfg *Config, container corev1.Container, pod *corev1.Pod) (*resource.Quantity, error) {
 	for _, volumeMount := range container.VolumeMounts {
 		for _, volume := range pod.Spec.Volumes {
 			if volume.Name == volumeMount.Name && volume.PersistentVolumeClaim != nil {
@@ -433,11 +419,7 @@ func getPvcCapacity(
 // - The storage usage percentage for storage volumes
 // - "-" if no storage volumes are found
 // - Any error that occurred while executing the df -h command or parsing the output
-func getStorageUsage(
-	ctx context.Context,
-	cfg *Config, podName,
-	containerName string,
-) (string, error) {
+func getStorageUsage(ctx context.Context, cfg *Config, podName, containerName string) (string, error) {
 	req := cfg.k8sClient.CoreV1().RESTClient().Post().
 		Resource("pods").
 		Name(podName).
