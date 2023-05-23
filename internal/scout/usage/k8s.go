@@ -155,8 +155,6 @@ func makeUsageRow(
 	pod v1.Pod,
 	container metav1beta1.ContainerMetrics,
 ) (table.Row, error) {
-	limits := metrics.limits[container.Name]
-
 	cpuUsage, err := getRawUsage(container.Usage, "cpu")
 	if err != nil {
 		return table.Row{}, errors.Wrap(err, "failed to get raw CPU usage")
@@ -166,6 +164,8 @@ func makeUsageRow(
 	if err != nil {
 		return table.Row{}, errors.Wrap(err, "failed to get raw memory usage")
 	}
+
+	limits := metrics.limits[container.Name]
 
 	cpuUsagePercent := getPercentage(
 		cpuUsage,
@@ -263,6 +263,7 @@ func getLimits(
 		if err != nil {
 			return errors.Wrap(err, "while getting storage capacity of PV")
 		}
+
 		rsrcs := Resources{
 			cpu:     container.Resources.Limits.Cpu().ToDec(),
 			memory:  container.Resources.Limits.Memory().ToDec(),
