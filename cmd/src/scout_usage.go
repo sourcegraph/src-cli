@@ -49,8 +49,6 @@ func init() {
 		pod        = flagSet.String("pod", "", "(optional) specify a single pod")
 		docker     = flagSet.Bool("docker", false, "(optional) using docker deployment")
 		spy        = flagSet.Bool("spy", false, "(optional) see resource usage in real time")
-		// TODO: option for getting resource allocation of the Node
-		// nodes      = flagSet.Bool("node", false, "(optional) view resources for node(s)")
 	)
 
 	if home := homedir.HomeDir(); home != "" {

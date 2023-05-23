@@ -16,7 +16,6 @@ import (
 
 	"gopkg.in/inf.v0"
 	corev1 "k8s.io/api/core/v1"
-	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -119,11 +118,11 @@ func renderUsageTable(ctx context.Context, cfg *Config) error {
 // - error: Any error that occurred while listing the pods
 //
 // If no pods are found in the given namespace, it will print an error message and exit.
-func getPods(ctx context.Context, cfg *Config) ([]v1.Pod, error) {
+func getPods(ctx context.Context, cfg *Config) ([]corev1.Pod, error) {
 	podInterface := cfg.k8sClient.CoreV1().Pods(cfg.namespace)
 	podList, err := podInterface.List(ctx, metav1.ListOptions{})
 	if err != nil {
-		return []v1.Pod{}, errors.Wrap(err, "could not list pods")
+		return []corev1.Pod{}, errors.Wrap(err, "could not list pods")
 	}
 
 	if len(podList.Items) == 0 {
@@ -152,7 +151,7 @@ func makeUsageRow(
 	ctx context.Context,
 	cfg *Config,
 	metrics ContainerMetrics,
-	pod v1.Pod,
+	pod corev1.Pod,
 	container metav1beta1.ContainerMetrics,
 ) (table.Row, error) {
 	cpuUsage, err := getRawUsage(container.Usage, "cpu")
