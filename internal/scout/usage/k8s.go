@@ -37,6 +37,17 @@ type Resources struct {
 	storage *resource.Quantity
 }
 
+type UsageStats struct {
+	containerName string
+	cpuCores      *resource.Quantity
+	cpuUsage      float64
+	memory        *resource.Quantity
+	memoryUsage   float64
+	// TODO change to *resource.Quantity and float64
+	storage      string
+	storageUsage string
+}
+
 const (
 	ABillion float64 = 1000000000
 )
@@ -64,162 +75,58 @@ func K8s(
 		opt(cfg)
 	}
 
-	return renderUsageTable(ctx, cfg)
-}
-
-// renderUsageTable renders a table displaying resource usage for pods.
-
-// It returns:
-// - Any error that occurred while rendering the table
-func renderUsageTable(ctx context.Context, cfg *Config) error {
 	pods, err := getPods(ctx, cfg)
 	if err != nil {
 		return errors.Wrap(err, "could not get list of pods")
 	}
 
-	columns := []table.Column{
-		{Title: "Container", Width: 20},
-		{Title: "Cores", Width: 10},
-		{Title: "Usage(%)", Width: 10},
-		{Title: "Memory", Width: 10},
-		{Title: "Usage(%)", Width: 10},
-		{Title: "Storage", Width: 10},
-		{Title: "Usage(%)", Width: 10},
+	if cfg.pod != "" {
+		return renderSinglePodUsageStats(ctx, cfg, pods)
 	}
-	var rows []table.Row
 
-	for _, pod := range pods {
-		containerMetrics := &ContainerMetrics{pod.Name, map[string]Resources{}}
-		podMetrics, err := getPodMetrics(ctx, cfg, pod)
+	return renderUsageTable(ctx, cfg, pods)
+}
+
+// renderSinglePodUsageStats prints resource usage statistics for a single pod.
+func renderSinglePodUsageStats(ctx context.Context, cfg *Config, pods []corev1.Pod) error {
+	pod, err := getPod(cfg, pods)
+	if err != nil {
+		return errors.Wrapf(err, "could not get pod with name %s", cfg.pod)
+	}
+
+	containerMetrics := &ContainerMetrics{cfg.pod, map[string]Resources{}}
+	podMetrics, err := getPodMetrics(ctx, cfg, pod)
+	if err != nil {
+		return errors.Wrap(err, "while attempting to fetch pod metrics")
+	}
+
+	if err = getLimits(ctx, cfg, &pod, containerMetrics); err != nil {
+		return errors.Wrap(err, "failed to get get container metrics")
+	}
+
+	for _, container := range podMetrics.Containers {
+		stats, err := getContainerUsageStats(ctx, cfg, *containerMetrics, pod, container)
 		if err != nil {
-			return errors.Wrap(err, "while attempting to fetch pod metrics")
+			return errors.Wrap(err, "could not compile usage data for row")
 		}
-
-		if err = getLimits(ctx, cfg, &pod, containerMetrics); err != nil {
-			return errors.Wrap(err, "failed to get get container metrics")
-		}
-
-		for _, container := range podMetrics.Containers {
-			row, err := makeUsageRow(ctx, cfg, *containerMetrics, pod, container)
-			if err != nil {
-				return errors.Wrap(err, "could not compile usage data for row")
-			}
-			rows = append(rows, row)
-		}
+		formattedStats := formatPodUsageData(stats)
+		fmt.Println(formattedStats)
 	}
 
-	style.ResourceTable(columns, rows)
 	return nil
 }
 
-// getPods returns a list of pods in the given namespace.
-// It returns:
-// - []v1.Pod: A list of pods in the given namespace
-// - error: Any error that occurred while listing the pods
+// getPod returns a Pod object with the given name.
 //
-// If no pods are found in the given namespace, it will print an error message and exit.
-func getPods(ctx context.Context, cfg *Config) ([]corev1.Pod, error) {
-	podInterface := cfg.k8sClient.CoreV1().Pods(cfg.namespace)
-	podList, err := podInterface.List(ctx, metav1.ListOptions{})
-	if err != nil {
-		return []corev1.Pod{}, errors.Wrap(err, "could not list pods")
-	}
-
-	if len(podList.Items) == 0 {
-		msg := lipgloss.NewStyle().Foreground(lipgloss.Color("#FFA500"))
-		fmt.Println(msg.Render(`
-            No pods exist in this namespace.
-            Did you mean to use the --namespace flag?
-
-            If you are attempting to check
-            resources for a docker deployment, you
-            must use the --docker flag.
-            See --help for more info.
-            `))
-		os.Exit(1)
-	}
-
-	return podList.Items, nil
-}
-
-// makeUsageRow generates a table row containing resource usage data for a container.
-//
-// It returns:
-// - A table.Row containing the resource usage information
-// - An error if there was an issue generating the row
-func makeUsageRow(
-	ctx context.Context,
-	cfg *Config,
-	metrics ContainerMetrics,
-	pod corev1.Pod,
-	container metav1beta1.ContainerMetrics,
-) (table.Row, error) {
-	cpuUsage, err := getRawUsage(container.Usage, "cpu")
-	if err != nil {
-		return table.Row{}, errors.Wrap(err, "failed to get raw CPU usage")
-	}
-
-	memUsage, err := getRawUsage(container.Usage, "memory")
-	if err != nil {
-		return table.Row{}, errors.Wrap(err, "failed to get raw memory usage")
-	}
-
-	limits := metrics.limits[container.Name]
-
-	cpuUsagePercent := getPercentage(
-		cpuUsage,
-		limits.cpu.AsApproximateFloat64()*ABillion,
-	)
-
-	memUsagePercent := getPercentage(
-		memUsage,
-		limits.memory.AsApproximateFloat64(),
-	)
-
-	storageVal := limits.storage.String()
-	if metrics.limits[container.Name].storage == nil {
-		storageVal = "-"
-	}
-
-	stateless := []string{
-		"cadvisor",
-		"pgsql-exporter",
-		"executor",
-		"dind",
-		"github-proxy",
-		"jaeger",
-		"node-exporter",
-		"otel-agent",
-		"otel-collector",
-		"precise-code-intel-worker",
-		"redis-exporter",
-		"repo-updater",
-		"frontend",
-		"syntect-server",
-		"worker",
-	}
-
-	var storageUsagePercent string
-	if contains(stateless, container.Name) {
-		storageUsagePercent = "-"
-	} else {
-		storageUsagePercent, err = getStorageUsage(ctx, cfg, pod.Name, container.Name)
-		if err != nil {
-			return table.Row{}, errors.Wrap(err, "failed to get storage usage")
+// If a Pod with the given name exists in pods, it is returned.
+// Otherwise, an error is returned indicating no Pod with that name exists.
+func getPod(cfg *Config, pods []corev1.Pod) (corev1.Pod, error) {
+	for _, p := range pods {
+		if p.Name == cfg.pod {
+			return p, nil
 		}
 	}
-
-	row := table.Row{
-		container.Name,
-		metrics.limits[container.Name].cpu.String(),
-		fmt.Sprintf("%.2f%%", cpuUsagePercent),
-		metrics.limits[container.Name].memory.String(),
-		fmt.Sprintf("%.2f%%", memUsagePercent),
-		storageVal,
-		storageUsagePercent,
-	}
-
-	return row, nil
+	return corev1.Pod{}, errors.New("no pod with this name exists in this namespace")
 }
 
 // getPodMetrics retrieves metrics for a given pod.
@@ -271,6 +178,192 @@ func getLimits(
 		containerMetrics.limits[containerName] = rsrcs
 	}
 	return nil
+}
+
+// renderUsageTable renders a table displaying resource usage for pods.
+
+// It returns:
+// - Any error that occurred while rendering the table
+func renderUsageTable(ctx context.Context, cfg *Config, pods []corev1.Pod) error {
+	columns := []table.Column{
+		{Title: "Container", Width: 20},
+		{Title: "Cores", Width: 10},
+		{Title: "Usage(%)", Width: 10},
+		{Title: "Memory", Width: 10},
+		{Title: "Usage(%)", Width: 10},
+		{Title: "Storage", Width: 10},
+		{Title: "Usage(%)", Width: 10},
+	}
+	var rows []table.Row
+
+	for _, pod := range pods {
+		containerMetrics := &ContainerMetrics{pod.Name, map[string]Resources{}}
+		podMetrics, err := getPodMetrics(ctx, cfg, pod)
+		if err != nil {
+			return errors.Wrap(err, "while attempting to fetch pod metrics")
+		}
+
+		if err = getLimits(ctx, cfg, &pod, containerMetrics); err != nil {
+			return errors.Wrap(err, "failed to get get container metrics")
+		}
+
+		for _, container := range podMetrics.Containers {
+			stats, err := getContainerUsageStats(ctx, cfg, *containerMetrics, pod, container)
+			if err != nil {
+				return errors.Wrap(err, "could not compile usage data for row")
+			}
+
+			row := table.Row{
+				stats.containerName,
+				stats.cpuCores.String(),
+				fmt.Sprintf("%.2f%%", stats.cpuUsage),
+				stats.memory.String(),
+				fmt.Sprintf("%.2f%%", stats.memoryUsage),
+				stats.storage,
+				stats.storageUsage,
+			}
+
+			rows = append(rows, row)
+		}
+	}
+
+	style.ResourceTable(columns, rows)
+	return nil
+}
+
+// formatPodUsageData generates a formatted string with usage statistics for a pod.
+// It returns:
+// string: A formatted string with the following usage stats for the pod:
+//   - Name
+//   - Number of CPU cores
+//   - CPU usage percentage
+//   - Memory
+//   - Memory usage percentage
+//   - Storage
+//   - Storage usage
+func formatPodUsageData(stats UsageStats) string {
+	return fmt.Sprintf(`name: %s
+        cores: %s
+        cpu usage: %s
+        memory: %s
+        memory usage: %s
+        storage: %s
+        storage usage: %s
+        `,
+		stats.containerName,
+		stats.cpuCores.String(),
+		fmt.Sprintf("%.2f%%", stats.cpuUsage),
+		stats.memory.String(),
+		fmt.Sprintf("%.2f%%", stats.memoryUsage),
+		stats.storage,
+		stats.storageUsage,
+	)
+}
+
+// getPods returns a list of pods in the given namespace.
+// It returns:
+// - []v1.Pod: A list of pods in the given namespace
+// - error: Any error that occurred while listing the pods
+//
+// If no pods are found in the given namespace, it will print an error message and exit.
+func getPods(ctx context.Context, cfg *Config) ([]corev1.Pod, error) {
+	podInterface := cfg.k8sClient.CoreV1().Pods(cfg.namespace)
+	podList, err := podInterface.List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return []corev1.Pod{}, errors.Wrap(err, "could not list pods")
+	}
+
+	if len(podList.Items) == 0 {
+		msg := lipgloss.NewStyle().Foreground(lipgloss.Color("#FFA500"))
+		fmt.Println(msg.Render(`
+            No pods exist in this namespace.
+            Did you mean to use the --namespace flag?
+
+            If you are attempting to check
+            resources for a docker deployment, you
+            must use the --docker flag.
+            See --help for more info.
+            `))
+		os.Exit(1)
+	}
+
+	return podList.Items, nil
+}
+
+// makeUsageRow generates a table row containing resource usage data for a container.
+//
+// It returns:
+// - A table.Row containing the resource usage information
+// - An error if there was an issue generating the row
+func getContainerUsageStats(
+	ctx context.Context,
+	cfg *Config,
+	metrics ContainerMetrics,
+	pod corev1.Pod,
+	container metav1beta1.ContainerMetrics,
+) (UsageStats, error) {
+	var usageStats UsageStats
+	usageStats.containerName = container.Name
+
+	cpuUsage, err := getRawUsage(container.Usage, "cpu")
+	if err != nil {
+		return UsageStats{}, errors.Wrap(err, "failed to get raw CPU usage")
+	}
+
+	memUsage, err := getRawUsage(container.Usage, "memory")
+	if err != nil {
+		return UsageStats{}, errors.Wrap(err, "failed to get raw memory usage")
+	}
+
+	limits := metrics.limits[container.Name]
+
+	usageStats.cpuCores = limits.cpu
+	usageStats.cpuUsage = getPercentage(
+		cpuUsage,
+		limits.cpu.AsApproximateFloat64()*ABillion,
+	)
+
+	usageStats.memory = limits.memory
+	usageStats.memoryUsage = getPercentage(
+		memUsage,
+		limits.memory.AsApproximateFloat64(),
+	)
+
+	usageStats.storage = limits.storage.String()
+	if metrics.limits[container.Name].storage == nil {
+		usageStats.storage = "-"
+	}
+
+	stateless := []string{
+		"cadvisor",
+		"pgsql-exporter",
+		"executor",
+		"dind",
+		"github-proxy",
+		"jaeger",
+		"node-exporter",
+		"otel-agent",
+		"otel-collector",
+		"precise-code-intel-worker",
+		"redis-exporter",
+		"repo-updater",
+		"frontend",
+		"syntect-server",
+		"worker",
+	}
+
+	var storageUsagePercent string
+	if contains(stateless, container.Name) {
+		usageStats.storageUsage = "-"
+	} else {
+		storageUsagePercent, err = getStorageUsage(ctx, cfg, pod.Name, container.Name)
+		if err != nil {
+			return UsageStats{}, errors.Wrap(err, "failed to get storage usage")
+		}
+		usageStats.storageUsage = storageUsagePercent
+	}
+
+	return usageStats, nil
 }
 
 // getRawUsage converts a Kubernetes ResourceList (map[ResourceName]Quantity)
