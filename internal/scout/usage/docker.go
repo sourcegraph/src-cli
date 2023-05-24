@@ -4,9 +4,11 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/charmbracelet/bubbles/table"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/client"
 	"github.com/sourcegraph/sourcegraph/lib/errors"
+	"github.com/sourcegraph/src-cli/internal/scout/style"
 )
 
 func Docker(ctx context.Context, client client.Client, opts ...Option) error {
@@ -30,13 +32,36 @@ func Docker(ctx context.Context, client client.Client, opts ...Option) error {
 	if err != nil {
 		return errors.Wrap(err, "could not get list of containers")
 	}
-
-	printContainerImages(containers)
-	return nil
+    
+	return renderDockerUsageTable(ctx, cfg, containers)
 }
 
-func printContainerImages(containers []types.Container) {
-	for _, container := range containers {
-		fmt.Println(container.Image)
+func renderDockerUsageTable(ctx context.Context, cfg *Config, containers []types.Container) error {
+	columns := []table.Column{
+		{Title: "Container", Width: 20},
+		{Title: "Cores", Width: 10},
+		{Title: "Usage", Width: 10},
+		{Title: "Memory", Width: 10},
+		{Title: "Usage", Width: 10},
 	}
+    
+	var rows []table.Row
+	for _, container := range containers {
+		containerInfo, err := cfg.dockerClient.ContainerInspect(ctx, container.ID)
+		if err != nil {
+		}
+        
+		row := table.Row{
+			containerInfo.Name,
+			fmt.Sprintf("%v", containerInfo.HostConfig.NanoCPUs),
+			fmt.Sprintf("%v", "27%"), // arbitrary number
+			fmt.Sprintf("%v", containerInfo.HostConfig.Memory),
+			fmt.Sprintf("%v", "13%"), // arbitrary number
+		}
+        
+		rows = append(rows, row)
+	}
+    
+	style.ResourceTable(columns, rows)
+    return nil
 }
