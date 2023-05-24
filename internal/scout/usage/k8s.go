@@ -40,11 +40,11 @@ type Resources struct {
 type UsageStats struct {
 	containerName string
 	cpuCores      *resource.Quantity
-	cpuUsage      float64
 	memory        *resource.Quantity
+	storage       *resource.Quantity
+	cpuUsage      float64
 	memoryUsage   float64
-	storage      string
-	storageUsage string
+	storageUsage  float64
 }
 
 const (
@@ -80,38 +80,59 @@ func K8s(
 	}
 
 	if cfg.pod != "" {
-		return renderSinglePodUsageStats(ctx, cfg, pods)
+		return renderSinglePodUsageTable(ctx, cfg, pods)
 	}
 
 	return renderUsageTable(ctx, cfg, pods)
 }
 
 // renderSinglePodUsageStats prints resource usage statistics for a single pod.
-func renderSinglePodUsageStats(ctx context.Context, cfg *Config, pods []corev1.Pod) error {
+func renderSinglePodUsageTable(ctx context.Context, cfg *Config, pods []corev1.Pod) error {
 	pod, err := getPod(cfg, pods)
 	if err != nil {
 		return errors.Wrapf(err, "could not get pod with name %s", cfg.pod)
 	}
 
-	containerMetrics := &ContainerMetrics{cfg.pod, map[string]Resources{}}
 	podMetrics, err := getPodMetrics(ctx, cfg, pod)
 	if err != nil {
 		return errors.Wrap(err, "while attempting to fetch pod metrics")
 	}
 
+	containerMetrics := &ContainerMetrics{cfg.pod, map[string]Resources{}}
 	if err = getLimits(ctx, cfg, &pod, containerMetrics); err != nil {
 		return errors.Wrap(err, "failed to get get container metrics")
 	}
 
+	columns := []table.Column{
+		{Title: "Container", Width: 20},
+		{Title: "Cores", Width: 10},
+		{Title: "Usage(%)", Width: 10},
+		{Title: "Memory", Width: 10},
+		{Title: "Usage(%)", Width: 10},
+		{Title: "Storage", Width: 10},
+		{Title: "Usage(%)", Width: 10},
+	}
+	var rows []table.Row
+
 	for _, container := range podMetrics.Containers {
 		stats, err := getContainerUsageStats(ctx, cfg, *containerMetrics, pod, container)
 		if err != nil {
-			return errors.Wrap(err, "could not compile usage data for row")
+			return errors.Wrapf(err, "could not compile usage data for row: %s\n", container.Name)
 		}
-		formattedStats := formatPodUsageData(stats)
-		fmt.Println(formattedStats)
+
+		row := table.Row{
+			stats.containerName,
+			stats.cpuCores.String(),
+			fmt.Sprintf("%.2f%%", stats.cpuUsage),
+			stats.memory.String(),
+			fmt.Sprintf("%.2f%%", stats.memoryUsage),
+			stats.storage.String(),
+			fmt.Sprintf("%.2f%%", stats.storageUsage),
+		}
+		rows = append(rows, row)
 	}
 
+	style.ResourceTable(columns, rows)
 	return nil
 }
 
@@ -167,6 +188,7 @@ func getLimits(ctx context.Context, cfg *Config, pod *corev1.Pod, containerMetri
 		}
 		containerMetrics.limits[containerName] = rsrcs
 	}
+
 	return nil
 }
 
@@ -200,19 +222,10 @@ func renderUsageTable(ctx context.Context, cfg *Config, pods []corev1.Pod) error
 		for _, container := range podMetrics.Containers {
 			stats, err := getContainerUsageStats(ctx, cfg, *containerMetrics, pod, container)
 			if err != nil {
-				return errors.Wrap(err, "could not compile usage data for row")
+				return errors.Wrapf(err, "could not compile usage data for row %s\n", container.Name)
 			}
 
-			row := table.Row{
-				stats.containerName,
-				stats.cpuCores.String(),
-				fmt.Sprintf("%.2f%%", stats.cpuUsage),
-				stats.memory.String(),
-				fmt.Sprintf("%.2f%%", stats.memoryUsage),
-				stats.storage,
-				stats.storageUsage,
-			}
-
+			row := makeRow(stats)
 			rows = append(rows, row)
 		}
 	}
@@ -221,33 +234,16 @@ func renderUsageTable(ctx context.Context, cfg *Config, pods []corev1.Pod) error
 	return nil
 }
 
-// formatPodUsageData generates a formatted string with usage statistics for a pod.
-// It returns:
-// string: A formatted string with the following usage stats for the pod:
-//   - Name
-//   - Number of CPU cores
-//   - CPU usage percentage
-//   - Memory
-//   - Memory usage percentage
-//   - Storage
-//   - Storage usage
-func formatPodUsageData(stats UsageStats) string {
-	return fmt.Sprintf(`name: %s
-        cores: %s
-        cpu usage: %s
-        memory: %s
-        memory usage: %s
-        storage: %s
-        storage usage: %s
-        `,
-		stats.containerName,
-		stats.cpuCores.String(),
-		fmt.Sprintf("%.2f%%", stats.cpuUsage),
-		stats.memory.String(),
-		fmt.Sprintf("%.2f%%", stats.memoryUsage),
-		stats.storage,
-		stats.storageUsage,
-	)
+func makeRow(usageStats UsageStats) table.Row {
+	return table.Row{
+		usageStats.containerName,
+		usageStats.cpuCores.String(),
+		fmt.Sprintf("%.2f%%", usageStats.cpuUsage),
+		usageStats.memory.String(),
+		fmt.Sprintf("%.2f%%", usageStats.memoryUsage),
+		usageStats.storage.String(),
+		fmt.Sprintf("%.2f%%", usageStats.storageUsage),
+	}
 }
 
 // getPods returns a list of pods in the given namespace.
@@ -305,6 +301,11 @@ func getContainerUsageStats(
 		return UsageStats{}, errors.Wrap(err, "failed to get raw memory usage")
 	}
 
+	storageUsage, err := getStorageUsage(ctx, cfg, pod.Name, container.Name)
+	if err != nil {
+		return UsageStats{}, errors.Wrap(err, "failed to get raw storage usage")
+	}
+
 	limits := metrics.limits[container.Name]
 
 	usageStats.cpuCores = limits.cpu
@@ -319,40 +320,21 @@ func getContainerUsageStats(
 		limits.memory.AsApproximateFloat64(),
 	)
 
-	usageStats.storage = limits.storage.String()
+	usageStats.storage = limits.storage
+	usageStats.storageUsage = getPercentage(
+		storageUsage,
+		limits.storage.AsApproximateFloat64(),
+	)
+
 	if metrics.limits[container.Name].storage == nil {
-		usageStats.storage = "-"
+		usageStats.storage = nil
 	}
 
-	stateless := []string{
-		"cadvisor",
-		"pgsql-exporter",
-		"executor",
-		"dind",
-		"github-proxy",
-		"jaeger",
-		"node-exporter",
-		"otel-agent",
-		"otel-collector",
-		"precise-code-intel-worker",
-		"redis-exporter",
-		"repo-updater",
-		"frontend",
-		"syntect-server",
-		"worker",
+	/* storageUsagePercent, err := getStorageUsage(ctx, cfg, pod.Name, container.Name)
+	if err != nil {
+		return UsageStats{}, errors.Wrap(err, "failed to get storage usage")
 	}
-
-	var storageUsagePercent string
-	if contains(stateless, container.Name) {
-		usageStats.storageUsage = "-"
-	} else {
-		storageUsagePercent, err = getStorageUsage(ctx, cfg, pod.Name, container.Name)
-		if err != nil {
-			return UsageStats{}, errors.Wrap(err, "failed to get storage usage")
-		}
-		usageStats.storageUsage = storageUsagePercent
-	}
-
+	usageStats.storageUsage = storageUsagePercent */
 	return usageStats, nil
 }
 
@@ -419,7 +401,7 @@ func getPvcCapacity(ctx context.Context, cfg *Config, container corev1.Container
 // - The storage usage percentage for storage volumes
 // - "-" if no storage volumes are found
 // - Any error that occurred while executing the df -h command or parsing the output
-func getStorageUsage(ctx context.Context, cfg *Config, podName, containerName string) (string, error) {
+func getStorageUsage(ctx context.Context, cfg *Config, podName, containerName string) (float64, error) {
 	req := cfg.k8sClient.CoreV1().RESTClient().Post().
 		Resource("pods").
 		Name(podName).
@@ -435,9 +417,10 @@ func getStorageUsage(ctx context.Context, cfg *Config, podName, containerName st
 		TTY:       false,
 	}, scheme.ParameterCodec)
 
+	fmt.Println("got here")
 	exec, err := remotecommand.NewSPDYExecutor(cfg.restConfig, "POST", req.URL())
 	if err != nil {
-		return "", err
+		return -1, err
 	}
 
 	var stdout, stderr bytes.Buffer
@@ -445,20 +428,30 @@ func getStorageUsage(ctx context.Context, cfg *Config, podName, containerName st
 		Stdout: &stdout,
 		Stderr: &stderr,
 	})
+	// fails here
+	fmt.Println("got to where it was failing before")
 	if err != nil {
-		return "", err
+		return -1, err
 	}
 
 	lines := strings.Split(stdout.String(), "\n")
-	for _, line := range lines[1 : len(lines)-1] {
+	fmt.Printf("got to the for loop: %s\n", podName)
+	for i, line := range lines[1 : len(lines)-2] {
+        fmt.Printf("%d, got inside the for loop\n", i)
 		fields := strings.Fields(line)
 
 		if acceptedFileSystem(fields[0]) {
-			return fields[4], nil
+			fmt.Println("got to the float conversion")
+			toFloat, err := strconv.ParseFloat(fields[2], 64)
+			if err != nil {
+				errors.Wrap(err, "could not convert string to float64")
+			}
+
+			return toFloat * ABillion, nil
 		}
 	}
 
-	return "-", nil
+	return -1, nil
 }
 
 // acceptedFileSystem checks if a given file system, represented
