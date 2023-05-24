@@ -226,6 +226,10 @@ func renderUsageTable(ctx context.Context, cfg *Config, pods []corev1.Pod) error
 	return nil
 }
 
+// makeRow generates a table row containing resource usage data for a container.
+// It returns:
+// - A table.Row containing the resource usage information
+// - An error if there was an issue generating the row
 func makeRow(usageStats UsageStats) table.Row {
 	if usageStats.storage == nil {
 		return table.Row{
