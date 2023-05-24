@@ -120,7 +120,7 @@ func renderSinglePodUsageTable(ctx context.Context, cfg *Config, pods []corev1.P
 			return errors.Wrapf(err, "could not compile usage data for row: %s\n", container.Name)
 		}
 
-        row := makeRow(stats)
+		row := makeRow(stats)
 		rows = append(rows, row)
 	}
 
