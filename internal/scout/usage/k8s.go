@@ -453,7 +453,7 @@ func getStorageUsage(ctx context.Context, cfg *Config, podName, containerName st
 
 	exec, err := remotecommand.NewSPDYExecutor(cfg.restConfig, "POST", req.URL())
 	if err != nil {
-		return -1, -1, err
+		return 0, 0, err
 	}
 
 	var stdout, stderr bytes.Buffer
@@ -462,7 +462,7 @@ func getStorageUsage(ctx context.Context, cfg *Config, podName, containerName st
 		Stderr: &stderr,
 	})
 	if err != nil {
-		return -1, -1, err
+		return 0, 0, err
 	}
 
 	lines := strings.Split(stdout.String(), "\n")
@@ -472,18 +472,18 @@ func getStorageUsage(ctx context.Context, cfg *Config, podName, containerName st
 		if acceptedFileSystem(fields[0]) {
 			capacityFloat, err := strconv.ParseFloat(fields[1], 64)
 			if err != nil {
-				return -1, -1, errors.Wrap(err, "could not convert string to float64")
+				return 0, 0, errors.Wrap(err, "could not convert string to float64")
 			}
 
 			usageFloat, err := strconv.ParseFloat(fields[2], 64)
 			if err != nil {
-				return -1, -1, errors.Wrap(err, "could not convert string to float64")
+				return 0, 0, errors.Wrap(err, "could not convert string to float64")
 			}
 			return capacityFloat, usageFloat, nil
 		}
 	}
 
-	return -1, -1, nil
+	return 0, 0, nil
 }
 
 // acceptedFileSystem checks if a given file system, represented
