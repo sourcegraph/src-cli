@@ -120,15 +120,7 @@ func renderSinglePodUsageTable(ctx context.Context, cfg *Config, pods []corev1.P
 			return errors.Wrapf(err, "could not compile usage data for row: %s\n", container.Name)
 		}
 
-		row := table.Row{
-			stats.containerName,
-			stats.cpuCores.String(),
-			fmt.Sprintf("%.2f%%", stats.cpuUsage),
-			stats.memory.String(),
-			fmt.Sprintf("%.2f%%", stats.memoryUsage),
-			stats.storage.String(),
-			fmt.Sprintf("%.2f%%", stats.storageUsage),
-		}
+        row := makeRow(stats)
 		rows = append(rows, row)
 	}
 
@@ -235,6 +227,18 @@ func renderUsageTable(ctx context.Context, cfg *Config, pods []corev1.Pod) error
 }
 
 func makeRow(usageStats UsageStats) table.Row {
+	if usageStats.storage == nil {
+		return table.Row{
+			usageStats.containerName,
+			usageStats.cpuCores.String(),
+			fmt.Sprintf("%.2f%%", usageStats.cpuUsage),
+			usageStats.memory.String(),
+			fmt.Sprintf("%.2f%%", usageStats.memoryUsage),
+			"-",
+			"-",
+		}
+	}
+
 	return table.Row{
 		usageStats.containerName,
 		usageStats.cpuCores.String(),
@@ -301,9 +305,34 @@ func getContainerUsageStats(
 		return UsageStats{}, errors.Wrap(err, "failed to get raw memory usage")
 	}
 
-	storageUsage, err := getStorageUsage(ctx, cfg, pod.Name, container.Name)
-	if err != nil {
-		return UsageStats{}, errors.Wrap(err, "failed to get raw storage usage")
+	var storageCapacity float64
+	var storageUsage float64
+	stateless := []string{
+		"cadvisor",
+		"pgsql-exporter",
+		"executor",
+		"dind",
+		"github-proxy",
+		"jaeger",
+		"node-exporter",
+		"otel-agent",
+		"otel-collector",
+		"precise-code-intel-worker",
+		"redis-exporter",
+		"repo-updater",
+		"frontend",
+		"syntect-server",
+		"worker",
+	}
+
+	if contains(stateless, container.Name) {
+		storageUsage = 0
+		storageCapacity = 0
+	} else {
+		storageCapacity, storageUsage, err = getStorageUsage(ctx, cfg, pod.Name, container.Name)
+		if err != nil {
+			return UsageStats{}, errors.Wrap(err, "failed to get storage usage")
+		}
 	}
 
 	limits := metrics.limits[container.Name]
@@ -320,21 +349,22 @@ func getContainerUsageStats(
 		limits.memory.AsApproximateFloat64(),
 	)
 
-	usageStats.storage = limits.storage
+	if limits.storage == nil {
+		storageDec := *inf.NewDec(0, 0)
+		usageStats.storage = resource.NewDecimalQuantity(storageDec, resource.Format("DecimalSI"))
+	} else {
+		usageStats.storage = limits.storage
+	}
+
 	usageStats.storageUsage = getPercentage(
 		storageUsage,
-		limits.storage.AsApproximateFloat64(),
+		storageCapacity,
 	)
 
 	if metrics.limits[container.Name].storage == nil {
 		usageStats.storage = nil
 	}
 
-	/* storageUsagePercent, err := getStorageUsage(ctx, cfg, pod.Name, container.Name)
-	if err != nil {
-		return UsageStats{}, errors.Wrap(err, "failed to get storage usage")
-	}
-	usageStats.storageUsage = storageUsagePercent */
 	return usageStats, nil
 }
 
@@ -401,7 +431,7 @@ func getPvcCapacity(ctx context.Context, cfg *Config, container corev1.Container
 // - The storage usage percentage for storage volumes
 // - "-" if no storage volumes are found
 // - Any error that occurred while executing the df -h command or parsing the output
-func getStorageUsage(ctx context.Context, cfg *Config, podName, containerName string) (float64, error) {
+func getStorageUsage(ctx context.Context, cfg *Config, podName, containerName string) (float64, float64, error) {
 	req := cfg.k8sClient.CoreV1().RESTClient().Post().
 		Resource("pods").
 		Name(podName).
@@ -410,17 +440,16 @@ func getStorageUsage(ctx context.Context, cfg *Config, podName, containerName st
 
 	req.VersionedParams(&corev1.PodExecOptions{
 		Container: containerName,
-		Command:   []string{"df", "-h"},
+		Command:   []string{"df"},
 		Stdin:     false,
 		Stdout:    true,
 		Stderr:    true,
 		TTY:       false,
 	}, scheme.ParameterCodec)
 
-	fmt.Println("got here")
 	exec, err := remotecommand.NewSPDYExecutor(cfg.restConfig, "POST", req.URL())
 	if err != nil {
-		return -1, err
+		return -1, -1, err
 	}
 
 	var stdout, stderr bytes.Buffer
@@ -428,30 +457,29 @@ func getStorageUsage(ctx context.Context, cfg *Config, podName, containerName st
 		Stdout: &stdout,
 		Stderr: &stderr,
 	})
-	// fails here
-	fmt.Println("got to where it was failing before")
 	if err != nil {
-		return -1, err
+		return -1, -1, err
 	}
 
 	lines := strings.Split(stdout.String(), "\n")
-	fmt.Printf("got to the for loop: %s\n", podName)
-	for i, line := range lines[1 : len(lines)-2] {
-        fmt.Printf("%d, got inside the for loop\n", i)
+	for _, line := range lines[1 : len(lines)-1] {
 		fields := strings.Fields(line)
 
 		if acceptedFileSystem(fields[0]) {
-			fmt.Println("got to the float conversion")
-			toFloat, err := strconv.ParseFloat(fields[2], 64)
+			capacityFloat, err := strconv.ParseFloat(fields[1], 64)
 			if err != nil {
-				errors.Wrap(err, "could not convert string to float64")
+				return -1, -1, errors.Wrap(err, "could not convert string to float64")
 			}
 
-			return toFloat * ABillion, nil
+			usageFloat, err := strconv.ParseFloat(fields[2], 64)
+			if err != nil {
+				return -1, -1, errors.Wrap(err, "could not convert string to float64")
+			}
+			return capacityFloat, usageFloat, nil
 		}
 	}
 
-	return -1, nil
+	return -1, -1, nil
 }
 
 // acceptedFileSystem checks if a given file system, represented
