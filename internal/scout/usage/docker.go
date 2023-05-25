@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 
 	"github.com/charmbracelet/bubbles/table"
 	"github.com/docker/docker/api/types"
@@ -51,18 +52,17 @@ func renderDockerUsageTable(ctx context.Context, cfg *Config, containers []types
 			return errors.Wrap(err, "failed to get container info")
 		}
 
-		stats, err := cfg.dockerClient.ContainerStats(ctx, container.ID, false)
-		if err != nil {
-			return errors.Wrap(err, "could not get container stats")
+		if cfg.container != "" {
+			if containerInfo.Name == cfg.container {
+				row := makeDockerUsageRow(ctx, cfg, containerInfo)
+				rows = append(rows, row)
+				break
+			} else {
+				continue
+			}
 		}
-		defer stats.Body.Close()
 
-		var usage types.StatsJSON
-		if err := json.NewDecoder(stats.Body).Decode(&usage); err != nil {
-			return errors.Wrap(err, "could not decode container stats")
-		}
-
-		row := makeDockerUsageRow(usage, containerInfo)
+		row := makeDockerUsageRow(ctx, cfg, containerInfo)
 		rows = append(rows, row)
 	}
 
@@ -71,14 +71,27 @@ func renderDockerUsageTable(ctx context.Context, cfg *Config, containers []types
 }
 
 // makeDockerUsageRow generates a table row displaying CPU and memory usage for a Docker container.
-func makeDockerUsageRow(containerUsage types.StatsJSON, containerInfo types.ContainerJSON) table.Row {
-	cpuCores := float64(containerInfo.HostConfig.NanoCPUs)
-	memory := float64(containerInfo.HostConfig.Memory)
-	cpuUsage := float64(containerUsage.CPUStats.CPUUsage.TotalUsage)
-	memoryUsage := float64(containerUsage.MemoryStats.Usage)
+func makeDockerUsageRow(ctx context.Context, cfg *Config, container types.ContainerJSON) table.Row {
+	stats, err := cfg.dockerClient.ContainerStats(ctx, container.ID, false)
+	if err != nil {
+		errors.Wrap(err, "could not get container stats")
+		os.Exit(1)
+	}
+	defer stats.Body.Close()
+
+	var usage types.StatsJSON
+	if err := json.NewDecoder(stats.Body).Decode(&usage); err != nil {
+		errors.Wrap(err, "could not get container stats")
+		os.Exit(1)
+	}
+
+	cpuCores := float64(container.HostConfig.NanoCPUs)
+	memory := float64(container.HostConfig.Memory)
+	cpuUsage := float64(usage.CPUStats.CPUUsage.TotalUsage)
+	memoryUsage := float64(usage.MemoryStats.Usage)
 
 	return table.Row{
-		containerInfo.Name,
+		container.Name,
 		fmt.Sprintf("%.2f", cpuCores/1_000_000_000),
 		fmt.Sprintf("%.2f%%", getPercentage(cpuUsage, cpuCores)),
 		fmt.Sprintf("%.2fG", memory/1_000_000_000),
