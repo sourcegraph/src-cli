@@ -78,15 +78,15 @@ func renderDockerUsageTable(ctx context.Context, cfg *Config, containers []types
 // It calculates the number of CPU cores, CPU usage percentage, memory limit in GB, and memory usage percentage.
 // It then returns a table.Row containing this info, to be displayed in the usage table.
 func makeDockerUsageRow(containerInfo types.ContainerJSON, usage dockerstats.Stats) table.Row {
-	cpuCores := containerInfo.HostConfig.NanoCPUs / 1000000000
-	memory := containerInfo.HostConfig.Memory / 1000000000
+	cpuCores := containerInfo.HostConfig.NanoCPUs / 1_000_000_000
+	memory := containerInfo.HostConfig.Memory / 1_000_000_000
 	cpuUsage := usage.CPU
 	memoryUsage := usage.Memory.Percent
 	return table.Row{
 		containerInfo.Name,
-		fmt.Sprintf("%v", cpuCores),
+		fmt.Sprintf("%.2f", float64(cpuCores)),
 		fmt.Sprintf("%v", cpuUsage),
-		fmt.Sprintf("%vG", memory),
+		fmt.Sprintf("%.2fG", float64(memory)),
 		fmt.Sprintf("%v", memoryUsage), // arbitrary number
 	}
 }
