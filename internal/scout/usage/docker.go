@@ -14,15 +14,12 @@ import (
 
 func Docker(ctx context.Context, client client.Client, opts ...Option) error {
 	cfg := &Config{
-		namespace:     "default",
-		docker:        true,
-		pod:           "",
-		container:     "",
-		spy:           false,
-		restConfig:    nil,
-		k8sClient:     nil,
-		dockerClient:  &client,
-		metricsClient: nil,
+		namespace:    "default",
+		docker:       true,
+		pod:          "",
+		container:    "",
+		spy:          false,
+		dockerClient: &client,
 	}
 
 	for _, opt := range opts {
@@ -37,6 +34,11 @@ func Docker(ctx context.Context, client client.Client, opts ...Option) error {
 	return renderDockerUsageTable(ctx, cfg, containers)
 }
 
+// renderDockerUsageTable generates a table displaying CPU and memory usage for Docker containers.
+// It gets a list of all running containers from the Docker API. For each container, it finds the
+// corresponding stats from the dockerstats library. It then constructs table rows displaying the
+// container name, number of CPU cores, CPU usage, memory limit, and memory usage. The table is
+// rendered using the charmbracelet/bubbles table library.
 func renderDockerUsageTable(ctx context.Context, cfg *Config, containers []types.Container) error {
 	stats, err := dockerstats.Current()
 	if err != nil {
@@ -60,14 +62,7 @@ func renderDockerUsageTable(ctx context.Context, cfg *Config, containers []types
 
 		for _, s := range stats {
 			if s.Container == container.ID[0:12] {
-				row := table.Row{
-					containerInfo.Name,
-					fmt.Sprintf("%v", containerInfo.HostConfig.NanoCPUs/1000000000),
-					fmt.Sprintf("%v", s.CPU),
-					fmt.Sprintf("%vG", containerInfo.HostConfig.Memory/1000000000),
-					fmt.Sprintf("%v", s.Memory.Percent), // arbitrary number
-				}
-
+				row := makeDockerUsageRow(containerInfo, s)
 				rows = append(rows, row)
 				break
 			}
@@ -76,4 +71,22 @@ func renderDockerUsageTable(ctx context.Context, cfg *Config, containers []types
 
 	style.ResourceTable(columns, rows)
 	return nil
+}
+
+// makeDockerUsageRow generates a table row displaying CPU and memory usage for a Docker container.
+// It takes a ContainerJSON struct containing info about the container and a Stats struct containing usage stats.
+// It calculates the number of CPU cores, CPU usage percentage, memory limit in GB, and memory usage percentage.
+// It then returns a table.Row containing this info, to be displayed in the usage table.
+func makeDockerUsageRow(containerInfo types.ContainerJSON, usage dockerstats.Stats) table.Row {
+	cpuCores := containerInfo.HostConfig.NanoCPUs / 1000000000
+	memory := containerInfo.HostConfig.Memory / 1000000000
+	cpuUsage := usage.CPU
+	memoryUsage := usage.Memory.Percent
+	return table.Row{
+		containerInfo.Name,
+		fmt.Sprintf("%v", cpuCores),
+		fmt.Sprintf("%v", cpuUsage),
+		fmt.Sprintf("%vG", memory),
+		fmt.Sprintf("%v", memoryUsage), // arbitrary number
+	}
 }
