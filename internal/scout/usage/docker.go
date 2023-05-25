@@ -51,7 +51,7 @@ func renderDockerUsageTable(ctx context.Context, cfg *Config, containers []types
 			return errors.Wrap(err, "failed to get container info")
 		}
 
-		stats, err := cfg.dockerClient.ContainerStats(context.Background(), container.ID, false)
+		stats, err := cfg.dockerClient.ContainerStats(ctx, container.ID, false)
 		if err != nil {
 			return errors.Wrap(err, "could not get container stats")
 		}
