@@ -55,9 +55,7 @@ func renderDockerUsageTable(ctx context.Context, cfg *Config, containers []types
 		if err != nil {
 			return errors.Wrap(err, "could not get container stats")
 		}
-		defer func() {
-			_ = stats.Body.Close()
-		}()
+		defer stats.Body.Close()
 
 		var usage types.StatsJSON
 		if err := json.NewDecoder(stats.Body).Decode(&usage); err != nil {
