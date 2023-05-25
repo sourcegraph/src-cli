@@ -2,12 +2,12 @@ package usage
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"github.com/charmbracelet/bubbles/table"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/client"
-	"github.com/jasonhawkharris/dockerstats"
 	"github.com/sourcegraph/sourcegraph/lib/errors"
 	"github.com/sourcegraph/src-cli/internal/scout/style"
 )
@@ -34,17 +34,8 @@ func Docker(ctx context.Context, client client.Client, opts ...Option) error {
 	return renderDockerUsageTable(ctx, cfg, containers)
 }
 
-// renderDockerUsageTable generates a table displaying CPU and memory usage for Docker containers.
-// It gets a list of all running containers from the Docker API. For each container, it finds the
-// corresponding stats from the dockerstats library. It then constructs table rows displaying the
-// container name, number of CPU cores, CPU usage, memory limit, and memory usage. The table is
-// rendered using the charmbracelet/bubbles table library.
+// renderDockerUsageTable renders a table displaying CPU and memory usage for Docker containers.
 func renderDockerUsageTable(ctx context.Context, cfg *Config, containers []types.Container) error {
-	stats, err := dockerstats.Current()
-	if err != nil {
-		return errors.Wrap(err, "could not get docker stats")
-	}
-
 	columns := []table.Column{
 		{Title: "Container", Width: 20},
 		{Title: "Cores", Width: 10},
@@ -57,16 +48,24 @@ func renderDockerUsageTable(ctx context.Context, cfg *Config, containers []types
 	for _, container := range containers {
 		containerInfo, err := cfg.dockerClient.ContainerInspect(ctx, container.ID)
 		if err != nil {
-			return errors.Wrap(err, "could not get container info")
+			return errors.Wrap(err, "failed to get container info")
 		}
 
-		for _, s := range stats {
-			if s.Container == container.ID[0:12] {
-				row := makeDockerUsageRow(containerInfo, s)
-				rows = append(rows, row)
-				break
-			}
+		stats, err := cfg.dockerClient.ContainerStats(context.Background(), container.ID, false)
+		if err != nil {
+			return errors.Wrap(err, "could not get container stats")
 		}
+		defer func() {
+			_ = stats.Body.Close()
+		}()
+
+		var usage types.StatsJSON
+		if err := json.NewDecoder(stats.Body).Decode(&usage); err != nil {
+			return errors.Wrap(err, "could not decode container stats")
+		}
+
+		row := makeDockerUsageRow(usage, containerInfo)
+		rows = append(rows, row)
 	}
 
 	style.ResourceTable(columns, rows)
@@ -74,19 +73,17 @@ func renderDockerUsageTable(ctx context.Context, cfg *Config, containers []types
 }
 
 // makeDockerUsageRow generates a table row displaying CPU and memory usage for a Docker container.
-// It takes a ContainerJSON struct containing info about the container and a Stats struct containing usage stats.
-// It calculates the number of CPU cores, CPU usage percentage, memory limit in GB, and memory usage percentage.
-// It then returns a table.Row containing this info, to be displayed in the usage table.
-func makeDockerUsageRow(containerInfo types.ContainerJSON, usage dockerstats.Stats) table.Row {
-	cpuCores := containerInfo.HostConfig.NanoCPUs / 1_000_000_000
-	memory := containerInfo.HostConfig.Memory / 1_000_000_000
-	cpuUsage := usage.CPU
-	memoryUsage := usage.Memory.Percent
+func makeDockerUsageRow(containerUsage types.StatsJSON, containerInfo types.ContainerJSON) table.Row {
+	cpuCores := float64(containerInfo.HostConfig.NanoCPUs)
+	memory := float64(containerInfo.HostConfig.Memory)
+	cpuUsage := float64(containerUsage.CPUStats.CPUUsage.TotalUsage)
+	memoryUsage := float64(containerUsage.MemoryStats.Usage)
+
 	return table.Row{
 		containerInfo.Name,
-		fmt.Sprintf("%.2f", float64(cpuCores)),
-		fmt.Sprintf("%v", cpuUsage),
-		fmt.Sprintf("%.2fG", float64(memory)),
-		fmt.Sprintf("%v", memoryUsage), // arbitrary number
+		fmt.Sprintf("%.2f", float64(cpuCores/1_000_000_000)),
+		fmt.Sprintf("%.2f%%", getPercentage(cpuUsage, cpuCores)),
+		fmt.Sprintf("%.2fG", float64(memory/1_000_000_000)),
+		fmt.Sprintf("%.2f%%", getPercentage(memoryUsage, memory)),
 	}
 }
