@@ -29,6 +29,9 @@ func init() {
         Check usage for specific pod
         $ src scout usage --pod <podname>
 
+        Check usage for specific container (docker only)
+        $ src scout usage --container <containername>
+
         Add namespace if using namespace in a Kubernetes cluster
         $ src scout usage --namespace <namespace>
         
