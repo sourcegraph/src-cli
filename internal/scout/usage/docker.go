@@ -7,6 +7,7 @@ import (
 	"github.com/charmbracelet/bubbles/table"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/client"
+	"github.com/jasonhawkharris/dockerstats"
 	"github.com/sourcegraph/sourcegraph/lib/errors"
 	"github.com/sourcegraph/src-cli/internal/scout/style"
 )
@@ -32,11 +33,16 @@ func Docker(ctx context.Context, client client.Client, opts ...Option) error {
 	if err != nil {
 		return errors.Wrap(err, "could not get list of containers")
 	}
-    
+
 	return renderDockerUsageTable(ctx, cfg, containers)
 }
 
 func renderDockerUsageTable(ctx context.Context, cfg *Config, containers []types.Container) error {
+	stats, err := dockerstats.Current()
+	if err != nil {
+		return errors.Wrap(err, "could not get docker stats")
+	}
+
 	columns := []table.Column{
 		{Title: "Container", Width: 20},
 		{Title: "Cores", Width: 10},
@@ -44,24 +50,30 @@ func renderDockerUsageTable(ctx context.Context, cfg *Config, containers []types
 		{Title: "Memory", Width: 10},
 		{Title: "Usage", Width: 10},
 	}
-    
-	var rows []table.Row
+	rows := []table.Row{}
+
 	for _, container := range containers {
 		containerInfo, err := cfg.dockerClient.ContainerInspect(ctx, container.ID)
 		if err != nil {
+			return errors.Wrap(err, "could not get container info")
 		}
-        
-		row := table.Row{
-			containerInfo.Name,
-			fmt.Sprintf("%v", containerInfo.HostConfig.NanoCPUs),
-			fmt.Sprintf("%v", "27%"), // arbitrary number
-			fmt.Sprintf("%v", containerInfo.HostConfig.Memory),
-			fmt.Sprintf("%v", "13%"), // arbitrary number
+
+		for _, s := range stats {
+			if s.Container == container.ID[0:12] {
+				row := table.Row{
+					containerInfo.Name,
+					fmt.Sprintf("%v", containerInfo.HostConfig.NanoCPUs/1000000000),
+					fmt.Sprintf("%v", s.CPU),
+					fmt.Sprintf("%vG", containerInfo.HostConfig.Memory/1000000000),
+					fmt.Sprintf("%v", s.Memory.Percent), // arbitrary number
+				}
+
+				rows = append(rows, row)
+				break
+			}
 		}
-        
-		rows = append(rows, row)
 	}
-    
+
 	style.ResourceTable(columns, rows)
-    return nil
+	return nil
 }
