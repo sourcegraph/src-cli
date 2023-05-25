@@ -81,9 +81,9 @@ func makeDockerUsageRow(containerUsage types.StatsJSON, containerInfo types.Cont
 
 	return table.Row{
 		containerInfo.Name,
-		fmt.Sprintf("%.2f", float64(cpuCores/1_000_000_000)),
+		fmt.Sprintf("%.2f", cpuCores/1_000_000_000),
 		fmt.Sprintf("%.2f%%", getPercentage(cpuUsage, cpuCores)),
-		fmt.Sprintf("%.2fG", float64(memory/1_000_000_000)),
+		fmt.Sprintf("%.2fG", memory/1_000_000_000),
 		fmt.Sprintf("%.2f%%", getPercentage(memoryUsage, memory)),
 	}
 }
