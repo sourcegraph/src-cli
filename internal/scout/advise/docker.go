@@ -12,29 +12,29 @@ import (
 
 func Docker(ctx context.Context, client client.Client, opts ...Option) error {
 	cfg := &scout.Config{
-        Namespace: "default",
+		Namespace:    "default",
 		Docker:       true,
 		Pod:          "",
 		Container:    "",
-        Spy: false,
+		Spy:          false,
 		DockerClient: &client,
 	}
-    
-    for _, opt := range opts {
-        opt(cfg)
-    }
 
-    containers, err := client.ContainerList(ctx, types.ContainerListOptions{})
-    if err != nil {
-        return errors.Wrap(err, "could not get list of containers")
-    }
+	for _, opt := range opts {
+		opt(cfg)
+	}
 
-    PrintContainers(containers)
-    return nil
+	containers, err := client.ContainerList(ctx, types.ContainerListOptions{})
+	if err != nil {
+		return errors.Wrap(err, "could not get list of containers")
+	}
+
+	PrintContainers(containers)
+	return nil
 }
 
 func PrintContainers(containers []types.Container) {
-    for _, c := range containers {
-        fmt.Println(c.Image)
-    }
+	for _, c := range containers {
+		fmt.Println(c.Image)
+	}
 }

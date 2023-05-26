@@ -29,6 +29,7 @@ func WithSpy(spy bool) Option {
 		config.Spy = true
 	}
 }
+
 // contains checks if a string slice contains a given value.
 func contains(slice []string, value string) bool {
 	for _, v := range slice {
