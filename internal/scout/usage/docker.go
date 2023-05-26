@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/charmbracelet/bubbles/table"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/client"
 	"github.com/sourcegraph/sourcegraph/lib/errors"
@@ -64,6 +65,18 @@ func renderDockerUsageTable(ctx context.Context, cfg *Config, containers []types
 
 		row := makeDockerUsageRow(ctx, cfg, containerInfo)
 		rows = append(rows, row)
+	}
+
+	if len(rows) == 0 {
+		msg := lipgloss.NewStyle().Foreground(lipgloss.Color("#FFA500"))
+		if cfg.container == "" {
+			fmt.Println(msg.Render(`No docker containers are running.`))
+			os.Exit(1)
+		}
+		fmt.Println(msg.Render(
+			fmt.Sprintf(`No container with name '%s' running.`, cfg.container),
+		))
+		os.Exit(1)
 	}
 
 	style.ResourceTable(columns, rows)
