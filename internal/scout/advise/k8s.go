@@ -5,7 +5,8 @@ import (
 	"fmt"
 
 	"github.com/sourcegraph/sourcegraph/lib/errors"
-	helper "github.com/sourcegraph/src-cli/internal/scout/helpers"
+	"github.com/sourcegraph/src-cli/internal/scout"
+	"github.com/sourcegraph/src-cli/internal/scout/kube"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -13,39 +14,39 @@ import (
 )
 
 func K8s(
-    ctx context.Context, 
-    k8sClient *kubernetes.Clientset,
-    metricsClient *metricsv.Clientset,
-    restConfig *rest.Config,
-    opts ...Option,
+	ctx context.Context,
+	k8sClient *kubernetes.Clientset,
+	metricsClient *metricsv.Clientset,
+	restConfig *rest.Config,
+	opts ...Option,
 ) error {
-	cfg := &Config{
-		namespace:     "default",
-		docker:        false,
-		pod:           "",
-		container:     "",
-		restConfig:    restConfig,
-		k8sClient:     k8sClient,
-		dockerClient:  nil,
-		metricsClient: metricsClient,
+	cfg := &scout.Config{
+		Namespace:     "default",
+		Pod:           "",
+		Container:     "",
+		Spy:           false,
+		Docker:        false,
+		RestConfig:    restConfig,
+		K8sClient:     k8sClient,
+		DockerClient:  nil,
+		MetricsClient: metricsClient,
 	}
 
-    for _, opt := range opts {
-        opt(cfg)
-    }
-    
-    pods, err := helper.GetPods(ctx, cfg.k8sClient, cfg.namespace)
-    if err != nil {
-        return errors.Wrap(err, "could not get list of pods")
-    }
+	for _, opt := range opts {
+		opt(cfg)
+	}
 
-    PrintPods(pods)
-    return nil
+	pods, err := kube.GetPods(ctx, cfg)
+	if err != nil {
+		return errors.Wrap(err, "could not get list of pods")
+	}
+
+	PrintPods(pods)
+	return nil
 }
 
-
 func PrintPods(pods []v1.Pod) {
-    for _, p := range pods {
-        fmt.Println(p.Name)
-    }
+	for _, p := range pods {
+		fmt.Println(p.Name)
+	}
 }

@@ -7,14 +7,17 @@ import (
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/client"
 	"github.com/sourcegraph/sourcegraph/lib/errors"
+	"github.com/sourcegraph/src-cli/internal/scout"
 )
 
 func Docker(ctx context.Context, client client.Client, opts ...Option) error {
-	cfg := &Config{
-		docker:       true,
-		pod:          "",
-		container:    "",
-		dockerClient: &client,
+	cfg := &scout.Config{
+        Namespace: "default",
+		Docker:       true,
+		Pod:          "",
+		Container:    "",
+        Spy: false,
+		DockerClient: &client,
 	}
     
     for _, opt := range opts {
