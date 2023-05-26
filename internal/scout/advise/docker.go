@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/client"
+	"github.com/sourcegraph/sourcegraph/lib/errors"
 )
 
 func Docker(ctx context.Context, client client.Client, opts ...Option) error {
@@ -19,6 +21,17 @@ func Docker(ctx context.Context, client client.Client, opts ...Option) error {
         opt(cfg)
     }
 
-    fmt.Println("Docker function needs code")
+    containers, err := client.ContainerList(ctx, types.ContainerListOptions{})
+    if err != nil {
+        return errors.Wrap(err, "could not get list of containers")
+    }
+
+    PrintContainers(containers)
     return nil
+}
+
+func PrintContainers(containers []types.Container) {
+    for _, c := range containers {
+        fmt.Println(c.Image)
+    }
 }
