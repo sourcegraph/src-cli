@@ -95,7 +95,6 @@ func (m usageTableModel) dump(rows []table.Row, filePath string) error {
 
 	// kubernetes rows will always have 6 items
 	// change column headers to reflect k8s terms
-    fmt.Println(len(rows[0]))
 	if len(rows[0]) == 7 {
 		headers = []string{
 			"Name",
