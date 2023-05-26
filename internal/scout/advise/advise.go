@@ -1,38 +1,23 @@
 package advise
 
-import (
-	"github.com/docker/docker/client"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
-	metricsv "k8s.io/metrics/pkg/client/clientset/versioned"
-)
+import "github.com/sourcegraph/src-cli/internal/scout"
 
-type Option = func(config *Config)
-type Config struct {
-	namespace     string
-	pod           string
-	container     string
-	docker        bool
-	restConfig    *rest.Config
-	k8sClient     *kubernetes.Clientset
-	dockerClient  *client.Client
-	metricsClient *metricsv.Clientset
-}
+type Option = func(config *scout.Config)
 
 func WithNamespace(namespace string) Option {
-	return func(config *Config) {
-		config.namespace = namespace
+	return func(config *scout.Config) {
+		config.Namespace = namespace
 	}
 }
 
 func WithPod(podname string) Option {
-	return func(config *Config) {
-		config.pod = podname
+	return func(config *scout.Config) {
+		config.Pod = podname
 	}
 }
 
 func WithContainer(containerName string) Option {
-	return func(config *Config) {
-		config.container = containerName
+	return func(config *scout.Config) {
+		config.Container = containerName
 	}
 }
