@@ -121,12 +121,7 @@ func GetRawUsage(usages corev1.ResourceList, targetKey string) (float64, error) 
 // - The capacity Quantity of the PVC if a matching PVC mount is found
 // - nil if no PVC mount is found
 // - Any error that occurred while getting the PVC
-func GetPvcCapacity(
-	ctx context.Context,
-    cfg *scout.Config,
-	container corev1.Container,
-	pod *corev1.Pod,
-) (*resource.Quantity, error) {
+func GetPvcCapacity(ctx context.Context, cfg *scout.Config, container corev1.Container, pod *corev1.Pod) (*resource.Quantity, error) {
 	for _, vm := range container.VolumeMounts {
 		for _, v := range pod.Spec.Volumes {
 			if v.Name == vm.Name && v.PersistentVolumeClaim != nil {
@@ -161,7 +156,7 @@ func GetPvcCapacity(
 // - Any error that occurred while executing the df -h command or parsing the output
 func GetStorageUsage(
 	ctx context.Context,
-    cfg *scout.Config,
+	cfg *scout.Config,
 	podName, containerName string,
 ) (float64, float64, error) {
 	req := cfg.K8sClient.CoreV1().RESTClient().Post().
