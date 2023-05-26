@@ -4,15 +4,14 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"os"
 	"regexp"
 	"strconv"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/table"
-	"github.com/charmbracelet/lipgloss"
 	"github.com/sourcegraph/sourcegraph/lib/errors"
 	"github.com/sourcegraph/src-cli/internal/scout/style"
+    "github.com/sourcegraph/src-cli/internal/scout/helpers"
 
 	"gopkg.in/inf.v0"
 	corev1 "k8s.io/api/core/v1"
@@ -74,7 +73,7 @@ func K8s(
 		opt(cfg)
 	}
 
-	pods, err := getPods(ctx, cfg)
+	pods, err := helper.GetPods(ctx, cfg.k8sClient, cfg.namespace)
 	if err != nil {
 		return errors.Wrap(err, "could not get list of pods")
 	}
@@ -252,36 +251,6 @@ func makeRow(usageStats UsageStats) table.Row {
 		usageStats.storage.String(),
 		fmt.Sprintf("%.2f%%", usageStats.storageUsage),
 	}
-}
-
-// getPods returns a list of pods in the given namespace.
-// It returns:
-// - []v1.Pod: A list of pods in the given namespace
-// - error: Any error that occurred while listing the pods
-//
-// If no pods are found in the given namespace, it will print an error message and exit.
-func getPods(ctx context.Context, cfg *Config) ([]corev1.Pod, error) {
-	podInterface := cfg.k8sClient.CoreV1().Pods(cfg.namespace)
-	podList, err := podInterface.List(ctx, metav1.ListOptions{})
-	if err != nil {
-		return []corev1.Pod{}, errors.Wrap(err, "could not list pods")
-	}
-
-	if len(podList.Items) == 0 {
-		msg := lipgloss.NewStyle().Foreground(lipgloss.Color("#FFA500"))
-		fmt.Println(msg.Render(`
-            No pods exist in this namespace.
-            Did you mean to use the --namespace flag?
-
-            If you are attempting to check
-            resources for a docker deployment, you
-            must use the --docker flag.
-            See --help for more info.
-            `))
-		os.Exit(1)
-	}
-
-	return podList.Items, nil
 }
 
 // makeUsageRow generates a table row containing resource usage data for a container.
