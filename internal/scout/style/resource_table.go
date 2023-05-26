@@ -14,17 +14,17 @@ import (
 	"golang.design/x/clipboard"
 )
 
-var baseStyle = lipgloss.NewStyle().
+var resourceTableStyle = lipgloss.NewStyle().
 	BorderStyle(lipgloss.NormalBorder()).
 	BorderForeground(lipgloss.Color("240"))
 
-type model struct {
+type resourceTableModel struct {
 	table table.Model
 }
 
-func (m model) Init() tea.Cmd { return nil }
+func (m resourceTableModel) Init() tea.Cmd { return nil }
 
-func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m resourceTableModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
@@ -47,7 +47,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "C":
 			tmpDir := os.TempDir()
 			filePath := filepath.Join(tmpDir, "resource-dump.txt")
-			m.dumpResources(m.table.Rows(), filePath)
+			m.dump(m.table.Rows(), filePath)
 			savedMessage := lipgloss.NewStyle().
 				Foreground(lipgloss.Color("#32CD32")).
 				Render(fmt.Sprintf(
@@ -65,16 +65,16 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
-func (m model) View() string {
+func (m resourceTableModel) View() string {
 	s := "\n > Press 'j' and 'k' to go up and down\n"
 	s += " > Press 'c' to copy highlighted row to clipboard\n"
 	s += " > Press 'C' to copy all rows to a file\n"
 	s += " > Press 'q' to quit\n\n"
-	s += baseStyle.Render(m.table.View()) + "\n"
+	s += resourceTableStyle.Render(m.table.View()) + "\n"
 	return s
 }
 
-func (m model) dumpResources(rows []table.Row, filePath string) error {
+func (m resourceTableModel) dump(rows []table.Row, filePath string) error {
 	dumpFile, err := os.Create(filePath)
 	if err != nil {
 		return errors.Wrap(err, "error while creating new file")
@@ -118,7 +118,7 @@ func (m model) dumpResources(rows []table.Row, filePath string) error {
 	return nil
 }
 
-func (m model) copyRowToClipboard(row table.Row) {
+func (m resourceTableModel) copyRowToClipboard(row table.Row) {
 	var containerInfo string
 
 	// default to docker headers
@@ -170,7 +170,7 @@ func ResourceTable(columns []table.Column, rows []table.Row) {
 		Bold(false)
 	t.SetStyles(s)
 
-	m := model{t}
+	m := resourceTableModel{t}
 	if _, err := tea.NewProgram(m).Run(); err != nil {
 		fmt.Println("Error running program:", err)
 		os.Exit(1)
