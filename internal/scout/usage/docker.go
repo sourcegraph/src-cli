@@ -90,7 +90,7 @@ func makeDockerUsageRow(ctx context.Context, cfg *Config, container types.Contai
 		errors.Wrap(err, "could not get container stats")
 		os.Exit(1)
 	}
-	defer stats.Body.Close()
+	defer func() { _ = stats.Body.Close() }()
 
 	var usage types.StatsJSON
 	if err := json.NewDecoder(stats.Body).Decode(&usage); err != nil {
