@@ -155,8 +155,8 @@ func checkUsage(usage float64, resourceType, container, pod string) string {
 			UNDER_40,
 			scout.WarningSign,
 			container,
-			usage,
 			resourceType,
+			usage,
 		)
 	}
 
