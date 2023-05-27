@@ -3,6 +3,7 @@ package usage
 import (
 	"testing"
 
+	"github.com/sourcegraph/src-cli/internal/scout"
 	"github.com/sourcegraph/src-cli/internal/scout/kube"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -56,7 +57,7 @@ func TestGetPercentage(t *testing.T) {
 	for _, tc := range cases {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			got := getPercentage(tc.x, tc.y)
+			got := scout.GetPercentage(tc.x, tc.y)
 
 			if got != tc.want {
 				t.Errorf("got %.2f want %.2f", tc.want, got)
@@ -147,7 +148,7 @@ func TestContains(t *testing.T) {
 	for _, tc := range cases {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			got := contains(tc.s, tc.val)
+			got := scout.Contains(tc.s, tc.val)
 			if got != tc.want {
 				t.Errorf("got %v, want %v", got, tc.want)
 			}
