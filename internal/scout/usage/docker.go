@@ -107,8 +107,8 @@ func makeDockerUsageRow(ctx context.Context, cfg *scout.Config, container types.
 	return table.Row{
 		container.Name,
 		fmt.Sprintf("%.2f", cpuCores/1_000_000_000),
-		fmt.Sprintf("%.2f%%", getPercentage(cpuUsage, cpuCores)),
+		fmt.Sprintf("%.2f%%", scout.GetPercentage(cpuUsage, cpuCores)),
 		fmt.Sprintf("%.2fG", memory/1_000_000_000),
-		fmt.Sprintf("%.2f%%", getPercentage(memoryUsage, memory)),
+		fmt.Sprintf("%.2f%%", scout.GetPercentage(memoryUsage, memory)),
 	}
 }

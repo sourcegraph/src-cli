@@ -4,10 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/sourcegraph/sourcegraph/lib/errors"
 	"github.com/sourcegraph/src-cli/internal/scout"
-	"github.com/sourcegraph/src-cli/internal/scout/kube"
-	v1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	metricsv "k8s.io/metrics/pkg/client/clientset/versioned"
@@ -36,17 +33,23 @@ func K8s(
 		opt(cfg)
 	}
 
-	pods, err := kube.GetPods(ctx, cfg)
+	/* pods, err := kube.GetPods(ctx, cfg)
 	if err != nil {
 		return errors.Wrap(err, "could not get list of pods")
-	}
+	} */
 
-	PrintPods(pods)
+	/* if cfg.Pod != "" {
+		pod, err := kube.GetPod(cfg.Pod, pods)
+		if err != nil {
+			return errors.Wrap(err, "could not get pod")
+		}
+
+	} */
+	fmt.Println("advise.K8s needs code")
 	return nil
 }
 
-func PrintPods(pods []v1.Pod) {
-	for _, p := range pods {
-		fmt.Println(p.Name)
-	}
-}
+/* func Advise(ctx context.Context, cfg *scout.Config, pod v1.Pod) error {
+    fmt.Println(pod.Name)
+    return nil
+} */

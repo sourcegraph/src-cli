@@ -21,19 +21,7 @@ import (
 	metav1beta1 "k8s.io/metrics/pkg/apis/metrics/v1beta1"
 )
 
-// GetPods returns a list of Pod objects in a given Kubernetes namespace.
-//
-// It accepts:
-// - ctx: The context for the request
-// - k8sClient: A Kubernetes clientset for making API requests
-// - namespace: The Kubernetes namespace to list Pods from
-//
-// It returns:
-// - A slice of Pod objects from the given namespace
-// - An error if there was an issue listing Pods
-//
-// If no Pods exist in the given namespace, a warning message is printed and the
-// program exits with a non-zero status code.
+// GetPods fetches all pods in a given namespace.
 func GetPods(ctx context.Context, cfg *scout.Config) ([]corev1.Pod, error) {
 	podInterface := cfg.K8sClient.CoreV1().Pods(cfg.Namespace)
 	podList, err := podInterface.List(ctx, metav1.ListOptions{})
@@ -58,10 +46,7 @@ func GetPods(ctx context.Context, cfg *scout.Config) ([]corev1.Pod, error) {
 	return podList.Items, nil
 }
 
-// getPod returns a Pod object with the given name.
-//
-// If a Pod with the given name exists in pods, it is returned.
-// Otherwise, an error is returned indicating no Pod with that name exists.
+// GetPod returns a pod object with the given name from a list of pods.
 func GetPod(podName string, pods []corev1.Pod) (corev1.Pod, error) {
 	for _, p := range pods {
 		if p.Name == podName {
@@ -71,11 +56,15 @@ func GetPod(podName string, pods []corev1.Pod) (corev1.Pod, error) {
 	return corev1.Pod{}, errors.New("no pod with this name exists in this namespace")
 }
 
-// getPodMetrics retrieves metrics for a given pod.
+// GetPodMetrics fetches metrics for a given pod from the Kubernetes Metrics API.
+// It accepts:
+// - ctx: The context for the request
+// - cfg: The scout config containing Kubernetes clientsets
+// - pod: The pod specification
 //
 // It returns:
 // - podMetrics: The PodMetrics object containing metrics for the pod
-// - err: Any error that occurred while getting the pod metrics
+// - Any error that occurred while fetching the metrics
 func GetPodMetrics(ctx context.Context, cfg *scout.Config, pod corev1.Pod) (*metav1beta1.PodMetrics, error) {
 	podMetrics, err := cfg.MetricsClient.
 		MetricsV1beta1().
@@ -88,15 +77,117 @@ func GetPodMetrics(ctx context.Context, cfg *scout.Config, pod corev1.Pod) (*met
 	return podMetrics, nil
 }
 
-// GetRawUsage retrieves the raw usage value for a given resource type from a Kubernetes ResourceList.
+// GetLimits generates resource limits for containers in a pod.
 //
 // It accepts:
-// - usages: A Kubernetes ResourceList containing usage values for multiple resource types
-// - targetKey: The key for the resource type to retrieve usage for (e.g. "cpu" or "memory")
+// - ctx: The context for the request
+// - cfg: The scout config containing Kubernetes clientsets
+// - pod: The pod specification
+// - containerMetrics: A pointer to a ContainerMetrics struct to populate
+//
+// It populates the containerMetrics.Limits field with a map of container names
+// to resource limits (CPU, memory, storage) for each container in the pod.
 //
 // It returns:
-// - The raw usage value for the target resource type as a float64
-// - An error if there was an issue retrieving or parsing the usage value
+// - Any error that occurred while fetching resource limits
+func GetLimits(ctx context.Context, cfg *scout.Config, pod *corev1.Pod, containerMetrics *scout.ContainerMetrics) error {
+	for _, container := range pod.Spec.Containers {
+		containerName := container.Name
+		capacity, err := GetPvcCapacity(ctx, cfg, container, pod)
+		if err != nil {
+			return errors.Wrap(err, "while getting storage capacity of PV")
+		}
+
+		rsrcs := scout.Resources{
+			Cpu:     container.Resources.Limits.Cpu().ToDec(),
+			Memory:  container.Resources.Limits.Memory().ToDec(),
+			Storage: capacity,
+		}
+		containerMetrics.Limits[containerName] = rsrcs
+	}
+
+	return nil
+}
+
+// GetUsage generates resource usage statistics for a Kubernetes container.
+//
+// It accepts:
+// - ctx: The context for the request
+// - cfg: The scout config containing Kubernetes clientsets
+// - metrics: Container resource limits
+// - pod: The pod specification
+// - container: Container metrics from the Metrics API
+//
+// It returns:
+// - usageStats: A UsageStats struct containing the resource usage info
+// - Any error that occurred while generating the usage stats
+func GetUsage(
+	ctx context.Context,
+	cfg *scout.Config,
+	metrics scout.ContainerMetrics,
+	pod corev1.Pod,
+	container metav1beta1.ContainerMetrics,
+) (scout.UsageStats, error) {
+	var usageStats scout.UsageStats
+	usageStats.ContainerName = container.Name
+
+	cpuUsage, err := GetRawUsage(container.Usage, "cpu")
+	if err != nil {
+		return usageStats, errors.Wrap(err, "failed to get raw CPU usage")
+	}
+
+	memUsage, err := GetRawUsage(container.Usage, "memory")
+	if err != nil {
+		return usageStats, errors.Wrap(err, "failed to get raw memory usage")
+	}
+
+	storageCapacity, storageUsage, err := GetStorageUsage(ctx, cfg, pod.Name, container.Name)
+	if err != nil {
+		return usageStats, errors.Wrap(err, "failed to get storage usage")
+	}
+
+	limits := metrics.Limits[container.Name]
+
+	usageStats.CpuCores = limits.Cpu
+	usageStats.CpuUsage = scout.GetPercentage(
+		cpuUsage,
+		limits.Cpu.AsApproximateFloat64()*scout.ABillion,
+	)
+
+	usageStats.Memory = limits.Memory
+	usageStats.MemoryUsage = scout.GetPercentage(
+		memUsage,
+		limits.Memory.AsApproximateFloat64(),
+	)
+
+	if limits.Storage == nil {
+		storageDec := *inf.NewDec(0, 0)
+		usageStats.Storage = resource.NewDecimalQuantity(storageDec, resource.Format("DecimalSI"))
+	} else {
+		usageStats.Storage = limits.Storage
+	}
+
+	usageStats.StorageUsage = scout.GetPercentage(
+		storageUsage,
+		storageCapacity,
+	)
+
+	if metrics.Limits[container.Name].Storage == nil {
+		usageStats.Storage = nil
+	}
+
+	return usageStats, nil
+}
+
+// GetRawUsage returns the raw usage value for a given resource type from a Kubernetes ResourceList.
+//
+// It accepts:
+// - usages: A Kubernetes ResourceList containing usage values
+// - targetKey: The resource type to get the usage for (e.g. "cpu" or "memory")
+//
+// It returns:
+// - The raw usage value for the target resource type
+// - Any error that occurred while parsing the usage value
 func GetRawUsage(usages corev1.ResourceList, targetKey string) (float64, error) {
 	var usage *inf.Dec
 
@@ -114,13 +205,19 @@ func GetRawUsage(usages corev1.ResourceList, targetKey string) (float64, error) 
 	return toFloat, nil
 }
 
-// getPvcCapacity retrieves the storage capacity of a PersistentVolumeClaim
-// mounted as a volume by a container.
+// GetPvcCapacity returns the storage capacity of a PersistentVolumeClaim mounted to a container.
+//
+// It accepts:
+// - ctx: The context for the request
+// - cfg: The scout config containing Kubernetes clientsets
+// - container: The container specification
+// - pod: The pod specification
 //
 // It returns:
-// - The capacity Quantity of the PVC if a matching PVC mount is found
-// - nil if no PVC mount is found
-// - Any error that occurred while getting the PVC
+// - The storage capacity of the PVC in bytes
+// - Any error that occurred while fetching the PVC
+//
+// If no PVC is mounted to the container, nil is returned for the capacity and no error.
 func GetPvcCapacity(ctx context.Context, cfg *scout.Config, container corev1.Container, pod *corev1.Pod) (*resource.Quantity, error) {
 	for _, vm := range container.VolumeMounts {
 		for _, v := range pod.Spec.Volumes {
@@ -147,18 +244,49 @@ func GetPvcCapacity(ctx context.Context, cfg *scout.Config, container corev1.Con
 	return nil, nil
 }
 
-// getStorageUsage executes the df -h command in a container and parses the
-// output to get the storage usage percentage for ephemeral storage volumes.
+// GetStorageUsage returns the storage capacity and usage for a given pod and container.
+//
+// It accepts:
+// - ctx: The context for the request
+// - cfg: The scout config containing Kubernetes clientsets
+// - podName: The name of the pod
+// - containerName: The name of the container
 //
 // It returns:
-// - The storage usage percentage for storage volumes
-// - "-" if no storage volumes are found
-// - Any error that occurred while executing the df -h command or parsing the output
+// - storageCapacity: The total storage capacity for the container in bytes
+// - storageUsage: The used storage for the container in bytes
+// - Any error that occurred while fetching the storage usage
 func GetStorageUsage(
 	ctx context.Context,
 	cfg *scout.Config,
-	podName, containerName string,
+	podName string,
+	containerName string,
 ) (float64, float64, error) {
+	var storageCapacity float64
+	var storageUsage float64
+
+	stateless := []string{
+		"cadvisor",
+		"pgsql-exporter",
+		"executor",
+		"dind",
+		"github-proxy",
+		"jaeger",
+		"node-exporter",
+		"otel-agent",
+		"otel-collector",
+		"precise-code-intel-worker",
+		"redis-exporter",
+		"repo-updater",
+		"frontend",
+		"syntect-server",
+		"worker",
+	}
+
+	if scout.Contains(stateless, containerName) {
+		return storageCapacity, storageUsage, nil
+	}
+
 	req := cfg.K8sClient.CoreV1().RESTClient().Post().
 		Resource("pods").
 		Name(podName).
