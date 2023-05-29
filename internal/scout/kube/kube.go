@@ -90,7 +90,7 @@ func GetPodMetrics(ctx context.Context, cfg *scout.Config, pod corev1.Pod) (*met
 //
 // It returns:
 // - Any error that occurred while fetching resource limits
-func GetLimits(ctx context.Context, cfg *scout.Config, pod *corev1.Pod, containerMetrics *scout.ContainerMetrics) error {
+func AddLimits(ctx context.Context, cfg *scout.Config, pod *corev1.Pod, containerMetrics *scout.ContainerMetrics) error {
 	for _, container := range pod.Spec.Containers {
 		containerName := container.Name
 		capacity, err := GetPvcCapacity(ctx, cfg, container, pod)
