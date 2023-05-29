@@ -58,17 +58,12 @@ func renderSinglePodUsageTable(ctx context.Context, cfg *scout.Config, pods []co
 		return errors.Wrapf(err, "could not get pod with name %s", cfg.Pod)
 	}
 
-	podMetrics, err := kube.GetPodMetrics(ctx, cfg, pod)
-	if err != nil {
-		return errors.Wrap(err, "while attempting to fetch pod metrics")
-	}
-
 	containerMetrics := &scout.ContainerMetrics{
 		PodName: cfg.Pod,
 		Limits:  map[string]scout.Resources{},
 	}
-	if err = kube.GetLimits(ctx, cfg, &pod, containerMetrics); err != nil {
-		return errors.Wrap(err, "failed to get get container metrics")
+	if err = kube.AddLimits(ctx, cfg, &pod, containerMetrics); err != nil {
+		return errors.Wrap(err, "failed to add limits to container metrics")
 	}
 
 	columns := []table.Column{
@@ -81,6 +76,11 @@ func renderSinglePodUsageTable(ctx context.Context, cfg *scout.Config, pods []co
 		{Title: "Usage(%)", Width: 10},
 	}
 	var rows []table.Row
+
+	podMetrics, err := kube.GetPodMetrics(ctx, cfg, pod)
+	if err != nil {
+		return errors.Wrap(err, "while attempting to fetch pod metrics")
+	}
 
 	for _, container := range podMetrics.Containers {
 		stats, err := kube.GetUsage(ctx, cfg, *containerMetrics, pod, container)
@@ -114,13 +114,14 @@ func renderUsageTable(ctx context.Context, cfg *scout.Config, pods []corev1.Pod)
 			PodName: pod.Name,
 			Limits:  map[string]scout.Resources{},
 		}
+
+		if err := kube.AddLimits(ctx, cfg, &pod, containerMetrics); err != nil {
+			return errors.Wrap(err, "failed to get get container metrics")
+		}
+
 		podMetrics, err := kube.GetPodMetrics(ctx, cfg, pod)
 		if err != nil {
 			return errors.Wrap(err, "while attempting to fetch pod metrics")
-		}
-
-		if err = kube.GetLimits(ctx, cfg, &pod, containerMetrics); err != nil {
-			return errors.Wrap(err, "failed to get get container metrics")
 		}
 
 		for _, container := range podMetrics.Containers {

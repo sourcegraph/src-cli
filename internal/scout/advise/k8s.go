@@ -55,7 +55,6 @@ func K8s(
 	}
 
 	for _, pod := range pods {
-		fmt.Println(scout.EmojiFingerPointRight, pod.Name)
 		err = Advise(ctx, cfg, pod)
 		if err != nil {
 			return errors.Wrap(err, "could not advise")
@@ -84,6 +83,7 @@ func Advise(ctx context.Context, cfg *scout.Config, pod v1.Pod) error {
 			advice = append(advice, storageAdvice)
 		}
 
+		fmt.Println(scout.EmojiFingerPointRight, pod.Name)
 		for _, msg := range advice {
 			fmt.Println(msg)
 		}
@@ -105,7 +105,7 @@ func getUsageMetrics(ctx context.Context, cfg *scout.Config, pod v1.Pod) ([]scou
 		Limits:  map[string]scout.Resources{},
 	}
 
-	if err = kube.GetLimits(ctx, cfg, &pod, containerMetrics); err != nil {
+	if err = kube.AddLimits(ctx, cfg, &pod, containerMetrics); err != nil {
 		return usages, errors.Wrap(err, "failed to get get container metrics")
 	}
 
