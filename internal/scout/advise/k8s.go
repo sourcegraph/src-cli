@@ -67,9 +67,9 @@ func K8s(
 }
 
 // Advise generates resource allocation advice for a Kubernetes pod.
-// The function fetches usage metrics for each container in the pod. It then 
-// checks the usage percentages against thresholds to determine if more or less 
-// of a resource is needed. Advice is generated and either printed to the console 
+// The function fetches usage metrics for each container in the pod. It then
+// checks the usage percentages against thresholds to determine if more or less
+// of a resource is needed. Advice is generated and either printed to the console
 // or output to a file depending on the cfg.Output field.
 func Advise(ctx context.Context, cfg *scout.Config, pod v1.Pod) error {
 	var advice []string
