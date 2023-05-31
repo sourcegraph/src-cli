@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-
 	"github.com/sourcegraph/sourcegraph/lib/errors"
 	"github.com/sourcegraph/src-cli/internal/scout"
 	"github.com/sourcegraph/src-cli/internal/scout/kube"
