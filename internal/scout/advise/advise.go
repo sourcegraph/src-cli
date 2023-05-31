@@ -1,6 +1,10 @@
 package advise
 
-import "github.com/sourcegraph/src-cli/internal/scout"
+import (
+	"fmt"
+
+	"github.com/sourcegraph/src-cli/internal/scout"
+)
 
 type Option = func(config *scout.Config)
 
@@ -33,4 +37,47 @@ func WithOutput(pathToFile string) Option {
 	return func(config *scout.Config) {
 		config.Output = pathToFile
 	}
+}
+
+func CheckUsage(usage float64, resourceType string, container string) string {
+	var message string
+
+	switch {
+	case usage >= 100:
+		message = fmt.Sprintf(
+			OVER_100,
+			scout.FlashingLightEmoji,
+			container,
+			resourceType,
+			usage,
+			resourceType,
+		)
+	case usage >= 80 && usage < 100:
+		message = fmt.Sprintf(
+			OVER_80,
+			scout.WarningSign,
+			container,
+			resourceType,
+			usage,
+		)
+	case usage >= 40 && usage < 80:
+		message = fmt.Sprintf(
+			OVER_40,
+			scout.SuccessEmoji,
+			container,
+			resourceType,
+			usage,
+			resourceType,
+		)
+	default:
+		message = fmt.Sprintf(
+			UNDER_40,
+			scout.WarningSign,
+			container,
+			resourceType,
+			usage,
+		)
+	}
+
+	return message
 }

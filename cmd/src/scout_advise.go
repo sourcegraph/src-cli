@@ -26,6 +26,12 @@ func init() {
         
         Make recommendations for specific pod:
         $ src scout advise --pod <podname>
+        
+        Make recommendations for all containers in a docker deployment of Sourcegraph 
+        $ src scout advise --docker
+        
+        Make recommendations for specific container:
+        $ src scout advise --docker --container <container>
 
         Add namespace if using namespace in a Kubernetes cluster
         $ src scout advise --namespace <namespace>
