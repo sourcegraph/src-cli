@@ -1,8 +1,11 @@
 package advise
 
 import (
+	"context"
 	"fmt"
+	"os"
 
+	"github.com/sourcegraph/sourcegraph/lib/errors"
 	"github.com/sourcegraph/src-cli/internal/scout"
 )
 
@@ -80,4 +83,24 @@ func CheckUsage(usage float64, resourceType string, container string) string {
 	}
 
 	return message
+}
+
+// outputToFile writes resource allocation advice for a Kubernetes pod to a file.
+func OutputToFile(ctx context.Context, cfg *scout.Config, name string, advice []string) error {
+	file, err := os.OpenFile(cfg.Output, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		return errors.Wrap(err, "failed to open file")
+	}
+	defer file.Close()
+
+	if _, err := file.WriteString(fmt.Sprintf("- %s\n", name)); err != nil {
+		return errors.Wrap(err, "failed to write service name to file")
+	}
+
+	for _, msg := range advice {
+		if _, err := file.WriteString(fmt.Sprintf("%s\n", msg)); err != nil {
+			return errors.Wrap(err, "failed to write container advice to file")
+		}
+	}
+	return nil
 }

@@ -3,7 +3,6 @@ package advise
 import (
 	"context"
 	"fmt"
-	"os"
 
 
 	"github.com/sourcegraph/sourcegraph/lib/errors"
@@ -92,7 +91,7 @@ func Advise(ctx context.Context, cfg *scout.Config, pod v1.Pod) error {
 		}
 
 		if cfg.Output != "" {
-			outputToFile(ctx, cfg, pod, advice)
+			OutputToFile(ctx, cfg, pod.Name, advice)
 		} else {
 		  for _, msg := range advice {
 				fmt.Println(msg)
@@ -100,26 +99,6 @@ func Advise(ctx context.Context, cfg *scout.Config, pod v1.Pod) error {
 		}
 	}
 
-	return nil
-}
-
-// outputToFile writes resource allocation advice for a Kubernetes pod to a file.
-func outputToFile(ctx context.Context, cfg *scout.Config, pod v1.Pod, advice []string) error {
-	file, err := os.OpenFile(cfg.Output, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		return errors.Wrap(err, "failed to open file")
-	}
-	defer file.Close()
-
-	if _, err := fmt.Fprintf(file, "- %s\n", pod.Name); err != nil {
-		return errors.Wrap(err, "failed to write pod name to file")
-	}
-
-	for _, msg := range advice {
-		if _, err := fmt.Fprintf(file, "%s\n", msg); err != nil {
-			return errors.Wrap(err, "failed to write container advice to file")
-		}
-	}
 	return nil
 }
 

@@ -82,8 +82,12 @@ func adviseContainer(ctx context.Context, cfg *scout.Config, container types.Con
 	memoryAdvice := CheckUsage(memPercent, "memory", container.Name)
 	advice = append(advice, memoryAdvice)
 
-	for _, msg := range advice {
-		fmt.Println(msg)
+	if cfg.Output != "" {
+		OutputToFile(ctx, cfg, container.Name, advice)
+	} else {
+		for _, msg := range advice {
+			fmt.Println(msg)
+		}
 	}
 
 	return nil
