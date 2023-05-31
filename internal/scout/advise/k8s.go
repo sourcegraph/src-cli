@@ -80,14 +80,14 @@ func Advise(ctx context.Context, cfg *scout.Config, pod v1.Pod) error {
 	}
 
 	for _, metrics := range usageMetrics {
-		cpuAdvice := checkUsage(metrics.CpuUsage, "CPU", metrics.ContainerName, pod.Name)
+		cpuAdvice := CheckUsage(metrics.CpuUsage, "CPU", metrics.ContainerName)
 		advice = append(advice, cpuAdvice)
 
-		memoryAdvice := checkUsage(metrics.MemoryUsage, "memory", metrics.ContainerName, pod.Name)
+		memoryAdvice := CheckUsage(metrics.MemoryUsage, "memory", metrics.ContainerName)
 		advice = append(advice, memoryAdvice)
 
 		if metrics.Storage != nil {
-			storageAdvice := checkUsage(metrics.StorageUsage, "storage", metrics.ContainerName, pod.Name)
+			storageAdvice := CheckUsage(metrics.StorageUsage, "storage", metrics.ContainerName)
 			advice = append(advice, storageAdvice)
 		}
 
@@ -150,47 +150,4 @@ func getUsageMetrics(ctx context.Context, cfg *scout.Config, pod v1.Pod) ([]scou
 	}
 
 	return usages, nil
-}
-
-func checkUsage(usage float64, resourceType, container, pod string) string {
-	var message string
-
-	switch {
-	case usage >= 100:
-		message = fmt.Sprintf(
-			OVER_100,
-			scout.FlashingLightEmoji,
-			container,
-			resourceType,
-			usage,
-			resourceType,
-		)
-	case usage >= 80 && usage < 100:
-		message = fmt.Sprintf(
-			OVER_80,
-			scout.WarningSign,
-			container,
-			resourceType,
-			usage,
-		)
-	case usage >= 40 && usage < 80:
-		message = fmt.Sprintf(
-			OVER_40,
-			scout.SuccessEmoji,
-			container,
-			resourceType,
-			usage,
-			resourceType,
-		)
-	default:
-		message = fmt.Sprintf(
-			UNDER_40,
-			scout.WarningSign,
-			container,
-			resourceType,
-			usage,
-		)
-	}
-
-	return message
 }
