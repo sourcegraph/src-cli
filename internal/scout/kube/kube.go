@@ -141,12 +141,16 @@ func GetUsage(
 		return usageStats, errors.Wrap(err, "failed to get raw memory usage")
 	}
 
-	storageCapacity, storageUsage, err := GetStorageUsage(ctx, cfg, pod.Name, container.Name)
-	if err != nil {
-		return usageStats, errors.Wrap(err, "failed to get storage usage")
-	}
-
 	limits := metrics.Limits[container.Name]
+
+	var storageCapacity float64
+	var storageUsage float64
+	if limits.Storage != nil {
+		storageCapacity, storageUsage, err = GetStorageUsage(ctx, cfg, pod.Name, container.Name)
+		if err != nil {
+			return usageStats, errors.Wrap(err, "failed to get storage usage")
+		}
+	}
 
 	usageStats.CpuCores = limits.Cpu
 	usageStats.CpuUsage = scout.GetPercentage(
