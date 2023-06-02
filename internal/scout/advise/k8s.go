@@ -110,12 +110,12 @@ func outputToFile(ctx context.Context, cfg *scout.Config, pod v1.Pod, advice []s
 	}
 	defer file.Close()
 
-	if _, err := file.WriteString(fmt.Sprintf("- %s\n", pod.Name)); err != nil {
+	if _, err := fmt.Fprintf(file, "- %s\n", pod.Name); err != nil {
 		return errors.Wrap(err, "failed to write pod name to file")
 	}
 
 	for _, msg := range advice {
-		if _, err := file.WriteString(fmt.Sprintf("%s\n", msg)); err != nil {
+		if _, err := fmt.Fprintf(file, "%s\n", msg); err != nil {
 			return errors.Wrap(err, "failed to write container advice to file")
 		}
 	}
