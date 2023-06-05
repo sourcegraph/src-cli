@@ -1,6 +1,13 @@
 package advise
 
-import "testing"
+import (
+	"bufio"
+	"context"
+	"os"
+	"testing"
+
+	"github.com/sourcegraph/src-cli/internal/scout"
+)
 
 func TestCheckUsage(t *testing.T) {
 	cases := []struct {
@@ -50,4 +57,62 @@ func TestCheckUsage(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestOutputToFile(t *testing.T) {
+	cfg := &scout.Config{
+		Output: "/tmp/test.txt",
+	}
+	name := "gitserver-0"
+	advice := []string{
+		"Add more CPU",
+		"Add more memory",
+	}
+
+	err := OutputToFile(context.Background(), cfg, name, advice)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	lines := readOutputFile(t, cfg)
+
+	cases := []struct {
+		lineNum int
+		want    string
+	}{
+		{1, "- gitserver-0"},
+		{2, "Add more CPU"},
+		{3, "Add more memory"},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		if lines[tc.lineNum-1] != tc.want {
+			t.Errorf("Expected %q, got %q", tc.want, lines[tc.lineNum-1])
+		}
+	}
+
+	if len(lines) > 3 {
+		t.Error("Expected only 3 lines, got more")
+	}
+
+	err = os.Remove(cfg.Output)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func readOutputFile(t *testing.T, cfg *scout.Config) []string {
+	file, err := os.Open(cfg.Output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer file.Close()
+
+	var lines []string
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		lines = append(lines, scanner.Text())
+	}
+	return lines
 }

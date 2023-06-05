@@ -93,12 +93,12 @@ func OutputToFile(ctx context.Context, cfg *scout.Config, name string, advice []
 	}
 	defer file.Close()
 
-	if _, err := file.WriteString(fmt.Sprintf("- %s\n", name)); err != nil {
+	if _, err := fmt.Fprintf(file, "- %s\n", name); err != nil {
 		return errors.Wrap(err, "failed to write service name to file")
 	}
 
 	for _, msg := range advice {
-		if _, err := file.WriteString(fmt.Sprintf("%s\n", msg)); err != nil {
+		if _, err := fmt.Fprintf(file, "%s\n", msg); err != nil {
 			return errors.Wrap(err, "failed to write container advice to file")
 		}
 	}
