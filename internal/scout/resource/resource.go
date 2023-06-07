@@ -9,12 +9,13 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/client"
-	"github.com/sourcegraph/sourcegraph/lib/errors"
-	"github.com/sourcegraph/src-cli/internal/scout"
-	kube "github.com/sourcegraph/src-cli/internal/scout/kube"
-	"github.com/sourcegraph/src-cli/internal/scout/style"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+
+	"github.com/sourcegraph/sourcegraph/lib/errors"
+	"github.com/sourcegraph/src-cli/internal/scout"
+	"github.com/sourcegraph/src-cli/internal/scout/kube"
+	"github.com/sourcegraph/src-cli/internal/scout/style"
 )
 
 type Option = func(config *scout.Config)

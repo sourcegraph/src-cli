@@ -5,13 +5,14 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/sourcegraph/sourcegraph/lib/errors"
-	"github.com/sourcegraph/src-cli/internal/scout"
-	"github.com/sourcegraph/src-cli/internal/scout/kube"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	metricsv "k8s.io/metrics/pkg/client/clientset/versioned"
+
+	"github.com/sourcegraph/sourcegraph/lib/errors"
+	"github.com/sourcegraph/src-cli/internal/scout"
+	"github.com/sourcegraph/src-cli/internal/scout/kube"
 )
 
 func K8s(

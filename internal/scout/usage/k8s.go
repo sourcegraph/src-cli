@@ -5,15 +5,15 @@ import (
 	"fmt"
 
 	"github.com/charmbracelet/bubbles/table"
-	"github.com/sourcegraph/sourcegraph/lib/errors"
-	"github.com/sourcegraph/src-cli/internal/scout"
-	"github.com/sourcegraph/src-cli/internal/scout/kube"
-	"github.com/sourcegraph/src-cli/internal/scout/style"
-
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/kubernetes"
 	restclient "k8s.io/client-go/rest"
 	metricsv "k8s.io/metrics/pkg/client/clientset/versioned"
+
+	"github.com/sourcegraph/sourcegraph/lib/errors"
+	"github.com/sourcegraph/src-cli/internal/scout"
+	"github.com/sourcegraph/src-cli/internal/scout/kube"
+	"github.com/sourcegraph/src-cli/internal/scout/style"
 )
 
 func K8s(
