@@ -91,7 +91,10 @@ func Advise(ctx context.Context, cfg *scout.Config, pod v1.Pod) error {
 		}
 
 		if cfg.Output != "" {
-			outputToFile(cfg, pod, advice)
+			err = outputToFile(cfg, pod, advice)
+			if err != nil {
+				return errors.Wrap(err, "could not output advise to file")
+			}
 		} else {
 			for _, msg := range advice {
 				fmt.Println(msg)
