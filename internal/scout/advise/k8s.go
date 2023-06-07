@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 
+
 	"github.com/sourcegraph/sourcegraph/lib/errors"
 	"github.com/sourcegraph/src-cli/internal/scout"
 	"github.com/sourcegraph/src-cli/internal/scout/kube"
@@ -93,7 +94,7 @@ func Advise(ctx context.Context, cfg *scout.Config, pod v1.Pod) error {
 		if cfg.Output != "" {
 			outputToFile(ctx, cfg, pod, advice)
 		} else {
-			for _, msg := range advice {
+		  for _, msg := range advice {
 				fmt.Println(msg)
 			}
 		}
