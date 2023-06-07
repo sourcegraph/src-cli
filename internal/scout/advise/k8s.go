@@ -79,19 +79,19 @@ func Advise(ctx context.Context, cfg *scout.Config, pod v1.Pod) error {
 	}
 
 	for _, metrics := range usageMetrics {
-		cpuAdvice := checkUsage(metrics.CpuUsage, "CPU", metrics.ContainerName, pod.Name)
+		cpuAdvice := checkUsage(metrics.CpuUsage, "CPU", metrics.ContainerName)
 		advice = append(advice, cpuAdvice)
 
-		memoryAdvice := checkUsage(metrics.MemoryUsage, "memory", metrics.ContainerName, pod.Name)
+		memoryAdvice := checkUsage(metrics.MemoryUsage, "memory", metrics.ContainerName)
 		advice = append(advice, memoryAdvice)
 
 		if metrics.Storage != nil {
-			storageAdvice := checkUsage(metrics.StorageUsage, "storage", metrics.ContainerName, pod.Name)
+			storageAdvice := checkUsage(metrics.StorageUsage, "storage", metrics.ContainerName)
 			advice = append(advice, storageAdvice)
 		}
 
 		if cfg.Output != "" {
-			outputToFile(ctx, cfg, pod, advice)
+			outputToFile(cfg, pod, advice)
 		} else {
 			for _, msg := range advice {
 				fmt.Println(msg)
@@ -103,7 +103,7 @@ func Advise(ctx context.Context, cfg *scout.Config, pod v1.Pod) error {
 }
 
 // outputToFile writes resource allocation advice for a Kubernetes pod to a file.
-func outputToFile(ctx context.Context, cfg *scout.Config, pod v1.Pod, advice []string) error {
+func outputToFile(cfg *scout.Config, pod v1.Pod, advice []string) error {
 	file, err := os.OpenFile(cfg.Output, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		return errors.Wrap(err, "failed to open file")
