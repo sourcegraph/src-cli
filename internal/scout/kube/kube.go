@@ -77,7 +77,7 @@ func GetPodMetrics(ctx context.Context, cfg *scout.Config, pod corev1.Pod) (*met
 	return podMetrics, nil
 }
 
-// GetLimits generates resource limits for containers in a pod.
+// AddLimits generates resource limits for containers in a pod.
 //
 // It accepts:
 // - ctx: The context for the request
