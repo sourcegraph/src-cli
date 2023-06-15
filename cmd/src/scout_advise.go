@@ -48,11 +48,7 @@ func init() {
 		namespace  = flagSet.String("namespace", "", "(optional) specify the kubernetes namespace to use")
 		pod        = flagSet.String("pod", "", "(optional) specify a single pod")
 		output     = flagSet.String("o", "", "(optional) output advice to file")
-<<<<<<< HEAD
-=======
 		warnings   = flagSet.Bool("warnings", false, "(optional) output advice with warnings")
-		docker     = flagSet.Bool("docker", false, "(optional) using docker deployment")
->>>>>>> 8e57153 (warnings flag supresses warning messages)
 	)
 
 	if home := homedir.HomeDir(); home != "" {
@@ -96,24 +92,9 @@ func init() {
 		if *output != "" {
 			options = append(options, advise.WithOutput(*output))
 		}
-<<<<<<< HEAD
-=======
 		if *warnings {
 			options = append(options, advise.WithWarnings(true))
 		}
-		if *container != "" || *docker {
-			if *container != "" {
-				options = append(options, advise.WithContainer(*container))
-			}
-
-			dockerClient, err := client.NewClientWithOpts(client.FromEnv)
-			if err != nil {
-				return errors.Wrap(err, "error creating docker client: ")
-			}
-
-			return advise.Docker(context.Background(), *dockerClient, options...)
-		}
->>>>>>> 8e57153 (warnings flag supresses warning messages)
 
 		return advise.K8s(
 			context.Background(),
@@ -129,5 +110,4 @@ func init() {
 		handler:   handler,
 		usageFunc: usage,
 	})
-
 }

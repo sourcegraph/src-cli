@@ -44,7 +44,7 @@ func WithWarnings(includeWarnings bool) Option {
 func CheckUsage(usage float64, resourceType string, container string) scout.Advice {
 	var advice scout.Advice
 	switch {
-	case usage >= 100:
+	case usage >= 80:
 		advice.Kind = scout.WARNING
 		advice.Msg = fmt.Sprintf(
 			UNDER_PROVISIONED,
