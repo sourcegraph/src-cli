@@ -5,6 +5,7 @@ import (
 	"context"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/sourcegraph/src-cli/internal/scout"
 )
@@ -61,7 +62,7 @@ func TestCheckUsage(t *testing.T) {
 
 func TestOutputToFile(t *testing.T) {
 	cfg := &scout.Config{
-		Output: "/tmp/test.txt",
+		Output: os.TempDir() + string(os.PathSeparator) + "test.txt",
 	}
 	name := "gitserver-0"
 	advice := []string{
@@ -96,7 +97,6 @@ func TestOutputToFile(t *testing.T) {
 		t.Error("Expected only 3 lines, got more")
 	}
 
-	err = os.Remove(cfg.Output)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -107,12 +107,22 @@ func readOutputFile(t *testing.T, cfg *scout.Config) []string {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer file.Close()
 
 	var lines []string
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		lines = append(lines, scanner.Text())
+	}
+
+	file.Close()
+	err = os.Remove(cfg.Output)
+	if err != nil {
+		// try again after waiting a bit
+		time.Sleep(100 * time.Millisecond)
+		err = os.Remove(cfg.Output)
+		if err != nil {
+			t.Fatal(err)
+		}
 	}
 	return lines
 }
