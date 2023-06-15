@@ -16,35 +16,47 @@ func TestCheckUsage(t *testing.T) {
 		usage        float64
 		resourceType string
 		container    string
-		want         string
+		want         scout.Advice
 	}{
 		{
 			name:         "should return correct message for usage over 100",
 			usage:        110,
 			resourceType: "cpu",
 			container:    "gitserver-0",
-			want:         "\t🚨 gitserver-0: Your cpu usage is over 100% (110.00%). Add more cpu.",
+			want: scout.Advice{
+				Kind: scout.WARNING,
+				Msg:  "\t🚨 gitserver-0: Your cpu usage is over 100% (110.00%). Add more cpu.",
+			},
 		},
 		{
 			name:         "should return correct message for usage over 80 and under 100",
 			usage:        87,
 			resourceType: "memory",
 			container:    "gitserver-0",
-			want:         "\t⚠️  gitserver-0: Your memory usage is over 80% (87.00%). Consider raising limits.",
+			want: scout.Advice{
+				Kind: scout.DANGER,
+				Msg:  "\t⚠️  gitserver-0: Your memory usage is over 80% (87.00%). Consider raising limits.",
+			},
 		},
 		{
 			name:         "should return correct message for usage over 40 and under 80",
 			usage:        63.4,
 			resourceType: "memory",
 			container:    "gitserver-0",
-			want:         "\t✅ gitserver-0: Your memory usage is under 80% (63.40%). Keep memory allocation the same.",
+			want: scout.Advice{
+				Kind: scout.HEALTHY,
+				Msg:  "\t✅ gitserver-0: Your memory usage is under 80% (63.40%). Keep memory allocation the same.",
+			},
 		},
 		{
 			name:         "should return correct message for usage under 40",
 			usage:        22.33,
 			resourceType: "memory",
 			container:    "gitserver-0",
-			want:         "\t⚠️  gitserver-0: Your memory usage is under 40% (22.33%). Consider lowering limits.",
+			want: scout.Advice{
+				Kind: scout.WARNING,
+				Msg:  "\t⚠️  gitserver-0: Your memory usage is under 40% (22.33%). Consider lowering limits.",
+			},
 		},
 	}
 
@@ -65,9 +77,15 @@ func TestOutputToFile(t *testing.T) {
 		Output: os.TempDir() + string(os.PathSeparator) + "test.txt",
 	}
 	name := "gitserver-0"
-	advice := []string{
-		"Add more CPU",
-		"Add more memory",
+	advice := []scout.Advice{
+		{
+			Kind: scout.WARNING,
+			Msg:  "Add more CPU",
+		},
+		{
+			Kind: scout.WARNING,
+			Msg:  "Add more memory",
+		},
 	}
 
 	err := OutputToFile(context.Background(), cfg, name, advice)
