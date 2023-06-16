@@ -52,6 +52,11 @@ func K8s(
 		}
 		return nil
 	}
+
+	if cfg.Output != "" {
+		fmt.Printf("writing to %s. This can take a few minutes...", cfg.Output)
+	}
+
 	for _, pod := range pods {
 		err = Advise(ctx, cfg, pod)
 		if err != nil {

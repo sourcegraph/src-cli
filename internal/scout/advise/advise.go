@@ -45,7 +45,7 @@ func CheckUsage(usage float64, resourceType string, container string) scout.Advi
 	var advice scout.Advice
 	switch {
 	case usage >= 80:
-		advice.Kind = scout.WARNING
+		advice.Kind = scout.DANGER
 		advice.Msg = fmt.Sprintf(
 			UNDER_PROVISIONED,
 			scout.FlashingLightEmoji,
@@ -88,8 +88,8 @@ func OutputToFile(ctx context.Context, cfg *scout.Config, name string, advice []
 		return errors.Wrap(err, "failed to write service name to file")
 	}
 
-	for _, msg := range advice {
-		if _, err := fmt.Fprintf(file, "%s\n", msg); err != nil {
+	for _, adv := range advice {
+		if _, err := fmt.Fprintf(file, "%s\n", adv.Msg); err != nil {
 			return errors.Wrap(err, "failed to write container advice to file")
 		}
 	}
