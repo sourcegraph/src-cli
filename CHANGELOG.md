@@ -17,6 +17,8 @@ All notable changes to `src-cli` are documented in this file.
 
 ### Fixed
 
+- Fixed `src snapshot validate` [#1010](https://github.com/sourcegraph/src-cli/pull/1010)
+
 ### Removed
 
 ## 5.1.0
