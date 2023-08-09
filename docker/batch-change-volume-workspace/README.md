@@ -11,3 +11,4 @@ If you update this description, you _must_ also update the description at
 https://hub.docker.com/r/sourcegraph/src-batch-change-volume-workspace — this
 does not happen automatically!
 -->
+Hello World
