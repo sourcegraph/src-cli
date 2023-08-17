@@ -153,7 +153,7 @@ func (wc *dockerVolumeWorkspaceCreator) unzipRepoIntoVolume(ctx context.Context,
 		opts,
 		DockerVolumeWorkspaceImage,
 		"sh", "-c",
-		fmt.Sprintf("unzip /tmp/zip; rm /work/%s", dummy),
+		fmt.Sprintf("bsdtar -xf /tmp/zip && rm /work/%s", dummy),
 	)
 
 	if out, err := exec.CommandContext(ctx, "docker", opts...).CombinedOutput(); err != nil {
