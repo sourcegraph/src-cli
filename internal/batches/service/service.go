@@ -160,13 +160,10 @@ mutation CreateChangesetSpec($spec: String!) {
 `
 
 func (svc *Service) CreateChangesetSpec(ctx context.Context, spec *batcheslib.ChangesetSpec) (graphql.ChangesetSpecID, error) {
-	fmt.Println("raw spec: ", *spec.Fork)
 	raw, err := json.Marshal(spec)
 	if err != nil {
 		return "", errors.Wrap(err, "marshalling changeset spec JSON")
 	}
-
-	fmt.Println("changeset spec: ", string(raw))
 
 	var result struct {
 		CreateChangesetSpec struct {
