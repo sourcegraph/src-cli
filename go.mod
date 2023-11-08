@@ -2,10 +2,6 @@ module github.com/sourcegraph/src-cli
 
 go 1.18
 
-// We publish 'lib' as a package for import in other tooling.
-// When developing Sourcegraph itself, this replace uses the local package instead of a pushed version.
-replace github.com/sourcegraph/sourcegraph/lib => ../sourcegraph/lib
-
 require (
 	cloud.google.com/go/storage v1.30.1
 	github.com/atotto/clipboard v0.1.4
@@ -34,7 +30,7 @@ require (
 	github.com/sourcegraph/go-diff v0.6.2-0.20221123165719-f8cd299c40f3
 	github.com/sourcegraph/jsonx v0.0.0-20200629203448-1a936bd500cf
 	github.com/sourcegraph/scip v0.3.1-0.20230627154934-45df7f6d33fc
-	github.com/sourcegraph/sourcegraph/lib v0.0.0-20231107111858-7f6651bc90ae
+	github.com/sourcegraph/sourcegraph/lib v0.0.0-20231108085505-01324538d7f0
 	github.com/stretchr/testify v1.8.4
 	golang.org/x/net v0.12.0
 	golang.org/x/sync v0.3.0
