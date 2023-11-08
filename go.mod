@@ -45,11 +45,6 @@ require (
 )
 
 require (
-	github.com/alecthomas/kingpin v2.2.6+incompatible // indirect
-	github.com/alecthomas/template v0.0.0-20190718012654-fb15b899a751 // indirect
-	github.com/alecthomas/units v0.0.0-20211218093645-b94a6e3cc137 // indirect
-	github.com/dave/jennifer v1.5.0 // indirect
-	github.com/derision-test/go-mockgen v1.3.7 // indirect
 	github.com/google/pprof v0.0.0-20230602150820-91b7bce49751 // indirect
 	github.com/google/s2a-go v0.1.4 // indirect
 	github.com/jackc/chunkreader/v2 v2.0.1 // indirect
@@ -58,7 +53,6 @@ require (
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgproto3/v2 v2.3.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20200714003250-2b9c44734f2b // indirect
-	github.com/mitchellh/go-wordwrap v1.0.1 // indirect
 	github.com/onsi/ginkgo/v2 v2.9.7 // indirect
 	github.com/onsi/gomega v1.27.8 // indirect
 	go.uber.org/goleak v1.2.1 // indirect
