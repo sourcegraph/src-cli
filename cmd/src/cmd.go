@@ -95,9 +95,7 @@ func (c commander) run(flagSet *flag.FlagSet, cmdName, usageText string, args []
 
 		// Execute the subcommand.
 		if err := cmd.handler(flagSet.Args()[1:]); err != nil {
-			fmt.Println(2222, err)
 			if _, ok := err.(*cmderrors.UsageError); ok {
-				fmt.Println(3333)
 				log.Printf("error: %s\n\n", err)
 				cmd.flagSet.Usage()
 				os.Exit(2)

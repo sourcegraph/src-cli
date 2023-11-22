@@ -165,7 +165,7 @@ func newBatchExecuteFlags(flagSet *flag.FlagSet, cacheDir, tempDir string) *batc
 	)
 	flagSet.BoolVar(
 		&caf.failFast, "fail-fast", false,
-		"If true, deletes downloaded repository archives after executing batch spec steps. Note that only the archives related to the actual repositories matched by the batch spec will be cleaned up, and clean up will not occur if src exits unexpectedly.",
+		"If true, errors encountered while executing steps in a repository will stop the execution of the batch spec.",
 	)
 
 	return caf
@@ -475,7 +475,7 @@ func executeBatchSpec(ctx executor.CancelableContext, opts executeBatchSpecOpts)
 	if len(logFiles) > 0 && opts.flags.keepLogs {
 		execUI.LogFilesKept(logFiles)
 	}
-	
+
 	// Add external changeset specs.
 	importedSpecs, importErr := svc.CreateImportChangesetSpecs(ctx, batchSpec)
 	if execErr != nil {
@@ -645,7 +645,7 @@ func contextCancelOnInterrupt(parent context.Context) (context.Context, func(err
 	go func() {
 		select {
 		case <-c:
-			ctxCancel(errors.New("Ctrl C hit"))
+			ctxCancel(errors.New("Ctrl-C hit"))
 		case <-ctx.Done():
 		}
 	}()

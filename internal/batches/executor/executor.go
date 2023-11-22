@@ -92,7 +92,7 @@ func NewExecutor(opts NewExecutorOpts) *executor {
 	}
 }
 
-var ErrFastFail = errors.New("Canceled due to fast fail")
+var ErrFastFail = errors.New("Execution stopped due to fast-fail mode.")
 
 // Start starts the execution of the given Tasks in goroutines, calling the
 // given taskStatusHandler to update the progress of the tasks.

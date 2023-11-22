@@ -363,20 +363,16 @@ func printExecutionError(out *output.Output, err error) {
 		if len(errs) > 1 {
 			block = out.Block(output.Linef(output.EmojiFailure, output.StyleWarning, "%d errors:", len(errs)))
 		} else {
-			//fmt.Println("errs", errs)
 			block = out.Block(output.Line(output.EmojiFailure, output.StyleWarning, "Error:"))
 		}
 
 		for _, e := range errs {
 			if taskErr, ok := e.(executor.TaskExecutionErr); ok {
-				//fmt.Println("HELLO")
 				block.Write(formatTaskExecutionErr(taskErr))
 			} else {
 				if err == context.Canceled {
-					//fmt.Println("HELLO 2")
 					block.Writef("%sAborting", output.StyleBold)
 				} else {
-					//fmt.Println("HELLO 3")
 					block.Writef("%s%s", output.StyleBold, e.Error())
 				}
 			}
