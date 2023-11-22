@@ -92,9 +92,11 @@ func NewExecutor(opts NewExecutorOpts) *executor {
 	}
 }
 
+var ErrFastFail = errors.New("Canceled due to fast fail")
+
 // Start starts the execution of the given Tasks in goroutines, calling the
 // given taskStatusHandler to update the progress of the tasks.
-func (x *executor) Start(ctx context.Context, tasks []*Task, ui TaskExecutionUI) {
+func (x *executor) Start(ctx CancelableContext, tasks []*Task, ui TaskExecutionUI) {
 	defer func() { close(x.doneEnqueuing) }()
 
 	for _, task := range tasks {
@@ -115,6 +117,7 @@ func (x *executor) Start(ctx context.Context, tasks []*Task, ui TaskExecutionUI)
 			default:
 				err := x.do(ctx, task, ui)
 				if err != nil {
+					ctx.Cancel(ErrFastFail)
 					x.par.Error(err)
 				}
 			}

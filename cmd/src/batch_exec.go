@@ -101,7 +101,7 @@ Examples:
 		}
 
 		ctx, cancel := contextCancelOnInterrupt(context.Background())
-		defer cancel()
+		defer cancel(errors.New("3"))
 
 		err := executeBatchSpecInWorkspaces(ctx, flags)
 		if err != nil {

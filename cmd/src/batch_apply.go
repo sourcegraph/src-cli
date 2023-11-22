@@ -4,7 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
-
+	"github.com/sourcegraph/src-cli/internal/batches/executor"
 	"github.com/sourcegraph/src-cli/internal/cmderrors"
 )
 
@@ -42,9 +42,20 @@ Examples:
 		}
 
 		ctx, cancel := contextCancelOnInterrupt(context.Background())
-		defer cancel()
 
-		if err = executeBatchSpec(ctx, executeBatchSpecOpts{
+		defer cancel(nil)
+
+		failFastCancel := func(error) {}
+		if flags.failFast {
+			failFastCancel = cancel
+		}
+
+		cctx := executor.CancelableContext{
+			Context: ctx,
+			Cancel:  failFastCancel,
+		}
+
+		if err = executeBatchSpec(cctx, executeBatchSpecOpts{
 			flags:  flags,
 			client: cfg.apiClient(flags.api, flagSet.Output()),
 			file:   file,
