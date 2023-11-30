@@ -396,24 +396,13 @@ func TestExecutor_Integration(t *testing.T) {
 			executor := NewExecutor(opts)
 
 			ctx := context.Background()
+			failFastCancel := func(error) {}
 			cctx := CancelableContext{
 				Context: ctx,
+				Cancel:  failFastCancel,
 			}
+
 			// Run executor
-			fmt.Println("HELLO FROM EXECUTOR")
-			fmt.Println("tc.tasks", tc.name)
-			fmt.Println("tc.tasks", tc.archives)
-
-			fmt.Println("tc.tasks", tc.steps)
-
-			fmt.Println("tc.tasks", tc.tasks)
-			fmt.Println("tc.tasks", tc.executorTimeout)
-
-			fmt.Println("tc.tasks", tc.wantErrInclude)
-			fmt.Println("tc.tasks", tc.wantFinishedWithErr)
-
-			fmt.Println("dummyUI", dummyUI)
-
 			executor.Start(cctx, tc.tasks, dummyUI)
 
 			results, err := executor.Wait(context.Background())
