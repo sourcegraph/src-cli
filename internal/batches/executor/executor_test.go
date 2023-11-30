@@ -819,7 +819,6 @@ func testExecuteTasks(t *testing.T, tasks []*Task, archives ...mock.RepoArchive)
 	cctx := CancelableContext{
 		Context: ctx,
 	}
-	fmt.Println("START HERE")
 	executor.Start(cctx, tasks, newDummyTaskExecutionUI())
 	return executor.Wait(context.Background())
 }
