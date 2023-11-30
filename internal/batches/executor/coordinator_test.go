@@ -269,6 +269,9 @@ func TestCoordinator_Execute(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := context.Background()
+			cctx := CancelableContext{
+				Context: ctx,
+			}
 
 			// Set attributes on Task which would be set by the TaskBuilder
 			for _, t := range tc.tasks {
@@ -294,7 +297,7 @@ func TestCoordinator_Execute(t *testing.T) {
 			// the batch spec. We'll run this multiple times to cover both the
 			// cache and non-cache code paths.
 			execute := func(t *testing.T) {
-				specs, _, err := coord.ExecuteAndBuildSpecs(ctx, tc.batchSpec, tc.tasks, newDummyTaskExecutionUI())
+				specs, _, err := coord.ExecuteAndBuildSpecs(cctx, tc.batchSpec, tc.tasks, newDummyTaskExecutionUI())
 				if tc.wantErrInclude == "" {
 					if err != nil {
 						t.Fatalf("execution failed: %s", err)
@@ -439,6 +442,10 @@ func TestCoordinator_Execute_StepCaching(t *testing.T) {
 // in a new Coordinator, setting cb as the startCallback on the executor.
 func execAndEnsure(t *testing.T, coord *Coordinator, exec *dummyExecutor, batchSpec *batcheslib.BatchSpec, task *Task, cb startCallback) {
 	t.Helper()
+	ctx := context.Background()
+	cctx := CancelableContext{
+		Context: ctx,
+	}
 
 	// Setup the callback
 	exec.startCb = cb
@@ -450,7 +457,7 @@ func execAndEnsure(t *testing.T, coord *Coordinator, exec *dummyExecutor, batchS
 	}
 
 	// Execute
-	freshSpecs, _, err := coord.ExecuteAndBuildSpecs(context.Background(), batchSpec, uncached, newDummyTaskExecutionUI())
+	freshSpecs, _, err := coord.ExecuteAndBuildSpecs(cctx, batchSpec, uncached, newDummyTaskExecutionUI())
 	if err != nil {
 		t.Fatalf("execution of task failed: %s", err)
 	}
@@ -554,7 +561,7 @@ type dummyExecutor struct {
 	waitErr error
 }
 
-func (d *dummyExecutor) Start(ctx context.Context, ts []*Task, ui TaskExecutionUI) {
+func (d *dummyExecutor) Start(ctx CancelableContext, ts []*Task, ui TaskExecutionUI) {
 	if d.startCb != nil {
 		d.startCb(ctx, ts, ui)
 		d.startCbCalled = true

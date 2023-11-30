@@ -175,7 +175,6 @@ func TestExecutor_Integration(t *testing.T) {
 				},
 				{Run: `touch output-${{ outputs.myOutput }}`},
 			},
-
 			tasks: []*Task{
 				{Repository: testRepo1},
 			},
@@ -396,8 +395,26 @@ func TestExecutor_Integration(t *testing.T) {
 			dummyUI := newDummyTaskExecutionUI()
 			executor := NewExecutor(opts)
 
+			ctx := context.Background()
+			cctx := CancelableContext{
+				Context: ctx,
+			}
 			// Run executor
-			executor.Start(context.Background(), tc.tasks, dummyUI)
+			fmt.Println("HELLO FROM EXECUTOR")
+			fmt.Println("tc.tasks", tc.name)
+			fmt.Println("tc.tasks", tc.archives)
+
+			fmt.Println("tc.tasks", tc.steps)
+
+			fmt.Println("tc.tasks", tc.tasks)
+			fmt.Println("tc.tasks", tc.executorTimeout)
+
+			fmt.Println("tc.tasks", tc.wantErrInclude)
+			fmt.Println("tc.tasks", tc.wantFinishedWithErr)
+
+			fmt.Println("dummyUI", dummyUI)
+
+			executor.Start(cctx, tc.tasks, dummyUI)
 
 			results, err := executor.Wait(context.Background())
 			if tc.wantErrInclude == "" {
@@ -809,8 +826,12 @@ func testExecuteTasks(t *testing.T, tasks []*Task, archives ...mock.RepoArchive)
 		Parallelism: runtime.GOMAXPROCS(0),
 		Timeout:     30 * time.Second,
 	})
-
-	executor.Start(context.Background(), tasks, newDummyTaskExecutionUI())
+	ctx := context.Background()
+	cctx := CancelableContext{
+		Context: ctx,
+	}
+	fmt.Println("START HERE")
+	executor.Start(cctx, tasks, newDummyTaskExecutionUI())
 	return executor.Wait(context.Background())
 }
 

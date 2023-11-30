@@ -98,8 +98,8 @@ var ErrFastFail = errors.New("Execution stopped due to fast-fail mode.")
 // given taskStatusHandler to update the progress of the tasks.
 func (x *executor) Start(ctx CancelableContext, tasks []*Task, ui TaskExecutionUI) {
 	defer func() { close(x.doneEnqueuing) }()
-
 	for _, task := range tasks {
+		fmt.Println(task.Repository)
 		select {
 		case <-ctx.Done():
 			return
