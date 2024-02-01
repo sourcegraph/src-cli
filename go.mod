@@ -32,7 +32,7 @@ require (
 	github.com/sourcegraph/scip v0.3.1-0.20230627154934-45df7f6d33fc
 	github.com/sourcegraph/sourcegraph/lib v0.0.0-20231108085505-01324538d7f0
 	github.com/stretchr/testify v1.8.4
-	golang.org/x/net v0.12.0
+	golang.org/x/net v0.17.0
 	golang.org/x/sync v0.3.0
 	google.golang.org/api v0.132.0
 	google.golang.org/protobuf v1.31.0
