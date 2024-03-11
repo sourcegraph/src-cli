@@ -175,7 +175,6 @@ func TestExecutor_Integration(t *testing.T) {
 				},
 				{Run: `touch output-${{ outputs.myOutput }}`},
 			},
-
 			tasks: []*Task{
 				{Repository: testRepo1},
 			},
@@ -396,8 +395,15 @@ func TestExecutor_Integration(t *testing.T) {
 			dummyUI := newDummyTaskExecutionUI()
 			executor := NewExecutor(opts)
 
+			ctx := context.Background()
+			failFastCancel := func(error) {}
+			cctx := CancelableContext{
+				Context: ctx,
+				Cancel:  failFastCancel,
+			}
+
 			// Run executor
-			executor.Start(context.Background(), tc.tasks, dummyUI)
+			executor.Start(cctx, tc.tasks, dummyUI)
 
 			results, err := executor.Wait(context.Background())
 			if tc.wantErrInclude == "" {
@@ -809,8 +815,11 @@ func testExecuteTasks(t *testing.T, tasks []*Task, archives ...mock.RepoArchive)
 		Parallelism: runtime.GOMAXPROCS(0),
 		Timeout:     30 * time.Second,
 	})
-
-	executor.Start(context.Background(), tasks, newDummyTaskExecutionUI())
+	ctx := context.Background()
+	cctx := CancelableContext{
+		Context: ctx,
+	}
+	executor.Start(cctx, tasks, newDummyTaskExecutionUI())
 	return executor.Wait(context.Background())
 }
 
