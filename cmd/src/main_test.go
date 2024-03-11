@@ -1,12 +1,22 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
+	"fmt"
+	"io"
+	"log"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/mock"
+
+	mockclient "github.com/sourcegraph/src-cli/internal/api/mock"
+	"github.com/sourcegraph/src-cli/internal/version"
 )
 
 func TestReadConfig(t *testing.T) {
@@ -218,4 +228,79 @@ func TestReadConfig(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestCheckRecommendedVersion(t *testing.T) {
+	tests := []struct {
+		name               string
+		buildTag           string
+		recommendedVersion string
+		expectedWarning    string
+	}{
+		{
+			name:               "Unknown version",
+			buildTag:           "4.3.0",
+			recommendedVersion: "",
+			expectedWarning:    "Recommended version: <unknown>\nThis Sourcegraph instance does not support this feature.\n",
+		},
+		{
+			name:               "Same versions",
+			buildTag:           "5.2.1",
+			recommendedVersion: "5.2.1",
+			expectedWarning:    "",
+		},
+		{
+			name:               "Outdated version",
+			buildTag:           "4.3.0",
+			recommendedVersion: "5.2.1",
+			expectedWarning:    "⚠️  You are using an outdated version 4.3.0. Please upgrade to 5.2.1 or later.\n",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			version.BuildTag = test.buildTag
+
+			client := &mockclient.Client{}
+
+			req := httptest.NewRequest(http.MethodGet, "http://fake.com/.api/src-cli/version", nil)
+			client.On("NewHTTPRequest", mock.Anything, http.MethodGet, ".api/src-cli/version", mock.Anything).
+				Return(req, nil).
+				Once()
+
+			resp := &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(bytes.NewBufferString(fmt.Sprintf(`{"version": "%s"}`, test.recommendedVersion))),
+			}
+
+			client.On("Do", mock.Anything).
+				Return(resp, nil).
+				Once()
+
+			output := redirectStdout(t)
+
+			checkForOutdatedVersion(client)
+
+			actualOutput := output.String()
+
+			client.AssertExpectations(t)
+
+			if actualOutput != test.expectedWarning {
+				t.Errorf("Expected warning message: %s, got: %s", test.expectedWarning, actualOutput)
+			}
+		})
+	}
+}
+
+// Redirect stdout for testing
+func redirectStdout(t *testing.T) *bytes.Buffer {
+	t.Helper()
+
+	var buf bytes.Buffer
+	log.SetFlags(0)
+	log.SetOutput(&buf)
+	t.Cleanup(func() {
+		log.SetOutput(os.Stdout)
+	})
+	return &buf
 }

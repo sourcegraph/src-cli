@@ -1,15 +1,19 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"log"
 	"os"
 	"strings"
 
+	"github.com/Masterminds/semver"
 	"github.com/sourcegraph/sourcegraph/lib/errors"
 
+	"github.com/sourcegraph/src-cli/internal/api"
 	"github.com/sourcegraph/src-cli/internal/cmderrors"
+	"github.com/sourcegraph/src-cli/internal/version"
 )
 
 // command is a subcommand handler and its flag set.
@@ -54,6 +58,17 @@ func (c commander) run(flagSet *flag.FlagSet, cmdName, usageText string, args []
 		_ = flagSet.Parse(args)
 	}
 
+	// Read global configuration.
+	var err error
+	cfg, err = readConfig()
+	if err != nil {
+		log.Fatal("reading config: ", err)
+	}
+
+	// Check and warn about outdated version.
+	client := cfg.apiClient(api.NewFlags(flagSet), flagSet.Output())
+	checkForOutdatedVersion(client)
+
 	// Print usage if the command is "help".
 	if flagSet.Arg(0) == "help" || flagSet.NArg() == 0 {
 		flagSet.Usage()
@@ -78,13 +93,6 @@ func (c commander) run(flagSet *flag.FlagSet, cmdName, usageText string, args []
 	for _, cmd := range c {
 		if !cmd.matches(name) {
 			continue
-		}
-
-		// Read global configuration now.
-		var err error
-		cfg, err = readConfig()
-		if err != nil {
-			log.Fatal("reading config: ", err)
 		}
 
 		// Parse subcommand flags.
@@ -124,5 +132,31 @@ func didYouMeanOtherCommand(actual string, suggested []string) *command {
 		flagSet:   flag.NewFlagSet(actual, flag.ExitOnError),
 		handler:   func(args []string) error { return errors.New(msg) },
 		usageFunc: func() { log.Println(msg) },
+	}
+}
+
+func checkForOutdatedVersion(client api.Client) {
+	if version.BuildTag != version.DefaultBuildTag {
+		recommendedVersion, err := getRecommendedVersion(context.Background(), client)
+		if err != nil {
+			log.Fatal("failed to get recommended version for Sourcegraph deployment: ", err)
+		}
+		if recommendedVersion == "" {
+			log.Println("Recommended version: <unknown>\nThis Sourcegraph instance does not support this feature.")
+		} else {
+			constraints, err := semver.NewConstraint(fmt.Sprintf("<=%s", version.BuildTag))
+			if err != nil {
+				log.Fatal("failed to check current version: ", err)
+			}
+
+			recommendedVersionInstance, err := semver.NewVersion(recommendedVersion)
+			if err != nil {
+				log.Fatal("failed to check version returned by Sourcegraph: ", err)
+			}
+
+			if !constraints.Check(recommendedVersionInstance) {
+				log.Printf("⚠️  You are using an outdated version %s. Please upgrade to %s or later.\n", version.BuildTag, recommendedVersion)
+			}
+		}
 	}
 }
