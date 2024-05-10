@@ -1,6 +1,6 @@
 module github.com/sourcegraph/src-cli
 
-go 1.18
+go 1.22
 
 require (
 	cloud.google.com/go/storage v1.30.1
