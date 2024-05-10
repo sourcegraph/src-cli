@@ -50,8 +50,9 @@ func TestTaskExecTUI_Integration(t *testing.T) {
 
 	buf := &ttyBuf{}
 
+    true_ := true
 	out := output.NewOutput(buf, output.OutputOpts{
-		ForceTTY:    true,
+		ForceTTY:    &true_,
 		ForceColor:  true,
 		ForceHeight: 25,
 		ForceWidth:  80,
@@ -209,8 +210,9 @@ func TestProgressUpdateAfterComplete(t *testing.T) {
 	now := time.Now()
 	clock := func() time.Time { return now.UTC().Truncate(time.Millisecond) }
 
+    true_ := true
 	out := output.NewOutput(buf, output.OutputOpts{
-		ForceTTY:    true,
+		ForceTTY:    &true_,
 		ForceColor:  true,
 		ForceHeight: 25,
 		ForceWidth:  80,
