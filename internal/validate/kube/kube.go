@@ -494,7 +494,7 @@ func Connections(ctx context.Context, config *Config) ([]validate.Result, error)
 				Stderr: &stderr,
 			})
 			if err != nil {
-				return nil, err
+				return nil, errors.Wrapf(err, "connecting to %s", c.src.Name)
 			}
 
 			if stderr.String() != "" {
