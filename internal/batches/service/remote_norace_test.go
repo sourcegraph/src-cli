@@ -1,12 +1,10 @@
 //go:build !race
 
-package service
+package service_test
 
 import (
 	"bytes"
 	"context"
-	"github.com/sourcegraph/sourcegraph/lib/batches"
-	"github.com/stretchr/testify/require"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -14,11 +12,15 @@ import (
 	"path/filepath"
 	"testing"
 
-	mockclient "github.com/sourcegraph/src-cli/internal/api/mock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 
+	"github.com/sourcegraph/sourcegraph/lib/batches"
 	"github.com/sourcegraph/sourcegraph/lib/errors"
+
+	mockclient "github.com/sourcegraph/src-cli/internal/api/mock"
+	"github.com/sourcegraph/src-cli/internal/batches/service"
 )
 
 func TestService_UploadBatchSpecWorkspaceFiles(t *testing.T) {
