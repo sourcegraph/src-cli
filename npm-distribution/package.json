@@ -17,7 +17,7 @@
     "sourcegraph"
   ],
   "dependencies": {
-    "tar": "^6.2.1"
+    "tar": "^7.1.0"
   },
   "devDependencies": {
     "@types/tar": "6.1.13"
