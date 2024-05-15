@@ -250,11 +250,11 @@ func handleUploadError(accessToken string, err error) error {
 	return err
 }
 
-func attachHintsForAuthorizationError(accessToken string, err error) error {
+func attachHintsForAuthorizationError(accessToken string, originalError error) error {
 	var actionableHints []string
 
 	likelyTokenError := accessToken == ""
-	if _, err = accesstoken.ParsePersonalAccessToken(accessToken); accessToken != "" && err != nil {
+	if _, parseErr := accesstoken.ParsePersonalAccessToken(accessToken); accessToken != "" && parseErr != nil {
 		likelyTokenError = true
 		actionableHints = append(actionableHints,
 			"However, the provided access token does not match expected format; was it truncated?",
@@ -262,7 +262,7 @@ func attachHintsForAuthorizationError(accessToken string, err error) error {
 	}
 
 	if likelyTokenError {
-		return errorWithHint{err: err, hint: strings.Join(mergeStringSlices(
+		return errorWithHint{err: originalError, hint: strings.Join(mergeStringSlices(
 			[]string{"A Sourcegraph access token must be provided via SRC_ACCESS_TOKEN for uploading SCIP/LSIF data."},
 			actionableHints,
 			[]string{"For more details, see https://sourcegraph.com/docs/cli/how-tos/creating_an_access_token."},
@@ -303,7 +303,7 @@ func attachHintsForAuthorizationError(accessToken string, err error) error {
 		)
 	}
 
-	return errorWithHint{err: err, hint: strings.Join(mergeStringSlices(
+	return errorWithHint{err: originalError, hint: strings.Join(mergeStringSlices(
 		[]string{"This Sourcegraph instance has enforced auth for SCIP/LSIF uploads."},
 		actionableHints,
 		[]string{"For more details, see https://docs.sourcegraph.com/cli/references/code-intel/upload."},
