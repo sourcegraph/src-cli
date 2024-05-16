@@ -19,6 +19,17 @@ All notable changes to `src-cli` are documented in this file.
 
 ### Removed
 
+## 5.4.0
+
+### Added
+
+### Changed
+
+- Improved error message when `src code-intel upload` runs into an authorization error. Sourcegraph versions after 5.4.0 require an access token to be passed via the `SRC_ACCESS_TOKEN` environment variable for SCIP uploads. [#1079](https://github.com/sourcegraph/src-cli/pull/1079)
+- Improved error message when `src validate` runs into a connection error. [#1081](https://github.com/sourcegraph/src-cli/pull/1081)
+
+### Fixed
+
 ## 5.3.0
 
 ### Added
