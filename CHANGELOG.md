@@ -17,6 +17,10 @@ All notable changes to `src-cli` are documented in this file.
 
 ### Fixed
 
+- validate kube: connections check removed.
+- validate kube: exits non-zero when there are no pods or services in the target
+  namespace.
+
 ### Removed
 
 ## 5.4.0
