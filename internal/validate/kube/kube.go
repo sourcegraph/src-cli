@@ -1,7 +1,6 @@
 package kube
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -9,17 +8,14 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
-	"regexp"
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 
-	"k8s.io/client-go/tools/remotecommand"
 	"k8s.io/client-go/util/homedir"
 
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
@@ -28,12 +24,6 @@ import (
 	"github.com/sourcegraph/src-cli/internal/validate"
 
 	"github.com/sourcegraph/sourcegraph/lib/errors"
-)
-
-var (
-	sourcegraphFrontend    = regexp.MustCompile(`^sourcegraph-frontend-.*`)
-	sourcegraphRepoUpdater = regexp.MustCompile(`^repo-updater-.*`)
-	sourcegraphWorker      = regexp.MustCompile(`^worker-.*`)
 )
 
 type Option = func(config *Config)
@@ -95,7 +85,6 @@ func Validate(ctx context.Context, clientSet *kubernetes.Clientset, restConfig *
 		{Pods, "validating pods", "pods validated", "validating pods failed"},
 		{Services, "validating services", "services validated", "validating services failed"},
 		{PVCs, "validating pvcs", "pvcs validated", "validating pvcs failed"},
-		{Connections, "validating connections", "connections validated", "validating connections failed"},
 	}
 
 	if cfg.eks {
@@ -213,9 +202,9 @@ func Pods(ctx context.Context, config *Config) ([]validate.Result, error) {
 
 	if len(pods.Items) == 0 {
 		results = append(results, validate.Result{
-			Status: validate.Warning,
+			Status: validate.Failure,
 			Message: fmt.Sprintf(
-				"No pods exist on namespace '%s'. check namespace/cluster",
+				"no pods exist in namespace '%s'. check namespace/cluster",
 				config.namespace,
 			),
 		})
@@ -305,9 +294,9 @@ func Services(ctx context.Context, config *Config) ([]validate.Result, error) {
 
 	if len(services.Items) <= 1 {
 		results = append(results, validate.Result{
-			Status: validate.Warning,
+			Status: validate.Failure,
 			Message: fmt.Sprintf(
-				"unexpected number of services on namespace '%s'; check namespace/cluster",
+				"no services in namespace '%s'; check namespace/cluster",
 				config.namespace,
 			),
 		})
@@ -382,128 +371,6 @@ func validatePVC(pvc *corev1.PersistentVolumeClaim) []validate.Result {
 	}
 
 	return results
-}
-
-type connection struct {
-	src  corev1.Pod
-	dest []dest
-}
-
-type dest struct {
-	addr string
-	port string
-}
-
-// Connections will validate that Sourcegraph services can reach each other over the network.
-func Connections(ctx context.Context, config *Config) ([]validate.Result, error) {
-	var results []validate.Result
-	var connections []connection
-
-	pods, err := config.clientSet.CoreV1().Pods(config.namespace).List(ctx, metav1.ListOptions{})
-	if err != nil {
-		return nil, err
-	}
-
-	if len(pods.Items) == 0 {
-		results = append(results, validate.Result{
-			Status: validate.Warning,
-			Message: fmt.Sprintf(
-				"cannot check connections: zero pods exist in namespace '%s'",
-				config.namespace,
-			),
-		})
-
-		return results, nil
-	}
-
-	// iterate through pods looking for specific pod name prefixes, then construct
-	// a relationship map between pods that should have connectivity with each other
-	for _, pod := range pods.Items {
-		switch name := pod.Name; {
-		case sourcegraphFrontend.MatchString(name): // pod is one of the sourcegraph front-end pods
-			connections = append(connections, connection{
-				src: pod,
-				dest: []dest{
-					{
-						addr: "pgsql",
-						port: "5432",
-					},
-					{
-						addr: "indexed-search",
-						port: "6070",
-					},
-					{
-						addr: "repo-updater",
-						port: "3182",
-					},
-					{
-						addr: "syntect-server",
-						port: "9238",
-					},
-				},
-			})
-		case sourcegraphWorker.MatchString(name): // pod is a worker pod
-			connections = append(connections, connection{
-				src: pod,
-				dest: []dest{
-					{
-						addr: "pgsql",
-						port: "5432",
-					},
-				},
-			})
-		case sourcegraphRepoUpdater.MatchString(name):
-			connections = append(connections, connection{
-				src: pod,
-				dest: []dest{
-					{
-						addr: "pgsql",
-						port: "5432",
-					},
-				},
-			})
-		}
-	}
-
-	// use network relationships constructed above to test network connection for each relationship
-	for _, c := range connections {
-		for _, d := range c.dest {
-			req := config.clientSet.CoreV1().RESTClient().Post().
-				Resource("pods").
-				Name(c.src.Name).
-				Namespace(c.src.Namespace).
-				SubResource("exec")
-
-			req.VersionedParams(&corev1.PodExecOptions{
-				Command: []string{"/usr/bin/nc", "-z", d.addr, d.port},
-				Stdin:   false,
-				Stdout:  true,
-				Stderr:  true,
-				TTY:     false,
-			}, scheme.ParameterCodec)
-
-			exec, err := remotecommand.NewSPDYExecutor(config.restConfig, "POST", req.URL())
-			if err != nil {
-				return nil, err
-			}
-
-			var stdout, stderr bytes.Buffer
-
-			err = exec.StreamWithContext(ctx, remotecommand.StreamOptions{
-				Stdout: &stdout,
-				Stderr: &stderr,
-			})
-			if err != nil {
-				return nil, errors.Wrapf(err, "connecting to %s", c.src.Name)
-			}
-
-			if stderr.String() != "" {
-				results = append(results, validate.Result{Status: validate.Failure, Message: stderr.String()})
-			}
-		}
-	}
-
-	return results, nil
 }
 
 func CurrentContextSetTo(clusterService string) error {
