@@ -253,7 +253,7 @@ func (s *Serve) Repos() ([]Repo, error) {
 func explainAddr(addr string) string {
 	return fmt.Sprintf(`Serving the repositories at http://%s.
 
-See https://docs.sourcegraph.com/admin/external_service/src_serve_git for
+See https://sourcegraph.com/docs/admin/code_hosts/src_serve_git for
 instructions to configure in Sourcegraph.
 `, addr)
 }
