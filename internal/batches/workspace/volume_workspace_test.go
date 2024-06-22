@@ -85,7 +85,7 @@ func TestVolumeWorkspaceCreator(t *testing.T) {
 					"--user", "0:0",
 					"--mount", "type=volume,source="+volumeID+",target=/work",
 					DockerVolumeWorkspaceImage,
-					"sh", "-c", "unzip /tmp/zip; rm /work/*",
+					"sh", "-c", "bsdtar -xf /tmp/zip && rm /work/*",
 				),
 				expect.NewGlob(
 					expect.Success,
@@ -122,7 +122,7 @@ func TestVolumeWorkspaceCreator(t *testing.T) {
 					"--user", "0:0",
 					"--mount", "type=volume,source="+volumeID+",target=/work",
 					DockerVolumeWorkspaceImage,
-					"sh", "-c", "unzip /tmp/zip; rm /work/*",
+					"sh", "-c", "bsdtar -xf /tmp/zip && rm /work/*",
 				),
 				expect.NewGlob(
 					expect.Success,
@@ -163,7 +163,7 @@ func TestVolumeWorkspaceCreator(t *testing.T) {
 					"--user", "1:2",
 					"--mount", "type=volume,source="+volumeID+",target=/work",
 					DockerVolumeWorkspaceImage,
-					"sh", "-c", "unzip /tmp/zip; rm /work/*",
+					"sh", "-c", "bsdtar -xf /tmp/zip && rm /work/*",
 				),
 				expect.NewGlob(
 					expect.Success,
@@ -246,7 +246,7 @@ func TestVolumeWorkspaceCreator(t *testing.T) {
 					"--user", "0:0",
 					"--mount", "type=volume,source="+volumeID+",target=/work",
 					DockerVolumeWorkspaceImage,
-					"sh", "-c", "unzip /tmp/zip; rm /work/*",
+					"sh", "-c", "bsdtar -xf /tmp/zip && rm /work/*",
 				),
 				expect.NewGlob(
 					expect.Behaviour{ExitCode: 1},
@@ -292,7 +292,7 @@ func TestVolumeWorkspaceCreator(t *testing.T) {
 					"--user", "0:0",
 					"--mount", "type=volume,source="+volumeID+",target=/work",
 					DockerVolumeWorkspaceImage,
-					"sh", "-c", "unzip /tmp/zip; rm /work/*",
+					"sh", "-c", "bsdtar -xf /tmp/zip && rm /work/*",
 				),
 				expect.NewGlob(
 					expect.Behaviour{ExitCode: 0},
@@ -330,7 +330,7 @@ func TestVolumeWorkspaceCreator(t *testing.T) {
 					"--user", "0:0",
 					"--mount", "type=volume,source="+volumeID+",target=/work",
 					DockerVolumeWorkspaceImage,
-					"sh", "-c", "unzip /tmp/zip; rm /work/*",
+					"sh", "-c", "bsdtar -xf /tmp/zip && rm /work/*",
 				),
 				expect.NewGlob(
 					expect.Success,
