@@ -56,9 +56,12 @@ get(assetURL, (response) => {
   }
   response
     .pipe(zlib.createGunzip())
-    .pipe(tar.x({ filter: (x) => x === "src" }))
-    .addListener("close", () => fs.chmodSync(executableName, "755"));
-});
+    .pipe(tar.x({ filter: (x) => x === executableName }))
+    .addListener("close", () => {
+      if (process.platform !== 'win32') {
+        fs.chmodSync(executableName, "755");
+      }
+    });});
 
 // Follow redirects.
 function get(url, callback) {
