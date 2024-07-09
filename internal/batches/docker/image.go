@@ -103,7 +103,7 @@ func (image *image) Ensure(ctx context.Context) error {
 			// docker image inspect will return a non-zero exit code if the image and
 			// tag don't exist locally, regardless of the format.
 			var digest string
-			if digest, err = inspectDigest(); errors.HasType(err, &fastCommandTimeoutError{}) {
+			if digest, err = inspectDigest(); errors.HasType[*fastCommandTimeoutError](err) {
 				// Ensure we immediately propagate a timeout up, rather than
 				// trying to tell an unresponsive Docker to pull.
 				return err
