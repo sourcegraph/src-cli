@@ -506,7 +506,8 @@ func validateMount(batchSpecDir string, spec *batcheslib.BatchSpec) error {
 	return nil
 }
 
-const exampleSpecTmpl = `name: NAME-OF-YOUR-BATCH-CHANGE
+const exampleSpecTmpl = `version: 2 # Use the latest schema version
+name: NAME-OF-YOUR-BATCH-CHANGE
 description: DESCRIPTION-OF-YOUR-BATCH-CHANGE
 
 # "on" specifies on which repositories to execute the "steps".

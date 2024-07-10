@@ -255,6 +255,25 @@ some-new-field: Foo bar
 			expectedErr: errors.New("parsing batch spec: Additional property some-new-field is not allowed"),
 		},
 		{
+			name: "supported version",
+			rawSpec: `
+version: 2
+name: test-spec
+description: A test spec
+`,
+
+			expectedSpec: &batcheslib.BatchSpec{Version: 2, Name: "test-spec", Description: "A test spec"},
+		},
+		{
+			name: "unsupported version",
+			rawSpec: `
+version: 99
+name: test-spec
+description: A test spec
+`,
+			expectedErr: errors.New("parsing batch spec: version: version must be one of the following: 1, 2"),
+		},
+		{
 			name:         "mount absolute file",
 			batchSpecDir: tempDir,
 			rawSpec: fmt.Sprintf(`
