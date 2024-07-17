@@ -345,7 +345,7 @@ func executeSingleStep(
 		if err != nil {
 			return bytes.Buffer{}, bytes.Buffer{}, err
 		}
-		args = append(args, "--mount", fmt.Sprintf("type=bind,source=%s,target=%s,ro", workspaceFilePath, mount.Mountpoint))
+		args = append(args, "--mount", fmt.Sprintf("type=bind,source=%s,target=%s", workspaceFilePath, mount.Mountpoint))
 	}
 
 	for k, v := range env {
