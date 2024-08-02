@@ -11,6 +11,8 @@ All notable changes to `src-cli` are documented in this file.
 
 ## Unreleased
 
+## 5.5.0
+
 ### Added
 
 - Batch Changes: Added support for batch spec versions. Batch specs with `version: 2` will default to keyword search to resolve workspaces if the pattern type is not specified explicitly.  (https://github.com/sourcegraph/sourcegraph/pull/63613)
