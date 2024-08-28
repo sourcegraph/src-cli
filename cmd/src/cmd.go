@@ -56,6 +56,7 @@ func (c commander) run(flagSet *flag.FlagSet, cmdName, usageText string, args []
 
 	// Print usage if the command is "help".
 	if flagSet.Arg(0) == "help" || flagSet.NArg() == 0 {
+		flagSet.SetOutput(os.Stdout)
 		flagSet.Usage()
 		os.Exit(0)
 	}
