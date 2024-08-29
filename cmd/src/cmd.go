@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"slices"
 	"strings"
 
 	"github.com/sourcegraph/sourcegraph/lib/errors"
@@ -94,10 +95,22 @@ func (c commander) run(flagSet *flag.FlagSet, cmdName, usageText string, args []
 			panic(fmt.Sprintf("all registered commands should use flag.ExitOnError: error: %s", err))
 		}
 
+		// Show usage examples for subcommand
+		if len(args) == 0 || slices.IndexFunc(args, func(s string) bool {
+			return s == "help" || s == "--help"
+		}) >= 0 {
+			cmd.flagSet.SetOutput(os.Stdout)
+			flag.CommandLine.SetOutput(os.Stdout)
+			cmd.flagSet.Usage()
+			os.Exit(0)
+		}
+
 		// Execute the subcommand.
 		if err := cmd.handler(flagSet.Args()[1:]); err != nil {
 			if _, ok := err.(*cmderrors.UsageError); ok {
 				log.Printf("error: %s\n\n", err)
+				cmd.flagSet.SetOutput(os.Stderr)
+				flag.CommandLine.SetOutput(os.Stderr)
 				cmd.flagSet.Usage()
 				os.Exit(2)
 			}
