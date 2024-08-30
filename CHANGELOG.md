@@ -970,7 +970,7 @@ Re-release of 3.29.3 for Sourcegraph 3.30.
 
 ### Added
 
-- The new `src login` subcommand helps you authenticate `src` to access your Sourcegraph instance with your user credentials. [#317](https://github.com/sourcegraph/src-cli/pull/312)
+- The new `src login` subcommand helps you authenticate `src` to access your Sourcegraph instance with your user credentials. [#317](https://github.com/sourcegraph/src-cli/pull/317)
 
 ## 3.20.0
 
