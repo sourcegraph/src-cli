@@ -13,22 +13,22 @@ type Token struct {
 	Account string
 }
 
-func (t *Token) Save(tokenValue string) error {
+func (t *Token) Save(token []byte) error {
 
-	if existing_token, err := t.Retrieve(service, username); err == nil {
+	if existing_token, err := t.Retrieve(); err == nil {
 		if bytes.Equal(token, existing_token) {
 			// the stored token and supplied token are the same
 			// nothing to do
 			return nil
 		}
 		// found a token, but it is different from the supplied token, so update the token
-		return keychain.UpdateItem(buildItem(service, username, nil), buildItem(service, username, token))
+		return keychain.UpdateItem(buildItem(t.Service, t.Account, nil), buildItem(t.Service, t.Account, token))
 	} else if err != keychain.ErrorItemNotFound {
 		// encountered an error checking for the token; bail now
 		return err
 	}
 
-	item := buildItem(service, username, token)
+	item := buildItem(t.Service, t.Account, token)
 	if err := keychain.AddItem(item); err != nil {
 		if err == keychain.ErrorDuplicateItem {
 			// silently skip duplicates
@@ -42,7 +42,7 @@ func (t *Token) Save(tokenValue string) error {
 }
 
 func (t *Token) Retrieve() ([]byte, error) {
-	query := buildItem(service, username, nil)
+	query := buildItem(t.Service, t.Account, nil)
 	query.SetMatchLimit(keychain.MatchLimitOne)
 	query.SetReturnData(true)
 	results, err := keychain.QueryItem(query)
