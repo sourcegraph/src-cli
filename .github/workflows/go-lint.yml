@@ -1,7 +1,11 @@
 name: Go Lint
 
 on:
-  - push
+  workflow_dispatch:
+  push:
+env:
+  GOPRIVATE: "github.com/sourcegraph/*"
+  PRIVATE_TOKEN: "${{ secrets.PRIVATE_SG_ACCESS_TOKEN }}"
 
 jobs:
   go-lint:
@@ -13,4 +17,6 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: 1.22.8
+      - name: Enable pulling Go modules from private sourcegraph/sourcegraph
+        run: git config --global url."https://${PRIVATE_TOKEN}@github.com/sourcegraph/".insteadOf "https://github.com/sourcegraph/"
       - run: ./dev/go-lint.sh
