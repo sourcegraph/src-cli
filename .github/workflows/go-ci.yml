@@ -21,7 +21,11 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: ${{ matrix.go-version }}
-      - name: Enable pulling Go modules from private sourcegraph/sourcegraph
+      - name: (Windows) Enable pulling Go modules from private sourcegraph/sourcegraph
+        if: runner.os == 'Windows'
+        run: git config --global url."https://$env:PRIVATE_TOKEN@github.com/sourcegraph/".insteadOf "https://github.com/sourcegraph/"
+      - name: (Default) Enable pulling Go modules from private sourcegraph/sourcegraph
+        if: runner.os != 'Windows'
         run: git config --global url."https://${PRIVATE_TOKEN}@github.com/sourcegraph/".insteadOf "https://github.com/sourcegraph/"
       - run: |
           go test -race -v ./...
