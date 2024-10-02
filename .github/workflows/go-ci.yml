@@ -2,6 +2,9 @@ name: Go CI
 
 on:
   - push
+env:
+  GOPRIVATE: "github.com/sourcegraph/*"
+  PRIVATE_TOKEN: "${{ secrets.PRIVATE_SG_ACCESS_TOKEN }}"
 
 jobs:
   go-test:
