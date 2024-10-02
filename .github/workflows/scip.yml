@@ -1,6 +1,7 @@
 name: SCIP
-'on':
-  - push
+on:
+  workflow_dispatch:
+  push:
 env:
   GOPRIVATE: "github.com/sourcegraph/*"
   PRIVATE_TOKEN: "${{ secrets.PRIVATE_SG_ACCESS_TOKEN }}"

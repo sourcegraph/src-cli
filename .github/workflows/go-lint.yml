@@ -1,7 +1,8 @@
 name: Go Lint
 
 on:
-  - push
+  workflow_dispatch:
+  push:
 env:
   GOPRIVATE: "github.com/sourcegraph/*"
   PRIVATE_TOKEN: "${{ secrets.PRIVATE_SG_ACCESS_TOKEN }}"
