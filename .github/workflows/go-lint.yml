@@ -18,5 +18,5 @@ jobs:
         with:
           go-version: 1.22.5
       - name: Enable pulling Go modules from private sourcegraph/sourcegraph
-        run: git config --global url."https://TODO:${PRIVATE_TOKEN}@github.com/sourcegraph/".insteadOf "https://github.com/sourcegraph/"
+        run: git config --global url."https://${PRIVATE_TOKEN}@github.com/sourcegraph/".insteadOf "https://github.com/sourcegraph/"
       - run: ./dev/go-lint.sh
