@@ -16,6 +16,8 @@ jobs:
           chmod +x /usr/local/bin/src
       - name: Set directory to safe for git
         run: git config --global --add safe.directory $GITHUB_WORKSPACE
+      - name: Enable pulling Go modules from private sourcegraph/sourcegraph
+        run: git config --global url."https://TODO:${PRIVATE_TOKEN}@github.com/sourcegraph/".insteadOf "https://github.com/sourcegraph/"
       - name: Generate SCIP data
         run: scip-go
 
