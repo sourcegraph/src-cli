@@ -3,6 +3,9 @@ name: GoReleaser check
 on:
   push:
   workflow_dispatch:
+env:
+  GOPRIVATE: "github.com/sourcegraph/*"
+  PRIVATE_TOKEN: "${{ secrets.PRIVATE_SG_ACCESS_TOKEN }}"
 
 jobs:
   goreleaser:

@@ -1,9 +1,13 @@
 name: Build and Release
 
 on:
+  workflow_dispatch:
   push:
     tags:
       - '*'
+env:
+  GOPRIVATE: "github.com/sourcegraph/*"
+  PRIVATE_TOKEN: "${{ secrets.PRIVATE_SG_ACCESS_TOKEN }}"
 
 # There are two cases where this GitHub action will run:
 #
