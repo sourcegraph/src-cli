@@ -43,6 +43,7 @@ The commands are:
 	orgs,org        manages organizations
 	teams,team      manages teams
 	repos,repo      manages repositories
+	sbom			manages SBOM (Software Bill of Materials) data
 	search          search for results on Sourcegraph
 	serve-git       serves your local git repositories over HTTP for Sourcegraph to pull
 	users,user      manages users
