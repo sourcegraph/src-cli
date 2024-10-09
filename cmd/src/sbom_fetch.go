@@ -112,12 +112,12 @@ Examples:
 
 		fmt.Printf("\n")
 		if failureCount == 0 && successCount == 0 {
-			out.WriteLine(output.Line(output.EmojiFailure, output.StyleWarning, "Failed to fetch SBOMs for any images"))
+			out.WriteLine(output.Line("🔴", output.StyleWarning, "Failed to fetch SBOMs for any images"))
 		}
 		if failureCount > 0 {
 			out.WriteLine(output.Line("🟠", output.StyleOrange, fmt.Sprintf("Fetched verified SBOMs for %d images, but failed to fetch SBOMs for %d images", successCount, failureCount)))
 		} else if successCount > 0 {
-			out.WriteLine(output.Line("\u2705", output.StyleSuccess, fmt.Sprintf("Fetched verified SBOMs for %d images", successCount)))
+			out.WriteLine(output.Line("🟢", output.StyleSuccess, fmt.Sprintf("Fetched verified SBOMs for %d images", successCount)))
 		}
 
 		fmt.Printf("\nFetched and validated SBOMs have been written to `%s`\n", c.outputDir)
@@ -164,11 +164,6 @@ func verifyCosign() error {
 }
 
 func (c sbomConfig) getImageList() ([]string, error) {
-	return []string{
-		"us-central1-docker.pkg.dev/sourcegraph-ci/rfc795-internal/pings",
-		"us-central1-docker.pkg.dev/sourcegraph-ci/rfc795-internal/syntax-highlighter",
-	}, nil
-
 	imageReleaseListURL := c.getImageReleaseListURL()
 
 	resp, err := http.Get(imageReleaseListURL)
