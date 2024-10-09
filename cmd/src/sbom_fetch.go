@@ -42,7 +42,9 @@ Usage:
 
 Examples:
 
-    $ src sbom fetch -v 5.8.0 -d sourcegraph-sboms
+    $ src sbom fetch -v 5.8.0                            # Fetch all SBOMs for the 5.8.0 release
+
+    $ src sbom fetch -v 5.8.123 -internal -d /tmp/sboms  # Fetch all SBOMs for the internal 5.8.123 release and store them in /tmp/sboms
 `
 
 	flagSet := flag.NewFlagSet("fetch", flag.ExitOnError)
@@ -93,14 +95,14 @@ Examples:
 			return err
 		}
 
-		fmt.Printf("Fetching SBOMs and validating signatures for all %d images in the Sourcegraph %s deployment.\n", len(images), c.version)
-		fmt.Printf("Validated SBOMs will be written to `%s`.\n\n", c.outputDir)
+		fmt.Printf("Fetching SBOMs and validating signatures for all %d images in the Sourcegraph %s deployment...\n", len(images), c.version)
 
 		var successCount, failureCount int
 		for _, image := range images {
 			_, err = c.getSBOMForImageVersion(image, c.version)
 			if err != nil {
-				out.WriteLine(output.Line(output.EmojiFailure, output.StyleWarning, fmt.Sprintf("Error fetching and validating SBOM for image %s:\n%v", image, err)))
+				out.WriteLine(output.Line(output.EmojiFailure, output.StyleWarning,
+					fmt.Sprintf("%s: error fetching and validating SBOM:\n    %v", image, err)))
 				failureCount += 1
 			} else {
 				out.WriteLine(output.Line("\u2705", output.StyleSuccess, image))
@@ -108,19 +110,18 @@ Examples:
 			}
 		}
 
-		fmt.Printf("\nSummary:\n")
+		fmt.Printf("\n")
 		if failureCount == 0 && successCount == 0 {
 			out.WriteLine(output.Line(output.EmojiFailure, output.StyleWarning, "Failed to fetch SBOMs for any images"))
 		}
-		if successCount > 0 {
-			out.WriteLine(output.Line("\u2705", output.StyleSuccess, fmt.Sprintf("Fetched SBOMs and validated signatures for %d images", successCount)))
-		}
 		if failureCount > 0 {
-			out.WriteLine(output.Line(output.EmojiFailure, output.StyleWarning, fmt.Sprintf("Failed to fetch SBOMs for %d images", failureCount)))
+			out.WriteLine(output.Line("🟠", output.StyleOrange, fmt.Sprintf("Fetched verified SBOMs for %d images, but failed to fetch SBOMs for %d images", successCount, failureCount)))
+		} else if successCount > 0 {
+			out.WriteLine(output.Line("\u2705", output.StyleSuccess, fmt.Sprintf("Fetched verified SBOMs for %d images", successCount)))
 		}
 
-		fmt.Printf("Fetched and validated SBOMs have been stored in %s\n", c.outputDir)
-		fmt.Printf("Your Sourcegraph deployment may not use all of these image. Please check your deployment to confirm which images are used.\n")
+		fmt.Printf("\nFetched and validated SBOMs have been written to `%s`\n", c.outputDir)
+		fmt.Printf("\nYour Sourcegraph deployment may not use all of these image. Please check your deployment to confirm which images are used.\n\n")
 
 		if failureCount > 0 || successCount == 0 {
 			return cmderrors.ExitCode1
