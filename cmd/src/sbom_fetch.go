@@ -95,7 +95,7 @@ Examples:
 			return err
 		}
 
-		fmt.Printf("Fetching SBOMs and validating signatures for all %d images in the Sourcegraph %s release...\n", len(images), c.version)
+		fmt.Printf("Fetching SBOMs and validating signatures for all %d images in the Sourcegraph %s release...\n\n", len(images), c.version)
 
 		var successCount, failureCount int
 		for _, image := range images {
