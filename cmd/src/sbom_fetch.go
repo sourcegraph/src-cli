@@ -1,15 +1,36 @@
 package main
 
 import (
+	"bufio"
+	"encoding/base64"
+	"encoding/json"
 	"flag"
 	"fmt"
+	"net/http"
+	"os"
 	"os/exec"
+	"path"
+	"path/filepath"
+	"strings"
+	"unicode"
 
 	"github.com/sourcegraph/sourcegraph/lib/errors"
 	"github.com/sourcegraph/sourcegraph/lib/output"
 
 	"github.com/sourcegraph/src-cli/internal/cmderrors"
 )
+
+type sbomConfig struct {
+	publicKey       string
+	outputDir       string
+	version         string
+	internalRelease bool
+}
+
+// TODO: Figure out versioning
+const publicKey = "https://storage.googleapis.com/sourcegraph-release-sboms/keys/cosign_keyring-cosign-1.pub"
+const imageListBaseURL = "https://storage.googleapis.com/sourcegraph-release-sboms"
+const imageListFilename = "release-image-list.txt"
 
 func init() {
 	usage := `
@@ -21,14 +42,20 @@ Usage:
 
 Examples:
 
-    $ src sbom fetch 5.8.0
+    $ src sbom fetch -v 5.8.0 -d sourcegraph-sboms
 `
 
 	flagSet := flag.NewFlagSet("fetch", flag.ExitOnError)
 	versionFlag := flagSet.String("v", "", "The version of Sourcegraph to fetch SBOMs for.")
+	outputDirFlag := flagSet.String("d", "sourcegraph-sboms", "The directory to store validated SBOMs in.")
+	internalReleaseFlag := flagSet.Bool("internal", false, "Fetch SBOMs for an internal release. Defaults to false.")
 
 	handler := func(args []string) error {
 		// ctx := context.Background()
+
+		c := sbomConfig{
+			publicKey: publicKey,
+		}
 
 		if err := flagSet.Parse(args); err != nil {
 			return err
@@ -41,24 +68,63 @@ Examples:
 		if versionFlag == nil || *versionFlag == "" {
 			return cmderrors.Usage("version is required")
 		}
+		c.version = *versionFlag
+
+		if outputDirFlag == nil || *outputDirFlag == "" {
+			return cmderrors.Usage("output directory is required")
+		}
+		c.outputDir = getOutputDir(*outputDirFlag, *versionFlag)
+
+		if internalReleaseFlag == nil || !*internalReleaseFlag {
+			c.internalRelease = false
+		} else {
+			c.internalRelease = true
+		}
 
 		out := output.NewOutput(flagSet.Output(), output.OutputOpts{Verbose: *verbose})
 		// ui := &ui.TUI{Out: out}
-
-		fmt.Printf("Version is %s\n", *versionFlag)
-
-		out.WriteLine(output.Line("\u2705", output.StyleSuccess, "Doing some sbom stuff!."))
 
 		if err := verifyCosign(); err != nil {
 			return cmderrors.ExitCode(1, err)
 		}
 
-		images, err := getImageList()
+		images, err := c.getImageList()
 		if err != nil {
 			return err
 		}
 
-		fmt.Printf("Verifying SBOM for images: %v\n", images)
+		fmt.Printf("Fetching SBOMs and validating signatures for all %d images in the Sourcegraph %s deployment.\n", len(images), c.version)
+		fmt.Printf("Validated SBOMs will be written to `%s`.\n\n", c.outputDir)
+
+		var successCount, failureCount int
+		for _, image := range images {
+			_, err = c.getSBOMForImageVersion(image, c.version)
+			if err != nil {
+				out.WriteLine(output.Line(output.EmojiFailure, output.StyleWarning, fmt.Sprintf("Error fetching and validating SBOM for image %s:\n%v", image, err)))
+				failureCount += 1
+			} else {
+				out.WriteLine(output.Line("\u2705", output.StyleSuccess, image))
+				successCount += 1
+			}
+		}
+
+		fmt.Printf("\nSummary:\n")
+		if failureCount == 0 && successCount == 0 {
+			out.WriteLine(output.Line(output.EmojiFailure, output.StyleWarning, "Failed to fetch SBOMs for any images"))
+		}
+		if successCount > 0 {
+			out.WriteLine(output.Line("\u2705", output.StyleSuccess, fmt.Sprintf("Fetched SBOMs and validated signatures for %d images", successCount)))
+		}
+		if failureCount > 0 {
+			out.WriteLine(output.Line(output.EmojiFailure, output.StyleWarning, fmt.Sprintf("Failed to fetch SBOMs for %d images", failureCount)))
+		}
+
+		fmt.Printf("Fetched and validated SBOMs have been stored in %s\n", c.outputDir)
+		fmt.Printf("Your Sourcegraph deployment may not use all of these image. Please check your deployment to confirm which images are used.\n")
+
+		if failureCount > 0 || successCount == 0 {
+			return cmderrors.ExitCode1
+		}
 
 		return nil
 	}
@@ -74,6 +140,20 @@ Examples:
 	})
 }
 
+func (c sbomConfig) getSBOMForImageVersion(image string, version string) (string, error) {
+	hash, err := getImageDigest(image, version)
+	if err != nil {
+		return "", err
+	}
+
+	sbom, err := c.getSBOMForImageHash(image, hash)
+	if err != nil {
+		return "", err
+	}
+
+	return sbom, nil
+}
+
 func verifyCosign() error {
 	_, err := exec.LookPath("cosign")
 	if err != nil {
@@ -82,6 +162,135 @@ func verifyCosign() error {
 	return nil
 }
 
-func getImageList() ([]string, error) {
-	return []string{"gitserver", "frontend", "worker"}, nil
+func (c sbomConfig) getImageList() ([]string, error) {
+	return []string{
+		"us-central1-docker.pkg.dev/sourcegraph-ci/rfc795-internal/pings",
+		"us-central1-docker.pkg.dev/sourcegraph-ci/rfc795-internal/syntax-highlighter",
+	}, nil
+
+	imageReleaseListURL := c.getImageReleaseListURL()
+
+	resp, err := http.Get(imageReleaseListURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch image list: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("failed to fetch list of images - check that %s is a valid Sourcegraph release: HTTP status %d", c.version, resp.StatusCode)
+	}
+
+	scanner := bufio.NewScanner(resp.Body)
+	var images []string
+	for scanner.Scan() {
+		image := strings.TrimSpace(scanner.Text())
+		if image != "" {
+			// Strip off a version suffix if present
+			parts := strings.SplitN(image, ":", 2)
+			images = append(images, parts[0])
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("error reading image list: %w", err)
+	}
+
+	return images, nil
+}
+
+func (c sbomConfig) getSBOMForImageHash(image string, hash string) (string, error) {
+	tempDir, err := os.MkdirTemp("", "sbom-")
+	if err != nil {
+		return "", fmt.Errorf("failed to create temporary directory: %w", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	outputFile := filepath.Join(tempDir, "attestation.json")
+
+	cmd := exec.Command("cosign", "verify-attestation",
+		"--key", publicKey,
+		"--type", "cyclonedx",
+		"--insecure-ignore-tlog",
+		fmt.Sprintf("%s@%s", image, hash),
+		"--output-file", outputFile)
+
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("SBOM fetching or validation failed: %w\nOutput: %s", err, output)
+	}
+
+	attestation, err := os.ReadFile(outputFile)
+	if err != nil {
+		return "", fmt.Errorf("failed to read SBOM file: %w", err)
+	}
+
+	sbom, err := extractSBOM(attestation)
+	if err != nil {
+		return "", fmt.Errorf("failed to extract SBOM from attestation: %w", err)
+	}
+
+	c.storeSBOM(sbom, image)
+
+	return sbom, nil
+}
+
+type attestation struct {
+	PayloadType   string `json:"payloadType"`
+	Base64Payload string `json:"payload"`
+}
+
+func extractSBOM(attestationBytes []byte) (string, error) {
+	var a attestation
+	if err := json.Unmarshal(attestationBytes, &a); err != nil {
+		return "", fmt.Errorf("failed to unmarshal attestation: %w", err)
+	}
+
+	if a.PayloadType != "application/vnd.in-toto+json" {
+		return "", fmt.Errorf("unexpected payload type: %s", a.PayloadType)
+	}
+
+	decodedPayload, err := base64.StdEncoding.DecodeString(a.Base64Payload)
+	if err != nil {
+		return "", fmt.Errorf("failed to decode payload: %w", err)
+	}
+
+	return string(decodedPayload), nil
+}
+
+func (c sbomConfig) storeSBOM(sbom string, image string) error {
+	// Make the image name safe for use as a filename
+	safeImageName := strings.Map(func(r rune) rune {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) || r == '-' || r == '_' {
+			return r
+		}
+		return '_'
+	}, image)
+
+	// Create the output file path
+	outputFile := filepath.Join(c.outputDir, safeImageName+".json")
+
+	// Ensure the output directory exists
+	if err := os.MkdirAll(c.outputDir, 0755); err != nil {
+		return fmt.Errorf("failed to create output directory: %w", err)
+	}
+
+	// Write the SBOM to the file
+	if err := os.WriteFile(outputFile, []byte(sbom), 0644); err != nil {
+		return fmt.Errorf("failed to write SBOM file: %w", err)
+	}
+
+	return nil
+}
+
+func getOutputDir(parentDir, version string) string {
+	return path.Join(parentDir, "sourcegraph-"+version)
+}
+
+// getImageReleaseListURL returns the URL for the list of images in a release, based on the version and whether it's an internal release.
+func (c *sbomConfig) getImageReleaseListURL() string {
+	if c.internalRelease {
+		return fmt.Sprintf("%s/release-internal/%s/%s", imageListBaseURL, c.version, imageListFilename)
+	} else {
+		return fmt.Sprintf("%s/release/%s/%s", imageListBaseURL, c.version, imageListFilename)
+	}
 }
