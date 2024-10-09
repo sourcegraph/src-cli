@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os/exec"
 	"strings"
+	"time"
 )
 
 // Manifest represents a simplified structure of the Docker manifest response
@@ -190,4 +191,20 @@ func getGcloudAccessToken() (string, error) {
 	// Trim any extra whitespace or newlines
 	token := strings.TrimSpace(string(out))
 	return token, nil
+}
+
+var spinnerChars = []rune{'⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'}
+
+func spinner(name string, stop chan bool) {
+	i := 0
+	for {
+		select {
+		case <-stop:
+			return
+		default:
+			fmt.Printf("\r%s  %s", string(spinnerChars[i%len(spinnerChars)]), name)
+			i++
+			time.Sleep(100 * time.Millisecond)
+		}
+	}
 }

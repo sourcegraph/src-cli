@@ -95,17 +95,23 @@ Examples:
 			return err
 		}
 
-		fmt.Printf("Fetching SBOMs and validating signatures for all %d images in the Sourcegraph %s deployment...\n", len(images), c.version)
+		fmt.Printf("Fetching SBOMs and validating signatures for all %d images in the Sourcegraph %s release...\n", len(images), c.version)
 
 		var successCount, failureCount int
 		for _, image := range images {
+			stopSpinner := make(chan bool)
+			go spinner(image, stopSpinner)
+
 			_, err = c.getSBOMForImageVersion(image, c.version)
+
+			stopSpinner <- true
+
 			if err != nil {
 				out.WriteLine(output.Line(output.EmojiFailure, output.StyleWarning,
-					fmt.Sprintf("%s: error fetching and validating SBOM:\n    %v", image, err)))
+					fmt.Sprintf("\r%s: error fetching and validating SBOM:\n    %v", image, err)))
 				failureCount += 1
 			} else {
-				out.WriteLine(output.Line("\u2705", output.StyleSuccess, image))
+				out.WriteLine(output.Line("\r\u2705", output.StyleSuccess, image))
 				successCount += 1
 			}
 		}
