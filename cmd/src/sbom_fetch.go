@@ -28,7 +28,6 @@ type sbomConfig struct {
 	insecureIgnoreTransparencyLog bool
 }
 
-// TODO: Figure out versioning
 const publicKey = "https://storage.googleapis.com/sourcegraph-release-sboms/keys/cosign_keyring-cosign-1.pub"
 const imageListBaseURL = "https://storage.googleapis.com/sourcegraph-release-sboms"
 const imageListFilename = "release-image-list.txt"
