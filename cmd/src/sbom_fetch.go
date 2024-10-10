@@ -21,10 +21,11 @@ import (
 )
 
 type sbomConfig struct {
-	publicKey       string
-	outputDir       string
-	version         string
-	internalRelease bool
+	publicKey                     string
+	outputDir                     string
+	version                       string
+	internalRelease               bool
+	insecureIgnoreTransparencyLog bool
 }
 
 // TODO: Figure out versioning
@@ -51,6 +52,7 @@ Examples:
 	versionFlag := flagSet.String("v", "", "The version of Sourcegraph to fetch SBOMs for.")
 	outputDirFlag := flagSet.String("d", "sourcegraph-sboms", "The directory to store validated SBOMs in.")
 	internalReleaseFlag := flagSet.Bool("internal", false, "Fetch SBOMs for an internal release. Defaults to false.")
+	insecureIgnoreTransparencyLogFlag := flagSet.Bool("insecure-ignore-tlog", false, "Disable transparency log verification. Defaults to false.")
 
 	handler := func(args []string) error {
 		// ctx := context.Background()
@@ -83,6 +85,10 @@ Examples:
 			c.internalRelease = true
 		}
 
+		if insecureIgnoreTransparencyLogFlag != nil && *insecureIgnoreTransparencyLogFlag {
+			c.insecureIgnoreTransparencyLog = true
+		}
+
 		out := output.NewOutput(flagSet.Output(), output.OutputOpts{Verbose: *verbose})
 		// ui := &ui.TUI{Out: out}
 
@@ -96,6 +102,10 @@ Examples:
 		}
 
 		fmt.Printf("Fetching SBOMs and validating signatures for all %d images in the Sourcegraph %s release...\n\n", len(images), c.version)
+
+		if c.insecureIgnoreTransparencyLog {
+			out.WriteLine(output.Line("⚠️", output.StyleWarning, "WARNING: Transparency log verification is disabled, increasing the risk that SBOMs may have been tampered with.\nThis setting should only be used for testing or under explicit instruction from Sourcegraph.\n"))
+		}
 
 		var successCount, failureCount int
 		for _, image := range images {
@@ -209,12 +219,19 @@ func (c sbomConfig) getSBOMForImageHash(image string, hash string) (string, erro
 
 	outputFile := filepath.Join(tempDir, "attestation.json")
 
-	cmd := exec.Command("cosign", "verify-attestation",
+	cosignArgs := []string{
+		"verify-attestation",
 		"--key", publicKey,
 		"--type", "cyclonedx",
-		"--insecure-ignore-tlog",
 		fmt.Sprintf("%s@%s", image, hash),
-		"--output-file", outputFile)
+		"--output-file", outputFile,
+	}
+
+	if c.insecureIgnoreTransparencyLog {
+		cosignArgs = append(cosignArgs, "--insecure-ignore-tlog")
+	}
+
+	cmd := exec.Command("cosign", cosignArgs...)
 
 	output, err := cmd.CombinedOutput()
 	if err != nil {
