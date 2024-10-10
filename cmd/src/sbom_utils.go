@@ -29,7 +29,6 @@ func getImageDigest(image string, tag string) (string, error) {
 		return getImageDigestDockerHub(image, tag)
 	} else if strings.HasPrefix(image, "us-central1-docker.pkg.dev/") {
 		return getImageDigestGcloud(image, tag)
-		return "", fmt.Errorf("GCP Artifact Registry not yet supported: %s", image)
 	} else {
 		return "", fmt.Errorf("unsupported image registry: %s", image)
 	}
