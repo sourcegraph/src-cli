@@ -89,7 +89,6 @@ Examples:
 		}
 
 		out := output.NewOutput(flagSet.Output(), output.OutputOpts{Verbose: *verbose})
-		// ui := &ui.TUI{Out: out}
 
 		if err := verifyCosign(); err != nil {
 			return cmderrors.ExitCode(1, err)
