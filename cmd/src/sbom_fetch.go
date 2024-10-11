@@ -100,7 +100,8 @@ Examples:
 		out.Writef("Fetching SBOMs and validating signatures for all %d images in the Sourcegraph %s release...\n", len(images), c.version)
 
 		if c.insecureIgnoreTransparencyLog {
-			out.WriteLine(output.Line("⚠️", output.StyleWarning, "WARNING: Transparency log verification is disabled, increasing the risk that SBOMs may have been tampered with.\nThis setting should only be used for testing or under explicit instruction from Sourcegraph.\n"))
+			out.WriteLine(output.Line("⚠️", output.StyleWarning, "WARNING: Transparency log verification is disabled, increasing the risk that SBOMs may have been tampered with."))
+			out.WriteLine(output.Line("️", output.StyleWarning, "         This setting should only be used for testing or under explicit instruction from Sourcegraph.\n"))
 		}
 
 		var successCount, failureCount int
