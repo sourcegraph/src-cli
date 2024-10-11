@@ -10,13 +10,6 @@ import (
 	"time"
 )
 
-// Manifest represents a simplified structure of the Docker manifest response
-type dockerHubManifest struct {
-	Config struct {
-		Digest string `json:"digest"`
-	} `json:"config"`
-}
-
 // TokenResponse represents the JSON response from dockerHub's token service
 type dockerHubTokenResponse struct {
 	Token string `json:"token"`
@@ -68,21 +61,13 @@ func getImageDigestDockerHub(image string, tag string) (string, error) {
 		return "", fmt.Errorf("failed to get manifest - check %s is a valid Sourcegraph release, status code: %d", tag, resp.StatusCode)
 	}
 
-	// Read the response body
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", fmt.Errorf("failed to read manifest body: %v", err)
+	// Get the image digest from the `Docker-Content-Digest` header
+	digest := resp.Header.Get("Docker-Content-Digest")
+	if digest == "" {
+		return "", fmt.Errorf("digest not found in response headers")
 	}
-
-	// Parse the manifest JSON to extract the digest
-	var manifest dockerHubManifest
-	err = json.Unmarshal(body, &manifest)
-	if err != nil {
-		return "", fmt.Errorf("failed to parse manifest: %v", err)
-	}
-
 	// Return the image's digest (hash)
-	return manifest.Config.Digest, nil
+	return digest, nil
 }
 
 // getDockerHubAuthToken returns an auth token with scope to pull the given image
