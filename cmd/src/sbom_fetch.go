@@ -133,7 +133,7 @@ Examples:
 		}
 
 		out.Writef("\nFetched and validated SBOMs have been written to `%s`.\n", c.outputDir)
-		out.WriteLine(output.Linef("", output.StyleBold, "Your Sourcegraph deployment may not use all of these image. Please check your deployment to confirm which images are used.\n"))
+		out.WriteLine(output.Linef("", output.StyleBold, "Your Sourcegraph deployment may not use all of these images. Please check your deployment to confirm which images are used.\n"))
 
 		if failureCount > 0 || successCount == 0 {
 			return cmderrors.ExitCode1
