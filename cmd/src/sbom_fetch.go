@@ -177,9 +177,6 @@ func verifyCosign() error {
 }
 
 func (c sbomConfig) getImageList() ([]string, error) {
-
-	return []string{"sourcegraph/gitserver"}, nil
-
 	imageReleaseListURL := c.getImageReleaseListURL()
 
 	resp, err := http.Get(imageReleaseListURL)
