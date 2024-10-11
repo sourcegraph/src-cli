@@ -54,8 +54,6 @@ Examples:
 	insecureIgnoreTransparencyLogFlag := flagSet.Bool("insecure-ignore-tlog", false, "Disable transparency log verification. Defaults to false.")
 
 	handler := func(args []string) error {
-		// ctx := context.Background()
-
 		c := sbomConfig{
 			publicKey: publicKey,
 		}
@@ -99,7 +97,7 @@ Examples:
 			return err
 		}
 
-		fmt.Printf("Fetching SBOMs and validating signatures for all %d images in the Sourcegraph %s release...\n\n", len(images), c.version)
+		out.Writef("Fetching SBOMs and validating signatures for all %d images in the Sourcegraph %s release...\n", len(images), c.version)
 
 		if c.insecureIgnoreTransparencyLog {
 			out.WriteLine(output.Line("⚠️", output.StyleWarning, "WARNING: Transparency log verification is disabled, increasing the risk that SBOMs may have been tampered with.\nThis setting should only be used for testing or under explicit instruction from Sourcegraph.\n"))
@@ -124,7 +122,7 @@ Examples:
 			}
 		}
 
-		fmt.Printf("\n")
+		out.Write("")
 		if failureCount == 0 && successCount == 0 {
 			out.WriteLine(output.Line("🔴", output.StyleWarning, "Failed to fetch SBOMs for any images"))
 		}
@@ -134,8 +132,8 @@ Examples:
 			out.WriteLine(output.Line("🟢", output.StyleSuccess, fmt.Sprintf("Fetched verified SBOMs for %d images", successCount)))
 		}
 
-		fmt.Printf("\nFetched and validated SBOMs have been written to `%s`\n", c.outputDir)
-		fmt.Printf("\nYour Sourcegraph deployment may not use all of these image. Please check your deployment to confirm which images are used.\n\n")
+		out.Writef("\nFetched and validated SBOMs have been written to `%s`.\n", c.outputDir)
+		out.WriteLine(output.Linef("", output.StyleBold, "Your Sourcegraph deployment may not use all of these image. Please check your deployment to confirm which images are used.\n"))
 
 		if failureCount > 0 || successCount == 0 {
 			return cmderrors.ExitCode1
@@ -178,6 +176,9 @@ func verifyCosign() error {
 }
 
 func (c sbomConfig) getImageList() ([]string, error) {
+
+	return []string{"sourcegraph/gitserver"}, nil
+
 	imageReleaseListURL := c.getImageReleaseListURL()
 
 	resp, err := http.Get(imageReleaseListURL)
