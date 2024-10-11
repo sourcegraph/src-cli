@@ -49,8 +49,7 @@ func getImageDigestDockerHub(image string, tag string) (string, error) {
 	req.Header.Add("Accept", "Accept: application/vnd.docker.distribution.manifest.v2+json, application/vnd.oci.image.manifest.v1+json")
 
 	// Make the HTTP request
-	client := &http.Client{}
-	resp, err := client.Do(req)
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("failed to fetch image manifest: %v", err)
 	}
@@ -141,8 +140,7 @@ func getImageDigestGcloud(image string, tag string) (string, error) {
 	req.Header.Add("Accept", "application/vnd.docker.distribution.manifest.v2+json, application/vnd.oci.image.manifest.v1+json")
 
 	// Perform the HTTP request
-	client := &http.Client{}
-	resp, err := client.Do(req)
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("failed to fetch manifest: %v", err)
 	}
