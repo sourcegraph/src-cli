@@ -13,8 +13,13 @@ import (
 )
 
 type taskExecutor interface {
-	Start(context.Context, []*Task, TaskExecutionUI)
+	Start(CancelableContext, []*Task, TaskExecutionUI)
 	Wait(context.Context) ([]taskResult, error)
+}
+
+type CancelableContext struct {
+	context.Context
+	Cancel context.CancelCauseFunc
 }
 
 // Coordinator coordinates the execution of Tasks. It makes use of an executor,
@@ -177,7 +182,7 @@ func (c *Coordinator) buildSpecs(ctx context.Context, batchSpec *batcheslib.Batc
 
 // ExecuteAndBuildSpecs executes the given tasks and builds changeset specs for the results.
 // It calls the ui on updates.
-func (c *Coordinator) ExecuteAndBuildSpecs(ctx context.Context, batchSpec *batcheslib.BatchSpec, tasks []*Task, ui TaskExecutionUI) ([]*batcheslib.ChangesetSpec, []string, error) {
+func (c *Coordinator) ExecuteAndBuildSpecs(ctx CancelableContext, batchSpec *batcheslib.BatchSpec, tasks []*Task, ui TaskExecutionUI) ([]*batcheslib.ChangesetSpec, []string, error) {
 	ui.Start(tasks)
 
 	// Run executor.
