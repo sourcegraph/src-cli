@@ -187,7 +187,6 @@ func (c sbomConfig) getImageList() ([]string, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-
 		// Compare version number against a regex that matches versions up to and including 5.8.0
 		versionRegex := regexp.MustCompile(`^v?[0-5]\.([0-7]\.[0-9]+|8\.0)$`)
 		if versionRegex.MatchString(c.version) {
