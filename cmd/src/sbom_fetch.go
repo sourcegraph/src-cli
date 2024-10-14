@@ -14,6 +14,7 @@ import (
 	"strings"
 	"unicode"
 
+	"github.com/grafana/regexp"
 	"github.com/sourcegraph/sourcegraph/lib/errors"
 	"github.com/sourcegraph/sourcegraph/lib/output"
 
@@ -186,6 +187,11 @@ func (c sbomConfig) getImageList() ([]string, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
+		// Compare version number against a regex that matches versions up to and including 5.8.0
+		versionRegex := regexp.MustCompile(`^v?[0-5]\.([0-7]\.[0-9]+|8\.0)$`)
+		if versionRegex.MatchString(c.version) {
+			return nil, fmt.Errorf("unsupported version %s: SBOMs are only available for Sourcegraph releases after 5.8.0", c.version)
+		}
 		return nil, fmt.Errorf("failed to fetch list of images - check that %s is a valid Sourcegraph release: HTTP status %d", c.version, resp.StatusCode)
 	}
 

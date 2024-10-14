@@ -13,6 +13,10 @@ All notable changes to `src-cli` are documented in this file.
 
 ## 5.8.0
 
+### Added
+
+- SBOM support: Software Bill of Materials (SBOMs) can now be fetched for Sourcegraph releases after 5.8.0 using `src sbom fetch -v <release>`. [#1115](https://github.com/sourcegraph/src-cli/pull/1115)
+
 ### Changed
 
 - Update Go to 1.22.8
