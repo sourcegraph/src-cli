@@ -96,7 +96,7 @@ func (c commander) run(flagSet *flag.FlagSet, cmdName, usageText string, args []
 		}
 
 		// Show usage examples for subcommand
-		if len(args) == 0 || slices.IndexFunc(args, func(s string) bool {
+		if slices.IndexFunc(args, func(s string) bool {
 			return s == "help" || s == "--help"
 		}) >= 0 {
 			cmd.flagSet.SetOutput(os.Stdout)
