@@ -89,20 +89,21 @@ func (c commander) run(flagSet *flag.FlagSet, cmdName, usageText string, args []
 			log.Fatal("reading config: ", err)
 		}
 
-		// Parse subcommand flags.
-		args := flagSet.Args()[1:]
-		if err := cmd.flagSet.Parse(args); err != nil {
-			panic(fmt.Sprintf("all registered commands should use flag.ExitOnError: error: %s", err))
-		}
-
-		// Show usage examples for subcommand
+		// Print help to stdout if requested
 		if slices.IndexFunc(args, func(s string) bool {
-			return s == "help" || s == "--help"
+			return s == "--help"
 		}) >= 0 {
 			cmd.flagSet.SetOutput(os.Stdout)
 			flag.CommandLine.SetOutput(os.Stdout)
 			cmd.flagSet.Usage()
 			os.Exit(0)
+		}
+
+		// Parse subcommand flags.
+		args := flagSet.Args()[1:]
+		if err := cmd.flagSet.Parse(args); err != nil {
+			fmt.Printf("Error parsing subcommand flags: %s\n", err)
+			panic(fmt.Sprintf("all registered commands should use flag.ExitOnError: error: %s", err))
 		}
 
 		// Execute the subcommand.
