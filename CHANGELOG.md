@@ -11,6 +11,12 @@ All notable changes to `src-cli` are documented in this file.
 
 ## Unreleased
 
+## 5.8.1
+
+### Fixed
+
+- Fixed an issue preventing some commands from executing correctly when no arguments are passed [#1117](https://github.com/sourcegraph/src-cli/pull/1117)
+
 ## 5.8.0
 
 ### Added
