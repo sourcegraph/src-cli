@@ -46,7 +46,7 @@ func getImageDigestDockerHub(image string, tag string) (string, error) {
 		return "", err
 	}
 	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", token))
-	req.Header.Add("Accept", "Accept: application/vnd.docker.distribution.manifest.v2+json, application/vnd.oci.image.manifest.v1+json")
+	req.Header.Add("Accept", "application/vnd.docker.distribution.manifest.v2+json, application/vnd.oci.image.manifest.v1+json")
 
 	// Make the HTTP request
 	resp, err := http.DefaultClient.Do(req)
