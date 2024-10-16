@@ -71,8 +71,20 @@ We adhere to the [general Sourcegraph principles for testing](https://docs.sourc
     3. The [releases section of the repo sidebar](https://github.com/sourcegraph/src-cli) shows the correct version.
 5.  Make the necessary updates to the main Sourcegraph repo:
     1. Update the `MinimumVersion` constant in the [src-cli package](https://github.com/sourcegraph/sourcegraph/tree/main/internal/src-cli/consts.go).
-    2. Update the reference documentation by running `go generate ./doc/cli/references`.
-    3. Commit the changes, and open a PR.
+    2. Update the `SRC_CLI_VERSION` in [tool_deps.bzl](https://sourcegraph.sourcegraph.com/github.com/sourcegraph/sourcegraph@f88ee515885e1761f002f8adcc73560bcb2573ee/-/blob/dev/tool_deps.bzl?L6) 
+    3. Update the sha256 hashes for the three `src-cli-*` targets in [tool_deps.bzl](https://sourcegraph.sourcegraph.com/github.com/sourcegraph/sourcegraph@f88ee515885e1761f002f8adcc73560bcb2573ee/-/blob/dev/tool_deps.bzl?L113-133). The easiest way to do this is to run the following command after updating `SRC_CLI_VERSION`, and extract the correct checksums for each target from the error message:
+        ```shell
+        $ bazel build @src-cli-linux-amd64//:src-cli-linux-amd64 \
+             @src-cli-darwin-amd64//:src-cli-darwin-amd64 \
+             @src-cli-darwin-arm64//:src-cli-darwin-arm64
+        
+        ERROR: java.io.IOException: Error downloading [...]_linux-amd64.tar.gz [...] Checksum was <new linux-amd64 checksum>
+
+        [...]
+        ```
+        After updating the checksums, rerun the command to verify that the values are correct.
+    4. Run `sg generate bazel` (this may not result in any changes)
+    4. Commit the changes, and open a PR.
  6. Once the version bump PR is merged and the commit is live on dotcom, check that the [curl commands in the README](README.md#installation) also fetch the new latest version.
 
 ### Patch releases
