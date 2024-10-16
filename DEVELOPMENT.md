@@ -74,12 +74,15 @@ We adhere to the [general Sourcegraph principles for testing](https://docs.sourc
     2. Update the `SRC_CLI_VERSION` in [tool_deps.bzl](https://sourcegraph.sourcegraph.com/github.com/sourcegraph/sourcegraph@f88ee515885e1761f002f8adcc73560bcb2573ee/-/blob/dev/tool_deps.bzl?L6) 
     3. Update the sha256 hashes for the [three `src-cli-*` targets](https://sourcegraph.sourcegraph.com/github.com/sourcegraph/sourcegraph@f88ee515885e1761f002f8adcc73560bcb2573ee/-/blob/dev/tool_deps.bzl?L113-133) in this file. The easiest way to do this is to run the following command after updating `SRC_CLI_VERSION`, and extract the correct checksums for each target from the error message:
         ```shell
-        $ bazel build @src-cli-linux-amd64//:src-cli-linux-amd64 @src-cli-darwin-amd64//:src-cli-darwin-amd64 @src-cli-darwin-arm64//:src-cli-darwin-arm64
+        $ bazel build @src-cli-linux-amd64//:src-cli-linux-amd64 \
+             @src-cli-darwin-amd64//:src-cli-darwin-amd64 \
+             @src-cli-darwin-arm64//:src-cli-darwin-arm64
         
         ERROR: java.io.IOException: Error downloading [...]_linux-amd64.tar.gz [...] Checksum was <new linux-amd64 checksum>
 
         [...]
         ```
+        After updating the checksums, rerun the command to verify that the values are correct.
     4. Commit the changes, and open a PR.
  6. Once the version bump PR is merged and the commit is live on dotcom, check that the [curl commands in the README](README.md#installation) also fetch the new latest version.
 
