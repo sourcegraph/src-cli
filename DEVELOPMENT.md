@@ -83,6 +83,7 @@ We adhere to the [general Sourcegraph principles for testing](https://docs.sourc
         [...]
         ```
         After updating the checksums, rerun the command to verify that the values are correct.
+    4. Run `sg generate bazel`
     4. Commit the changes, and open a PR.
  6. Once the version bump PR is merged and the commit is live on dotcom, check that the [curl commands in the README](README.md#installation) also fetch the new latest version.
 
