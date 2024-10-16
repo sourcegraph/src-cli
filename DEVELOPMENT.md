@@ -72,7 +72,7 @@ We adhere to the [general Sourcegraph principles for testing](https://docs.sourc
 5.  Make the necessary updates to the main Sourcegraph repo:
     1. Update the `MinimumVersion` constant in the [src-cli package](https://github.com/sourcegraph/sourcegraph/tree/main/internal/src-cli/consts.go).
     2. Update the `SRC_CLI_VERSION` in [tool_deps.bzl](https://sourcegraph.sourcegraph.com/github.com/sourcegraph/sourcegraph@f88ee515885e1761f002f8adcc73560bcb2573ee/-/blob/dev/tool_deps.bzl?L6) 
-    3. Update the sha256 hashes for the [three `src-cli-*` targets](https://sourcegraph.sourcegraph.com/github.com/sourcegraph/sourcegraph@f88ee515885e1761f002f8adcc73560bcb2573ee/-/blob/dev/tool_deps.bzl?L113-133) in this file. The easiest way to do this is to run the following command after updating `SRC_CLI_VERSION`, and extract the correct checksums for each target from the error message:
+    3. Update the sha256 hashes for the three `src-cli-*` targets in [tool_deps.bzl](https://sourcegraph.sourcegraph.com/github.com/sourcegraph/sourcegraph@f88ee515885e1761f002f8adcc73560bcb2573ee/-/blob/dev/tool_deps.bzl?L113-133). The easiest way to do this is to run the following command after updating `SRC_CLI_VERSION`, and extract the correct checksums for each target from the error message:
         ```shell
         $ bazel build @src-cli-linux-amd64//:src-cli-linux-amd64 \
              @src-cli-darwin-amd64//:src-cli-darwin-amd64 \
