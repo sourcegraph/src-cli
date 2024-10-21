@@ -101,29 +101,20 @@ func (c *config) apiClient(flags *api.Flags, out io.Writer) api.Client {
 	})
 }
 
-var testHomeDir string // used by tests to mock the user's $HOME
-
 // readConfig reads the config file from the given path.
 func readConfig() (*config, error) {
-	cfgPath := *configPath
+	cfgFile := *configPath
 	userSpecified := *configPath != ""
 
-	var homeDir string
-	if testHomeDir != "" {
-		homeDir = testHomeDir
-	} else {
-		u, err := user.Current()
-		if err != nil {
-			return nil, err
-		}
-		homeDir = u.HomeDir
+	if !userSpecified {
+		cfgFile = "~/src-config.json"
 	}
 
-	if !userSpecified {
-		cfgPath = filepath.Join(homeDir, "src-config.json")
-	} else if strings.HasPrefix(cfgPath, "~/") {
-		cfgPath = filepath.Join(homeDir, cfgPath[2:])
+	cfgPath, err := expandHomeDir(cfgFile)
+	if err != nil {
+		return nil, err
 	}
+
 	data, err := os.ReadFile(os.ExpandEnv(cfgPath))
 	if err != nil && (!os.IsNotExist(err) || userSpecified) {
 		return nil, err
@@ -167,6 +158,20 @@ func readConfig() (*config, error) {
 	}
 	if envProxyURL != "" {
 		cfg.ProxyURL = envProxyURL
+	}
+
+	if cfg.ProxySocket != "" {
+		cfg.ProxySocket, err = expandHomeDir(cfg.ProxySocket)
+		if err != nil {
+			return nil, err
+		}
+		isValidUDS, err := isValidUnixSocket(cfg.ProxySocket)
+		if err != nil {
+			return nil, err
+		}
+		if !isValidUDS {
+			return nil, errors.Newf("invalid proxy socket: %s", cfg.ProxySocket)
+		}
 	}
 
 	cfg.AdditionalHeaders = parseAdditionalHeaders()
@@ -214,4 +219,28 @@ func isValidUnixSocket(path string) (bool, error) {
 	defer conn.Close()
 
 	return true, nil
+}
+
+var testHomeDir string // used by tests to mock the user's $HOME
+
+func expandHomeDir(filePath string) (string, error) {
+	if strings.HasPrefix(filePath, "~/") || strings.HasPrefix(filePath, "%USERPROFILE%\\") {
+		var homeDir string
+		if testHomeDir != "" {
+			homeDir = testHomeDir
+		} else {
+			u, err := user.Current()
+			if err != nil {
+				return "", err
+			}
+			homeDir = u.HomeDir
+		}
+
+		if strings.HasPrefix(filePath, "~/") {
+			return filepath.Join(homeDir, filePath[2:]), nil
+		}
+		return filepath.Join(homeDir, filePath[14:]), nil
+	}
+
+	return filePath, nil
 }
