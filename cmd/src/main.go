@@ -7,7 +7,6 @@ import (
 	"log"
 	"net"
 	"os"
-	"os/user"
 	"path/filepath"
 	"strings"
 
@@ -229,11 +228,11 @@ func expandHomeDir(filePath string) (string, error) {
 		if testHomeDir != "" {
 			homeDir = testHomeDir
 		} else {
-			u, err := user.Current()
+			hd, err := os.UserHomeDir()
 			if err != nil {
 				return "", err
 			}
-			homeDir = u.HomeDir
+			homeDir = hd
 		}
 
 		if strings.HasPrefix(filePath, "~/") {
