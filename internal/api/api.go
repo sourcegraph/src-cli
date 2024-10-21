@@ -81,6 +81,9 @@ type ClientOpts struct {
 	// Out is the writer that will be used when outputting diagnostics, such as
 	// curl commands when -get-curl is enabled.
 	Out io.Writer
+
+	ProxyURL    string // URL of the proxy server
+	ProxySocket string // Path to the Unix socket for proxy
 }
 
 // NewClient creates a new API client.

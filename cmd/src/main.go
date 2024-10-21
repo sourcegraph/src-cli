@@ -5,6 +5,7 @@ import (
 	"flag"
 	"io"
 	"log"
+	"net"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -83,6 +84,8 @@ type config struct {
 	Endpoint          string            `json:"endpoint"`
 	AccessToken       string            `json:"accessToken"`
 	AdditionalHeaders map[string]string `json:"additionalHeaders"`
+	ProxySocket       string            `json:"proxySocket"`
+	ProxyURL          string            `json:"proxyURL"`
 
 	ConfigFilePath string
 }
@@ -135,6 +138,8 @@ func readConfig() (*config, error) {
 
 	envToken := os.Getenv("SRC_ACCESS_TOKEN")
 	envEndpoint := os.Getenv("SRC_ENDPOINT")
+	envProxySocket := os.Getenv("SRC_PROXY_SOCKET")
+	envProxyURL := os.Getenv("SRC_PROXY_URL")
 
 	if userSpecified {
 		// If a config file is present, either zero or both environment variables must be present.
@@ -157,6 +162,12 @@ func readConfig() (*config, error) {
 	if cfg.Endpoint == "" {
 		cfg.Endpoint = "https://sourcegraph.com"
 	}
+	if envProxySocket != "" {
+		cfg.ProxySocket = envProxySocket
+	}
+	if envProxyURL != "" {
+		cfg.ProxyURL = envProxyURL
+	}
 
 	cfg.AdditionalHeaders = parseAdditionalHeaders()
 	// Ensure that we're not clashing additonal headers
@@ -177,4 +188,30 @@ func readConfig() (*config, error) {
 
 func cleanEndpoint(urlStr string) string {
 	return strings.TrimSuffix(urlStr, "/")
+}
+
+// isValidUnixSocket checks if the given path is a valid Unix socket.
+//
+// Parameters:
+//   - path: A string representing the file path to check.
+//
+// Returns:
+//   - bool: true if the path is a valid Unix socket, false otherwise.
+//   - error: nil if the check was successful, or an error if an unexpected issue occurred.
+//
+// The function attempts to establish a connection to the Unix socket at the given path.
+// If the connection succeeds, it's considered a valid Unix socket.
+// If the file doesn't exist, it returns false without an error.
+// For any other errors, it returns false and the encountered error.
+func isValidUnixSocket(path string) (bool, error) {
+	conn, err := net.Dial("unix", path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return false, nil
+		}
+		return false, err
+	}
+	defer conn.Close()
+
+	return true, nil
 }
