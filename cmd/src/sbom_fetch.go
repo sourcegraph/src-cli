@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/base64"
 	"encoding/json"
 	"flag"
@@ -262,8 +263,14 @@ type attestation struct {
 }
 
 func extractSBOM(attestationBytes []byte) (string, error) {
+	// Ensure we only use the first line - occasionally Cosign includes multiple lines
+	lines := bytes.Split(attestationBytes, []byte("\n"))
+	if len(lines) == 0 {
+		return "", fmt.Errorf("attestation is empty")
+	}
+
 	var a attestation
-	if err := json.Unmarshal(attestationBytes, &a); err != nil {
+	if err := json.Unmarshal(lines[0], &a); err != nil {
 		return "", fmt.Errorf("failed to unmarshal attestation: %w", err)
 	}
 
