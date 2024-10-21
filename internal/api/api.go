@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"runtime"
@@ -98,10 +99,25 @@ func NewClient(opts ClientOpts) Client {
 	}
 
 	httpClient := http.DefaultClient
+
+	transport := &http.Transport{}
+
 	if flags.insecureSkipVerify != nil && *flags.insecureSkipVerify {
-		httpClient = &http.Client{
-			Transport: &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}},
+		transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+	}
+
+	// Add support for UNIX Domain Socket
+	if opts.ProxySocket != "" {
+		dial := func(_ context.Context, _, _ string) (net.Conn, error) {
+			return net.Dial("unix", opts.ProxySocket)
 		}
+		transport.DialContext = dial
+		transport.DialTLSContext = dial
+		transport.DisableKeepAlives = true
+	}
+
+	if transport.TLSClientConfig != nil || transport.DialContext != nil {
+		httpClient.Transport = transport
 	}
 
 	return &client{
@@ -115,7 +131,6 @@ func NewClient(opts ClientOpts) Client {
 		httpClient: httpClient,
 	}
 }
-
 func (c *client) NewQuery(query string) Request {
 	return c.NewRequest(query, nil)
 }
