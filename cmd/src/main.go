@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"net"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -23,11 +24,22 @@ Usage:
 	src [options] command [command options]
 
 Environment variables
-	SRC_ACCESS_TOKEN  Sourcegraph access token
-	SRC_ENDPOINT      endpoint to use, if unset will default to "https://sourcegraph.com"
-	SRC_PROXY_SOCKET  path to a unix domain socket to use for proxying requests to the
-                      Sourcegraph instance. Can be either a full path, or contain the prefix
-                      ~/ or %USERPROFILE%\ to indicate a path in the user's home directory.
+	SRC_ACCESS_TOKEN    Sourcegraph access token
+	SRC_ENDPOINT        endpoint to use, if unset will default to "https://sourcegraph.com"
+	SRC_PROXY_ENDPOINT  A proxy to use for proxying requests to the Sourcegraph endpoint.
+	                    Supports HTTP(S), SOCKS5/5h, and UNIX Domain Socket proxies.
+						If a UNIX Domain Socket, the path can be either an absolute path, 
+						or can start with ~/ or %USERPROFILE%\ for a path in the user's home directory.
+					   Examples:
+					     - https://localhost:3080
+					     - https://<user>:<password>localhost:8080
+						 - socks5h://localhost:1080
+						 - socks5://<username>:<password>@localhost:1080
+						 - unix://~/src-proxy.sock
+						 - unix://%USERPROFILE%\src-proxy.sock
+						 - ~/src-proxy.sock
+						 - %USERPROFILE%\src-proxy.sock
+						 - C:\some\path\src-proxy.sock
 
 The options are:
 
@@ -86,9 +98,10 @@ type config struct {
 	Endpoint          string            `json:"endpoint"`
 	AccessToken       string            `json:"accessToken"`
 	AdditionalHeaders map[string]string `json:"additionalHeaders"`
-	ProxySocket       string            `json:"proxySocket"`
-
-	ConfigFilePath string
+	ProxyEndpoint     string            `json:"proxyEndpoint"`
+	ProxyEndpointURL  *url.URL
+	ProxyEndpointPath string
+	ConfigFilePath    string
 }
 
 // apiClient returns an api.Client built from the configuration.
@@ -99,6 +112,8 @@ func (c *config) apiClient(flags *api.Flags, out io.Writer) api.Client {
 		AdditionalHeaders: c.AdditionalHeaders,
 		Flags:             flags,
 		Out:               out,
+		ProxyEndpointURL:  c.ProxyEndpointURL,
+		ProxyEndpointPath: c.ProxyEndpointPath,
 	})
 }
 
@@ -130,7 +145,7 @@ func readConfig() (*config, error) {
 
 	envToken := os.Getenv("SRC_ACCESS_TOKEN")
 	envEndpoint := os.Getenv("SRC_ENDPOINT")
-	envProxySocket := os.Getenv("SRC_PROXY_SOCKET")
+	envProxyEndpoint := os.Getenv("SRC_PROXY_ENDPOINT")
 
 	if userSpecified {
 		// If a config file is present, either zero or both environment variables must be present.
@@ -153,21 +168,63 @@ func readConfig() (*config, error) {
 	if cfg.Endpoint == "" {
 		cfg.Endpoint = "https://sourcegraph.com"
 	}
-	if envProxySocket != "" {
-		cfg.ProxySocket = envProxySocket
+	if envProxyEndpoint != "" {
+		cfg.ProxyEndpoint = envProxyEndpoint
 	}
 
-	if cfg.ProxySocket != "" {
-		cfg.ProxySocket, err = expandHomeDir(cfg.ProxySocket)
-		if err != nil {
-			return nil, err
+	if cfg.ProxyEndpoint != "" {
+
+		parseEndpoint := func(endpoint string) (scheme string, address string) {
+			parts := strings.SplitN(endpoint, "://", 2)
+			if len(parts) == 2 {
+				return parts[0], parts[1]
+			}
+			return "", endpoint
 		}
-		isValidUDS, err := isValidUnixSocket(cfg.ProxySocket)
-		if err != nil {
-			return nil, err
+
+		schemeInfo := func(scheme string) (isValid bool, isFile bool) {
+			urlSchemes := []string{"http", "https", "socks", "socks5", "socks5h"}
+			for _, s := range urlSchemes {
+				if scheme == s {
+					return true, false
+				}
+			}
+			if scheme == "unix" {
+				return true, true
+			}
+			return false, false
 		}
-		if !isValidUDS {
-			return nil, errors.Newf("invalid proxy socket: %s", cfg.ProxySocket)
+
+		scheme, address := parseEndpoint(cfg.ProxyEndpoint)
+
+		isValidScheme, isFileScheme := schemeInfo(scheme)
+
+		if !isValidScheme {
+			return nil, errors.Newf("invalid proxy endpoint: %s", cfg.ProxyEndpoint)
+		}
+
+		if !isFileScheme {
+			// assume socks means socks5, because that's all we support
+			if scheme == "socks" {
+				cfg.ProxyEndpoint = "socks5://" + address
+			}
+			cfg.ProxyEndpointURL, err = url.Parse(cfg.ProxyEndpoint)
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			path, err := expandHomeDir(address)
+			if err != nil {
+				return nil, err
+			}
+			isValidUDS, err := isValidUnixSocket(path)
+			if err != nil {
+				return nil, err
+			}
+			if !isValidUDS {
+				return nil, errors.Newf("invalid proxy socket: %s", path)
+			}
+			cfg.ProxyEndpointPath = path
 		}
 	}
 
