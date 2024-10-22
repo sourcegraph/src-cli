@@ -25,6 +25,9 @@ Usage:
 Environment variables
 	SRC_ACCESS_TOKEN  Sourcegraph access token
 	SRC_ENDPOINT      endpoint to use, if unset will default to "https://sourcegraph.com"
+	SRC_PROXY_SOCKET  path to a unix domain socket to use for proxying requests to the
+                      Sourcegraph instance. Can be either a full path, or contain the prefix
+                      ~/ or %USERPROFILE%\ to indicate a path in the user's home directory.
 
 The options are:
 
@@ -84,7 +87,6 @@ type config struct {
 	AccessToken       string            `json:"accessToken"`
 	AdditionalHeaders map[string]string `json:"additionalHeaders"`
 	ProxySocket       string            `json:"proxySocket"`
-	ProxyURL          string            `json:"proxyURL"`
 
 	ConfigFilePath string
 }
@@ -129,7 +131,6 @@ func readConfig() (*config, error) {
 	envToken := os.Getenv("SRC_ACCESS_TOKEN")
 	envEndpoint := os.Getenv("SRC_ENDPOINT")
 	envProxySocket := os.Getenv("SRC_PROXY_SOCKET")
-	envProxyURL := os.Getenv("SRC_PROXY_URL")
 
 	if userSpecified {
 		// If a config file is present, either zero or both environment variables must be present.
@@ -154,9 +155,6 @@ func readConfig() (*config, error) {
 	}
 	if envProxySocket != "" {
 		cfg.ProxySocket = envProxySocket
-	}
-	if envProxyURL != "" {
-		cfg.ProxyURL = envProxyURL
 	}
 
 	if cfg.ProxySocket != "" {

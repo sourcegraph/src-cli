@@ -83,7 +83,6 @@ type ClientOpts struct {
 	// curl commands when -get-curl is enabled.
 	Out io.Writer
 
-	ProxyURL    string // URL of the proxy server
 	ProxySocket string // Path to the Unix socket for proxy
 }
 
