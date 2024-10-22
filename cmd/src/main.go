@@ -220,6 +220,18 @@ func isValidUnixSocket(path string) (bool, error) {
 
 var testHomeDir string // used by tests to mock the user's $HOME
 
+// expandHomeDir expands to the user's home directory a tilde (~) or %USERPROFILE% at the beginning of a file path.
+//
+// Parameters:
+//   - filePath: A string representing the file path that may start with "~/" or "%USERPROFILE%\".
+//
+// Returns:
+//   - string: The expanded file path with the home directory resolved.
+//   - error: An error if the user's home directory cannot be determined.
+//
+// The function handles both Unix-style paths starting with "~/" and Windows-style paths starting with "%USERPROFILE%\".
+// It uses the testHomeDir variable for testing purposes if set, otherwise it uses os.UserHomeDir() to get the user's home directory.
+// If the input path doesn't start with either prefix, it returns the original path unchanged.
 func expandHomeDir(filePath string) (string, error) {
 	if strings.HasPrefix(filePath, "~/") || strings.HasPrefix(filePath, "%USERPROFILE%\\") {
 		var homeDir string
