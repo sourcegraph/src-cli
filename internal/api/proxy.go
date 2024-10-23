@@ -16,7 +16,7 @@ func applyProxy(transport *http.Transport, proxyEndpointURL *url.URL, proxyEndpo
 		return false
 	}
 
-	handshakeTLS := func(conn net.Conn, addr string) (net.Conn, error) {
+	handshakeTLS := func(ctx context.Context, conn net.Conn, addr string) (net.Conn, error) {
 		// Extract the hostname (without the port) for TLS SNI
 		host, _, err := net.SplitHostPort(addr)
 		if err != nil {
@@ -28,7 +28,7 @@ func applyProxy(transport *http.Transport, proxyEndpointURL *url.URL, proxyEndpo
 			ServerName:         host,
 			InsecureSkipVerify: transport.TLSClientConfig.InsecureSkipVerify,
 		})
-		if err := tlsConn.Handshake(); err != nil {
+		if err := tlsConn.HandshakeContext(ctx); err != nil {
 			return nil, err
 		}
 		return tlsConn, nil
@@ -37,7 +37,7 @@ func applyProxy(transport *http.Transport, proxyEndpointURL *url.URL, proxyEndpo
 	proxyApplied := false
 
 	if proxyEndpointPath != "" {
-		dial := func(_ context.Context, _, _ string) (net.Conn, error) {
+		dial := func(ctx context.Context, _, _ string) (net.Conn, error) {
 			return net.Dial("unix", proxyEndpointPath)
 		}
 		dialTLS := func(ctx context.Context, network, addr string) (net.Conn, error) {
@@ -45,7 +45,7 @@ func applyProxy(transport *http.Transport, proxyEndpointURL *url.URL, proxyEndpo
 			if err != nil {
 				return nil, err
 			}
-			return handshakeTLS(conn, addr)
+			return handshakeTLS(ctx, conn, addr)
 		}
 		transport.DialContext = dial
 		transport.DialTLSContext = dialTLS
@@ -105,7 +105,7 @@ func applyProxy(transport *http.Transport, proxyEndpointURL *url.URL, proxyEndpo
 				if err != nil {
 					return nil, err
 				}
-				return handshakeTLS(conn, addr)
+				return handshakeTLS(ctx, conn, addr)
 			}
 			transport.DialContext = dial
 			transport.DialTLSContext = dialTLS
