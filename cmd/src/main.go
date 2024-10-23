@@ -148,8 +148,9 @@ func readConfig() (*config, error) {
 	envProxyEndpoint := os.Getenv("SRC_PROXY_ENDPOINT")
 
 	if userSpecified {
-		// If a config file is present, either zero or both environment variables must be present.
+		// If a config file is present, either zero or both required environment variables must be present.
 		// We don't want to partially apply environment variables.
+		// Note that SRC_PROXY_ENDPOINT is optional so we don't test for it.
 		if envToken == "" && envEndpoint != "" {
 			return nil, errConfigMerge
 		}

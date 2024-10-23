@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"net/url"
 	"os"
 	"path/filepath"
 	"testing"
@@ -11,15 +12,16 @@ import (
 
 func TestReadConfig(t *testing.T) {
 	tests := []struct {
-		name         string
-		fileContents *config
-		envToken     string
-		envFooHeader string
-		envHeaders   string
-		envEndpoint  string
-		flagEndpoint string
-		want         *config
-		wantErr      string
+		name             string
+		fileContents     *config
+		envToken         string
+		envFooHeader     string
+		envHeaders       string
+		envEndpoint      string
+		envProxyEndpoint string
+		flagEndpoint     string
+		want             *config
+		wantErr          string
 	}{
 		{
 			name: "defaults",
@@ -31,13 +33,20 @@ func TestReadConfig(t *testing.T) {
 		{
 			name: "config file, no overrides, trim slash",
 			fileContents: &config{
-				Endpoint:    "https://example.com/",
-				AccessToken: "deadbeef",
+				Endpoint:      "https://example.com/",
+				AccessToken:   "deadbeef",
+				ProxyEndpoint: "https://proxy.com:8080",
 			},
 			want: &config{
 				Endpoint:          "https://example.com",
 				AccessToken:       "deadbeef",
 				AdditionalHeaders: map[string]string{},
+				ProxyEndpoint:     "https://proxy.com:8080",
+				ProxyEndpointPath: "",
+				ProxyEndpointURL: &url.URL{
+					Scheme: "https",
+					Host:   "proxy.com:8080",
+				},
 			},
 		},
 		{
@@ -61,16 +70,44 @@ func TestReadConfig(t *testing.T) {
 			wantErr:     errConfigMerge.Error(),
 		},
 		{
-			name: "config file, both override",
+			name: "config file, proxy override only (allow)",
 			fileContents: &config{
-				Endpoint:    "https://example.com/",
-				AccessToken: "deadbeef",
+				Endpoint:      "https://example.com/",
+				AccessToken:   "deadbeef",
+				ProxyEndpoint: "https://proxy.com:8080",
 			},
-			envToken:    "abc",
-			envEndpoint: "https://override.com",
+			envProxyEndpoint: "socks5://other.proxy.com:9999",
+			want: &config{
+				Endpoint:          "https://example.com",
+				AccessToken:       "deadbeef",
+				ProxyEndpoint:     "socks5://other.proxy.com:9999",
+				ProxyEndpointPath: "",
+				ProxyEndpointURL: &url.URL{
+					Scheme: "socks5",
+					Host:   "other.proxy.com:9999",
+				},
+				AdditionalHeaders: map[string]string{},
+			},
+		},
+		{
+			name: "config file, all override",
+			fileContents: &config{
+				Endpoint:      "https://example.com/",
+				AccessToken:   "deadbeef",
+				ProxyEndpoint: "https://proxy.com:8080",
+			},
+			envToken:         "abc",
+			envEndpoint:      "https://override.com",
+			envProxyEndpoint: "socks5://other.proxy.com:9999",
 			want: &config{
 				Endpoint:          "https://override.com",
 				AccessToken:       "abc",
+				ProxyEndpoint:     "socks5://other.proxy.com:9999",
+				ProxyEndpointPath: "",
+				ProxyEndpointURL: &url.URL{
+					Scheme: "socks5",
+					Host:   "other.proxy.com:9999",
+				},
 				AdditionalHeaders: map[string]string{},
 			},
 		},
@@ -93,12 +130,34 @@ func TestReadConfig(t *testing.T) {
 			},
 		},
 		{
-			name:        "no config file, both variables",
-			envEndpoint: "https://example.com",
-			envToken:    "abc",
+			name:             "no config file, proxy from environment",
+			envProxyEndpoint: "https://proxy.com:8080",
+			want: &config{
+				Endpoint:          "https://sourcegraph.com",
+				AccessToken:       "",
+				ProxyEndpoint:     "https://proxy.com:8080",
+				ProxyEndpointPath: "",
+				ProxyEndpointURL: &url.URL{
+					Scheme: "https",
+					Host:   "proxy.com:8080",
+				},
+				AdditionalHeaders: map[string]string{},
+			},
+		},
+		{
+			name:             "no config file, all variables",
+			envEndpoint:      "https://example.com",
+			envToken:         "abc",
+			envProxyEndpoint: "https://proxy.com:8080",
 			want: &config{
 				Endpoint:          "https://example.com",
 				AccessToken:       "abc",
+				ProxyEndpoint:     "https://proxy.com:8080",
+				ProxyEndpointPath: "",
+				ProxyEndpointURL: &url.URL{
+					Scheme: "https",
+					Host:   "proxy.com:8080",
+				},
 				AdditionalHeaders: map[string]string{},
 			},
 		},
@@ -171,6 +230,7 @@ func TestReadConfig(t *testing.T) {
 			}
 			setEnv("SRC_ACCESS_TOKEN", test.envToken)
 			setEnv("SRC_ENDPOINT", test.envEndpoint)
+			setEnv("SRC_PROXY_ENDPOINT", test.envProxyEndpoint)
 
 			tmpDir := t.TempDir()
 			testHomeDir = tmpDir
