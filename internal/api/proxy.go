@@ -9,8 +9,6 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-
-	"golang.org/x/net/proxy"
 )
 
 func applyProxy(transport *http.Transport, proxyEndpointURL *url.URL, proxyEndpointPath string) (applied bool) {
@@ -36,47 +34,29 @@ func applyProxy(transport *http.Transport, proxyEndpointURL *url.URL, proxyEndpo
 		return tlsConn, nil
 	}
 
-	var dial func(ctx context.Context, network, addr string) (net.Conn, error)
-	var dialTLS func(ctx context.Context, network, addr string) (net.Conn, error)
+	proxyApplied := false
 
 	if proxyEndpointPath != "" {
-		dial = func(_ context.Context, _, _ string) (net.Conn, error) {
+		dial := func(_ context.Context, _, _ string) (net.Conn, error) {
 			return net.Dial("unix", proxyEndpointPath)
 		}
-		dialTLS = func(ctx context.Context, network, addr string) (net.Conn, error) {
+		dialTLS := func(ctx context.Context, network, addr string) (net.Conn, error) {
 			conn, err := dial(ctx, network, addr)
 			if err != nil {
 				return nil, err
 			}
 			return handshakeTLS(conn, addr)
 		}
+		transport.DialContext = dial
+		transport.DialTLSContext = dialTLS
+		proxyApplied = true
 	} else if proxyEndpointURL != nil {
 		if proxyEndpointURL.Scheme == "socks5" ||
 			proxyEndpointURL.Scheme == "socks5h" {
-			dial = func(_ context.Context, network, addr string) (net.Conn, error) {
-				// figure out the proxy every dial because we have error handling here.
-				// In NewClient, we don't have error handling; all we can do there is panic.
-
-				// FromURL really only handles SOCKS5 (unless other schemes have ben registered),
-				// but since it also handles credentials,
-				// we'll use it instead of manually handling any credentials embedded in the URL,
-				// and calling SOCKS5 ourself.
-				dialer, err := proxy.FromURL(proxyEndpointURL, proxy.Direct)
-				if err != nil {
-					return nil, err
-				}
-				return dialer.Dial(network, addr)
-			}
-			dialTLS = func(ctx context.Context, network, addr string) (net.Conn, error) {
-				// Dial the underlying connection through the proxy
-				conn, err := dial(ctx, network, addr)
-				if err != nil {
-					return nil, err
-				}
-				return handshakeTLS(conn, addr)
-			}
+			// SOCKS proxies work out of the box - no need to manually dial
+			proxyApplied = true
 		} else if proxyEndpointURL.Scheme == "http" || proxyEndpointURL.Scheme == "https" {
-			dial = func(ctx context.Context, network, addr string) (net.Conn, error) {
+			dial := func(ctx context.Context, network, addr string) (net.Conn, error) {
 				// separate the host from the port for the Host header
 				host, _, err := net.SplitHostPort(addr)
 				if err != nil {
@@ -119,7 +99,7 @@ func applyProxy(transport *http.Transport, proxyEndpointURL *url.URL, proxyEndpo
 				resp.Body.Close()
 				return conn, nil
 			}
-			dialTLS = func(ctx context.Context, network, addr string) (net.Conn, error) {
+			dialTLS := func(ctx context.Context, network, addr string) (net.Conn, error) {
 				// Dial the underlying connection through the proxy
 				conn, err := dial(ctx, network, addr)
 				if err != nil {
@@ -127,13 +107,11 @@ func applyProxy(transport *http.Transport, proxyEndpointURL *url.URL, proxyEndpo
 				}
 				return handshakeTLS(conn, addr)
 			}
+			transport.DialContext = dial
+			transport.DialTLSContext = dialTLS
+			proxyApplied = true
 		}
 	}
 
-	if dial != nil && dialTLS != nil {
-		transport.DialContext = dial
-		transport.DialTLSContext = dialTLS
-	}
-
-	return dial != nil && dialTLS != nil
+	return proxyApplied
 }
