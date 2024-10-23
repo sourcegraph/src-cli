@@ -175,13 +175,52 @@ func TestReadConfig(t *testing.T) {
 			},
 		},
 		{
-			name:             "UNIX Domain Socket proxy using unix scheme and absolute unix path",
+			name:             "UNIX Domain Socket proxy using scheme and absolute path",
 			envProxyEndpoint: "unix://" + socketPath,
 			want: &config{
 				Endpoint:          "https://sourcegraph.com",
 				ProxyEndpoint:     "unix://" + socketPath,
 				ProxyEndpointPath: socketPath,
 				ProxyEndpointURL:  nil,
+				AdditionalHeaders: map[string]string{},
+			},
+		},
+		{
+			name:             "UNIX Domain Socket proxy with absolute path",
+			envProxyEndpoint: socketPath,
+			want: &config{
+				Endpoint:          "https://sourcegraph.com",
+				ProxyEndpoint:     socketPath,
+				ProxyEndpointPath: socketPath,
+				ProxyEndpointURL:  nil,
+				AdditionalHeaders: map[string]string{},
+			},
+		},
+		{
+			name:             "socks --> socks5",
+			envProxyEndpoint: "socks://localhost:1080",
+			want: &config{
+				Endpoint:          "https://sourcegraph.com",
+				ProxyEndpoint:     "socks://localhost:1080",
+				ProxyEndpointPath: "",
+				ProxyEndpointURL: &url.URL{
+					Scheme: "socks5",
+					Host:   "localhost:1080",
+				},
+				AdditionalHeaders: map[string]string{},
+			},
+		},
+		{
+			name:             "socks5h",
+			envProxyEndpoint: "socks5h://localhost:1080",
+			want: &config{
+				Endpoint:          "https://sourcegraph.com",
+				ProxyEndpoint:     "socks5h://localhost:1080",
+				ProxyEndpointPath: "",
+				ProxyEndpointURL: &url.URL{
+					Scheme: "socks5h",
+					Host:   "localhost:1080",
+				},
 				AdditionalHeaders: map[string]string{},
 			},
 		},
