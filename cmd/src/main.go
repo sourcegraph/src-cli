@@ -183,37 +183,30 @@ func readConfig() (*config, error) {
 			return "", endpoint
 		}
 
-		schemeInfo := func(scheme string) (isValid bool, isFile bool) {
-			urlSchemes := []string{"http", "https", "socks", "socks5", "socks5h"}
+		urlSchemes := []string{"http", "https", "socks", "socks5", "socks5h"}
+
+		isURLScheme := func(scheme string) bool {
 			for _, s := range urlSchemes {
 				if scheme == s {
-					return true, false
+					return true
 				}
 			}
-			if scheme == "unix" {
-				return true, true
-			}
-			return false, false
+			return false
 		}
 
 		scheme, address := parseEndpoint(cfg.ProxyEndpoint)
 
-		isValidScheme, isFileScheme := schemeInfo(scheme)
-
-		if !isValidScheme {
-			return nil, errors.Newf("invalid proxy endpoint: %s", cfg.ProxyEndpoint)
-		}
-
-		if !isFileScheme {
+		if isURLScheme(scheme) {
+			endpoint := cfg.ProxyEndpoint
 			// assume socks means socks5, because that's all we support
 			if scheme == "socks" {
-				cfg.ProxyEndpoint = "socks5://" + address
+				endpoint = "socks5://" + address
 			}
-			cfg.ProxyEndpointURL, err = url.Parse(cfg.ProxyEndpoint)
+			cfg.ProxyEndpointURL, err = url.Parse(endpoint)
 			if err != nil {
 				return nil, err
 			}
-		} else {
+		} else if scheme == "" || scheme == "unix" {
 			path, err := expandHomeDir(address)
 			if err != nil {
 				return nil, err
@@ -226,6 +219,8 @@ func readConfig() (*config, error) {
 				return nil, errors.Newf("invalid proxy socket: %s", path)
 			}
 			cfg.ProxyEndpointPath = path
+		} else {
+			return nil, errors.Newf("invalid proxy endpoint: %s", cfg.ProxyEndpoint)
 		}
 	}
 
