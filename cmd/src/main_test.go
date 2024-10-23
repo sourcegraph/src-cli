@@ -8,9 +8,22 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/sourcegraph/src-cli/internal/api"
 )
 
 func TestReadConfig(t *testing.T) {
+	socketPath, err := api.CreateTempFile(os.TempDir(), "TestReadConfig_", ".sock")
+	t.Log(socketPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	socketServer, err := api.StartUnixSocketServer(socketPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer socketServer.Stop()
+	defer os.Remove(socketPath)
+
 	tests := []struct {
 		name             string
 		fileContents     *config
@@ -158,6 +171,17 @@ func TestReadConfig(t *testing.T) {
 					Scheme: "https",
 					Host:   "proxy.com:8080",
 				},
+				AdditionalHeaders: map[string]string{},
+			},
+		},
+		{
+			name:             "UNIX Domain Socket proxy using unix scheme and absolute unix path",
+			envProxyEndpoint: "unix://" + socketPath,
+			want: &config{
+				Endpoint:          "https://sourcegraph.com",
+				ProxyEndpoint:     "unix://" + socketPath,
+				ProxyEndpointPath: socketPath,
+				ProxyEndpointURL:  nil,
 				AdditionalHeaders: map[string]string{},
 			},
 		},
