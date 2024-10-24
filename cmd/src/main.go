@@ -264,7 +264,7 @@ func isValidUnixSocket(path string) (bool, error) {
 		if os.IsNotExist(err) {
 			return false, nil
 		}
-		return false, errors.Newf("Not a UNIX Domain Socket: %v: %v", path, err)
+		return false, errors.Newf("Not a UNIX Domain Socket: %v: %w", path, err)
 	}
 	defer conn.Close()
 
