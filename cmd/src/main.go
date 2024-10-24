@@ -213,7 +213,7 @@ func readConfig() (*config, error) {
 			}
 			isValidUDS, err := isValidUnixSocket(path)
 			if err != nil {
-				return nil, errors.Newf("Invalid proxy configuration: %v", err)
+				return nil, errors.Newf("Invalid proxy configuration: %w", err)
 			}
 			if !isValidUDS {
 				return nil, errors.Newf("invalid proxy socket: %s", path)
