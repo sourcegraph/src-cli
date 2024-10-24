@@ -83,8 +83,8 @@ type ClientOpts struct {
 	// curl commands when -get-curl is enabled.
 	Out io.Writer
 
-	ProxyEndpointURL  *url.URL
-	ProxyEndpointPath string
+	ProxyURL  *url.URL
+	ProxyPath string
 }
 
 // NewClient creates a new API client.
@@ -108,10 +108,18 @@ func NewClient(opts ClientOpts) Client {
 		transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 	}
 
-	proxyApplied := applyProxy(transport, opts.ProxyEndpointURL, opts.ProxyEndpointPath)
+	if transport.TLSClientConfig == nil {
+		transport.TLSClientConfig = &tls.Config{}
+	}
 
-	if customTransport || proxyApplied {
-		httpClient.Transport = transport
+	if applyProxy(transport, opts.ProxyURL, opts.ProxyPath) {
+		customTransport = true
+	}
+
+	if customTransport {
+		httpClient = &http.Client{
+			Transport: transport,
+		}
 	}
 
 	return &client{

@@ -49,7 +49,7 @@ func TestLogin(t *testing.T) {
 		if err != cmderrors.ExitCode1 {
 			t.Fatal(err)
 		}
-		wantOut := "⚠️  Warning: Configuring src with a JSON file is deprecated. Please migrate to using the env vars SRC_ENDPOINT, SRC_ACCESS_TOKEN, and SRC_PROXY_ENDPOINT instead, and then remove f. See https://github.com/sourcegraph/src-cli#readme for more information.\n\n❌ Problem: No access token is configured.\n\n🛠  To fix: Create an access token at https://example.com/user/settings/tokens, then set the following environment variables:\n\n   SRC_ENDPOINT=https://example.com\n   SRC_ACCESS_TOKEN=(the access token you just created)\n\n   To verify that it's working, run this command again."
+		wantOut := "⚠️  Warning: Configuring src with a JSON file is deprecated. Please migrate to using the env vars SRC_ENDPOINT, SRC_ACCESS_TOKEN, and SRC_PROXY instead, and then remove f. See https://github.com/sourcegraph/src-cli#readme for more information.\n\n❌ Problem: No access token is configured.\n\n🛠  To fix: Create an access token at https://example.com/user/settings/tokens, then set the following environment variables:\n\n   SRC_ENDPOINT=https://example.com\n   SRC_ACCESS_TOKEN=(the access token you just created)\n\n   To verify that it's working, run this command again."
 		if out != wantOut {
 			t.Errorf("got output %q, want %q", out, wantOut)
 		}

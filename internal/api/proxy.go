@@ -11,8 +11,8 @@ import (
 	"net/url"
 )
 
-func applyProxy(transport *http.Transport, proxyEndpointURL *url.URL, proxyEndpointPath string) (applied bool) {
-	if proxyEndpointURL == nil && proxyEndpointPath == "" {
+func applyProxy(transport *http.Transport, ProxyURL *url.URL, ProxyPath string) (applied bool) {
+	if ProxyURL == nil && ProxyPath == "" {
 		return false
 	}
 
@@ -36,9 +36,10 @@ func applyProxy(transport *http.Transport, proxyEndpointURL *url.URL, proxyEndpo
 
 	proxyApplied := false
 
-	if proxyEndpointPath != "" {
+	if ProxyPath != "" {
 		dial := func(ctx context.Context, _, _ string) (net.Conn, error) {
-			return net.Dial("unix", proxyEndpointPath)
+			d := net.Dialer{}
+			return d.DialContext(ctx, "unix", ProxyPath)
 		}
 		dialTLS := func(ctx context.Context, network, addr string) (net.Conn, error) {
 			conn, err := dial(ctx, network, addr)
@@ -49,35 +50,53 @@ func applyProxy(transport *http.Transport, proxyEndpointURL *url.URL, proxyEndpo
 		}
 		transport.DialContext = dial
 		transport.DialTLSContext = dialTLS
+		// clear out any system proxy settings
+		transport.Proxy = nil
 		proxyApplied = true
-	} else if proxyEndpointURL != nil {
-		if proxyEndpointURL.Scheme == "socks5" ||
-			proxyEndpointURL.Scheme == "socks5h" {
+	} else if ProxyURL != nil {
+		if ProxyURL.Scheme == "socks5" ||
+			ProxyURL.Scheme == "socks5h" {
 			// SOCKS proxies work out of the box - no need to manually dial
+			transport.Proxy = http.ProxyURL(ProxyURL)
 			proxyApplied = true
-		} else if proxyEndpointURL.Scheme == "http" || proxyEndpointURL.Scheme == "https" {
+		} else if ProxyURL.Scheme == "http" || ProxyURL.Scheme == "https" {
 			dial := func(ctx context.Context, network, addr string) (net.Conn, error) {
-				// separate the host from the port for the Host header
-				host, _, err := net.SplitHostPort(addr)
-				if err != nil {
-					return nil, err
-				}
-
 				// Dial the proxy
-				conn, err := net.Dial("tcp", proxyEndpointURL.Host)
+				d := net.Dialer{}
+				conn, err := d.DialContext(ctx, "tcp", ProxyURL.Host)
 				if err != nil {
 					return nil, err
 				}
 
-				connectReq := fmt.Sprintf("CONNECT %s HTTP/1.1\r\nHost: %s\r\n", addr, host)
+				// this is the whole point of manually dialing the HTTP(S) proxy:
+				// being able to force HTTP/1.
+				// When relying on Transport.Proxy, the protocol is always HTTP/2,
+				// but many proxy servers don't support HTTP/2.
+				// We don't want to disable HTTP/2 in general because we want to use it when
+				// connecting to the Sourcegraph API, using HTTP/1 for the proxy connection only.
+				protocol := "HTTP/1.1"
+
+				// CONNECT is the HTTP method used to set up a tunneling connection with a proxy
+				method := "CONNECT"
+
+				// Manually writing out the HTTP commands because it's not complicated,
+				// and http.Request has some janky behavior:
+				//   - ignores the Proto field and hard-codes the protocol to HTTP/1.1
+				//   - ignores the Host Header (Header.Set("Host", host)) and uses URL.Host instead.
+				//   - When the Host field is set, overrides the URL field
+				connectReq := fmt.Sprintf("%s %s %s\r\n", method, addr, protocol)
+
+				// A Host header is required per RFC 2616, section 14.23
+				connectReq += fmt.Sprintf("Host: %s\r\n", addr)
 
 				// use authentication if proxy credentials are present
-				if proxyEndpointURL.User != nil {
-					password, _ := proxyEndpointURL.User.Password()
-					auth := base64.StdEncoding.EncodeToString([]byte(proxyEndpointURL.User.Username() + ":" + password))
-					connectReq += "Proxy-Authorization: Basic " + auth + "\r\n"
+				if ProxyURL.User != nil {
+					password, _ := ProxyURL.User.Password()
+					auth := base64.StdEncoding.EncodeToString([]byte(ProxyURL.User.Username() + ":" + password))
+					connectReq += fmt.Sprintf("Proxy-Authorization: Basic %s\r\n", auth)
 				}
 
+				// finish up with an extra carriage return + newline, as per RFC 7230, section 3
 				connectReq += "\r\n"
 
 				// Send the CONNECT request to the proxy to establish the tunnel
@@ -94,7 +113,7 @@ func applyProxy(transport *http.Transport, proxyEndpointURL *url.URL, proxyEndpo
 				}
 				if resp.StatusCode != http.StatusOK {
 					conn.Close()
-					return nil, fmt.Errorf("failed to connect to proxy %v: %v", proxyEndpointURL, resp.Status)
+					return nil, fmt.Errorf("failed to connect to proxy %v: %v", ProxyURL, resp.Status)
 				}
 				resp.Body.Close()
 				return conn, nil
@@ -109,6 +128,8 @@ func applyProxy(transport *http.Transport, proxyEndpointURL *url.URL, proxyEndpo
 			}
 			transport.DialContext = dial
 			transport.DialTLSContext = dialTLS
+			// clear out any system proxy settings
+			transport.Proxy = nil
 			proxyApplied = true
 		}
 	}
