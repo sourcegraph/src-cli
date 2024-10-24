@@ -11,8 +11,8 @@ import (
 	"net/url"
 )
 
-func applyProxy(transport *http.Transport, ProxyURL *url.URL, ProxyPath string) (applied bool) {
-	if ProxyURL == nil && ProxyPath == "" {
+func applyProxy(transport *http.Transport, proxyURL *url.URL, proxyPath string) (applied bool) {
+	if proxyURL == nil && proxyPath == "" {
 		return false
 	}
 
@@ -36,10 +36,10 @@ func applyProxy(transport *http.Transport, ProxyURL *url.URL, ProxyPath string) 
 
 	proxyApplied := false
 
-	if ProxyPath != "" {
+	if proxyPath != "" {
 		dial := func(ctx context.Context, _, _ string) (net.Conn, error) {
 			d := net.Dialer{}
-			return d.DialContext(ctx, "unix", ProxyPath)
+			return d.DialContext(ctx, "unix", proxyPath)
 		}
 		dialTLS := func(ctx context.Context, network, addr string) (net.Conn, error) {
 			conn, err := dial(ctx, network, addr)
@@ -53,17 +53,17 @@ func applyProxy(transport *http.Transport, ProxyURL *url.URL, ProxyPath string) 
 		// clear out any system proxy settings
 		transport.Proxy = nil
 		proxyApplied = true
-	} else if ProxyURL != nil {
-		if ProxyURL.Scheme == "socks5" ||
-			ProxyURL.Scheme == "socks5h" {
+	} else if proxyURL != nil {
+		if proxyURL.Scheme == "socks5" ||
+			proxyURL.Scheme == "socks5h" {
 			// SOCKS proxies work out of the box - no need to manually dial
-			transport.Proxy = http.ProxyURL(ProxyURL)
+			transport.Proxy = http.ProxyURL(proxyURL)
 			proxyApplied = true
-		} else if ProxyURL.Scheme == "http" || ProxyURL.Scheme == "https" {
+		} else if proxyURL.Scheme == "http" || proxyURL.Scheme == "https" {
 			dial := func(ctx context.Context, network, addr string) (net.Conn, error) {
 				// Dial the proxy
 				d := net.Dialer{}
-				conn, err := d.DialContext(ctx, "tcp", ProxyURL.Host)
+				conn, err := d.DialContext(ctx, "tcp", proxyURL.Host)
 				if err != nil {
 					return nil, err
 				}
@@ -90,9 +90,9 @@ func applyProxy(transport *http.Transport, ProxyURL *url.URL, ProxyPath string) 
 				connectReq += fmt.Sprintf("Host: %s\r\n", addr)
 
 				// use authentication if proxy credentials are present
-				if ProxyURL.User != nil {
-					password, _ := ProxyURL.User.Password()
-					auth := base64.StdEncoding.EncodeToString([]byte(ProxyURL.User.Username() + ":" + password))
+				if proxyURL.User != nil {
+					password, _ := proxyURL.User.Password()
+					auth := base64.StdEncoding.EncodeToString([]byte(proxyURL.User.Username() + ":" + password))
 					connectReq += fmt.Sprintf("Proxy-Authorization: Basic %s\r\n", auth)
 				}
 
@@ -113,7 +113,7 @@ func applyProxy(transport *http.Transport, ProxyURL *url.URL, ProxyPath string) 
 				}
 				if resp.StatusCode != http.StatusOK {
 					conn.Close()
-					return nil, fmt.Errorf("failed to connect to proxy %v: %v", ProxyURL, resp.Status)
+					return nil, fmt.Errorf("failed to connect to proxy %v: %v", proxyURL, resp.Status)
 				}
 				resp.Body.Close()
 				return conn, nil
