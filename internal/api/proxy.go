@@ -22,10 +22,10 @@ func applyProxy(transport *http.Transport, proxyURL *url.URL, proxyPath string) 
 		if err != nil {
 			return nil, err
 		}
-		// Be sure to clone TLS-specific config settings from the transport,
-		// like InsecureSkipVerify.
 		tlsConn := tls.Client(conn, &tls.Config{
-			ServerName:         host,
+			ServerName: host,
+			// Pull InsecureSkipVerify from the target host transport
+			// so that insecure-skip-verify flag settings are honored for the proxy server
 			InsecureSkipVerify: transport.TLSClientConfig.InsecureSkipVerify,
 		})
 		if err := tlsConn.HandshakeContext(ctx); err != nil {
