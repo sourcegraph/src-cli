@@ -13,8 +13,7 @@ import (
 )
 
 func TestReadConfig(t *testing.T) {
-	socketPath, err := api.CreateTempFile(os.TempDir(), "TestReadConfig_", ".sock")
-	t.Log(socketPath)
+	socketPath, err := api.CreateTempFile(t.TempDir(), "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
