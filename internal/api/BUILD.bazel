@@ -8,6 +8,8 @@ go_library(
         "flags.go",
         "gzip.go",
         "nullable.go",
+        "proxy.go",
+        "test_unix_socket_server.go",
     ],
     importpath = "github.com/sourcegraph/src-cli/internal/api",
     visibility = ["//:__subpackages__"],

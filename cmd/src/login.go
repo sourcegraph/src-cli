@@ -81,7 +81,7 @@ func loginCmd(ctx context.Context, cfg *config, client api.Client, endpointArg s
 
 	if cfg.ConfigFilePath != "" {
 		fmt.Fprintln(out)
-		fmt.Fprintf(out, "⚠️  Warning: Configuring src with a JSON file is deprecated. Please migrate to using the env vars SRC_ENDPOINT and SRC_ACCESS_TOKEN instead, and then remove %s. See https://github.com/sourcegraph/src-cli#readme for more information.\n", cfg.ConfigFilePath)
+		fmt.Fprintf(out, "⚠️  Warning: Configuring src with a JSON file is deprecated. Please migrate to using the env vars SRC_ENDPOINT, SRC_ACCESS_TOKEN, and SRC_PROXY instead, and then remove %s. See https://github.com/sourcegraph/src-cli#readme for more information.\n", cfg.ConfigFilePath)
 	}
 
 	noToken := cfg.AccessToken == ""

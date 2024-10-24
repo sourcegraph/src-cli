@@ -11,6 +11,10 @@ All notable changes to `src-cli` are documented in this file.
 
 ## Unreleased
 
+### Added
+
+- Support HTTP(S), SOCKS5, and UNIX Domain Socket proxies via SRC_PROXY environment variable. [#1120](https://github.com/sourcegraph/src-cli/pull/1120)
+
 ## 5.8.1
 
 ### Fixed

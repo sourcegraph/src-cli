@@ -2,14 +2,31 @@ package main
 
 import (
 	"encoding/json"
+	"net/url"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+
+	"github.com/sourcegraph/src-cli/internal/api"
 )
 
 func TestReadConfig(t *testing.T) {
+	// UNIX Domain Sockets have a max path length: 104 on BSD/macOS, 108 on Linux.
+	// Including a prefix and suffix was causing the path to be too long
+	// with t.TempDir() (os.TempDir() is a shorter path) so we don't use them.
+	socketPath, err := api.CreateTempFile(t.TempDir(), "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	socketServer, err := api.StartUnixSocketServer(socketPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer socketServer.Stop()
+	defer os.Remove(socketPath)
+
 	tests := []struct {
 		name         string
 		fileContents *config
@@ -17,6 +34,7 @@ func TestReadConfig(t *testing.T) {
 		envFooHeader string
 		envHeaders   string
 		envEndpoint  string
+		envProxy     string
 		flagEndpoint string
 		want         *config
 		wantErr      string
@@ -33,11 +51,18 @@ func TestReadConfig(t *testing.T) {
 			fileContents: &config{
 				Endpoint:    "https://example.com/",
 				AccessToken: "deadbeef",
+				Proxy:       "https://proxy.com:8080",
 			},
 			want: &config{
 				Endpoint:          "https://example.com",
 				AccessToken:       "deadbeef",
 				AdditionalHeaders: map[string]string{},
+				Proxy:             "https://proxy.com:8080",
+				ProxyPath:         "",
+				ProxyURL: &url.URL{
+					Scheme: "https",
+					Host:   "proxy.com:8080",
+				},
 			},
 		},
 		{
@@ -61,16 +86,44 @@ func TestReadConfig(t *testing.T) {
 			wantErr:     errConfigMerge.Error(),
 		},
 		{
-			name: "config file, both override",
+			name: "config file, proxy override only (allow)",
 			fileContents: &config{
 				Endpoint:    "https://example.com/",
 				AccessToken: "deadbeef",
+				Proxy:       "https://proxy.com:8080",
+			},
+			envProxy: "socks5://other.proxy.com:9999",
+			want: &config{
+				Endpoint:    "https://example.com",
+				AccessToken: "deadbeef",
+				Proxy:       "socks5://other.proxy.com:9999",
+				ProxyPath:   "",
+				ProxyURL: &url.URL{
+					Scheme: "socks5",
+					Host:   "other.proxy.com:9999",
+				},
+				AdditionalHeaders: map[string]string{},
+			},
+		},
+		{
+			name: "config file, all override",
+			fileContents: &config{
+				Endpoint:    "https://example.com/",
+				AccessToken: "deadbeef",
+				Proxy:       "https://proxy.com:8080",
 			},
 			envToken:    "abc",
 			envEndpoint: "https://override.com",
+			envProxy:    "socks5://other.proxy.com:9999",
 			want: &config{
-				Endpoint:          "https://override.com",
-				AccessToken:       "abc",
+				Endpoint:    "https://override.com",
+				AccessToken: "abc",
+				Proxy:       "socks5://other.proxy.com:9999",
+				ProxyPath:   "",
+				ProxyURL: &url.URL{
+					Scheme: "socks5",
+					Host:   "other.proxy.com:9999",
+				},
 				AdditionalHeaders: map[string]string{},
 			},
 		},
@@ -93,12 +146,84 @@ func TestReadConfig(t *testing.T) {
 			},
 		},
 		{
-			name:        "no config file, both variables",
+			name:     "no config file, proxy from environment",
+			envProxy: "https://proxy.com:8080",
+			want: &config{
+				Endpoint:    "https://sourcegraph.com",
+				AccessToken: "",
+				Proxy:       "https://proxy.com:8080",
+				ProxyPath:   "",
+				ProxyURL: &url.URL{
+					Scheme: "https",
+					Host:   "proxy.com:8080",
+				},
+				AdditionalHeaders: map[string]string{},
+			},
+		},
+		{
+			name:        "no config file, all variables",
 			envEndpoint: "https://example.com",
 			envToken:    "abc",
+			envProxy:    "https://proxy.com:8080",
 			want: &config{
-				Endpoint:          "https://example.com",
-				AccessToken:       "abc",
+				Endpoint:    "https://example.com",
+				AccessToken: "abc",
+				Proxy:       "https://proxy.com:8080",
+				ProxyPath:   "",
+				ProxyURL: &url.URL{
+					Scheme: "https",
+					Host:   "proxy.com:8080",
+				},
+				AdditionalHeaders: map[string]string{},
+			},
+		},
+		{
+			name:     "UNIX Domain Socket proxy using scheme and absolute path",
+			envProxy: "unix://" + socketPath,
+			want: &config{
+				Endpoint:          "https://sourcegraph.com",
+				Proxy:             "unix://" + socketPath,
+				ProxyPath:         socketPath,
+				ProxyURL:          nil,
+				AdditionalHeaders: map[string]string{},
+			},
+		},
+		{
+			name:     "UNIX Domain Socket proxy with absolute path",
+			envProxy: socketPath,
+			want: &config{
+				Endpoint:          "https://sourcegraph.com",
+				Proxy:             socketPath,
+				ProxyPath:         socketPath,
+				ProxyURL:          nil,
+				AdditionalHeaders: map[string]string{},
+			},
+		},
+		{
+			name:     "socks --> socks5",
+			envProxy: "socks://localhost:1080",
+			want: &config{
+				Endpoint:  "https://sourcegraph.com",
+				Proxy:     "socks://localhost:1080",
+				ProxyPath: "",
+				ProxyURL: &url.URL{
+					Scheme: "socks5",
+					Host:   "localhost:1080",
+				},
+				AdditionalHeaders: map[string]string{},
+			},
+		},
+		{
+			name:     "socks5h",
+			envProxy: "socks5h://localhost:1080",
+			want: &config{
+				Endpoint:  "https://sourcegraph.com",
+				Proxy:     "socks5h://localhost:1080",
+				ProxyPath: "",
+				ProxyURL: &url.URL{
+					Scheme: "socks5h",
+					Host:   "localhost:1080",
+				},
 				AdditionalHeaders: map[string]string{},
 			},
 		},
@@ -171,6 +296,7 @@ func TestReadConfig(t *testing.T) {
 			}
 			setEnv("SRC_ACCESS_TOKEN", test.envToken)
 			setEnv("SRC_ENDPOINT", test.envEndpoint)
+			setEnv("SRC_PROXY", test.envProxy)
 
 			tmpDir := t.TempDir()
 			testHomeDir = tmpDir
