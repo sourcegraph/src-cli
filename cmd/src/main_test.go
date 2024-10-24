@@ -13,6 +13,9 @@ import (
 )
 
 func TestReadConfig(t *testing.T) {
+	// UNIX Domain Sockets have a max path length: 104 on BSD/macOS, 108 on Linux.
+	// Including a prefix and suffix was causing the path to be too long
+	// with t.TempDir() (os.TempDir() is a shorter path) so we don't use them.
 	socketPath, err := api.CreateTempFile(t.TempDir(), "", "")
 	if err != nil {
 		t.Fatal(err)
