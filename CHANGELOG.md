@@ -13,6 +13,10 @@ All notable changes to `src-cli` are documented in this file.
 
 ## 5.8.2
 
+### Added
+
+- Support HTTP(S), SOCKS5, and UNIX Domain Socket proxies via SRC_PROXY environment variable. [#1120](https://github.com/sourcegraph/src-cli/pull/1120)
+
 ### Fixed
 
 - Fixed a compatibility issue that prevented `src sbom fetch` from fetching some SBOMs [#1119](https://github.com/sourcegraph/src-cli/pull/1119)
