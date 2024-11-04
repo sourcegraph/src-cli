@@ -43,7 +43,7 @@ All notable changes to `src-cli` are documented in this file.
 
 ### Added
 
-- Batch Changes: Added support for batch spec versions. Batch specs with `version: 2` will default to keyword search to resolve workspaces if the pattern type is not specified explicitly.  (<https://github.com/sourcegraph/sourcegraph/pull/63613>)
+- Batch Changes: Added support for batch spec versions. Batch specs with `version: 2` will default to keyword search to resolve workspaces if the pattern type is not specified explicitly.  (https://github.com/sourcegraph/sourcegraph/pull/63613)
 
 ### Changed
 
@@ -110,13 +110,11 @@ All notable changes to `src-cli` are documented in this file.
 ## 5.1.0
 
 ### Added
-
 - `src validate install` can check executor connections [#974](https://github.com/sourcegraph/src-cli/pull/974)
 - `src validate install` can send test SMTP message [#973](https://github.com/sourcegraph/src-cli/pull/973)
 - `src repos {add|update|delete}-metadata -repo-name` flag support [#977](https://github.com/sourcegraph/src-cli/pull/977)
 
 ### Changed
-
 - Renamed `src repo {add|update|delete}-kvp` to `repo {add|update|delete}-metadata` [#972](https://github.com/sourcegraph/src-cli/pull/972)
 
 ## 5.0.3
@@ -134,7 +132,7 @@ All notable changes to `src-cli` are documented in this file.
 
 ### Fixed
 
-- Fixed `src validate install` requiring `SRC_GITHUB_TOKEN` in all cases. [958](https://github.com/sourcegraph/src-cli/pull/958)
+- Fixed `src validate install` requiring `SRC_GITHUB_TOKEN` in all cases. [958](https://github.com/sourcegraph/src-cli/pull/958) 
 
 ## 5.0.1
 
@@ -157,7 +155,7 @@ No noteworthy changes, mechanical release to match Sourcegraph release.
 
 ### Fixed
 
-- `src codeintel upload` will no longer overwrite the entire route supplied via `-upload-route` if SCIP data is detected. [#934](https://github.com/sourcegraph/src-cli/pull/934)
+-  `src codeintel upload` will no longer overwrite the entire route supplied via `-upload-route` if SCIP data is detected. [#934](https://github.com/sourcegraph/src-cli/pull/934)
 
 ## 4.4.1
 
@@ -203,7 +201,7 @@ No noteworthy changes, mechanical release to match Sourcegraph release.
 ### Added
 
 - Batch specs being run locally with `src batch preview` or `src batch apply` can now be run with the `-run-as-root` flag, which will run all step containers as root instead of the default user for the image. This is off by default. [#886](https://github.com/sourcegraph/src-cli/pull/886)
-- An __experimental__ set of `src snapshot` commands for generating and sharing snapshots of Sourcegraph instances, as well as testing Sourcegraph instances restored from snapshots. [#888](https://github.com/sourcegraph/src-cli/pull/888), [#889](https://github.com/sourcegraph/src-cli/pull/889), [#890](https://github.com/sourcegraph/src-cli/pull/890)
+- An **experimental** set of `src snapshot` commands for generating and sharing snapshots of Sourcegraph instances, as well as testing Sourcegraph instances restored from snapshots. [#888](https://github.com/sourcegraph/src-cli/pull/888), [#889](https://github.com/sourcegraph/src-cli/pull/889), [#890](https://github.com/sourcegraph/src-cli/pull/890)
 
 ### Changed
 
@@ -277,7 +275,7 @@ No noteworthy changes, mechanical release to match Sourcegraph release.
 
 ### Changed
 
-- __IMPORTANT:__ Searches using the command `src search -stream` is updated to use a __new and better search result schema__, improving highlighting and accurate result counts for multiline matches. Please see the new JSON schema for results if you use the `src search -stream -json` output: [#807](https://github.com/sourcegraph/src-cli/pull/807)
+- **IMPORTANT:** Searches using the command `src search -stream` is updated to use a **new and better search result schema**, improving highlighting and accurate result counts for multiline matches. Please see the new JSON schema for results if you use the `src search -stream -json` output: [#807](https://github.com/sourcegraph/src-cli/pull/807)
 
 ### Fixed
 
@@ -900,7 +898,7 @@ Re-release of 3.29.3 for Sourcegraph 3.30.
 ### Changed
 
 - `src campaign [apply|preview]` now prints more detailed information about the diffs produced in each repository when run in verbose mode with `-v`. [#390](https://github.com/sourcegraph/src-cli/pull/390)
-- The dependency `go-diff` has been upgraded to 0.6.1 to include <https://github.com/sourcegraph/go-diff/pull/55>.
+- The dependency `go-diff` has been upgraded to 0.6.1 to include https://github.com/sourcegraph/go-diff/pull/55.
 
 ## 3.22.2
 
