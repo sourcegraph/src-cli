@@ -11,6 +11,8 @@ All notable changes to `src-cli` are documented in this file.
 
 ## Unreleased
 
+## 5.9.0
+
 ## 5.8.2
 
 ### Added
