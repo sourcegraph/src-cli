@@ -11,6 +11,11 @@ All notable changes to `src-cli` are documented in this file.
 
 ## Unreleased
 
+## 5.9.1
+
+- Update SBOM output file extension from `.json` to `.cdx.json` [#1123](https://github.com/sourcegraph/src-cli/pull/1123)
+- Improve SBOM compatibility with scanning tools [#1123](https://github.com/sourcegraph/src-cli/pull/1123)
+
 ## 5.9.0
 
 ## 5.8.2
