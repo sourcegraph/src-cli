@@ -283,7 +283,19 @@ func extractSBOM(attestationBytes []byte) (string, error) {
 		return "", fmt.Errorf("failed to decode payload: %w", err)
 	}
 
-	return string(decodedPayload), nil
+	// Unmarshal the decoded payload to extract predicate
+	var payload map[string]json.RawMessage
+	if err := json.Unmarshal(decodedPayload, &payload); err != nil {
+		return "", fmt.Errorf("failed to unmarshal decoded payload: %w", err)
+	}
+
+	// Extract just the predicate field
+	predicate, ok := payload["predicate"]
+	if !ok {
+		return "", fmt.Errorf("no predicate field found in payload")
+	}
+
+	return string(predicate), nil
 }
 
 func (c sbomConfig) storeSBOM(sbom string, image string) error {
@@ -296,7 +308,7 @@ func (c sbomConfig) storeSBOM(sbom string, image string) error {
 	}, image)
 
 	// Create the output file path
-	outputFile := filepath.Join(c.outputDir, safeImageName+".json")
+	outputFile := filepath.Join(c.outputDir, safeImageName+".cdx.json")
 
 	// Ensure the output directory exists
 	if err := os.MkdirAll(c.outputDir, 0755); err != nil {
