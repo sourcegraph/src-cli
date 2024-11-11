@@ -14,8 +14,8 @@ import (
 )
 
 const (
-	numRequests = 100
-	blue        = "\033[34m"
+	defaultRequestCount = 100
+	blue                = "\033[34m"
 	green       = "\033[32m"
 	yellow      = "\033[33m"
 	red         = "\033[31m"
@@ -39,7 +39,7 @@ Examples:
 	flagSet := flag.NewFlagSet("benchmark", flag.ExitOnError)
 
 	var (
-		requestCount = flagSet.Int("requests", numRequests, "Number of requests to make per endpoint")
+		requestCount = flagSet.Int("requests", defaultRequestCount, "Number of requests to make per endpoint")
 	)
 
 	handler := func(args []string) error {
@@ -93,7 +93,7 @@ Examples:
 			})
 		}
 
-		printResults(results)
+		printResults(results, requestCount)
 		return nil
 	}
 
@@ -102,7 +102,10 @@ Examples:
 		aliases: []string{},
 		handler: handler,
 		usageFunc: func() {
-			fmt.Fprintf(flag.CommandLine.Output(), "Usage of 'src gateway %s':\n", flagSet.Name())
+			_, err := fmt.Fprintf(flag.CommandLine.Output(), "Usage of 'src gateway %s':\n", flagSet.Name())
+			if err != nil {
+				return
+			}
 			flagSet.PrintDefaults()
 			fmt.Println(usage)
 		},
@@ -187,7 +190,7 @@ func formatSuccessRate(successful, total int, best bool, worst bool) string {
 	return yellow + value + reset
 }
 
-func printResults(results []endpointResult) {
+func printResults(results []endpointResult, requestCount *int) {
 	// Print header
 	headerFmt := blue + "%-20s | %-10s | %-10s | %-10s | %-10s | %-10s | %-10s" + reset + "\n"
 	fmt.Printf("\n"+headerFmt,
@@ -250,6 +253,6 @@ func printResults(results []endpointResult) {
 			formatDuration(r.p5, r.p5 == bestP5, r.p5 == worstP5),
 			formatDuration(r.p95, r.p95 == bestP95, r.p95 == worstP95),
 			formatDuration(r.total, r.total == bestTotal, r.total == worstTotal),
-			formatSuccessRate(r.successful, numRequests, r.successful == bestSuccess, r.successful == worstSuccess))
+			formatSuccessRate(r.successful, *requestCount, r.successful == bestSuccess, r.successful == worstSuccess))
 	}
 }
