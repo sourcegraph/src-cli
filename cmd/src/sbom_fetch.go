@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
-	"path"
 	"path/filepath"
 	"strings"
 	"unicode"
@@ -71,12 +70,12 @@ Examples:
 		if versionFlag == nil || *versionFlag == "" {
 			return cmderrors.Usage("version is required")
 		}
-		c.version = *versionFlag
+		c.version = sanitizeVersion(*versionFlag)
 
 		if outputDirFlag == nil || *outputDirFlag == "" {
 			return cmderrors.Usage("output directory is required")
 		}
-		c.outputDir = getOutputDir(*outputDirFlag, *versionFlag)
+		c.outputDir = getOutputDir(*outputDirFlag, c.version)
 
 		if internalReleaseFlag == nil || !*internalReleaseFlag {
 			c.internalRelease = false
@@ -321,10 +320,6 @@ func (c sbomConfig) storeSBOM(sbom string, image string) error {
 	}
 
 	return nil
-}
-
-func getOutputDir(parentDir, version string) string {
-	return path.Join(parentDir, "sourcegraph-"+version)
 }
 
 // getImageReleaseListURL returns the URL for the list of images in a release, based on the version and whether it's an internal release.
