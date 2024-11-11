@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
-	"path"
 	"path/filepath"
 	"strings"
 	"unicode"
@@ -71,12 +70,12 @@ Examples:
 		if versionFlag == nil || *versionFlag == "" {
 			return cmderrors.Usage("version is required")
 		}
-		c.version = *versionFlag
+		c.version = sanitizeVersion(*versionFlag)
 
 		if outputDirFlag == nil || *outputDirFlag == "" {
 			return cmderrors.Usage("output directory is required")
 		}
-		c.outputDir = getOutputDir(*outputDirFlag, *versionFlag)
+		c.outputDir = getOutputDir(*outputDirFlag, c.version)
 
 		if internalReleaseFlag == nil || !*internalReleaseFlag {
 			c.internalRelease = false
@@ -283,7 +282,19 @@ func extractSBOM(attestationBytes []byte) (string, error) {
 		return "", fmt.Errorf("failed to decode payload: %w", err)
 	}
 
-	return string(decodedPayload), nil
+	// Unmarshal the decoded payload to extract predicate
+	var payload map[string]json.RawMessage
+	if err := json.Unmarshal(decodedPayload, &payload); err != nil {
+		return "", fmt.Errorf("failed to unmarshal decoded payload: %w", err)
+	}
+
+	// Extract just the predicate field
+	predicate, ok := payload["predicate"]
+	if !ok {
+		return "", fmt.Errorf("no predicate field found in payload")
+	}
+
+	return string(predicate), nil
 }
 
 func (c sbomConfig) storeSBOM(sbom string, image string) error {
@@ -296,7 +307,7 @@ func (c sbomConfig) storeSBOM(sbom string, image string) error {
 	}, image)
 
 	// Create the output file path
-	outputFile := filepath.Join(c.outputDir, safeImageName+".json")
+	outputFile := filepath.Join(c.outputDir, safeImageName+".cdx.json")
 
 	// Ensure the output directory exists
 	if err := os.MkdirAll(c.outputDir, 0755); err != nil {
@@ -309,10 +320,6 @@ func (c sbomConfig) storeSBOM(sbom string, image string) error {
 	}
 
 	return nil
-}
-
-func getOutputDir(parentDir, version string) string {
-	return path.Join(parentDir, "sourcegraph-"+version)
 }
 
 // getImageReleaseListURL returns the URL for the list of images in a release, based on the version and whether it's an internal release.

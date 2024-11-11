@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"os/exec"
+	"path"
 	"strings"
 	"time"
 )
@@ -189,4 +190,13 @@ func spinner(name string, stop chan bool) {
 			time.Sleep(100 * time.Millisecond)
 		}
 	}
+}
+
+func getOutputDir(parentDir, version string) string {
+	return path.Join(parentDir, "sourcegraph-"+version)
+}
+
+// sanitizeVersion removes any leading "v" from the version string
+func sanitizeVersion(version string) string {
+	return strings.TrimPrefix(version, "v")
 }
