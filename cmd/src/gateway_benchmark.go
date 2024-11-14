@@ -152,6 +152,10 @@ func benchmarkEndpoint(client *http.Client, url string) time.Duration {
 		fmt.Printf("Error reading response body: %v\n", err)
 		return 0
 	}
+	if resp.StatusCode != http.StatusOK {
+		fmt.Printf("non-200 response: %v\n", resp.Status)
+		return 0
+	}
 
 	return time.Since(start)
 }
