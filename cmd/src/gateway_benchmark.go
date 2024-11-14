@@ -12,6 +12,16 @@ import (
 	"github.com/sourcegraph/src-cli/internal/cmderrors"
 )
 
+type Stats struct {
+	Avg    time.Duration
+	P5     time.Duration
+	P75    time.Duration
+	P80    time.Duration
+	P95    time.Duration
+	Median time.Duration
+	Total  time.Duration
+}
+
 func init() {
 	usage := `
 'src gateway benchmark' runs performance benchmarks against Cody Gateway endpoints.
@@ -65,15 +75,15 @@ Examples:
 			}
 			fmt.Println()
 
-			avg, p5, p95, median, total := calculateStats(durations)
+			stats := calculateStats(durations)
 
 			results = append(results, endpointResult{
 				name:       name,
-				avg:        avg,
-				median:     median,
-				p5:         p5,
-				p95:        p95,
-				total:      total,
+				avg:        stats.Avg,
+				median:     stats.Median,
+				p5:         stats.P5,
+				p95:        stats.P95,
+				total:      stats.Total,
 				successful: len(durations),
 			})
 		}
@@ -130,11 +140,12 @@ func benchmarkEndpoint(client *http.Client, url string) time.Duration {
 	return time.Since(start)
 }
 
-func calculateStats(durations []time.Duration) (time.Duration, time.Duration, time.Duration, time.Duration, time.Duration) {
+func calculateStats(durations []time.Duration) Stats {
 	if len(durations) == 0 {
-		return 0, 0, 0, 0, 0
+		return Stats{0, 0, 0, 0, 0, 0, 0}
 	}
 
+	// Sort durations in ascending order
 	sort.Slice(durations, func(i, j int) bool {
 		return durations[i] < durations[j]
 	})
@@ -145,11 +156,15 @@ func calculateStats(durations []time.Duration) (time.Duration, time.Duration, ti
 	}
 	avg := sum / time.Duration(len(durations))
 
-	p5idx := int(float64(len(durations)) * 0.05)
-	p95idx := int(float64(len(durations)) * 0.95)
-	medianIdx := len(durations) / 2
-
-	return avg, durations[p5idx], durations[p95idx], durations[medianIdx], sum
+	return Stats{
+		Avg:    avg,
+		P5:     durations[int(float64(len(durations))*0.05)],
+		P75:    durations[int(float64(len(durations))*0.75)],
+		P80:    durations[int(float64(len(durations))*0.80)],
+		P95:    durations[int(float64(len(durations))*0.95)],
+		Median: durations[(len(durations) / 2)],
+		Total:  sum,
+	}
 }
 
 func formatDuration(d time.Duration, best bool, worst bool) string {
