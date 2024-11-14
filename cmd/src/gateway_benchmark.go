@@ -1,7 +1,6 @@
 package main
 
 import (
-	"crypto/tls"
 	"flag"
 	"fmt"
 	"io"
@@ -43,11 +42,7 @@ Examples:
 		}
 
 		// Create HTTP client with TLS skip verify
-		client := &http.Client{
-			Transport: &http.Transport{
-				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-			},
-		}
+		client := &http.Client{Transport: &http.Transport{}}
 
 		endpoints := map[string]string{
 			"HTTP":                fmt.Sprintf("%s/gateway", cfg.Endpoint),
