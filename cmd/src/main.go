@@ -53,7 +53,7 @@ The commands are:
 	config          manages global, org, and user settings
 	extensions,ext  manages extensions (experimental)
 	extsvc          manages external services
-	gateway         manages Cody Gateway
+	gateway         interacts with Cody Gateway
 	login           authenticate to a Sourcegraph instance with your user credentials
 	lsif            manages LSIF data (deprecated: use 'code-intel')
 	orgs,org        manages organizations

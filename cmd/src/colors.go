@@ -22,7 +22,14 @@ func bg256Color(code int) string {
 
 // See https://i.stack.imgur.com/KTSQa.png or https://jonasjacek.github.io/colors/
 var ansiColors = map[string]string{
-	"nc":      "\033[0m",
+	// Simple colors.
+	"blue":   "\033[34m",
+	"green":  "\033[32m",
+	"yellow": "\033[33m",
+	"red":    "\033[31m",
+	"nc":     "\033[0m", // reset
+
+	// Custom colors.
 	"logo":    fg256Color(57),
 	"warning": fg256Color(124),
 	"success": fg256Color(2),

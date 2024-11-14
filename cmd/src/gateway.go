@@ -8,7 +8,7 @@ import (
 var gatewayCommands commander
 
 func init() {
-	usage := `'src gateway' manages Cody Gateway operations on a Sourcegraph instance.
+	usage := `'src gateway' interacts with Cody Gateway (directly or through a Sourcegraph instance).
 
 Usage:
 
@@ -30,9 +30,9 @@ Use "src gateway [command] -h" for more information about a command.
 
 	// Register the command.
 	commands = append(commands, &command{
-		flagSet: flagSet,
-		aliases: []string{},  // No aliases for gateway command
-		handler: handler,
+		flagSet:   flagSet,
+		aliases:   []string{}, // No aliases for gateway command
+		handler:   handler,
 		usageFunc: func() { fmt.Println(usage) },
 	})
 }

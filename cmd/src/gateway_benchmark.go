@@ -13,15 +13,6 @@ import (
 	"github.com/sourcegraph/src-cli/internal/cmderrors"
 )
 
-const (
-	defaultRequestCount = 100
-	blue                = "\033[34m"
-	green       = "\033[32m"
-	yellow      = "\033[33m"
-	red         = "\033[31m"
-	reset       = "\033[0m"
-)
-
 func init() {
 	usage := `
 'src gateway benchmark' runs performance benchmarks against Cody Gateway endpoints.
@@ -39,7 +30,7 @@ Examples:
 	flagSet := flag.NewFlagSet("benchmark", flag.ExitOnError)
 
 	var (
-		requestCount = flagSet.Int("requests", defaultRequestCount, "Number of requests to make per endpoint")
+		requestCount = flagSet.Int("requests", 1000, "Number of requests to make per endpoint")
 	)
 
 	handler := func(args []string) error {
@@ -59,8 +50,8 @@ Examples:
 		}
 
 		endpoints := map[string]string{
-			"HTTP":                fmt.Sprintf("%s/cody-gateway-call-http", cfg.Endpoint),
-			"HTTP then WebSocket": fmt.Sprintf("%s/cody-gateway-call-http-then-websocket", cfg.Endpoint),
+			"HTTP":                fmt.Sprintf("%s/gateway", cfg.Endpoint),
+			"HTTP then WebSocket": fmt.Sprintf("%s/gateway/http-then-websocket", cfg.Endpoint),
 		}
 
 		fmt.Printf("Starting benchmark with %d requests per endpoint...\n", *requestCount)
@@ -76,7 +67,6 @@ Examples:
 				if duration > 0 {
 					durations = append(durations, duration)
 				}
-				fmt.Printf("\rTesting %s: %d/%d", name, i+1, *requestCount)
 			}
 			fmt.Println()
 
@@ -136,12 +126,11 @@ func benchmarkEndpoint(client *http.Client, url string) time.Duration {
 		}
 	}(resp.Body)
 
-	body, err := io.ReadAll(resp.Body)
+	_, err = io.ReadAll(resp.Body)
 	if err != nil {
 		fmt.Printf("Error reading response body: %v\n", err)
 		return 0
 	}
-	fmt.Printf("Response from %s: %s\n", url, body)
 
 	return time.Since(start)
 }
@@ -171,31 +160,31 @@ func calculateStats(durations []time.Duration) (time.Duration, time.Duration, ti
 func formatDuration(d time.Duration, best bool, worst bool) string {
 	value := fmt.Sprintf("%.2fms", float64(d.Microseconds())/1000)
 	if best {
-		return green + value + reset
+		return ansiColors["green"] + value + ansiColors["nc"]
 	}
 	if worst {
-		return red + value + reset
+		return ansiColors["red"] + value + ansiColors["nc"]
 	}
-	return yellow + value + reset
+	return ansiColors["yellow"] + value + ansiColors["nc"]
 }
 
 func formatSuccessRate(successful, total int, best bool, worst bool) string {
 	value := fmt.Sprintf("%d/%d", successful, total)
 	if best {
-		return green + value + reset
+		return ansiColors["green"] + value + ansiColors["nc"]
 	}
 	if worst {
-		return red + value + reset
+		return ansiColors["red"] + value + ansiColors["nc"]
 	}
-	return yellow + value + reset
+	return ansiColors["yellow"] + value + ansiColors["nc"]
 }
 
 func printResults(results []endpointResult, requestCount *int) {
 	// Print header
-	headerFmt := blue + "%-20s | %-10s | %-10s | %-10s | %-10s | %-10s | %-10s" + reset + "\n"
+	headerFmt := ansiColors["blue"] + "%-20s | %-10s | %-10s | %-10s | %-10s | %-10s | %-10s" + ansiColors["nc"] + "\n"
 	fmt.Printf("\n"+headerFmt,
 		"Endpoint    ", "Average", "Median", "P5", "P95", "Total", "Success")
-	fmt.Println(blue + strings.Repeat("-", 96) + reset)
+	fmt.Println(ansiColors["blue"] + strings.Repeat("-", 96) + ansiColors["nc"])
 
 	// Find best/worst values for each metric
 	var bestAvg, worstAvg time.Duration
