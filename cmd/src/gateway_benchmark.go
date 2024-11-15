@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gorilla/websocket"
+
 	"github.com/sourcegraph/src-cli/internal/cmderrors"
 )
 
@@ -42,8 +44,9 @@ Examples:
 	flagSet := flag.NewFlagSet("benchmark", flag.ExitOnError)
 
 	var (
-		requestCount = flagSet.Int("requests", 1000, "Number of requests to make per endpoint")
-		csvOutput    = flagSet.String("csv", "", "Export results to CSV file (provide filename)")
+		requestCount    = flagSet.Int("requests", 1000, "Number of requests to make per endpoint")
+		csvOutput       = flagSet.String("csv", "", "Export results to CSV file (provide filename)")
+		gatewayEndpoint = flagSet.String("gateway", "https://cody-gateway.sourcegraph.com", "Cody Gateway endpoint")
 	)
 
 	handler := func(args []string) error {
@@ -55,26 +58,49 @@ Examples:
 			return cmderrors.Usage("additional arguments not allowed")
 		}
 
-		// Create HTTP client with TLS skip verify
-		client := &http.Client{Transport: &http.Transport{}}
-
-		endpoints := map[string]string{
-			"HTTP":                fmt.Sprintf("%s/gateway", cfg.Endpoint),
-			"HTTP then WebSocket": fmt.Sprintf("%s/gateway/http-then-websocket", cfg.Endpoint),
+		var (
+			gatewayWebsocket, sourcegraphWebsocket *websocket.Conn
+			err                                    error
+			httpClient                             = &http.Client{}
+			endpoints                              = map[string]any{}
+		)
+		if *gatewayEndpoint != "" {
+			wsURL := strings.Replace(fmt.Sprint(*gatewayEndpoint, "/v2/websocket"), "http", "ws", 1)
+			gatewayWebsocket, _, err = websocket.DefaultDialer.Dial(wsURL, nil)
+			if err != nil {
+				return fmt.Errorf("WebSocket dial(%s): %v", wsURL, err)
+			}
+			endpoints["wss: gateway"] = gatewayWebsocket
+			endpoints["https: gateway"] = fmt.Sprint(*gatewayEndpoint, "/v2")
+		}
+		if cfg.Endpoint != "" {
+			wsURL := strings.Replace(fmt.Sprint(cfg.Endpoint, "/.api/gateway/websocket"), "http", "ws", 1)
+			sourcegraphWebsocket, _, err = websocket.DefaultDialer.Dial(wsURL, nil)
+			if err != nil {
+				return fmt.Errorf("WebSocket dial(%s): %v", wsURL, err)
+			}
+			endpoints["wss: sourcegraph"] = sourcegraphWebsocket
+			endpoints["https: sourcegraph"] = fmt.Sprint(*gatewayEndpoint, "/.api/gateway")
 		}
 
 		fmt.Printf("Starting benchmark with %d requests per endpoint...\n", *requestCount)
 
 		var results []endpointResult
-
-		for name, url := range endpoints {
+		for name, clientOrURL := range endpoints {
 			durations := make([]time.Duration, 0, *requestCount)
 			fmt.Printf("\nTesting %s...", name)
 
 			for i := 0; i < *requestCount; i++ {
-				duration := benchmarkEndpoint(client, url)
-				if duration > 0 {
-					durations = append(durations, duration)
+				if ws, ok := clientOrURL.(*websocket.Conn); ok {
+					duration := benchmarkEndpointWebSocket(ws)
+					if duration > 0 {
+						durations = append(durations, duration)
+					}
+				} else if url, ok := clientOrURL.(string); ok {
+					duration := benchmarkEndpointHTTP(httpClient, url)
+					if duration > 0 {
+						durations = append(durations, duration)
+					}
 				}
 			}
 			fmt.Println()
@@ -133,15 +159,15 @@ type endpointResult struct {
 	successful int
 }
 
-func benchmarkEndpoint(client *http.Client, url string) time.Duration {
+func benchmarkEndpointHTTP(client *http.Client, url string) time.Duration {
 	start := time.Now()
 	resp, err := client.Get(url)
 	if err != nil {
 		fmt.Printf("Error calling %s: %v\n", url, err)
 		return 0
 	}
-	defer func(Body io.ReadCloser) {
-		err := Body.Close()
+	defer func(body io.ReadCloser) {
+		err := body.Close()
 		if err != nil {
 			fmt.Printf("Error closing response body: %v\n", err)
 		}
@@ -157,6 +183,25 @@ func benchmarkEndpoint(client *http.Client, url string) time.Duration {
 		return 0
 	}
 
+	return time.Since(start)
+}
+
+func benchmarkEndpointWebSocket(conn *websocket.Conn) time.Duration {
+	start := time.Now()
+	err := conn.WriteMessage(websocket.TextMessage, []byte("ping"))
+	if err != nil {
+		fmt.Printf("WebSocket write error: %v\n", err)
+		return 0
+	}
+	_, message, err := conn.ReadMessage()
+	if err != nil {
+		fmt.Printf("WebSocket read error: %v\n", err)
+		return 0
+	}
+	if string(message) != "pong" {
+		fmt.Printf("Expected 'pong' response, got: %s\n", string(message))
+		return 0
+	}
 	return time.Since(start)
 }
 
