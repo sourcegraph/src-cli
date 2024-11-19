@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	cliLog "log"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -48,6 +49,7 @@ type batchExecutionFlags struct {
 	api              *api.Flags
 	clearCache       bool
 	namespace        string
+	skipErrors       bool
 }
 
 func newBatchExecutionFlags(flagSet *flag.FlagSet) *batchExecutionFlags {
@@ -62,6 +64,10 @@ func newBatchExecutionFlags(flagSet *flag.FlagSet) *batchExecutionFlags {
 	flagSet.BoolVar(
 		&bef.clearCache, "clear-cache", false,
 		"If true, clears the execution cache and executes all steps anew.",
+	)
+	flagSet.BoolVar(
+		&bef.skipErrors, "skip-errors", false,
+		"If true, errors encountered won't stop the program, but only log them.",
 	)
 	flagSet.BoolVar(
 		&bef.allowIgnored, "force-override-ignore", false,
@@ -144,11 +150,6 @@ func newBatchExecuteFlags(flagSet *flag.FlagSet, cacheDir, tempDir string) *batc
 	flagSet.BoolVar(
 		&caf.cleanArchives, "clean-archives", true,
 		"If true, deletes downloaded repository archives after executing batch spec steps. Note that only the archives related to the actual repositories matched by the batch spec will be cleaned up, and clean up will not occur if src exits unexpectedly.",
-	)
-
-	flagSet.BoolVar(
-		&caf.skipErrors, "skip-errors", false,
-		"If true, errors encountered while executing steps in a repository won't stop the execution of the batch spec but only cause that repository to be skipped.",
 	)
 
 	flagSet.StringVar(
@@ -290,7 +291,7 @@ func executeBatchSpec(ctx context.Context, opts executeBatchSpecOpts) (err error
 		Client: opts.client,
 	})
 
-	lr, ffs, err := svc.DetermineLicenseAndFeatureFlags(ctx)
+	lr, ffs, err := svc.DetermineLicenseAndFeatureFlags(ctx, opts.flags.skipErrors)
 	if err != nil {
 		return err
 	}
@@ -302,8 +303,12 @@ func executeBatchSpec(ctx context.Context, opts executeBatchSpecOpts) (err error
 
 	imageCache := docker.NewImageCache()
 
-	if err := validateSourcegraphVersionConstraint(ctx, ffs); err != nil {
-		return err
+	if err := validateSourcegraphVersionConstraint(ffs); err != nil {
+		if !opts.flags.skipErrors {
+			return err
+		} else {
+			cliLog.Printf("WARNING: %s", err)
+		}
 	}
 
 	if err := checkExecutable("git", "version"); err != nil {
@@ -655,7 +660,7 @@ func getBatchParallelism(ctx context.Context, flag int) (int, error) {
 	return docker.NCPU(ctx)
 }
 
-func validateSourcegraphVersionConstraint(ctx context.Context, ffs *batches.FeatureFlags) error {
+func validateSourcegraphVersionConstraint(ffs *batches.FeatureFlags) error {
 	if ffs.Sourcegraph40 {
 		return nil
 	}

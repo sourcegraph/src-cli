@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	cliLog "log"
 
 	"github.com/sourcegraph/src-cli/internal/api"
 	"github.com/sourcegraph/src-cli/internal/batches/service"
@@ -30,7 +31,12 @@ Examples:
 	apiFlags := api.NewFlags(flagSet)
 
 	var (
-		fileFlag = flagSet.String("f", "batch.yaml", "The name of the batch spec file to create.")
+		fileFlag   = flagSet.String("f", "batch.yaml", "The name of the batch spec file to create.")
+		skipErrors bool
+	)
+	flagSet.BoolVar(
+		&skipErrors, "skip-errors", false,
+		"If true, errors encountered won't stop the program, but only log them.",
 	)
 
 	handler := func(args []string) error {
@@ -48,13 +54,17 @@ Examples:
 			Client: cfg.apiClient(apiFlags, flagSet.Output()),
 		})
 
-		_, ffs, err := svc.DetermineLicenseAndFeatureFlags(ctx)
+		_, ffs, err := svc.DetermineLicenseAndFeatureFlags(ctx, skipErrors)
 		if err != nil {
 			return err
 		}
 
-		if err := validateSourcegraphVersionConstraint(ctx, ffs); err != nil {
-			return err
+		if err := validateSourcegraphVersionConstraint(ffs); err != nil {
+			if !skipErrors {
+				return err
+			} else {
+				cliLog.Printf("WARNING: %s", err)
+			}
 		}
 
 		if err := svc.GenerateExampleSpec(ctx, *fileFlag); err != nil {
