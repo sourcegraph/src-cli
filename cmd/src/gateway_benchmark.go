@@ -62,7 +62,7 @@ Examples:
 			gatewayWebsocket, sourcegraphWebsocket *websocket.Conn
 			err                                    error
 			httpClient                             = &http.Client{}
-			endpoints                              = map[string]any{}
+			endpoints                              = map[string]any{} // Values: URL `string`s or `*websocket.Conn`s
 		)
 		if *gatewayEndpoint != "" {
 			wsURL := strings.Replace(fmt.Sprint(*gatewayEndpoint, "/v2/websocket"), "http", "ws", 1)
@@ -70,8 +70,8 @@ Examples:
 			if err != nil {
 				return fmt.Errorf("WebSocket dial(%s): %v", wsURL, err)
 			}
-			endpoints["wss: gateway"] = gatewayWebsocket
-			endpoints["https: gateway"] = fmt.Sprint(*gatewayEndpoint, "/v2")
+			endpoints["ws(s): gateway"] = gatewayWebsocket
+			endpoints["http(s): gateway"] = fmt.Sprint(*gatewayEndpoint, "/v2")
 		}
 		if cfg.Endpoint != "" {
 			wsURL := strings.Replace(fmt.Sprint(cfg.Endpoint, "/.api/gateway/websocket"), "http", "ws", 1)
@@ -79,8 +79,8 @@ Examples:
 			if err != nil {
 				return fmt.Errorf("WebSocket dial(%s): %v", wsURL, err)
 			}
-			endpoints["wss: sourcegraph"] = sourcegraphWebsocket
-			endpoints["https: sourcegraph"] = fmt.Sprint(*gatewayEndpoint, "/.api/gateway")
+			endpoints["ws(s): sourcegraph"] = sourcegraphWebsocket
+			endpoints["http(s): sourcegraph"] = fmt.Sprint(*gatewayEndpoint, "/.api/gateway")
 		}
 
 		fmt.Printf("Starting benchmark with %d requests per endpoint...\n", *requestCount)
@@ -182,6 +182,15 @@ func benchmarkEndpointHTTP(client *http.Client, url string) time.Duration {
 		fmt.Printf("non-200 response: %v\n", resp.Status)
 		return 0
 	}
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		fmt.Printf("Error reading response body: %v\n", err)
+		return 0
+	}
+	if string(body) != "pong" {
+		fmt.Printf("Expected 'pong' response, got: %q\n", string(body))
+		return 0
+	}
 
 	return time.Since(start)
 }
@@ -199,7 +208,7 @@ func benchmarkEndpointWebSocket(conn *websocket.Conn) time.Duration {
 		return 0
 	}
 	if string(message) != "pong" {
-		fmt.Printf("Expected 'pong' response, got: %s\n", string(message))
+		fmt.Printf("Expected 'pong' response, got: %q\n", string(message))
 		return 0
 	}
 	return time.Since(start)
