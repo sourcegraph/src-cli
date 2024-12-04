@@ -38,6 +38,7 @@ Examples:
 
     $ src gateway benchmark
     $ src gateway benchmark --requests 50
+    $ src gateway benchmark --gateway http://localhost:9992 --sourcegraph http://localhost:3082
     $ src gateway benchmark --requests 50 --csv results.csv
 `
 
@@ -47,6 +48,7 @@ Examples:
 		requestCount    = flagSet.Int("requests", 1000, "Number of requests to make per endpoint")
 		csvOutput       = flagSet.String("csv", "", "Export results to CSV file (provide filename)")
 		gatewayEndpoint = flagSet.String("gateway", "https://cody-gateway.sourcegraph.com", "Cody Gateway endpoint")
+		sgEndpoint      = flagSet.String("sourcegraph", "https://sourcegraph.com", "Sourcegraph endpoint")
 	)
 
 	handler := func(args []string) error {
@@ -71,16 +73,16 @@ Examples:
 				return fmt.Errorf("WebSocket dial(%s): %v", wsURL, err)
 			}
 			endpoints["ws(s): gateway"] = gatewayWebsocket
-			endpoints["http(s): gateway"] = fmt.Sprint(*gatewayEndpoint, "/v2")
+			endpoints["http(s): gateway"] = fmt.Sprint(*gatewayEndpoint, "/v2/http")
 		}
-		if cfg.Endpoint != "" {
-			wsURL := strings.Replace(fmt.Sprint(cfg.Endpoint, "/.api/gateway/websocket"), "http", "ws", 1)
+		if *sgEndpoint != "" {
+			wsURL := strings.Replace(fmt.Sprint(*sgEndpoint, "/.api/gateway/websocket"), "http", "ws", 1)
 			sourcegraphWebsocket, _, err = websocket.DefaultDialer.Dial(wsURL, nil)
 			if err != nil {
 				return fmt.Errorf("WebSocket dial(%s): %v", wsURL, err)
 			}
 			endpoints["ws(s): sourcegraph"] = sourcegraphWebsocket
-			endpoints["http(s): sourcegraph"] = fmt.Sprint(*gatewayEndpoint, "/.api/gateway")
+			endpoints["http(s): sourcegraph"] = fmt.Sprint(*sgEndpoint, "/.api/gateway/http")
 		}
 
 		fmt.Printf("Starting benchmark with %d requests per endpoint...\n", *requestCount)
