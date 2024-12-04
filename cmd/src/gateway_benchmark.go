@@ -71,7 +71,7 @@ Examples:
 				return fmt.Errorf("WebSocket dial(%s): %v", wsURL, err)
 			}
 			endpoints["ws(s): gateway"] = gatewayWebsocket
-			endpoints["http(s): gateway"] = fmt.Sprint(*gatewayEndpoint, "/v2")
+			endpoints["http(s): gateway"] = fmt.Sprint(*gatewayEndpoint, "/v2/http")
 		}
 		if cfg.Endpoint != "" {
 			wsURL := strings.Replace(fmt.Sprint(cfg.Endpoint, "/.api/gateway/websocket"), "http", "ws", 1)
@@ -80,7 +80,7 @@ Examples:
 				return fmt.Errorf("WebSocket dial(%s): %v", wsURL, err)
 			}
 			endpoints["ws(s): sourcegraph"] = sourcegraphWebsocket
-			endpoints["http(s): sourcegraph"] = fmt.Sprint(*gatewayEndpoint, "/.api/gateway")
+			endpoints["http(s): sourcegraph"] = fmt.Sprint(*gatewayEndpoint, "/.api/gateway/http")
 		}
 
 		fmt.Printf("Starting benchmark with %d requests per endpoint...\n", *requestCount)
