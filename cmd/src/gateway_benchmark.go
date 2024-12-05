@@ -67,22 +67,33 @@ Examples:
 			endpoints                              = map[string]any{} // Values: URL `string`s or `*websocket.Conn`s
 		)
 		if *gatewayEndpoint != "" {
+			fmt.Println("Benchmarking Cody Gateway instance:", *gatewayEndpoint)
 			wsURL := strings.Replace(fmt.Sprint(*gatewayEndpoint, "/v2/websocket"), "http", "ws", 1)
+			fmt.Println("Connecting to Cody Gateway via WebSocket..", wsURL)
 			gatewayWebsocket, _, err = websocket.DefaultDialer.Dial(wsURL, nil)
 			if err != nil {
 				return fmt.Errorf("WebSocket dial(%s): %v", wsURL, err)
 			}
+			fmt.Println("Connected!")
 			endpoints["ws(s): gateway"] = gatewayWebsocket
 			endpoints["http(s): gateway"] = fmt.Sprint(*gatewayEndpoint, "/v2/http")
+		} else {
+			fmt.Println("warning: not benchmarking Cody Gateway (-gateway endpoint not provided)")
 		}
 		if *sgEndpoint != "" {
+			fmt.Println("Benchmarking Sourcegraph instance:", *sgEndpoint)
 			wsURL := strings.Replace(fmt.Sprint(*sgEndpoint, "/.api/gateway/websocket"), "http", "ws", 1)
+			fmt.Println("Connecting to Sourcegraph instance via WebSocket..", wsURL)
 			sourcegraphWebsocket, _, err = websocket.DefaultDialer.Dial(wsURL, nil)
 			if err != nil {
 				return fmt.Errorf("WebSocket dial(%s): %v", wsURL, err)
 			}
+			fmt.Println("Connected!")
 			endpoints["ws(s): sourcegraph"] = sourcegraphWebsocket
 			endpoints["http(s): sourcegraph"] = fmt.Sprint(*sgEndpoint, "/.api/gateway/http")
+			endpoints["http(s): http-then-ws"] = fmt.Sprint(*sgEndpoint, "/.api/gateway/http-then-websocket")
+		} else {
+			fmt.Println("warning: not benchmarking Sourcegraph instance (-sourcegraph endpoint not provided)")
 		}
 
 		fmt.Printf("Starting benchmark with %d requests per endpoint...\n", *requestCount)
@@ -163,7 +174,7 @@ type endpointResult struct {
 
 func benchmarkEndpointHTTP(client *http.Client, url string) time.Duration {
 	start := time.Now()
-	resp, err := client.Get(url)
+	resp, err := client.Post(url, "application/json", strings.NewReader("ping"))
 	if err != nil {
 		fmt.Printf("Error calling %s: %v\n", url, err)
 		return 0
@@ -174,12 +185,6 @@ func benchmarkEndpointHTTP(client *http.Client, url string) time.Duration {
 			fmt.Printf("Error closing response body: %v\n", err)
 		}
 	}()
-
-	_, err = io.ReadAll(resp.Body)
-	if err != nil {
-		fmt.Printf("Error reading response body: %v\n", err)
-		return 0
-	}
 	if resp.StatusCode != http.StatusOK {
 		fmt.Printf("non-200 response: %v\n", resp.Status)
 		return 0
@@ -267,7 +272,7 @@ func formatSuccessRate(successful, total int, best bool, worst bool) string {
 
 func printResults(results []endpointResult, requestCount *int) {
 	// Print header
-	headerFmt := ansiColors["blue"] + "%-20s | %-10s | %-10s | %-10s | %-10s | %-10s | %-10s | %-10s | %-10s" + ansiColors["nc"] + "\n"
+	headerFmt := ansiColors["blue"] + "%-25s | %-10s | %-10s | %-10s | %-10s | %-10s | %-10s | %-10s | %-10s" + ansiColors["nc"] + "\n"
 	fmt.Printf("\n"+headerFmt,
 		"Endpoint    ", "Average", "Median", "P5", "P75", "P80", "P95", "Total", "Success")
 	fmt.Println(ansiColors["blue"] + strings.Repeat("-", 121) + ansiColors["nc"])
