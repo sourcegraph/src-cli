@@ -26,6 +26,23 @@ type Stats struct {
 	Total  time.Duration
 }
 
+// httpEndpointConfig represents the configuration for an HTTP endpoint.
+type httpEndpointConfig struct {
+	client *http.Client
+	url    string
+}
+
+// sgAuthTransport is an http.RoundTripper that adds an Authorization header to requests.
+// It is used to add the Sourcegraph access token to requests to Sourcegraph endpoints.
+type sgAuthTransport struct {
+	token string
+	base  http.RoundTripper
+}
+func (t *sgAuthTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	req.Header.Add("Authorization", "token "+t.token)
+	return t.base.RoundTrip(req)
+}
+
 func init() {
 	usage := `
 'src gateway benchmark' runs performance benchmarks against Cody Gateway endpoints.
@@ -38,7 +55,7 @@ Examples:
 
     $ src gateway benchmark
     $ src gateway benchmark --requests 50
-    $ src gateway benchmark --gateway http://localhost:9992 --sourcegraph http://localhost:3082
+    $ src gateway benchmark --gateway http://localhost:9992 --sourcegraph http://localhost:3082 --sgp sgp_***** --requests 50
     $ src gateway benchmark --requests 50 --csv results.csv
 `
 
@@ -49,6 +66,7 @@ Examples:
 		csvOutput       = flagSet.String("csv", "", "Export results to CSV file (provide filename)")
 		gatewayEndpoint = flagSet.String("gateway", "https://cody-gateway.sourcegraph.com", "Cody Gateway endpoint")
 		sgEndpoint      = flagSet.String("sourcegraph", "https://sourcegraph.com", "Sourcegraph endpoint")
+		sgpToken        = flagSet.String("sgp", "sgp_*****", "Sourcegraph personal access token for the called instance")
 	)
 
 	handler := func(args []string) error {
@@ -63,43 +81,76 @@ Examples:
 		var (
 			gatewayWebsocket, sourcegraphWebsocket *websocket.Conn
 			err                                    error
-			httpClient                             = &http.Client{}
+			gatewayClient                          = &http.Client{}
+			sourcegraphClient                      = &http.Client{}
 			endpoints                              = map[string]any{} // Values: URL `string`s or `*websocket.Conn`s
 		)
+
+		// Connect to endpoints
 		if *gatewayEndpoint != "" {
+			fmt.Println("Benchmarking Cody Gateway instance:", *gatewayEndpoint)
 			wsURL := strings.Replace(fmt.Sprint(*gatewayEndpoint, "/v2/websocket"), "http", "ws", 1)
+			fmt.Println("Connecting to Cody Gateway via WebSocket..", wsURL)
 			gatewayWebsocket, _, err = websocket.DefaultDialer.Dial(wsURL, nil)
 			if err != nil {
 				return fmt.Errorf("WebSocket dial(%s): %v", wsURL, err)
 			}
+			fmt.Println("Connected!")
 			endpoints["ws(s): gateway"] = gatewayWebsocket
-			endpoints["http(s): gateway"] = fmt.Sprint(*gatewayEndpoint, "/v2/http")
+			endpoints["http(s): gateway"] = &httpEndpointConfig{
+				client: gatewayClient,
+				url:    fmt.Sprint(*gatewayEndpoint, "/v2/http"),
+			}
+		} else {
+			fmt.Println("warning: not benchmarking Cody Gateway (-gateway endpoint not provided)")
 		}
 		if *sgEndpoint != "" {
+			// Add auth header to sourcegraphClient transport
+			if *sgpToken != "" {
+				sourcegraphClient.Transport = &sgAuthTransport{
+					token: *sgpToken,
+					base:  http.DefaultTransport,
+				}
+			}
+			fmt.Println("Benchmarking Sourcegraph instance:", *sgEndpoint)
 			wsURL := strings.Replace(fmt.Sprint(*sgEndpoint, "/.api/gateway/websocket"), "http", "ws", 1)
-			sourcegraphWebsocket, _, err = websocket.DefaultDialer.Dial(wsURL, nil)
+			header := http.Header{}
+			header.Add("Authorization", "token "+*sgpToken)
+			fmt.Println("Connecting to Sourcegraph instance via WebSocket..", wsURL)
+			sourcegraphWebsocket, _, err = websocket.DefaultDialer.Dial(wsURL, header)
 			if err != nil {
 				return fmt.Errorf("WebSocket dial(%s): %v", wsURL, err)
 			}
+			fmt.Println("Connected!")
+
 			endpoints["ws(s): sourcegraph"] = sourcegraphWebsocket
-			endpoints["http(s): sourcegraph"] = fmt.Sprint(*sgEndpoint, "/.api/gateway/http")
+			endpoints["http(s): sourcegraph"] = &httpEndpointConfig{
+				client: sourcegraphClient,
+				url:    fmt.Sprint(*sgEndpoint, "/.api/gateway/http"),
+			}
+			endpoints["http(s): http-then-ws"] = &httpEndpointConfig{
+				client: sourcegraphClient,
+				url:    fmt.Sprint(*sgEndpoint, "/.api/gateway/http-then-websocket"),
+			}
+		} else {
+			fmt.Println("warning: not benchmarking Sourcegraph instance (-sourcegraph endpoint not provided)")
 		}
 
 		fmt.Printf("Starting benchmark with %d requests per endpoint...\n", *requestCount)
 
 		var results []endpointResult
-		for name, clientOrURL := range endpoints {
+		for name, clientOrEndpointConfig := range endpoints {
 			durations := make([]time.Duration, 0, *requestCount)
 			fmt.Printf("\nTesting %s...", name)
 
 			for i := 0; i < *requestCount; i++ {
-				if ws, ok := clientOrURL.(*websocket.Conn); ok {
+				if ws, ok := clientOrEndpointConfig.(*websocket.Conn); ok {
 					duration := benchmarkEndpointWebSocket(ws)
 					if duration > 0 {
 						durations = append(durations, duration)
 					}
-				} else if url, ok := clientOrURL.(string); ok {
-					duration := benchmarkEndpointHTTP(httpClient, url)
+				} else if epConf, ok := clientOrEndpointConfig.(httpEndpointConfig); ok {
+					duration := benchmarkEndpointHTTP(epConf)
 					if duration > 0 {
 						durations = append(durations, duration)
 					}
@@ -161,11 +212,11 @@ type endpointResult struct {
 	successful int
 }
 
-func benchmarkEndpointHTTP(client *http.Client, url string) time.Duration {
+func benchmarkEndpointHTTP(epConfig httpEndpointConfig) time.Duration {
 	start := time.Now()
-	resp, err := client.Get(url)
+	resp, err := epConfig.client.Post(epConfig.url, "application/json", strings.NewReader("ping"))
 	if err != nil {
-		fmt.Printf("Error calling %s: %v\n", url, err)
+		fmt.Printf("Error calling %s: %v\n", epConfig.url, err)
 		return 0
 	}
 	defer func() {
@@ -174,12 +225,6 @@ func benchmarkEndpointHTTP(client *http.Client, url string) time.Duration {
 			fmt.Printf("Error closing response body: %v\n", err)
 		}
 	}()
-
-	_, err = io.ReadAll(resp.Body)
-	if err != nil {
-		fmt.Printf("Error reading response body: %v\n", err)
-		return 0
-	}
 	if resp.StatusCode != http.StatusOK {
 		fmt.Printf("non-200 response: %v\n", resp.Status)
 		return 0
@@ -267,7 +312,7 @@ func formatSuccessRate(successful, total int, best bool, worst bool) string {
 
 func printResults(results []endpointResult, requestCount *int) {
 	// Print header
-	headerFmt := ansiColors["blue"] + "%-20s | %-10s | %-10s | %-10s | %-10s | %-10s | %-10s | %-10s | %-10s" + ansiColors["nc"] + "\n"
+	headerFmt := ansiColors["blue"] + "%-25s | %-10s | %-10s | %-10s | %-10s | %-10s | %-10s | %-10s | %-10s" + ansiColors["nc"] + "\n"
 	fmt.Printf("\n"+headerFmt,
 		"Endpoint    ", "Average", "Median", "P5", "P75", "P80", "P95", "Total", "Success")
 	fmt.Println(ansiColors["blue"] + strings.Repeat("-", 121) + ansiColors["nc"])
