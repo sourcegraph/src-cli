@@ -149,7 +149,7 @@ Examples:
 					if duration > 0 {
 						durations = append(durations, duration)
 					}
-				} else if epConf, ok := clientOrEndpointConfig.(httpEndpointConfig); ok {
+				} else if epConf, ok := clientOrEndpointConfig.(*httpEndpointConfig); ok {
 					duration := benchmarkEndpointHTTP(epConf)
 					if duration > 0 {
 						durations = append(durations, duration)
@@ -212,7 +212,7 @@ type endpointResult struct {
 	successful int
 }
 
-func benchmarkEndpointHTTP(epConfig httpEndpointConfig) time.Duration {
+func benchmarkEndpointHTTP(epConfig *httpEndpointConfig) time.Duration {
 	start := time.Now()
 	resp, err := epConfig.client.Post(epConfig.url, "application/json", strings.NewReader("ping"))
 	if err != nil {
