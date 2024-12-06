@@ -83,6 +83,9 @@ Examples:
 			endpoints["ws(s): sourcegraph"] = &webSocketClient{
 				conn: nil,
 				URL:  strings.Replace(fmt.Sprint(*sgEndpoint, "/.api/gateway/websocket"), "http", "ws", 1),
+				headers: http.Header{
+					"Authorization": []string{"token " + *sgpToken},
+				},
 			}
 			endpoints["http(s): sourcegraph"] = fmt.Sprint(*sgEndpoint, "/.api/gateway/http")
 			endpoints["http(s): http-then-ws"] = fmt.Sprint(*sgEndpoint, "/.api/gateway/http-then-websocket")
@@ -155,8 +158,9 @@ Examples:
 }
 
 type webSocketClient struct {
-	conn *websocket.Conn
-	URL  string
+	conn    *websocket.Conn
+	URL     string
+	headers http.Header
 }
 
 func (c *webSocketClient) reconnect() error {
@@ -165,7 +169,7 @@ func (c *webSocketClient) reconnect() error {
 	}
 	fmt.Println("Connecting to WebSocket..", c.URL)
 	var err error
-	c.conn, _, err = websocket.DefaultDialer.Dial(c.URL, nil)
+	c.conn, _, err = websocket.DefaultDialer.Dial(c.URL, c.headers)
 	if err != nil {
 		c.conn = nil // retry again later
 		return fmt.Errorf("WebSocket dial(%s): %v", c.URL, err)
