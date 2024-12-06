@@ -169,10 +169,10 @@ minipass@^4.0.0:
   resolved "https://registry.yarnpkg.com/minipass/-/minipass-4.2.8.tgz#f0010f64393ecfc1d1ccb5f582bcaf45f48e1a3a"
   integrity sha512-fNzuVyifolSLFL4NzpF+wEF4qrgqaaKX0haXPQEdQ7NKAN+WecoKMHV09YcuL/DHxrUsYQOK3MiuDf7Ip2OXfQ==
 
-"minipass@^5.0.0 || ^6.0.2 || ^7.0.0", minipass@^7.0.4, minipass@^7.1.0:
-  version "7.1.1"
-  resolved "https://registry.yarnpkg.com/minipass/-/minipass-7.1.1.tgz#f7f85aff59aa22f110b20e27692465cf3bf89481"
-  integrity sha512-UZ7eQ+h8ywIRAW1hIEl2AqdwzJucU/Kp59+8kkZeSvafXhZjul247BvIJjEVFVeON6d7lM46XX1HXCduKAS8VA==
+"minipass@^5.0.0 || ^6.0.2 || ^7.0.0", minipass@^7.0.4, minipass@^7.1.2:
+  version "7.1.2"
+  resolved "https://registry.yarnpkg.com/minipass/-/minipass-7.1.2.tgz#93a9626ce5e5e66bd4db86849e7515e92340a707"
+  integrity sha512-qOOzS1cBTWYF4BH8fVePDBOO9iptMnGUEZwNc/cMWnTV2nVLZ7VoNWEPHkYczZA0pdoA7dl6e7FL659nX9S2aw==
 
 minizlib@^3.0.1:
   version "3.0.1"
@@ -272,14 +272,14 @@ strip-ansi@^7.0.1:
   dependencies:
     ansi-regex "^6.0.1"
 
-tar@^7.1.0:
-  version "7.1.0"
-  resolved "https://registry.yarnpkg.com/tar/-/tar-7.1.0.tgz#c6d4ec5b10ccdffe8bc412b206eaeaf5181f3098"
-  integrity sha512-ENhg4W6BmjYxl8GTaE7/h99f0aXiSWv4kikRZ9n2/JRxypZniE84ILZqimAhxxX7Zb8Px6pFdheW3EeHfhnXQQ==
+tar@^7.4.3:
+  version "7.4.3"
+  resolved "https://registry.yarnpkg.com/tar/-/tar-7.4.3.tgz#88bbe9286a3fcd900e94592cda7a22b192e80571"
+  integrity sha512-5S7Va8hKfV7W5U6g3aYxXmlPoZVAwUMy9AOKyF2fVuZa2UD3qZjg578OrLRt8PcNN1PleVaL/5/yYATNL0ICUw==
   dependencies:
     "@isaacs/fs-minipass" "^4.0.0"
     chownr "^3.0.0"
-    minipass "^7.1.0"
+    minipass "^7.1.2"
     minizlib "^3.0.1"
     mkdirp "^3.0.1"
     yallist "^5.0.0"
