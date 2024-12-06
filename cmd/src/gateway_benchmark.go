@@ -26,23 +26,6 @@ type Stats struct {
 	Total  time.Duration
 }
 
-// httpEndpointConfig represents the configuration for an HTTP endpoint.
-type httpEndpointConfig struct {
-	client *http.Client
-	url    string
-}
-
-// sgAuthTransport is an http.RoundTripper that adds an Authorization header to requests.
-// It is used to add the Sourcegraph access token to requests to Sourcegraph endpoints.
-type sgAuthTransport struct {
-	token string
-	base  http.RoundTripper
-}
-func (t *sgAuthTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	req.Header.Add("Authorization", "token "+t.token)
-	return t.base.RoundTrip(req)
-}
-
 func init() {
 	usage := `
 'src gateway benchmark' runs performance benchmarks against Cody Gateway endpoints.
@@ -53,10 +36,10 @@ Usage:
 
 Examples:
 
-    $ src gateway benchmark
-    $ src gateway benchmark --requests 50
-    $ src gateway benchmark --gateway http://localhost:9992 --sourcegraph http://localhost:3082 --sgp sgp_***** --requests 50
-    $ src gateway benchmark --requests 50 --csv results.csv
+    $ src gateway benchmark --sgp <token>
+    $ src gateway benchmark --requests 50 --sgp <token>
+    $ src gateway benchmark --gateway http://localhost:9992 --sourcegraph http://localhost:3082 --sgp <token>
+    $ src gateway benchmark --requests 50 --csv results.csv --sgp <token>
 `
 
 	flagSet := flag.NewFlagSet("benchmark", flag.ExitOnError)
@@ -66,7 +49,7 @@ Examples:
 		csvOutput       = flagSet.String("csv", "", "Export results to CSV file (provide filename)")
 		gatewayEndpoint = flagSet.String("gateway", "https://cody-gateway.sourcegraph.com", "Cody Gateway endpoint")
 		sgEndpoint      = flagSet.String("sourcegraph", "https://sourcegraph.com", "Sourcegraph endpoint")
-		sgpToken        = flagSet.String("sgp", "sgp_*****", "Sourcegraph personal access token for the called instance")
+		sgpToken        = flagSet.String("sgp", "", "Sourcegraph personal access token for the called instance")
 	)
 
 	handler := func(args []string) error {
@@ -79,59 +62,30 @@ Examples:
 		}
 
 		var (
-			gatewayWebsocket, sourcegraphWebsocket *websocket.Conn
-			err                                    error
-			gatewayClient                          = &http.Client{}
-			sourcegraphClient                      = &http.Client{}
-			endpoints                              = map[string]any{} // Values: URL `string`s or `*websocket.Conn`s
+			httpClient = &http.Client{}
+			endpoints  = map[string]any{} // Values: URL `string`s or `*webSocketClient`s
 		)
-
-		// Connect to endpoints
 		if *gatewayEndpoint != "" {
 			fmt.Println("Benchmarking Cody Gateway instance:", *gatewayEndpoint)
-			wsURL := strings.Replace(fmt.Sprint(*gatewayEndpoint, "/v2/websocket"), "http", "ws", 1)
-			fmt.Println("Connecting to Cody Gateway via WebSocket..", wsURL)
-			gatewayWebsocket, _, err = websocket.DefaultDialer.Dial(wsURL, nil)
-			if err != nil {
-				return fmt.Errorf("WebSocket dial(%s): %v", wsURL, err)
+			endpoints["ws(s): gateway"] = &webSocketClient{
+				conn: nil,
+				URL:  strings.Replace(fmt.Sprint(*gatewayEndpoint, "/v2/websocket"), "http", "ws", 1),
 			}
-			fmt.Println("Connected!")
-			endpoints["ws(s): gateway"] = gatewayWebsocket
-			endpoints["http(s): gateway"] = &httpEndpointConfig{
-				client: gatewayClient,
-				url:    fmt.Sprint(*gatewayEndpoint, "/v2/http"),
-			}
+			endpoints["http(s): gateway"] = fmt.Sprint(*gatewayEndpoint, "/v2/http")
 		} else {
 			fmt.Println("warning: not benchmarking Cody Gateway (-gateway endpoint not provided)")
 		}
 		if *sgEndpoint != "" {
-			// Add auth header to sourcegraphClient transport
-			if *sgpToken != "" {
-				sourcegraphClient.Transport = &sgAuthTransport{
-					token: *sgpToken,
-					base:  http.DefaultTransport,
-				}
+			if *sgpToken == "" {
+				return cmderrors.Usage("must specify --sgp <Sourcegraph personal access token>")
 			}
 			fmt.Println("Benchmarking Sourcegraph instance:", *sgEndpoint)
-			wsURL := strings.Replace(fmt.Sprint(*sgEndpoint, "/.api/gateway/websocket"), "http", "ws", 1)
-			header := http.Header{}
-			header.Add("Authorization", "token "+*sgpToken)
-			fmt.Println("Connecting to Sourcegraph instance via WebSocket..", wsURL)
-			sourcegraphWebsocket, _, err = websocket.DefaultDialer.Dial(wsURL, header)
-			if err != nil {
-				return fmt.Errorf("WebSocket dial(%s): %v", wsURL, err)
+			endpoints["ws(s): sourcegraph"] = &webSocketClient{
+				conn: nil,
+				URL:  strings.Replace(fmt.Sprint(*sgEndpoint, "/.api/gateway/websocket"), "http", "ws", 1),
 			}
-			fmt.Println("Connected!")
-
-			endpoints["ws(s): sourcegraph"] = sourcegraphWebsocket
-			endpoints["http(s): sourcegraph"] = &httpEndpointConfig{
-				client: sourcegraphClient,
-				url:    fmt.Sprint(*sgEndpoint, "/.api/gateway/http"),
-			}
-			endpoints["http(s): http-then-ws"] = &httpEndpointConfig{
-				client: sourcegraphClient,
-				url:    fmt.Sprint(*sgEndpoint, "/.api/gateway/http-then-websocket"),
-			}
+			endpoints["http(s): sourcegraph"] = fmt.Sprint(*sgEndpoint, "/.api/gateway/http")
+			endpoints["http(s): http-then-ws"] = fmt.Sprint(*sgEndpoint, "/.api/gateway/http-then-websocket")
 		} else {
 			fmt.Println("warning: not benchmarking Sourcegraph instance (-sourcegraph endpoint not provided)")
 		}
@@ -139,18 +93,18 @@ Examples:
 		fmt.Printf("Starting benchmark with %d requests per endpoint...\n", *requestCount)
 
 		var results []endpointResult
-		for name, clientOrEndpointConfig := range endpoints {
+		for name, clientOrURL := range endpoints {
 			durations := make([]time.Duration, 0, *requestCount)
 			fmt.Printf("\nTesting %s...", name)
 
 			for i := 0; i < *requestCount; i++ {
-				if ws, ok := clientOrEndpointConfig.(*websocket.Conn); ok {
+				if ws, ok := clientOrURL.(*webSocketClient); ok {
 					duration := benchmarkEndpointWebSocket(ws)
 					if duration > 0 {
 						durations = append(durations, duration)
 					}
-				} else if epConf, ok := clientOrEndpointConfig.(*httpEndpointConfig); ok {
-					duration := benchmarkEndpointHTTP(epConf)
+				} else if url, ok := clientOrURL.(string); ok {
+					duration := benchmarkEndpointHTTP(httpClient, url, *sgpToken)
 					if duration > 0 {
 						durations = append(durations, duration)
 					}
@@ -200,6 +154,26 @@ Examples:
 	})
 }
 
+type webSocketClient struct {
+	conn *websocket.Conn
+	URL  string
+}
+
+func (c *webSocketClient) reconnect() error {
+	if c.conn != nil {
+		c.conn.Close() // don't leak connections
+	}
+	fmt.Println("Connecting to WebSocket..", c.URL)
+	var err error
+	c.conn, _, err = websocket.DefaultDialer.Dial(c.URL, nil)
+	if err != nil {
+		c.conn = nil // retry again later
+		return fmt.Errorf("WebSocket dial(%s): %v", c.URL, err)
+	}
+	fmt.Println("Connected!")
+	return nil
+}
+
 type endpointResult struct {
 	name       string
 	avg        time.Duration
@@ -212,11 +186,18 @@ type endpointResult struct {
 	successful int
 }
 
-func benchmarkEndpointHTTP(epConfig *httpEndpointConfig) time.Duration {
+func benchmarkEndpointHTTP(client *http.Client, url, accessToken string) time.Duration {
 	start := time.Now()
-	resp, err := epConfig.client.Post(epConfig.url, "application/json", strings.NewReader("ping"))
+	req, err := http.NewRequest("POST", url, strings.NewReader("ping"))
 	if err != nil {
-		fmt.Printf("Error calling %s: %v\n", epConfig.url, err)
+		fmt.Printf("Error creating request: %v\n", err)
+		return 0
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "token "+accessToken)
+	resp, err := client.Do(req)
+	if err != nil {
+		fmt.Printf("Error calling %s: %v\n", url, err)
 		return 0
 	}
 	defer func() {
@@ -242,20 +223,39 @@ func benchmarkEndpointHTTP(epConfig *httpEndpointConfig) time.Duration {
 	return time.Since(start)
 }
 
-func benchmarkEndpointWebSocket(conn *websocket.Conn) time.Duration {
+func benchmarkEndpointWebSocket(client *webSocketClient) time.Duration {
+	// Perform initial websocket connection, if needed.
+	if client.conn == nil {
+		if err := client.reconnect(); err != nil {
+			fmt.Printf("Error reconnecting: %v\n", err)
+			return 0
+		}
+	}
+
+	// Perform the benchmarked request using the websocket.
 	start := time.Now()
-	err := conn.WriteMessage(websocket.TextMessage, []byte("ping"))
+	err := client.conn.WriteMessage(websocket.TextMessage, []byte("ping"))
 	if err != nil {
 		fmt.Printf("WebSocket write error: %v\n", err)
+		if err := client.reconnect(); err != nil {
+			fmt.Printf("Error reconnecting: %v\n", err)
+		}
 		return 0
 	}
-	_, message, err := conn.ReadMessage()
+	_, message, err := client.conn.ReadMessage()
+
 	if err != nil {
 		fmt.Printf("WebSocket read error: %v\n", err)
+		if err := client.reconnect(); err != nil {
+			fmt.Printf("Error reconnecting: %v\n", err)
+		}
 		return 0
 	}
 	if string(message) != "pong" {
 		fmt.Printf("Expected 'pong' response, got: %q\n", string(message))
+		if err := client.reconnect(); err != nil {
+			fmt.Printf("Error reconnecting: %v\n", err)
+		}
 		return 0
 	}
 	return time.Since(start)
