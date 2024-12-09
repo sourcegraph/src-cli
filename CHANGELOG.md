@@ -11,6 +11,10 @@ All notable changes to `src-cli` are documented in this file.
 
 ## Unreleased
 
+## 5.10.0
+- cody gateway benchmark changes
+- fix local builds for non sourcegraph team [1121](https://github.com/sourcegraph/src-cli/pull/1121)
+
 ## 5.9.1
 
 - Update SBOM output file extension from `.json` to `.cdx.json` [#1123](https://github.com/sourcegraph/src-cli/pull/1123)
