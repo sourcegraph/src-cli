@@ -384,7 +384,7 @@ func printResults(results []endpointResult, requestCount *int) {
 
 	// Print each row
 	for _, r := range results {
-		fmt.Printf("%-20s | %-19s | %-19s | %-19s | %-19s | %-19s | %-19s | %-19s | %s\n",
+		fmt.Printf("%-25s | %-19s | %-19s | %-19s | %-19s | %-19s | %-19s | %-19s | %s\n",
 			r.name,
 			formatDuration(r.avg, r.avg == bestAvg, r.avg == worstAvg),
 			formatDuration(r.median, r.median == bestMedian, r.median == worstMedian),
