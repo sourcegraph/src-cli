@@ -2,9 +2,10 @@ package batches
 
 import (
 	"fmt"
+	"log"
+	
 	"github.com/sourcegraph/sourcegraph/lib/api"
 	"github.com/sourcegraph/sourcegraph/lib/errors"
-	"log"
 )
 
 // FeatureFlags represent features that are only available on certain
