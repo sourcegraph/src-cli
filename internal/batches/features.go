@@ -3,7 +3,7 @@ package batches
 import (
 	"fmt"
 	"log"
-	
+
 	"github.com/sourcegraph/sourcegraph/lib/api"
 	"github.com/sourcegraph/sourcegraph/lib/errors"
 )
