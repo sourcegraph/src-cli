@@ -28,7 +28,7 @@ type Stats struct {
 
 func init() {
 	usage := `
-'src gateway benchmark' runs performance benchmarks against Cody Gateway endpoints.
+'src gateway benchmark' runs performance benchmarks against Cody Gateway and Sourcegraph test endpoints.
 
 Usage:
 
