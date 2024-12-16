@@ -12,9 +12,9 @@ import (
 )
 
 type httpEndpoint struct {
-	url string
+	url        string
 	authHeader string
-	body string
+	body       string
 }
 
 func init() {
@@ -30,6 +30,7 @@ Examples:
 
     $ src gateway benchmark-stream --requests 50 --csv results.csv --sgd <token> --sgp <token>
     $ src gateway benchmark-stream --gateway http://localhost:9992 --sourcegraph http://localhost:3082 --sgd <token> --sgp <token>
+    $ src gateway benchmark-stream --gateway http://localhost:9992 --sourcegraph http://localhost:3082 --sgd <token> --sgp <token> --max-tokens 50
 `
 
 	flagSet := flag.NewFlagSet("benchmark-stream", flag.ExitOnError)
@@ -37,110 +38,53 @@ Examples:
 	var (
 		requestCount    = flagSet.Int("requests", 1000, "Number of requests to make per endpoint")
 		csvOutput       = flagSet.String("csv", "", "Export results to CSV file (provide filename)")
-		gatewayEndpoint = flagSet.String("gateway", "https://cody-gateway.sourcegraph.com", "Cody Gateway endpoint")
-		sgEndpoint      = flagSet.String("sourcegraph", "https://sourcegraph.com", "Sourcegraph endpoint")
+		gatewayEndpoint = flagSet.String("gateway", "", "Cody Gateway endpoint")
+		sgEndpoint      = flagSet.String("sourcegraph", "", "Sourcegraph endpoint")
 		sgdToken        = flagSet.String("sgd", "", "Sourcegraph Dotcom user key for Cody Gateway")
 		sgpToken        = flagSet.String("sgp", "", "Sourcegraph personal access token for the called instance")
 	)
 
 	handler := func(args []string) error {
+		// Parse the flags.
 		if err := flagSet.Parse(args); err != nil {
 			return err
 		}
-
 		if len(flagSet.Args()) != 0 {
 			return cmderrors.Usage("additional arguments not allowed")
 		}
+		if *gatewayEndpoint != "" && *sgdToken == "" {
+			return cmderrors.Usage("must specify --sgp <Sourcegraph personal access token>")
+		}
+		if *sgEndpoint != "" && *sgpToken == "" {
+			return cmderrors.Usage("must specify --sgp <Sourcegraph personal access token>")
+		}
 
-		var (
-			httpClient = &http.Client{}
-			endpoints  = map[string]httpEndpoint{}
-		)
+		var httpClient = &http.Client{}
+		var results []endpointResult
+
+		// Do the benchmarking.
+		fmt.Printf("Starting benchmark with %d requests per endpoint...\n", *requestCount)
 		if *gatewayEndpoint != "" {
-			if *sgdToken == "" {
-				return cmderrors.Usage("must specify --sgp <Sourcegraph personal access token>")
-			}
 			fmt.Println("Benchmarking Cody Gateway instance:", *gatewayEndpoint)
-			endpoints["gateway"] = httpEndpoint{
-				url: fmt.Sprint(*gatewayEndpoint, "/v1/completions/anthropic-messages"),
-				authHeader: fmt.Sprintf("Bearer %s", *sgdToken),
-				body: `{
-    "model": "claude-3-haiku-20240307",
-    "messages": [
-        {"role": "user", "content": "def bubble_sort(arr):"},
-        {"role": "assistant", "content": "Here is a bubble sort:"}
-    ],
-    "n": 1,
-    "max_tokens": 200,
-    "temperature": 0.0,
-    "top_p": 0.95,
-    "stream": true
-}`,
-			}
+			endpoint := buildGatewayHttpEndpoint(*gatewayEndpoint, *sgdToken, 200)
+			cgResults := benchmarkCodeCompletions("gateway", httpClient, endpoint, *requestCount)
+			results = append(results, cgResults)
+			fmt.Println()
 		} else {
 			fmt.Println("warning: not benchmarking Cody Gateway (-gateway endpoint not provided)")
 		}
 		if *sgEndpoint != "" {
-			if *sgpToken == "" {
-				return cmderrors.Usage("must specify --sgp <Sourcegraph personal access token>")
-			}
 			fmt.Println("Benchmarking Sourcegraph instance:", *sgEndpoint)
-			endpoints["sourcegraph"] = httpEndpoint{
-				url: fmt.Sprint(*sgEndpoint, "/.api/completions/stream"),
-				authHeader: fmt.Sprintf("token %s", *sgpToken),
-				body: `{
-    "model": "anthropic::2023-06-01::claude-3-haiku", 
-
-    "messages": [
-        {
-            "speaker": "human",
-            "text": "def bubble_sort(arr):"
-        },
-        {
-            "speaker": "assistant",
-            "text": "Here is a bubble sort:"
-        }
-    ],
-    "maxTokensToSample": 200,
-    "stream": true
-}`,
-			}
+			endpoint := buildSourcegraphHttpEndpoint(*sgEndpoint, *sgpToken, 200)
+			sgResults := benchmarkCodeCompletions("sourcegraph", httpClient, endpoint, *requestCount)
+			results = append(results, sgResults)
+			fmt.Println()
 		} else {
 			fmt.Println("warning: not benchmarking Sourcegraph instance (-sourcegraph endpoint not provided)")
 		}
 
-		fmt.Printf("Starting benchmark with %d requests per endpoint...\n", *requestCount)
-
-		var results []endpointResult
-		for name, endpoint := range endpoints {
-			durations := make([]time.Duration, 0, *requestCount)
-			fmt.Printf("\nTesting %s...", name)
-
-			for i := 0; i < *requestCount; i++ {
-				duration := benchmarkCodeCompletion(httpClient, endpoint)
-				if duration > 0 {
-					durations = append(durations, duration)
-				}
-			}
-			fmt.Println()
-
-			stats := calculateStats(durations)
-
-			results = append(results, endpointResult{
-				name:       name,
-				avg:        stats.Avg,
-				median:     stats.Median,
-				p5:         stats.P5,
-				p75:        stats.P75,
-				p80:        stats.P80,
-				p95:        stats.P95,
-				total:      stats.Total,
-				successful: len(durations),
-			})
-		}
-
+		// Output the results.
 		printResults(results, requestCount)
-
 		if *csvOutput != "" {
 			if err := writeResultsToCSV(*csvOutput, results, requestCount); err != nil {
 				return fmt.Errorf("failed to export CSV: %v", err)
@@ -150,7 +94,6 @@ Examples:
 
 		return nil
 	}
-
 	gatewayCommands = append(gatewayCommands, &command{
 		flagSet: flagSet,
 		aliases: []string{},
@@ -164,6 +107,62 @@ Examples:
 			fmt.Println(usage)
 		},
 	})
+}
+
+func buildGatewayHttpEndpoint(gatewayEndpoint string, sgdToken string, maxTokens int) httpEndpoint {
+	return httpEndpoint{
+		url:        fmt.Sprint(gatewayEndpoint, "/v1/completions/anthropic-messages"),
+		authHeader: fmt.Sprintf("Bearer %s", sgdToken),
+		body: fmt.Sprintf(`{
+    "model": "claude-3-haiku-20240307",
+    "messages": [
+        {"role": "user", "content": "def bubble_sort(arr):"},
+        {"role": "assistant", "content": "Here is a bubble sort:"}
+    ],
+    "n": 1,
+    "max_tokens": %d,
+    "temperature": 0.0,
+    "top_p": 0.95,
+    "stream": true
+}`, maxTokens),
+	}
+}
+
+func buildSourcegraphHttpEndpoint(sgEndpoint string, sgpToken string, maxTokens int) httpEndpoint {
+	return httpEndpoint{
+		url:        fmt.Sprint(sgEndpoint, "/.api/completions/stream"),
+		authHeader: fmt.Sprintf("token %s", sgpToken),
+		body: fmt.Sprintf(`{
+    "model": "anthropic::2023-06-01::claude-3-haiku", 
+
+    "messages": [
+        {
+            "speaker": "human",
+            "text": "def bubble_sort(arr):"
+        },
+        {
+            "speaker": "assistant",
+            "text": "Here is a bubble sort:"
+        }
+    ],
+    "maxTokensToSample": %d,
+    "stream": true
+}`, maxTokens),
+	}
+}
+
+func benchmarkCodeCompletions(benchmarkName string, client *http.Client, endpoint httpEndpoint, requestCount int) endpointResult {
+	durations := make([]time.Duration, 0, requestCount)
+
+	for i := 0; i < requestCount; i++ {
+		duration := benchmarkCodeCompletion(client, endpoint)
+		if duration > 0 {
+			durations = append(durations, duration)
+		}
+	}
+	stats := calculateStats(durations)
+
+	return toEndpointResult(benchmarkName, stats, len(durations))
 }
 
 func benchmarkCodeCompletion(client *http.Client, endpoint httpEndpoint) time.Duration {
@@ -199,4 +198,18 @@ func benchmarkCodeCompletion(client *http.Client, endpoint httpEndpoint) time.Du
 	}
 
 	return time.Since(start)
+}
+
+func toEndpointResult(name string, stats Stats, requestCount int) endpointResult {
+	return endpointResult{
+		name:       name,
+		avg:        stats.Avg,
+		median:     stats.Median,
+		p5:         stats.P5,
+		p75:        stats.P75,
+		p80:        stats.P80,
+		p95:        stats.P95,
+		successful: requestCount,
+		total:      stats.Total,
+	}
 }
