@@ -119,10 +119,8 @@ func buildGatewayHttpEndpoint(gatewayEndpoint string, sgdToken string, maxTokens
         {"role": "user", "content": "def bubble_sort(arr):"},
         {"role": "assistant", "content": "Here is a bubble sort:"}
     ],
-    "n": 1,
     "max_tokens": %d,
     "temperature": 0.0,
-    "top_p": 0.95,
     "stream": true
 }`, maxTokens),
 	}
@@ -133,19 +131,13 @@ func buildSourcegraphHttpEndpoint(sgEndpoint string, sgpToken string, maxTokens 
 		url:        fmt.Sprint(sgEndpoint, "/.api/completions/stream"),
 		authHeader: fmt.Sprintf("token %s", sgpToken),
 		body: fmt.Sprintf(`{
-    "model": "anthropic::2023-06-01::claude-3-haiku", 
-
+    "model": "anthropic::2023-06-01::claude-3-haiku",
     "messages": [
-        {
-            "speaker": "human",
-            "text": "def bubble_sort(arr):"
-        },
-        {
-            "speaker": "assistant",
-            "text": "Here is a bubble sort:"
-        }
+        {"speaker": "human", "text": "def bubble_sort(arr):"},
+        {"speaker": "assistant", "text": "Here is a bubble sort:"}
     ],
     "maxTokensToSample": %d,
+    "temperature": 0.0,
     "stream": true
 }`, maxTokens),
 	}
@@ -188,7 +180,8 @@ func benchmarkCodeCompletion(client *http.Client, endpoint httpEndpoint) time.Du
 		}
 	}()
 	if resp.StatusCode != http.StatusOK {
-		fmt.Printf("non-200 response: %v\n", resp.Status)
+		body, _ := io.ReadAll(resp.Body)
+		fmt.Printf("non-200 response: %v - %s\n", resp.Status, body)
 		return 0
 	}
 	_, err = io.ReadAll(resp.Body)
