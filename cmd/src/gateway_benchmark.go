@@ -40,6 +40,7 @@ Examples:
     $ src gateway benchmark --requests 50 --sgp <token>
     $ src gateway benchmark --gateway http://localhost:9992 --sourcegraph http://localhost:3082 --sgp <token>
     $ src gateway benchmark --requests 50 --csv results.csv --sgp <token>
+    $ src gateway benchmark --gateway https://cody-gateway.sourcegraph.com --sourcegraph https://sourcegraph.com --sgp <token> --use-special-header
 `
 
 	flagSet := flag.NewFlagSet("benchmark", flag.ExitOnError)
@@ -50,6 +51,7 @@ Examples:
 		gatewayEndpoint = flagSet.String("gateway", "https://cody-gateway.sourcegraph.com", "Cody Gateway endpoint")
 		sgEndpoint      = flagSet.String("sourcegraph", "https://sourcegraph.com", "Sourcegraph endpoint")
 		sgpToken        = flagSet.String("sgp", "", "Sourcegraph personal access token for the called instance")
+		useSpecialHeader = flagSet.Bool("use-special-header", false, "Use special header to test the gateway")
 	)
 
 	handler := func(args []string) error {
@@ -59,6 +61,10 @@ Examples:
 
 		if len(flagSet.Args()) != 0 {
 			return cmderrors.Usage("additional arguments not allowed")
+		}
+
+		if *useSpecialHeader {
+			fmt.Println("Using special header 'cody-core-gc-test'")
 		}
 
 		var (
@@ -80,12 +86,17 @@ Examples:
 				return cmderrors.Usage("must specify --sgp <Sourcegraph personal access token>")
 			}
 			fmt.Println("Benchmarking Sourcegraph instance:", *sgEndpoint)
+			headers := http.Header{
+				"Authorization": []string{"token " + *sgpToken},
+			}
+			if *useSpecialHeader {
+				headers.Set("cody-core-gc-test", "M2R{+6VI?1,M3n&<vpw1&AK>")
+			}
+
 			endpoints["ws(s): sourcegraph"] = &webSocketClient{
-				conn: nil,
-				URL:  strings.Replace(fmt.Sprint(*sgEndpoint, "/.api/gateway/websocket"), "http", "ws", 1),
-				headers: http.Header{
-					"Authorization": []string{"token " + *sgpToken},
-				},
+				conn:    nil,
+				URL:     strings.Replace(fmt.Sprint(*sgEndpoint, "/.api/gateway/websocket"), "http", "ws", 1),
+				headers: headers,
 			}
 			endpoints["http(s): sourcegraph"] = fmt.Sprint(*sgEndpoint, "/.api/gateway/http")
 			endpoints["http(s): http-then-ws"] = fmt.Sprint(*sgEndpoint, "/.api/gateway/http-then-websocket")
@@ -107,7 +118,7 @@ Examples:
 						durations = append(durations, duration)
 					}
 				} else if url, ok := clientOrURL.(string); ok {
-					duration := benchmarkEndpointHTTP(httpClient, url, *sgpToken)
+					duration := benchmarkEndpointHTTP(httpClient, url, *sgpToken, *useSpecialHeader)
 					if duration > 0 {
 						durations = append(durations, duration)
 					}
@@ -190,7 +201,7 @@ type endpointResult struct {
 	successful int
 }
 
-func benchmarkEndpointHTTP(client *http.Client, url, accessToken string) time.Duration {
+func benchmarkEndpointHTTP(client *http.Client, url, accessToken string, useSpecialHeader bool) time.Duration {
 	start := time.Now()
 	req, err := http.NewRequest("POST", url, strings.NewReader("ping"))
 	if err != nil {
@@ -199,6 +210,9 @@ func benchmarkEndpointHTTP(client *http.Client, url, accessToken string) time.Du
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "token "+accessToken)
+	if useSpecialHeader {
+		req.Header.Set("cody-core-gc-test", "M2R{+6VI?1,M3n&<vpw1&AK>")
+	}
 	resp, err := client.Do(req)
 	if err != nil {
 		fmt.Printf("Error calling %s: %v\n", url, err)
