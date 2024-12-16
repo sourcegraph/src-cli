@@ -66,18 +66,20 @@ Examples:
 		fmt.Printf("Starting benchmark with %d requests per endpoint...\n", *requestCount)
 		if *gatewayEndpoint != "" {
 			fmt.Println("Benchmarking Cody Gateway instance:", *gatewayEndpoint)
-			endpoint := buildGatewayHttpEndpoint(*gatewayEndpoint, *sgdToken, 200)
-			cgResults := benchmarkCodeCompletions("gateway", httpClient, endpoint, *requestCount)
-			results = append(results, cgResults)
+			cgResults50 := benchmarkCodeCompletions("gateway-50", httpClient, buildGatewayHttpEndpoint(*gatewayEndpoint, *sgdToken, 50), *requestCount)
+			cgResults200 := benchmarkCodeCompletions("gateway-200", httpClient, buildGatewayHttpEndpoint(*gatewayEndpoint, *sgdToken, 200), *requestCount)
+			cgResults500 := benchmarkCodeCompletions("gateway-500", httpClient, buildGatewayHttpEndpoint(*gatewayEndpoint, *sgdToken, 500), *requestCount)
+			results = append(results, cgResults50, cgResults200, cgResults500)
 			fmt.Println()
 		} else {
 			fmt.Println("warning: not benchmarking Cody Gateway (-gateway endpoint not provided)")
 		}
 		if *sgEndpoint != "" {
 			fmt.Println("Benchmarking Sourcegraph instance:", *sgEndpoint)
-			endpoint := buildSourcegraphHttpEndpoint(*sgEndpoint, *sgpToken, 200)
-			sgResults := benchmarkCodeCompletions("sourcegraph", httpClient, endpoint, *requestCount)
-			results = append(results, sgResults)
+			sgResults50 := benchmarkCodeCompletions("sourcegraph-50", httpClient, buildSourcegraphHttpEndpoint(*sgEndpoint, *sgpToken, 50), *requestCount)
+			sgResults200 := benchmarkCodeCompletions("sourcegraph-200", httpClient, buildSourcegraphHttpEndpoint(*sgEndpoint, *sgpToken, 200), *requestCount)
+			sgResults500 := benchmarkCodeCompletions("sourcegraph-500", httpClient, buildSourcegraphHttpEndpoint(*sgEndpoint, *sgpToken, 500), *requestCount)
+			results = append(results, sgResults50, sgResults200, sgResults500)
 			fmt.Println()
 		} else {
 			fmt.Println("warning: not benchmarking Sourcegraph instance (-sourcegraph endpoint not provided)")
