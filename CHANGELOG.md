@@ -11,6 +11,10 @@ All notable changes to `src-cli` are documented in this file.
 
 ## Unreleased
 
+## 5.11.0
+
+- Update x/crypto to fix reported CVE-2024-45337
+
 ## 5.10.0
 - cody gateway benchmark changes
 - fix local builds for non sourcegraph team [1121](https://github.com/sourcegraph/src-cli/pull/1121)
