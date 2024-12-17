@@ -42,6 +42,9 @@ Examples:
 		sgEndpoint      = flagSet.String("sourcegraph", "", "Sourcegraph endpoint")
 		sgdToken        = flagSet.String("sgd", "", "Sourcegraph Dotcom user key for Cody Gateway")
 		sgpToken        = flagSet.String("sgp", "", "Sourcegraph personal access token for the called instance")
+		maxTokens       = flagSet.Int("max-tokens", 256, "Maximum number of tokens to generate")
+		provider        = flagSet.String("provider", "anthropic", "Provider to use for completion. Supported values: 'anthropic', 'fireworks'")
+		stream          = flagSet.Bool("stream", false, "Whether to stream completions. Default: false")
 	)
 
 	handler := func(args []string) error {
@@ -66,7 +69,7 @@ Examples:
 		fmt.Printf("Starting benchmark with %d requests per endpoint...\n", *requestCount)
 		if *gatewayEndpoint != "" {
 			fmt.Println("Benchmarking Cody Gateway instance:", *gatewayEndpoint)
-			endpoint := buildGatewayHttpEndpoint(*gatewayEndpoint, *sgdToken, 200)
+			endpoint := buildGatewayHttpEndpoint(*gatewayEndpoint, *sgdToken, *maxTokens, *provider, *stream)
 			cgResults := benchmarkCodeCompletions("gateway", httpClient, endpoint, *requestCount)
 			results = append(results, cgResults)
 			fmt.Println()
@@ -75,7 +78,7 @@ Examples:
 		}
 		if *sgEndpoint != "" {
 			fmt.Println("Benchmarking Sourcegraph instance:", *sgEndpoint)
-			endpoint := buildSourcegraphHttpEndpoint(*sgEndpoint, *sgpToken, 200)
+			endpoint := buildSourcegraphHttpEndpoint(*sgEndpoint, *sgpToken, *maxTokens, *provider, *stream)
 			sgResults := benchmarkCodeCompletions("sourcegraph", httpClient, endpoint, *requestCount)
 			results = append(results, sgResults)
 			fmt.Println()
@@ -109,11 +112,16 @@ Examples:
 	})
 }
 
-func buildGatewayHttpEndpoint(gatewayEndpoint string, sgdToken string, maxTokens int) httpEndpoint {
-	return httpEndpoint{
-		url:        fmt.Sprint(gatewayEndpoint, "/v1/completions/anthropic-messages"),
-		authHeader: fmt.Sprintf("Bearer %s", sgdToken),
-		body: fmt.Sprintf(`{
+func buildGatewayHttpEndpoint(gatewayEndpoint string, sgdToken string, maxTokens int, provider string, stream bool) httpEndpoint {
+	s := "true"
+	if !stream {
+		s = "false"
+	}
+	if provider == "anthropic" {
+		return httpEndpoint{
+			url:        fmt.Sprint(gatewayEndpoint, "/v1/completions/anthropic-messages"),
+			authHeader: fmt.Sprintf("Bearer %s", sgdToken),
+			body: fmt.Sprintf(`{
     "model": "claude-3-haiku-20240307",
     "messages": [
         {"role": "user", "content": "def bubble_sort(arr):"},
@@ -121,16 +129,45 @@ func buildGatewayHttpEndpoint(gatewayEndpoint string, sgdToken string, maxTokens
     ],
     "max_tokens": %d,
     "temperature": 0.0,
-    "stream": true
-}`, maxTokens),
+    "stream": %s
+}`, maxTokens, s),
+		}
+	} else if provider == "fireworks" {
+		return httpEndpoint{
+			url:        fmt.Sprint(gatewayEndpoint, "/v1/completions/fireworks"),
+			authHeader: fmt.Sprintf("Bearer %s", sgdToken),
+			body: fmt.Sprintf(`{
+    "model": "starcoder",
+    "prompt": "#hello.ts<｜fim▁begin｜>const sayHello = () => <｜fim▁hole｜><｜fim▁end｜>",
+    "max_tokens": %d,
+    "stop": [
+        "\n\n",
+        "\n\r\n",
+        "<｜fim▁begin｜>",
+        "<｜fim▁hole｜>",
+        "<｜fim▁end｜>, <|eos_token|>"
+    ],
+    "temperature": 0.2,
+    "topK": 0,
+    "topP": 0,
+    "stream": %s
+}`, maxTokens, s),
+		}
 	}
+
+	return httpEndpoint{}
 }
 
-func buildSourcegraphHttpEndpoint(sgEndpoint string, sgpToken string, maxTokens int) httpEndpoint {
-	return httpEndpoint{
-		url:        fmt.Sprint(sgEndpoint, "/.api/completions/stream"),
-		authHeader: fmt.Sprintf("token %s", sgpToken),
-		body: fmt.Sprintf(`{
+func buildSourcegraphHttpEndpoint(sgEndpoint string, sgpToken string, maxTokens int, provider string, stream bool) httpEndpoint {
+	s := "true"
+	if !stream {
+		s = "false"
+	}
+	if provider == "anthropic" {
+		return httpEndpoint{
+			url:        fmt.Sprint(sgEndpoint, "/.api/completions/stream"),
+			authHeader: fmt.Sprintf("token %s", sgpToken),
+			body: fmt.Sprintf(`{
     "model": "anthropic::2023-06-01::claude-3-haiku",
     "messages": [
         {"speaker": "human", "text": "def bubble_sort(arr):"},
@@ -138,9 +175,35 @@ func buildSourcegraphHttpEndpoint(sgEndpoint string, sgpToken string, maxTokens 
     ],
     "maxTokensToSample": %d,
     "temperature": 0.0,
-    "stream": true
-}`, maxTokens),
+    "stream": %s
+}`, maxTokens, s),
+		}
+	} else if provider == "fireworks" {
+		return httpEndpoint{
+			url:        fmt.Sprint(sgEndpoint, "/.api/completions/code"),
+			authHeader: fmt.Sprintf("token %s", sgpToken),
+			body: fmt.Sprintf(`{
+    "model": "fireworks::v1::starcoder",
+    "messages": [
+        {"speaker": "human", "text": "#hello.ts<｜fim▁begin｜>const sayHello = () => <｜fim▁hole｜><｜fim▁end｜>"}
+    ],
+    "maxTokensToSample": %d,
+    "stopSequences": [
+        "\n\n",
+        "\n\r\n",
+        "<｜fim▁begin｜>",
+        "<｜fim▁hole｜>",
+        "<｜fim▁end｜>, <|eos_token|>"
+    ],
+    "temperature": 0.2,
+    "topK": 0,
+    "topP": 0,
+    "stream": %s
+}`, maxTokens, s),
+		}
 	}
+
+	return httpEndpoint{}
 }
 
 func benchmarkCodeCompletions(benchmarkName string, client *http.Client, endpoint httpEndpoint, requestCount int) endpointResult {
