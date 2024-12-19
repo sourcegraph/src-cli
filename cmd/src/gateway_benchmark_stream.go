@@ -1,10 +1,12 @@
 package main
 
 import (
+	"encoding/csv"
 	"flag"
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -15,6 +17,11 @@ type httpEndpoint struct {
 	url        string
 	authHeader string
 	body       string
+}
+
+type requestResult struct {
+	duration time.Duration
+	traceID  string // X-Trace header value
 }
 
 func init() {
@@ -36,15 +43,16 @@ Examples:
 	flagSet := flag.NewFlagSet("benchmark-stream", flag.ExitOnError)
 
 	var (
-		requestCount    = flagSet.Int("requests", 1000, "Number of requests to make per endpoint")
-		csvOutput       = flagSet.String("csv", "", "Export results to CSV file (provide filename)")
-		gatewayEndpoint = flagSet.String("gateway", "", "Cody Gateway endpoint")
-		sgEndpoint      = flagSet.String("sourcegraph", "", "Sourcegraph endpoint")
-		sgdToken        = flagSet.String("sgd", "", "Sourcegraph Dotcom user key for Cody Gateway")
-		sgpToken        = flagSet.String("sgp", "", "Sourcegraph personal access token for the called instance")
-		maxTokens       = flagSet.Int("max-tokens", 256, "Maximum number of tokens to generate")
-		provider        = flagSet.String("provider", "anthropic", "Provider to use for completion. Supported values: 'anthropic', 'fireworks'")
-		stream          = flagSet.Bool("stream", false, "Whether to stream completions. Default: false")
+		requestCount          = flagSet.Int("requests", 1000, "Number of requests to make per endpoint")
+		csvOutput             = flagSet.String("csv", "", "Export results to CSV file (provide filename)")
+		requestLevelCsvOutput = flagSet.String("request-csv", "", "Export request results to CSV file (provide filename)")
+		gatewayEndpoint       = flagSet.String("gateway", "", "Cody Gateway endpoint")
+		sgEndpoint            = flagSet.String("sourcegraph", "", "Sourcegraph endpoint")
+		sgdToken              = flagSet.String("sgd", "", "Sourcegraph Dotcom user key for Cody Gateway")
+		sgpToken              = flagSet.String("sgp", "", "Sourcegraph personal access token for the called instance")
+		maxTokens             = flagSet.Int("max-tokens", 256, "Maximum number of tokens to generate")
+		provider              = flagSet.String("provider", "anthropic", "Provider to use for completion. Supported values: 'anthropic', 'fireworks'")
+		stream                = flagSet.Bool("stream", false, "Whether to stream completions. Default: false")
 	)
 
 	handler := func(args []string) error {
@@ -63,15 +71,15 @@ Examples:
 		}
 
 		var httpClient = &http.Client{}
-		var results []endpointResult
+		var cgResult, sgResult endpointResult
+		var cgRequestResults, sgRequestResults []requestResult
 
 		// Do the benchmarking.
 		fmt.Printf("Starting benchmark with %d requests per endpoint...\n", *requestCount)
 		if *gatewayEndpoint != "" {
 			fmt.Println("Benchmarking Cody Gateway instance:", *gatewayEndpoint)
 			endpoint := buildGatewayHttpEndpoint(*gatewayEndpoint, *sgdToken, *maxTokens, *provider, *stream)
-			cgResults := benchmarkCodeCompletions("gateway", httpClient, endpoint, *requestCount)
-			results = append(results, cgResults)
+			cgResult, cgRequestResults = benchmarkCodeCompletions("gateway", httpClient, endpoint, *requestCount)
 			fmt.Println()
 		} else {
 			fmt.Println("warning: not benchmarking Cody Gateway (-gateway endpoint not provided)")
@@ -79,20 +87,26 @@ Examples:
 		if *sgEndpoint != "" {
 			fmt.Println("Benchmarking Sourcegraph instance:", *sgEndpoint)
 			endpoint := buildSourcegraphHttpEndpoint(*sgEndpoint, *sgpToken, *maxTokens, *provider, *stream)
-			sgResults := benchmarkCodeCompletions("sourcegraph", httpClient, endpoint, *requestCount)
-			results = append(results, sgResults)
+			sgResult, sgRequestResults = benchmarkCodeCompletions("sourcegraph", httpClient, endpoint, *requestCount)
 			fmt.Println()
 		} else {
 			fmt.Println("warning: not benchmarking Sourcegraph instance (-sourcegraph endpoint not provided)")
 		}
 
 		// Output the results.
-		printResults(results, requestCount)
+		endpointResults := []endpointResult { cgResult, sgResult}
+		printResults(endpointResults, requestCount)
 		if *csvOutput != "" {
-			if err := writeResultsToCSV(*csvOutput, results, requestCount); err != nil {
+			if err := writeResultsToCSV(*csvOutput, endpointResults, requestCount); err != nil {
 				return fmt.Errorf("failed to export CSV: %v", err)
 			}
-			fmt.Printf("\nResults exported to %s\n", *csvOutput)
+			fmt.Printf("\nAggregate results exported to %s\n", *csvOutput)
+		}
+		if *requestLevelCsvOutput != "" {
+			if err := writeRequestResultsToCSV(*requestLevelCsvOutput, map[string][]requestResult { "gateway": cgRequestResults, "sourcegraph": sgRequestResults}); err != nil {
+				return fmt.Errorf("failed to export CSV: %v", err)
+			}
+			fmt.Printf("\nRequest-level results exported to %s\n", *requestLevelCsvOutput)
 		}
 
 		return nil
@@ -206,26 +220,28 @@ func buildSourcegraphHttpEndpoint(sgEndpoint string, sgpToken string, maxTokens 
 	return httpEndpoint{}
 }
 
-func benchmarkCodeCompletions(benchmarkName string, client *http.Client, endpoint httpEndpoint, requestCount int) endpointResult {
+func benchmarkCodeCompletions(benchmarkName string, client *http.Client, endpoint httpEndpoint, requestCount int) (endpointResult, []requestResult) {
+	results := make([]requestResult, 0, requestCount)
 	durations := make([]time.Duration, 0, requestCount)
 
 	for i := 0; i < requestCount; i++ {
-		duration := benchmarkCodeCompletion(client, endpoint)
-		if duration > 0 {
-			durations = append(durations, duration)
+		result := benchmarkCodeCompletion(client, endpoint)
+		if result.duration > 0 {
+			results = append(results, result)
+			durations = append(durations, result.duration)
 		}
 	}
 	stats := calculateStats(durations)
 
-	return toEndpointResult(benchmarkName, stats, len(durations))
+	return toEndpointResult(benchmarkName, stats, len(durations)), results
 }
 
-func benchmarkCodeCompletion(client *http.Client, endpoint httpEndpoint) time.Duration {
+func benchmarkCodeCompletion(client *http.Client, endpoint httpEndpoint) requestResult {
 	start := time.Now()
 	req, err := http.NewRequest("POST", endpoint.url, strings.NewReader(endpoint.body))
 	if err != nil {
 		fmt.Printf("Error creating request: %v\n", err)
-		return 0
+		return requestResult{0, ""}
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", endpoint.authHeader)
@@ -234,7 +250,7 @@ func benchmarkCodeCompletion(client *http.Client, endpoint httpEndpoint) time.Du
 	resp, err := client.Do(req)
 	if err != nil {
 		fmt.Printf("Error calling %s: %v\n", endpoint.url, err)
-		return 0
+		return requestResult{0, ""}
 	}
 	defer func() {
 		err := resp.Body.Close()
@@ -245,15 +261,18 @@ func benchmarkCodeCompletion(client *http.Client, endpoint httpEndpoint) time.Du
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
 		fmt.Printf("non-200 response: %v - %s\n", resp.Status, body)
-		return 0
+		return requestResult{0, ""}
 	}
 	_, err = io.ReadAll(resp.Body)
 	if err != nil {
 		fmt.Printf("Error reading response body: %v\n", err)
-		return 0
+		return requestResult{0, ""}
 	}
 
-	return time.Since(start)
+	return requestResult{
+		duration: time.Since(start),
+		traceID:  resp.Header.Get("X-Trace"),
+	}
 }
 
 func toEndpointResult(name string, stats Stats, requestCount int) endpointResult {
@@ -268,4 +287,41 @@ func toEndpointResult(name string, stats Stats, requestCount int) endpointResult
 		successful: requestCount,
 		total:      stats.Total,
 	}
+}
+
+func writeRequestResultsToCSV(filename string, results map[string][]requestResult) error {
+	file, err := os.Create(filename)
+	if err != nil {
+		return fmt.Errorf("failed to create CSV file: %v", err)
+	}
+	defer func() {
+		err := file.Close()
+		if err != nil {
+			return
+		}
+	}()
+
+	writer := csv.NewWriter(file)
+	defer writer.Flush()
+
+	// Write header
+	header := []string{"Endpoint", "Duration (ms)", "Trace ID"}
+	if err := writer.Write(header); err != nil {
+		return fmt.Errorf("failed to write CSV header: %v", err)
+	}
+
+	for endpoint, requestResults := range results {
+		for _, result := range requestResults {
+			row := []string{
+				endpoint,
+				fmt.Sprintf("%.2f", float64(result.duration.Microseconds())/1000),
+				result.traceID,
+			}
+			if err := writer.Write(row); err != nil {
+				return fmt.Errorf("failed to write CSV row: %v", err)
+			}
+		}
+	}
+
+	return nil
 }
