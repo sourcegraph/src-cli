@@ -1,12 +1,10 @@
 package main
 
 import (
-	"encoding/csv"
 	"flag"
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"strings"
 	"time"
 
@@ -17,11 +15,6 @@ type httpEndpoint struct {
 	url        string
 	authHeader string
 	body       string
-}
-
-type requestResult struct {
-	duration time.Duration
-	traceID  string // X-Trace header value
 }
 
 func init() {
@@ -287,41 +280,4 @@ func toEndpointResult(name string, stats Stats, requestCount int) endpointResult
 		successful: requestCount,
 		total:      stats.Total,
 	}
-}
-
-func writeRequestResultsToCSV(filename string, results map[string][]requestResult) error {
-	file, err := os.Create(filename)
-	if err != nil {
-		return fmt.Errorf("failed to create CSV file: %v", err)
-	}
-	defer func() {
-		err := file.Close()
-		if err != nil {
-			return
-		}
-	}()
-
-	writer := csv.NewWriter(file)
-	defer writer.Flush()
-
-	// Write header
-	header := []string{"Endpoint", "Duration (ms)", "Trace ID"}
-	if err := writer.Write(header); err != nil {
-		return fmt.Errorf("failed to write CSV header: %v", err)
-	}
-
-	for endpoint, requestResults := range results {
-		for _, result := range requestResults {
-			row := []string{
-				endpoint,
-				fmt.Sprintf("%.2f", float64(result.duration.Microseconds())/1000),
-				result.traceID,
-			}
-			if err := writer.Write(row); err != nil {
-				return fmt.Errorf("failed to write CSV row: %v", err)
-			}
-		}
-	}
-
-	return nil
 }
