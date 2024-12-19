@@ -11,6 +11,10 @@ All notable changes to `src-cli` are documented in this file.
 
 ## Unreleased
 
+## 5.11.1
+
+- Update x/net to fix CVE-2024-45338
+
 ## 5.11.0
 
 - Update x/crypto to fix reported CVE-2024-45337
