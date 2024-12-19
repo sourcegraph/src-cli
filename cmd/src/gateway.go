@@ -17,6 +17,7 @@ Usage:
 The commands are:
 
 	benchmark           runs benchmarks against Cody Gateway
+	benchmark-stream    runs benchmarks against Cody Gateway code completion streaming endpoints
 
 Use "src gateway [command] -h" for more information about a command.
 
