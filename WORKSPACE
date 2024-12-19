@@ -15,9 +15,9 @@ bazel_skylib_workspace()
 
 http_archive(
     name = "aspect_bazel_lib",
-    sha256 = "357dad9d212327c35d9244190ef010aad315e73ffa1bed1a29e20c372f9ca346",
-    strip_prefix = "bazel-lib-2.7.0",
-    url = "https://github.com/aspect-build/bazel-lib/releases/download/v2.7.0/bazel-lib-v2.7.0.tar.gz",
+    sha256 = "7b39d9f38b82260a8151b18dd4a6219d2d7fc4a0ac313d4f5a630ae6907d205d",
+    strip_prefix = "bazel-lib-2.10.0",
+    url = "https://github.com/aspect-build/bazel-lib/releases/download/v2.10.0/bazel-lib-v2.10.0.tar.gz",
 )
 
 http_archive(
