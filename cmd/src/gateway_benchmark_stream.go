@@ -30,7 +30,7 @@ Examples:
 
     $ src gateway benchmark-stream --requests 50 --csv results.csv --sgd <token> --sgp <token>
     $ src gateway benchmark-stream --gateway http://localhost:9992 --sourcegraph http://localhost:3082 --sgd <token> --sgp <token>
-    $ src gateway benchmark-stream --gateway http://localhost:9992 --sourcegraph http://localhost:3082 --sgd <token> --sgp <token> --max-tokens 50
+    $ src gateway benchmark-stream --requests 250 --gateway http://localhost:9992 --sourcegraph http://localhost:3082 --sgd <token> --sgp <token> --max-tokens 50 --provider fireworks --stream
 `
 
 	flagSet := flag.NewFlagSet("benchmark-stream", flag.ExitOnError)

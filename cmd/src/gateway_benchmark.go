@@ -44,7 +44,7 @@ Examples:
     $ src gateway benchmark --sgp <token>
     $ src gateway benchmark --requests 50 --sgp <token>
     $ src gateway benchmark --gateway http://localhost:9992 --sourcegraph http://localhost:3082 --sgp <token>
-    $ src gateway benchmark --requests 50 --csv results.csv --sgp <token>
+    $ src gateway benchmark --requests 50 --csv results.csv --request-csv requests.csv --sgp <token>
     $ src gateway benchmark --gateway https://cody-gateway.sourcegraph.com --sourcegraph https://sourcegraph.com --sgp <token> --use-special-header
 `
 
@@ -54,8 +54,8 @@ Examples:
 		requestCount          = flagSet.Int("requests", 1000, "Number of requests to make per endpoint")
 		csvOutput             = flagSet.String("csv", "", "Export results to CSV file (provide filename)")
 		requestLevelCsvOutput = flagSet.String("request-csv", "", "Export request results to CSV file (provide filename)")
-		gatewayEndpoint       = flagSet.String("gateway", "https://cody-gateway.sourcegraph.com", "Cody Gateway endpoint")
-		sgEndpoint            = flagSet.String("sourcegraph", "https://sourcegraph.com", "Sourcegraph endpoint")
+		gatewayEndpoint       = flagSet.String("gateway", "", "Cody Gateway endpoint")
+		sgEndpoint            = flagSet.String("sourcegraph", "", "Sourcegraph endpoint")
 		sgpToken              = flagSet.String("sgp", "", "Sourcegraph personal access token for the called instance")
 		useSpecialHeader      = flagSet.Bool("use-special-header", false, "Use special header to test the gateway")
 	)
