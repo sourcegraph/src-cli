@@ -97,7 +97,7 @@ Examples:
 			}
 			fmt.Println("Benchmarking Sourcegraph instance:", *sgEndpoint)
 			headers := http.Header{
-				"Authorization": []string{"token " + *sgpToken},
+				"Authorization":              []string{"token " + *sgpToken},
 				"X-Sourcegraph-Should-Trace": []string{"true"},
 			}
 			if *useSpecialHeader {
@@ -118,7 +118,7 @@ Examples:
 		fmt.Printf("Starting benchmark with %d requests per endpoint...\n", *requestCount)
 
 		var eResults []endpointResult
-		rResults := map[string][]requestResult {}
+		rResults := map[string][]requestResult{}
 		for name, clientOrURL := range endpoints {
 			durations := make([]time.Duration, 0, *requestCount)
 			rResults[name] = make([]requestResult, 0, *requestCount)
@@ -190,7 +190,7 @@ Examples:
 }
 
 type webSocketClient struct {
-	conn    *websocket.Conn
+	conn        *websocket.Conn
 	URL         string
 	reqHeaders  http.Header
 	respHeaders http.Header

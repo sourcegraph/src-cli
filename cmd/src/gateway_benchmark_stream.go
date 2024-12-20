@@ -87,7 +87,7 @@ Examples:
 		}
 
 		// Output the results.
-		endpointResults := []endpointResult { cgResult, sgResult}
+		endpointResults := []endpointResult{cgResult, sgResult}
 		printResults(endpointResults, requestCount)
 		if *csvOutput != "" {
 			if err := writeResultsToCSV(*csvOutput, endpointResults, requestCount); err != nil {
@@ -96,7 +96,7 @@ Examples:
 			fmt.Printf("\nAggregate results exported to %s\n", *csvOutput)
 		}
 		if *requestLevelCsvOutput != "" {
-			if err := writeRequestResultsToCSV(*requestLevelCsvOutput, map[string][]requestResult { "gateway": cgRequestResults, "sourcegraph": sgRequestResults}); err != nil {
+			if err := writeRequestResultsToCSV(*requestLevelCsvOutput, map[string][]requestResult{"gateway": cgRequestResults, "sourcegraph": sgRequestResults}); err != nil {
 				return fmt.Errorf("failed to export CSV: %v", err)
 			}
 			fmt.Printf("\nRequest-level results exported to %s\n", *requestLevelCsvOutput)
