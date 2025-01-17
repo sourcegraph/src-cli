@@ -1,9 +1,13 @@
 name: Build and Release
 
 on:
+  workflow_dispatch:
   push:
     tags:
       - '*'
+env:
+  GOPRIVATE: "github.com/sourcegraph/*"
+  PRIVATE_TOKEN: "${{ secrets.PRIVATE_SG_ACCESS_TOKEN }}"
 
 # There are two cases where this GitHub action will run:
 #
@@ -177,7 +181,9 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: 1.22.5
+          go-version: 1.23.2
+      - name: Enable pulling Go modules from private sourcegraph/sourcegraph
+        run: git config --global url."https://${PRIVATE_TOKEN}@github.com/sourcegraph/".insteadOf "https://github.com/sourcegraph/"
       - run: go test ./...
       - run: go test -race -v ./...
       - run: echo "${DOCKER_PASSWORD}" | docker login -u=$DOCKER_USERNAME --password-stdin

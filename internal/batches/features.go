@@ -1,6 +1,9 @@
 package batches
 
 import (
+	"fmt"
+	"log"
+
 	"github.com/sourcegraph/sourcegraph/lib/api"
 	"github.com/sourcegraph/sourcegraph/lib/errors"
 )
@@ -12,7 +15,7 @@ type FeatureFlags struct {
 	BinaryDiffs   bool
 }
 
-func (ff *FeatureFlags) SetFromVersion(version string) error {
+func (ff *FeatureFlags) SetFromVersion(version string, skipErrors bool) error {
 	for _, feature := range []struct {
 		flag       *bool
 		constraint string
@@ -32,7 +35,11 @@ func (ff *FeatureFlags) SetFromVersion(version string) error {
 	} {
 		value, err := api.CheckSourcegraphVersion(version, feature.constraint, feature.minDate)
 		if err != nil {
-			return errors.Wrap(err, "failed to check version returned by Sourcegraph")
+			if skipErrors {
+				log.Printf("failed to check version returned by Sourcegraph: %s. Assuming no feature flags.", version)
+			} else {
+				return errors.Wrap(err, fmt.Sprintf("failed to check version returned by Sourcegraph: %s", version))
+			}
 		}
 		*feature.flag = value
 	}

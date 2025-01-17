@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"runtime"
 	"strings"
@@ -81,6 +82,9 @@ type ClientOpts struct {
 	// Out is the writer that will be used when outputting diagnostics, such as
 	// curl commands when -get-curl is enabled.
 	Out io.Writer
+
+	ProxyURL  *url.URL
+	ProxyPath string
 }
 
 // NewClient creates a new API client.
@@ -95,9 +99,26 @@ func NewClient(opts ClientOpts) Client {
 	}
 
 	httpClient := http.DefaultClient
+
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	customTransport := false
+
 	if flags.insecureSkipVerify != nil && *flags.insecureSkipVerify {
+		customTransport = true
+		transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+	}
+
+	if transport.TLSClientConfig == nil {
+		transport.TLSClientConfig = &tls.Config{}
+	}
+
+	if applyProxy(transport, opts.ProxyURL, opts.ProxyPath) {
+		customTransport = true
+	}
+
+	if customTransport {
 		httpClient = &http.Client{
-			Transport: &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}},
+			Transport: transport,
 		}
 	}
 
@@ -112,7 +133,6 @@ func NewClient(opts ClientOpts) Client {
 		httpClient: httpClient,
 	}
 }
-
 func (c *client) NewQuery(query string) Request {
 	return c.NewRequest(query, nil)
 }

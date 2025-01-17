@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	cliLog "log"
 
 	"github.com/sourcegraph/sourcegraph/lib/errors"
 	"github.com/sourcegraph/sourcegraph/lib/output"
@@ -42,6 +43,7 @@ Examples:
 	var (
 		allowUnsupported bool
 		allowIgnored     bool
+		skipErrors       bool
 	)
 	flagSet.BoolVar(
 		&allowUnsupported, "allow-unsupported", false,
@@ -50,6 +52,10 @@ Examples:
 	flagSet.BoolVar(
 		&allowIgnored, "force-override-ignore", false,
 		"Do not ignore repositories that have a .batchignore file.",
+	)
+	flagSet.BoolVar(
+		&skipErrors, "skip-errors", false,
+		"If true, errors encountered won't stop the program, but only log them.",
 	)
 
 	handler := func(args []string) error {
@@ -69,13 +75,17 @@ Examples:
 			Client: client,
 		})
 
-		_, ffs, err := svc.DetermineLicenseAndFeatureFlags(ctx)
+		_, ffs, err := svc.DetermineLicenseAndFeatureFlags(ctx, skipErrors)
 		if err != nil {
 			return err
 		}
 
-		if err := validateSourcegraphVersionConstraint(ctx, ffs); err != nil {
-			return err
+		if err := validateSourcegraphVersionConstraint(ffs); err != nil {
+			if !skipErrors {
+				return err
+			} else {
+				cliLog.Printf("WARNING: %s", err)
+			}
 		}
 
 		out := output.NewOutput(flagSet.Output(), output.OutputOpts{Verbose: *verbose})

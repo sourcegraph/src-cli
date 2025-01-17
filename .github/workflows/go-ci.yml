@@ -1,13 +1,17 @@
 name: Go CI
 
 on:
-  - push
+  workflow_dispatch:
+  push:
+env:
+  GOPRIVATE: "github.com/sourcegraph/*"
+  PRIVATE_TOKEN: "${{ secrets.PRIVATE_SG_ACCESS_TOKEN }}"
 
 jobs:
   go-test:
     strategy:
       matrix:
-        go-version: [1.22.5]
+        go-version: [1.23.2]
         os: [ubuntu-latest, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
@@ -17,6 +21,12 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: ${{ matrix.go-version }}
+      - name: (Windows) Enable pulling Go modules from private sourcegraph/sourcegraph
+        if: runner.os == 'Windows'
+        run: git config --global url."https://$env:PRIVATE_TOKEN@github.com/sourcegraph/".insteadOf "https://github.com/sourcegraph/"
+      - name: (Default) Enable pulling Go modules from private sourcegraph/sourcegraph
+        if: runner.os != 'Windows'
+        run: git config --global url."https://${PRIVATE_TOKEN}@github.com/sourcegraph/".insteadOf "https://github.com/sourcegraph/"
       - run: |
           go test -race -v ./...
           go test -v ./...

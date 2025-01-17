@@ -71,17 +71,17 @@ func loginCmd(ctx context.Context, cfg *config, client api.Client, endpointArg s
 		fmt.Fprintf(out, "❌ Problem: %s\n", problem)
 	}
 
-	createAccessTokenMessage := fmt.Sprintf("\n"+`🛠  To fix: Create an access token at %s/user/settings/tokens, then set the following environment variables:
+	createAccessTokenMessage := fmt.Sprintf("\n"+`🛠  To fix: Create an access token by going to %s/user/settings/tokens, then set the following environment variables in your terminal:
 
-   SRC_ENDPOINT=%s
-   SRC_ACCESS_TOKEN=(the access token you just created)
+   export SRC_ENDPOINT=%s
+   export SRC_ACCESS_TOKEN=(your access token)
 
-   To verify that it's working, run this command again.
+   To verify that it's working, run the login command again.
 `, endpointArg, endpointArg)
 
 	if cfg.ConfigFilePath != "" {
 		fmt.Fprintln(out)
-		fmt.Fprintf(out, "⚠️  Warning: Configuring src with a JSON file is deprecated. Please migrate to using the env vars SRC_ENDPOINT and SRC_ACCESS_TOKEN instead, and then remove %s. See https://github.com/sourcegraph/src-cli#readme for more information.\n", cfg.ConfigFilePath)
+		fmt.Fprintf(out, "⚠️  Warning: Configuring src with a JSON file is deprecated. Please migrate to using the env vars SRC_ENDPOINT, SRC_ACCESS_TOKEN, and SRC_PROXY instead, and then remove %s. See https://github.com/sourcegraph/src-cli#readme for more information.\n", cfg.ConfigFilePath)
 	}
 
 	noToken := cfg.AccessToken == ""

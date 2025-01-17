@@ -11,6 +11,53 @@ All notable changes to `src-cli` are documented in this file.
 
 ## Unreleased
 
+## 5.11.1
+
+- Update x/net to fix CVE-2024-45338
+
+## 5.11.0
+
+- Update x/crypto to fix reported CVE-2024-45337
+
+## 5.10.0
+- cody gateway benchmark changes
+- fix local builds for non sourcegraph team [1121](https://github.com/sourcegraph/src-cli/pull/1121)
+
+## 5.9.1
+
+- Update SBOM output file extension from `.json` to `.cdx.json` [#1123](https://github.com/sourcegraph/src-cli/pull/1123)
+- Improve SBOM compatibility with scanning tools [#1123](https://github.com/sourcegraph/src-cli/pull/1123)
+
+## 5.9.0
+
+## 5.8.2
+
+### Added
+
+- Support HTTP(S), SOCKS5, and UNIX Domain Socket proxies via SRC_PROXY environment variable. [#1120](https://github.com/sourcegraph/src-cli/pull/1120)
+
+### Fixed
+
+- Fixed a compatibility issue that prevented `src sbom fetch` from fetching some SBOMs [#1119](https://github.com/sourcegraph/src-cli/pull/1119)
+
+## 5.8.1
+
+### Fixed
+
+- Fixed an issue preventing some commands from executing correctly when no arguments are passed [#1117](https://github.com/sourcegraph/src-cli/pull/1117)
+
+## 5.8.0
+
+### Added
+
+- SBOM support: Software Bill of Materials (SBOMs) can now be fetched for Sourcegraph releases after 5.8.0 using `src sbom fetch -v <release>`. [#1115](https://github.com/sourcegraph/src-cli/pull/1115)
+
+### Changed
+
+- Update Go to 1.22.8
+
+## 5.5.0
+
 ### Added
 
 - Batch Changes: Added support for batch spec versions. Batch specs with `version: 2` will default to keyword search to resolve workspaces if the pattern type is not specified explicitly.  (https://github.com/sourcegraph/sourcegraph/pull/63613)
@@ -968,7 +1015,7 @@ Re-release of 3.29.3 for Sourcegraph 3.30.
 
 ### Added
 
-- The new `src login` subcommand helps you authenticate `src` to access your Sourcegraph instance with your user credentials. [#317](https://github.com/sourcegraph/src-cli/pull/312)
+- The new `src login` subcommand helps you authenticate `src` to access your Sourcegraph instance with your user credentials. [#317](https://github.com/sourcegraph/src-cli/pull/317)
 
 ## 3.20.0
 
