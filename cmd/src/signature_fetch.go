@@ -25,9 +25,9 @@ Usage:
 
 Examples:
 
-    $ src signature verify -v 5.8.0                                 # Verify all signatures for the 5.8.0 release
+    $ src signature verify -v 5.11.4013                 # Verify all signatures for the 5.11.4013 release
 
-    $ src signature verify -v 5.8.123 -d /tmp/signatures  # Verify all signatures for the 5.8.123 release and write verified image digests in /tmp/signatures
+    $ src signature verify -v 6.0.0 -d /tmp/signatures  # Verify all signatures for the 6.0.0 release and write verified image digests under /tmp/signatures
 `
 
 	flagSet := flag.NewFlagSet("verify", flag.ExitOnError)
