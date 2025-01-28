@@ -11,6 +11,10 @@ All notable changes to `src-cli` are documented in this file.
 
 ## Unreleased
 
+## 6.0.0
+
+- Container signature verification support: Container signatures can now be verified for Sourcegraph releases after 5.11.4013 using `src signature verify -v <release>` [#1143](https://github.com/sourcegraph/src-cli/pull/1143)
+
 ## 5.11.1
 
 - Update x/net to fix CVE-2024-45338
