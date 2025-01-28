@@ -10,10 +10,10 @@ import (
 	"net/http"
 	"os/exec"
 	"path"
+	"regexp"
 	"strings"
 	"time"
 
-	"github.com/grafana/regexp"
 	"github.com/sourcegraph/sourcegraph/lib/errors"
 )
 
