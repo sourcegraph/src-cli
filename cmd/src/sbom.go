@@ -8,7 +8,7 @@ import (
 var sbomCommands commander
 
 func init() {
-	usage := `'src sbom' fetches and verified SBOM (Software Bill of Materials) data for Sourcegraph containers.
+	usage := `'src sbom' fetches and verifies SBOM (Software Bill of Materials) data for Sourcegraph containers.
 
 Usage:
 
