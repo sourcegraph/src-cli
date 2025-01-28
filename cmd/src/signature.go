@@ -16,7 +16,7 @@ Usage:
 
 The commands are:
 
-	verify                 verify signatures for a released version of Sourcegraph
+	verify                 verify signatures for a Sourcegraph release
 `
 	flagSet := flag.NewFlagSet("signature", flag.ExitOnError)
 	handler := func(args []string) error {
