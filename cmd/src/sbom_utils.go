@@ -259,11 +259,7 @@ func (c cosignConfig) getImageList() ([]string, error) {
 		return nil, fmt.Errorf("error reading image list: %w", err)
 	}
 
-	// editedImages := images[0:2]
-	editedImages := []string{}
-	editedImages = append(editedImages, "sourcegraph/nginx")
-
-	return editedImages, nil
+	return images, nil
 }
 
 // getImageReleaseListURL returns the URL for the list of images in a release, based on the version and whether it's an internal release.
