@@ -1,15 +1,32 @@
 package main
 
+// Utility functions used by the SBOM and Signature commands.
+
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"os/exec"
 	"path"
+	"regexp"
 	"strings"
 	"time"
+
+	"github.com/sourcegraph/sourcegraph/lib/errors"
 )
+
+const imageListBaseURL = "https://storage.googleapis.com/sourcegraph-release-sboms"
+const imageListFilename = "release-image-list.txt"
+
+type cosignConfig struct {
+	publicKey                     string
+	outputDir                     string
+	version                       string
+	internalRelease               bool
+	insecureIgnoreTransparencyLog bool
+}
 
 // TokenResponse represents the JSON response from dockerHub's token service
 type dockerHubTokenResponse struct {
@@ -199,4 +216,57 @@ func getOutputDir(parentDir, version string) string {
 // sanitizeVersion removes any leading "v" from the version string
 func sanitizeVersion(version string) string {
 	return strings.TrimPrefix(version, "v")
+}
+
+func verifyCosign() error {
+	_, err := exec.LookPath("cosign")
+	if err != nil {
+		return errors.New("SBOM verification requires 'cosign' to be installed and available in $PATH. See https://docs.sigstore.dev/cosign/system_config/installation/")
+	}
+	return nil
+}
+
+func (c cosignConfig) getImageList() ([]string, error) {
+	imageReleaseListURL := c.getImageReleaseListURL()
+
+	resp, err := http.Get(imageReleaseListURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch image list: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		// Compare version number against a regex that matches versions up to and including 5.8.0
+		versionRegex := regexp.MustCompile(`^v?[0-5]\.([0-7]\.[0-9]+|8\.0)$`)
+		if versionRegex.MatchString(c.version) {
+			return nil, fmt.Errorf("unsupported version %s: SBOMs are only available for Sourcegraph releases after 5.8.0", c.version)
+		}
+		return nil, fmt.Errorf("failed to fetch list of images - check that %s is a valid Sourcegraph release: HTTP status %d", c.version, resp.StatusCode)
+	}
+
+	scanner := bufio.NewScanner(resp.Body)
+	var images []string
+	for scanner.Scan() {
+		image := strings.TrimSpace(scanner.Text())
+		if image != "" {
+			// Strip off a version suffix if present
+			parts := strings.SplitN(image, ":", 2)
+			images = append(images, parts[0])
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("error reading image list: %w", err)
+	}
+
+	return images, nil
+}
+
+// getImageReleaseListURL returns the URL for the list of images in a release, based on the version and whether it's an internal release.
+func (c *cosignConfig) getImageReleaseListURL() string {
+	if c.internalRelease {
+		return fmt.Sprintf("%s/release-internal/%s/%s", imageListBaseURL, c.version, imageListFilename)
+	} else {
+		return fmt.Sprintf("%s/release/%s/%s", imageListBaseURL, c.version, imageListFilename)
+	}
 }
