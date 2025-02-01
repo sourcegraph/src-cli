@@ -97,6 +97,7 @@ type batchExecuteFlags struct {
 	cleanArchives bool
 	skipErrors    bool
 	runAsRoot     bool
+	failFast      bool
 
 	// EXPERIMENTAL
 	textOnly bool
@@ -162,6 +163,10 @@ func newBatchExecuteFlags(flagSet *flag.FlagSet, cacheDir, tempDir string) *batc
 	flagSet.BoolVar(
 		&caf.runAsRoot, "run-as-root", false,
 		"If true, forces all step containers to run as root.",
+	)
+	flagSet.BoolVar(
+		&caf.failFast, "fail-fast", false,
+		"If true, errors encountered while executing steps in a repository will stop the execution of the batch spec.",
 	)
 
 	return caf
@@ -268,7 +273,7 @@ func createDockerWatchdog(ctx context.Context, execUI ui.ExecUI) *watchdog.Watch
 // executeBatchSpec performs all the steps required to upload the batch spec to
 // Sourcegraph, including execution as needed and applying the resulting batch
 // spec if specified.
-func executeBatchSpec(ctx context.Context, opts executeBatchSpecOpts) (err error) {
+func executeBatchSpec(ctx executor.CancelableContext, opts executeBatchSpecOpts) (err error) {
 	var execUI ui.ExecUI
 	if opts.flags.textOnly {
 		execUI = &ui.JSONLines{}
@@ -283,6 +288,9 @@ func executeBatchSpec(ctx context.Context, opts executeBatchSpecOpts) (err error
 	defer func() {
 		w.Stop()
 		if err != nil {
+			if cerr := context.Cause(ctx); cerr != nil {
+				err = cerr
+			}
 			execUI.ExecutionError(err)
 		}
 	}()
@@ -468,6 +476,11 @@ func executeBatchSpec(ctx context.Context, opts executeBatchSpecOpts) (err error
 
 	taskExecUI := execUI.ExecutingTasks(*verbose, parallelism)
 	freshSpecs, logFiles, execErr := coord.ExecuteAndBuildSpecs(ctx, batchSpec, uncachedTasks, taskExecUI)
+
+	if len(logFiles) > 0 && opts.flags.keepLogs {
+		execUI.LogFilesKept(logFiles)
+	}
+
 	// Add external changeset specs.
 	importedSpecs, importErr := svc.CreateImportChangesetSpecs(ctx, batchSpec)
 	if execErr != nil {
@@ -490,10 +503,6 @@ func executeBatchSpec(ctx context.Context, opts executeBatchSpecOpts) (err error
 			taskExecUI.Failed(err)
 			return err
 		}
-	}
-
-	if len(logFiles) > 0 && opts.flags.keepLogs {
-		execUI.LogFilesKept(logFiles)
 	}
 
 	specs = append(specs, freshSpecs...)
@@ -633,22 +642,22 @@ func checkExecutable(cmd string, args ...string) error {
 	return nil
 }
 
-func contextCancelOnInterrupt(parent context.Context) (context.Context, func()) {
-	ctx, ctxCancel := context.WithCancel(parent)
+func contextCancelOnInterrupt(parent context.Context) (context.Context, func(error)) {
+	ctx, ctxCancel := context.WithCancelCause(parent)
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt)
 
 	go func() {
 		select {
 		case <-c:
-			ctxCancel()
+			ctxCancel(errors.New("Ctrl-C hit"))
 		case <-ctx.Done():
 		}
 	}()
 
-	return ctx, func() {
+	return ctx, func(err error) {
 		signal.Stop(c)
-		ctxCancel()
+		ctxCancel(err)
 	}
 }
 
