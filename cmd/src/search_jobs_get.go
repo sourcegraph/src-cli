@@ -53,7 +53,7 @@ Examples:
             Flags:       apiFlags,
         })
 
-		tmpl, err := parseTemplate(*formatFlag)
+        tmpl, err := parseTemplate(*formatFlag)
         if err != nil {
             return err
         }
@@ -62,23 +62,31 @@ Examples:
             return cmderrors.Usage("must provide a search job ID")
         }
 
-        query := GetSearchJobQuery + SearchJobFragment
-
-        var result struct {
-            Node *SearchJob
+        job, err := getSearchJob(client, *idFlag)
+        if err != nil {
+            return err
         }
-
-		if ok, err := client.NewRequest(query, map[string]interface{}{
-			"id": api.NullString(*idFlag),
-		}).Do(context.Background(), &result); err != nil || !ok {
-			return err
-		}
-		return execTemplate(tmpl, result.Node)
+        return execTemplate(tmpl, job)
     }
-
     searchJobsCommands = append(searchJobsCommands, &command{
         flagSet:   flagSet,
         handler:   handler,
         usageFunc: usageFunc,
     })
+}
+
+func getSearchJob(client api.Client, id string) (*SearchJob, error) {
+    query := GetSearchJobQuery + SearchJobFragment
+    
+    var result struct {
+        Node *SearchJob
+    }
+    
+    if ok, err := client.NewRequest(query, map[string]interface{}{
+        "id": api.NullString(id),
+    }).Do(context.Background(), &result); err != nil || !ok {
+        return nil, err
+    }
+    
+    return result.Node, nil
 }
