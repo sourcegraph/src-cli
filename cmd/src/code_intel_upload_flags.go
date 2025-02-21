@@ -165,22 +165,18 @@ type argumentInferenceError struct {
 }
 
 func inferDefaultFile() (string, error) {
-	hasSCIP := true
 	const scipFilename = "index.scip"
-	if _, err := os.Stat(scipFilename); err != nil {
-		if os.IsNotExist(err) {
-			hasSCIP = false
-		} else {
-			return "", err
-		}
-	}
+	_, err := os.Stat(scipFilename)
 
-	if !hasSCIP {
-		return "", formatInferenceError(argumentInferenceError{"file", errors.Newf("%s does not exist", scipFilename)})
-	} else {
+	if err == nil {
 		return scipFilename, nil
 	}
 
+	if os.IsNotExist(err) {
+		return "", formatInferenceError(argumentInferenceError{"file", errors.Newf("%s does not exist", scipFilename)})
+	}
+
+	return "", err
 }
 
 func formatInferenceError(inferenceErr argumentInferenceError) error {
@@ -288,8 +284,8 @@ func readIndexerNameAndVersion(indexFile string) (string, string, error) {
 		return "", "", err
 	}
 
-	if metadata == nil {
-		return "", "", errors.New("index file does not contain metadata")
+	if metadata == nil || metadata.ToolInfo == nil {
+		return "", "", errors.New("index file does not contain valid metadata")
 	}
 
 	return metadata.ToolInfo.Name, metadata.ToolInfo.Version, nil
