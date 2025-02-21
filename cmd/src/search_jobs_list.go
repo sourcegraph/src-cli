@@ -25,19 +25,19 @@ func init() {
 Examples:
 
   List all search jobs:
-  
+
     $ src search-jobs list
 
   List all search jobs in ascending order:
-  
+
     $ src search-jobs list --asc
 
   Limit the number of search jobs returned:
-  
+
     $ src search-jobs list --limit 5
 
   Order search jobs by a field (must be one of: QUERY, CREATED_AT, STATE):
-  
+
     $ src search-jobs list --order-by QUERY
 `
     flagSet := flag.NewFlagSet("list", flag.ExitOnError)
@@ -87,7 +87,7 @@ Examples:
 		}
 
         query := ListSearchJobsQuery + SearchJobFragment
-        
+
         var result struct {
             SearchJobs struct {
                 Nodes []SearchJob

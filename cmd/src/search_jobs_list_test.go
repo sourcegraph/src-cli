@@ -5,7 +5,7 @@ import (
     "flag"
     "fmt"
     "testing"
-    
+
     "github.com/sourcegraph/src-cli/internal/api"
     "github.com/sourcegraph/src-cli/internal/cmderrors"
     testutil "github.com/sourcegraph/src-cli/internal/testing"
@@ -15,7 +15,7 @@ import (
 func TestSearchJobsList(t *testing.T) {
     mockClient := new(mockclient.Client)
     mockRequest := new(mockclient.Request)
-    
+
     // Use mock package for expectations
     mockClient.On("NewRequest", mock.Anything, mock.Anything).Return(mockRequest)
 }
@@ -28,7 +28,7 @@ func executeSearchJobsList(client api.Client, args []string) error {
         ascFlag = flagSet.Bool("asc", false, "")
         orderByFlag = flagSet.String("order-by", "CREATED_AT", "")
     )
-    
+
     if err := flagSet.Parse(args); err != nil {
         return err
     }

@@ -19,7 +19,7 @@ func TestSearchJobsResults(t *testing.T) {
     t.Run("successful results retrieval", func(t *testing.T) {
         mockClient := new(mockclient.Client)
         mockRequest := new(mockclient.Request)
-        
+
         expectedResults := `{"result": "test search results"}`
         mockHTTPClient := &http.Client{
             Transport: &mockTransport{
@@ -36,8 +36,8 @@ func TestSearchJobsResults(t *testing.T) {
         defer func() {
             http.DefaultClient = originalClient
         }()
-        
-        mockClient.On("NewRequest", 
+
+        mockClient.On("NewRequest",
             GetSearchJobQuery + SearchJobFragment,
             map[string]interface{}{"id": "test-id"},
         ).Return(mockRequest)
@@ -117,7 +117,7 @@ func executeSearchJobResults(client api.Client, args []string) error {
     )
     flagSet.StringVar(&idFlag, "id", "", "")
     flagSet.StringVar(&outFlag, "out", "", "")
-    
+
     if err := flagSet.Parse(args); err != nil {
         return err
     }

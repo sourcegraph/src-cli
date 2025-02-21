@@ -5,7 +5,7 @@ import (
     "flag"
     "fmt"
     "testing"
-    
+
     "github.com/sourcegraph/src-cli/internal/api"
     "github.com/sourcegraph/src-cli/internal/cmderrors"
     testutil "github.com/sourcegraph/src-cli/internal/testing"
@@ -18,7 +18,7 @@ func TestSearchJobsGet(t *testing.T) {
         mockClient := new(mockclient.Client)
         mockRequest := new(mockclient.Request)
 
-        mockClient.On("NewRequest", 
+        mockClient.On("NewRequest",
             GetSearchJobQuery + SearchJobFragment,
             map[string]interface{}{"id": "test-id"},
         ).Return(mockRequest)
@@ -125,7 +125,7 @@ func executeSearchJobGet(client api.Client, args []string) error {
     )
     flagSet.StringVar(&idFlag, "id", "", "")
     flagSet.StringVar(&formatFlag, "f", "{{.ID}}", "")
-    
+
     if err := flagSet.Parse(args); err != nil {
         return err
     }

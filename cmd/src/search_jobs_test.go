@@ -31,7 +31,7 @@ func TestSearchJobsCommandRegistration(t *testing.T) {
     // Test subcommands registration
     t.Run("subcommands", func(t *testing.T) {
         expectedCommands := []string{"cancel", "create", "delete", "get", "list"}
-        
+
         for _, expected := range expectedCommands {
             var found bool
             for _, cmd := range searchJobsCommands {

@@ -22,7 +22,7 @@ func init() {
 Examples:
 
   Delete a search job by ID:
-  
+
     $ src search-jobs delete U2VhcmNoSm9iOjY5
 `
 
@@ -32,7 +32,7 @@ Examples:
 		flagSet.PrintDefaults()
 		fmt.Println(usage)
 	}
-	
+
 	var (
 		idFlag = flagSet.String("id", "", "ID of the search job to delete")
 		apiFlags = api.NewFlags(flagSet)
