@@ -203,6 +203,7 @@ func (c *webSocketClient) reconnect() error {
 	fmt.Println("Connecting to WebSocket..", c.URL)
 	var err error
 	var resp *http.Response
+	//nolint:bodyclose // closed as part of webSocketClient
 	c.conn, resp, err = websocket.DefaultDialer.Dial(c.URL, c.reqHeaders)
 	if err != nil {
 		c.conn = nil // retry again later
