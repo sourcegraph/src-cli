@@ -63,9 +63,9 @@ func TestParseRemote(t *testing.T) {
 
 func TestInferRoot(t *testing.T) {
 	testCases := map[string]string{
-		"gitutil.go":            filepath.Join("internal", "codeintel"),
-		"../../cmd/src/lsif.go": filepath.Join("cmd", "src"),
-		"../../README.md":       ".",
+		"gitutil.go":                         filepath.Join("internal", "codeintel"),
+		"../../cmd/src/code_intel_upload.go": filepath.Join("cmd", "src"),
+		"../../README.md":                    ".",
 	}
 
 	for input, expectedOutput := range testCases {

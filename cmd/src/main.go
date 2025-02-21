@@ -28,7 +28,7 @@ Environment variables
 	SRC_ENDPOINT      endpoint to use, if unset will default to "https://sourcegraph.com"
 	SRC_PROXY         A proxy to use for proxying requests to the Sourcegraph endpoint.
 	                  Supports HTTP(S), SOCKS5/5h, and UNIX Domain Socket proxies.
-					  If a UNIX Domain Socket, the path can be either an absolute path, 
+					  If a UNIX Domain Socket, the path can be either an absolute path,
 					  or can start with ~/ or %USERPROFILE%\ for a path in the user's home directory.
 					  Examples:
 						- https://localhost:3080
@@ -55,7 +55,6 @@ The commands are:
 	extsvc          manages external services
 	gateway         interacts with Cody Gateway
 	login           authenticate to a Sourcegraph instance with your user credentials
-	lsif            manages LSIF data (deprecated: use 'code-intel')
 	orgs,org        manages organizations
 	teams,team      manages teams
 	repos,repo      manages repositories

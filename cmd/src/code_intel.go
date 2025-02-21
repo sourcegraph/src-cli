@@ -16,13 +16,13 @@ Usage:
 
 The commands are:
 
-    upload     uploads a SCIP or LSIF index
+    upload     uploads a SCIP index
 
 Use "src code-intel [command] -h" for more information about a command.
 `
 	flagSet := flag.NewFlagSet("code-intel", flag.ExitOnError)
 	handler := func(args []string) error {
-		lsifCommands.run(flagSet, "src code-intel", usage, args)
+		codeintelCommands.run(flagSet, "src code-intel", usage, args)
 		return nil
 	}
 
