@@ -60,7 +60,7 @@ func init() {
 	// UploadRecordOptions
 	codeintelUploadFlagSet.StringVar(&codeintelUploadFlags.repo, "repo", "", `The name of the repository (e.g. github.com/gorilla/mux). By default, derived from the origin remote.`)
 	codeintelUploadFlagSet.StringVar(&codeintelUploadFlags.commit, "commit", "", `The 40-character hash of the commit. Defaults to the currently checked-out commit.`)
-	codeintelUploadFlagSet.StringVar(&codeintelUploadFlags.root, "root", "", `The path in the repository that matches the SCIP projectRoot (e.g. cmd/project1). Defaults to the directory where the scip index file is located.`)
+	codeintelUploadFlagSet.StringVar(&codeintelUploadFlags.root, "root", "", `The path in the repository that matches the SCIP projectRoot (e.g. cmd/project1). Defaults to the directory where the SCIP index file is located.`)
 	codeintelUploadFlagSet.StringVar(&codeintelUploadFlags.indexer, "indexer", "", `The name of the indexer that generated the dump. This will override the 'toolInfo.name' field in the metadata section of SCIP index. This must be supplied if the indexer does not set this field (in which case the upload will fail with an explicit message).`)
 	codeintelUploadFlagSet.StringVar(&codeintelUploadFlags.indexerVersion, "indexerVersion", "", `The version of the indexer that generated the dump. This will override the 'toolInfo.version' field in the metadata section of SCIP index. This must be supplied if the indexer does not set this field (in which case the upload will fail with an explicit message).`)
 	codeintelUploadFlagSet.IntVar(&codeintelUploadFlags.associatedIndexID, "associated-index-id", -1, "ID of the associated index record for this upload. For internal use only.")
