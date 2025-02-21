@@ -1,15 +1,12 @@
 package main
 
 import (
-	"context"
 	"flag"
 	"fmt"
-	"net/http"
 	"os"
 	"strings"
 
 	"github.com/sourcegraph/scip/bindings/go/scip"
-	"github.com/sourcegraph/sourcegraph/lib/codeintel/upload"
 	"github.com/sourcegraph/sourcegraph/lib/errors"
 	"github.com/sourcegraph/sourcegraph/lib/output"
 
@@ -129,17 +126,6 @@ func parseAndValidateCodeIntelUploadFlags(args []string) (*output.Output, error)
 		return nil, errors.Newf("file %q does not exist", codeintelUploadFlags.file)
 	}
 
-	isSCIPAvailable, err := isSCIPAvailable()
-	if err != nil {
-		return nil, err
-	}
-
-	if !isSCIPAvailable {
-		return nil, errors.New(
-			"src-cli no longer supports LSIF->SCIP conversion, and the Sourcegraph " +
-				"instance you are uploading to does not support SCIP")
-	}
-
 	// Check for new file existence after transformation
 	if _, err := os.Stat(codeintelUploadFlags.file); os.IsNotExist(err) {
 		return nil, errors.Newf("file %q does not exist", codeintelUploadFlags.file)
@@ -171,25 +157,6 @@ func codeintelUploadOutput() (out *output.Output) {
 	return output.NewOutput(flag.CommandLine.Output(), output.OutputOpts{
 		Verbose: true,
 	})
-}
-
-func isSCIPAvailable() (bool, error) {
-	client := cfg.apiClient(codeintelUploadFlags.apiFlags, codeintelUploadFlagSet.Output())
-	req, err := client.NewHTTPRequest(context.Background(), "HEAD", strings.ReplaceAll(codeintelUploadFlags.uploadRoute, "lsif", "scip"), nil)
-	if err != nil {
-		return false, err
-	}
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return false, err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode == http.StatusUnauthorized {
-		return false, upload.ErrUnauthorized
-	}
-
-	return resp.StatusCode == http.StatusOK, nil
 }
 
 type argumentInferenceError struct {
