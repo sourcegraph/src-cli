@@ -15,7 +15,7 @@ const GetSearchJobQuery = `query SearchJob($id: ID!) {
         }
     }
 }
-` 
+`
 
 // init registers the "get" subcommand for search-jobs which retrieves a search job by ID.
 // It supports formatting the output using Go templates and requires authentication via API flags.
@@ -24,7 +24,7 @@ func init() {
 Examples:
 
   Get a search job by ID:
-  
+
     $ src search-jobs get U2VhcmNoSm9iOjY5
 `
 
@@ -34,7 +34,7 @@ Examples:
         flagSet.PrintDefaults()
         fmt.Println(usage)
     }
-    
+
     var (
 		idFlag = flagSet.String("id", "", "ID of the search job")
         formatFlag = flagSet.String("f", "{{.ID}}: {{.Creator.Username}} {{.State}} ({{.Query}})", `Format for the output, using the syntax of Go package text/template. (e.g. "{{.ID}}: {{.Creator.Username}} ({{.Query}})" or "{{.|json}}")`)
@@ -77,16 +77,16 @@ Examples:
 
 func getSearchJob(client api.Client, id string) (*SearchJob, error) {
     query := GetSearchJobQuery + SearchJobFragment
-    
+
     var result struct {
         Node *SearchJob
     }
-    
+
     if ok, err := client.NewRequest(query, map[string]interface{}{
         "id": api.NullString(id),
     }).Do(context.Background(), &result); err != nil || !ok {
         return nil, err
     }
-    
+
     return result.Node, nil
 }

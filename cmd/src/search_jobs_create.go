@@ -31,7 +31,7 @@ func init() {
 Examples:
 
   Create a search job:
-  
+
     $ src search-jobs create -query "repo:^github\.com/sourcegraph/sourcegraph$ sort:indexed-desc"
 `
 

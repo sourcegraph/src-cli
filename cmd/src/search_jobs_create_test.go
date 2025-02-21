@@ -17,11 +17,11 @@ func TestSearchJobsCreate(t *testing.T) {
 
         // Set up validation request
         validationRequest := new(mockclient.Request)
-        mockClient.On("NewRequest", 
+        mockClient.On("NewRequest",
             ValidateSearchJobQuery,
             map[string]interface{}{"query": "repo:test"},
         ).Return(validationRequest)
-        
+
         validationRequest.On("Do", mock.Anything, mock.Anything).Return(true, nil)
 
         // Set up creation request
@@ -59,7 +59,7 @@ func executeSearchJobCreate(client api.Client, args []string) error {
     )
     flagSet.StringVar(&queryFlag, "query", "", "")
     flagSet.StringVar(&formatFlag, "f", "{{.ID}}", "")
-    
+
     if err := flagSet.Parse(args); err != nil {
         return err
     }

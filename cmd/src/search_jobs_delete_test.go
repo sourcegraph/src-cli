@@ -5,7 +5,7 @@ import (
     "flag"
     "fmt"
     "testing"
-    
+
     "github.com/sourcegraph/src-cli/internal/api"
     "github.com/sourcegraph/src-cli/internal/cmderrors"
     mockclient "github.com/sourcegraph/src-cli/internal/api/mock"
@@ -16,7 +16,7 @@ func TestSearchJobsDelete(t *testing.T) {
         mockClient := new(mockclient.Client)
         mockRequest := new(mockclient.Request)
 
-        mockClient.On("NewRequest", 
+        mockClient.On("NewRequest",
             DeleteSearchJobQuery,
             map[string]interface{}{"id": "test-id"},
         ).Return(mockRequest)
@@ -91,7 +91,7 @@ func executeSearchJobDelete(client api.Client, args []string) error {
     flagSet := flag.NewFlagSet("delete", flag.ExitOnError)
     var idFlag string
     flagSet.StringVar(&idFlag, "id", "", "")
-    
+
     if err := flagSet.Parse(args); err != nil {
         return err
     }

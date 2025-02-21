@@ -8,7 +8,7 @@ import (
     "net/http"
     "strings"
     "testing"
-    
+
     "github.com/sourcegraph/src-cli/internal/api"
     "github.com/sourcegraph/src-cli/internal/cmderrors"
     mockclient "github.com/sourcegraph/src-cli/internal/api/mock"
@@ -18,7 +18,7 @@ func TestSearchJobsLogs(t *testing.T) {
     t.Run("successful log retrieval", func(t *testing.T) {
         mockClient := new(mockclient.Client)
         mockRequest := new(mockclient.Request)
-        
+
         expectedLogs := "test log content"
         mockHTTPClient := &http.Client{
             Transport: &mockTransport{
@@ -35,8 +35,8 @@ func TestSearchJobsLogs(t *testing.T) {
         defer func() {
             http.DefaultClient = originalClient
         }()
-        
-        mockClient.On("NewRequest", 
+
+        mockClient.On("NewRequest",
             GetSearchJobQuery + SearchJobFragment,
             map[string]interface{}{"id": "test-id"},
         ).Return(mockRequest)
@@ -116,7 +116,7 @@ func executeSearchJobLogs(client api.Client, args []string) error {
     )
     flagSet.StringVar(&idFlag, "id", "", "")
     flagSet.StringVar(&outFlag, "out", "", "")
-    
+
     if err := flagSet.Parse(args); err != nil {
         return err
     }

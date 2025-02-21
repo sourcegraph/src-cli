@@ -22,7 +22,7 @@ func init() {
 Examples:
 
   Cancel a search job:
-  
+
     $ src search-jobs cancel --id U2VhcmNoSm9iOjY5
 `
 	flagSet := flag.NewFlagSet("cancel", flag.ExitOnError)

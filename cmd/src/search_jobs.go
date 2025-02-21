@@ -51,7 +51,7 @@ The commands are:
 	delete     deletes a search job by ID
 	get        gets a search job by ID
 	list       lists search jobs
-	
+
 Use "src search-jobs [command] -h" for more information about a command.
 `
 
