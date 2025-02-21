@@ -18,6 +18,7 @@ if [ ! -f "${target}" ]; then
   mv "golangci-lint-${suffix}/golangci-lint" "${target}"
   rm -f "${target}.tar.gz"
   rm -rf "golangci-lint-${suffix}"
+  echo "downloaded" 1>&2
 fi
 
 chmod +x "${target}"
