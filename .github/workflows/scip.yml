@@ -11,10 +11,12 @@ jobs:
     container: sourcegraph/scip-go
     steps:
       - uses: actions/checkout@v4
+      - name: Set up Go
+        uses: actions/setup-go@v5
         with:
-          fetch-depth: 0
+          go-version: 1.23.2
       - name: Build src-cli
-        run: go build -o /usr/local/bin/src ./cmd/src
+        run: go build -buildvcs=false -o /usr/local/bin/src ./cmd/src
       - name: Set directory to safe for git
         run: git config --global --add safe.directory $GITHUB_WORKSPACE
       - name: Enable pulling Go modules from private sourcegraph/sourcegraph
