@@ -91,6 +91,15 @@ func UploadCompressedIndex(ctx context.Context, compressedFile string, httpClien
 	return uploadMultipartIndex(ctx, httpClient, opts, compressedReader, compressedSize, nil)
 }
 
+/*
+	NOTE:
+
+	All the definitions below have been vendored in from the Sourcegraph repository public snapshot at
+	this commit: https://github.com/sourcegraph/sourcegraph-public-snapshot/commit/1af563b61442c255af7b07a526efd71b3b0bad0d
+
+	All necessary definitions were vendored in without changes until the code built successfully.
+*/
+
 // uploadIndex uploads the index file described by the given options to a Sourcegraph
 // instance via a single HTTP POST request. The identifier of the upload is returned
 // after a successful upload.

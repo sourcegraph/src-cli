@@ -205,7 +205,10 @@ func inferDefaultFile() (string, error) {
 	if !hasSCIP && !hasCompressedSCIP {
 		return "", formatInferenceError(argumentInferenceError{"file", errors.Newf("neither %s nor %s exist", scipFilename, scipCompressedFilename)})
 	} else if hasSCIP && hasCompressedSCIP {
-		return "", formatInferenceError(argumentInferenceError{"file", errors.Newf("both %s and %s were found, choose the file to upload explicitly using -file flag", scipFilename, scipCompressedFilename)})
+		return "", formatInferenceError(argumentInferenceError{
+			"file",
+			errors.Newf("both %s and %s were found, choose the file to upload explicitly using -file flag", scipFilename, scipCompressedFilename),
+		})
 	} else if hasSCIP {
 		return scipFilename, nil
 	} else {
@@ -215,10 +218,10 @@ func inferDefaultFile() (string, error) {
 
 func isFileAvailable(filename string) (bool, error) {
 	info, err := os.Stat(filename)
-	if err != nil {
-		return false, err
-	} else if os.IsNotExist(err) {
+	if os.IsNotExist(err) {
 		return false, nil
+	} else if err != nil {
+		return false, err
 	} else {
 		return !info.IsDir(), nil
 	}
