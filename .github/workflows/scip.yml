@@ -15,10 +15,10 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: 1.23.2
-      - name: Build src-cli
-        run: go build -buildvcs=false -o /usr/local/bin/src ./cmd/src
       - name: Set directory to safe for git
         run: git config --global --add safe.directory $GITHUB_WORKSPACE
+      - name: Build src-cli
+        run: go build -o /usr/local/bin/src ./cmd/src
       - name: Enable pulling Go modules from private sourcegraph/sourcegraph
         run: git config --global url."https://${PRIVATE_TOKEN}@github.com/sourcegraph/".insteadOf "https://github.com/sourcegraph/"
       - name: Generate SCIP data
