@@ -11,6 +11,8 @@ jobs:
     container: sourcegraph/scip-go
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - name: Build src-cli
         run: go build -o /usr/local/bin/src ./cmd/src
       - name: Set directory to safe for git
