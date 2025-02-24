@@ -1,9 +1,12 @@
 package main
 
 import (
+	"compress/gzip"
 	"flag"
 	"fmt"
+	"io"
 	"os"
+	"path"
 	"strings"
 
 	"github.com/sourcegraph/scip/bindings/go/scip"
@@ -15,7 +18,8 @@ import (
 )
 
 var codeintelUploadFlags struct {
-	file string
+	file           string
+	gzipCompressed bool
 
 	// UploadRecordOptions
 	repo              string
@@ -53,6 +57,7 @@ var (
 
 func init() {
 	codeintelUploadFlagSet.StringVar(&codeintelUploadFlags.file, "file", "", `The path to the SCIP index file.`)
+	codeintelUploadFlagSet.BoolVar(&codeintelUploadFlags.gzipCompressed, "gzip", false, `Treat uploaded file as already gzip compressed`)
 
 	// UploadRecordOptions
 	codeintelUploadFlagSet.StringVar(&codeintelUploadFlags.repo, "repo", "", `The name of the repository (e.g. github.com/gorilla/mux). By default, derived from the origin remote.`)
@@ -131,6 +136,10 @@ func parseAndValidateCodeIntelUploadFlags(args []string) (*output.Output, error)
 		return nil, errors.Newf("file %q does not exist", codeintelUploadFlags.file)
 	}
 
+	if err := inferGzipFlag(); err != nil {
+		return nil, err
+	}
+
 	// Infer the remaining default arguments (may require reading from new file)
 	if inferenceErrors := inferMissingCodeIntelUploadFlags(); len(inferenceErrors) > 0 {
 		return nil, formatInferenceError(inferenceErrors[0])
@@ -141,6 +150,22 @@ func parseAndValidateCodeIntelUploadFlags(args []string) (*output.Output, error)
 	}
 
 	return out, nil
+}
+
+func inferGzipFlag() error {
+	if codeintelUploadFlags.gzipCompressed || path.Ext(codeintelUploadFlags.file) == ".gz" {
+		file, err := os.Open(codeintelUploadFlags.file)
+		if err != nil {
+			return err
+		}
+		defer file.Close()
+		if err := checkIsGzipped(file); err != nil {
+			return errors.Wrapf(err, "could not verify that %s is a valid gzip file", codeintelUploadFlags.file)
+		}
+		codeintelUploadFlags.gzipCompressed = true
+	}
+
+	return nil
 }
 
 // codeintelUploadOutput returns an output object that should be used to print the progres
@@ -166,17 +191,39 @@ type argumentInferenceError struct {
 
 func inferDefaultFile() (string, error) {
 	const scipFilename = "index.scip"
-	_, err := os.Stat(scipFilename)
+	const scipCompressedFilename = "index.scip.gz"
 
-	if err == nil {
-		return scipFilename, nil
+	hasSCIP, err := fileAvailable(scipFilename)
+	if err != nil {
+		return "", err
+	}
+	hasCompressedSCIP, err := fileAvailable(scipCompressedFilename)
+	if err != nil {
+		return "", err
 	}
 
-	if os.IsNotExist(err) {
-		return "", formatInferenceError(argumentInferenceError{"file", errors.Newf("%s does not exist", scipFilename)})
+	if !hasSCIP && !hasCompressedSCIP {
+		return "", formatInferenceError(argumentInferenceError{"file", errors.Newf("neither %s nor %s exist", scipFilename, scipCompressedFilename)})
+	} else if hasSCIP && hasCompressedSCIP {
+		return "", formatInferenceError(argumentInferenceError{"file", errors.Newf("both %s and %s were found, choose the file to upload explicitly using -file flag", scipFilename, scipCompressedFilename)})
+	} else if hasSCIP {
+		return scipFilename, nil
+	} else if hasCompressedSCIP {
+		return scipCompressedFilename, nil
 	}
 
 	return "", err
+}
+
+func fileAvailable(filename string) (bool, error) {
+	info, err := os.Stat(filename)
+	if os.IsNotExist(err) {
+		return false, nil
+	} else if err != nil {
+		return false, err
+	} else {
+		return !info.IsDir(), nil
+	}
 }
 
 func formatInferenceError(inferenceErr argumentInferenceError) error {
@@ -271,6 +318,18 @@ func readIndexerNameAndVersion(indexFile string) (string, string, error) {
 	}
 	defer file.Close()
 
+	var indexReader io.Reader
+	indexReader = file
+
+	if codeintelUploadFlags.gzipCompressed {
+		gzipReader, err := gzip.NewReader(file)
+		if err != nil {
+			return "", "", err
+		}
+		indexReader = gzipReader
+		defer gzipReader.Close()
+	}
+
 	var metadata *scip.Metadata
 
 	visitor := scip.IndexVisitor{
@@ -280,7 +339,7 @@ func readIndexerNameAndVersion(indexFile string) (string, string, error) {
 	}
 
 	// convert file to io.Reader
-	if err := visitor.ParseStreaming(file); err != nil {
+	if err := visitor.ParseStreaming(indexReader); err != nil {
 		return "", "", err
 	}
 
@@ -305,5 +364,14 @@ func validateCodeIntelUploadFlags() error {
 		return errors.New("max-payload-size must be at least 25 (MB)")
 	}
 
+	return nil
+}
+
+func checkIsGzipped(r io.Reader) error {
+	gz, err := gzip.NewReader(r)
+	if err != nil {
+		return err
+	}
+	defer gz.Close()
 	return nil
 }
