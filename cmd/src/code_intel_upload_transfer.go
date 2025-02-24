@@ -430,6 +430,8 @@ func performUploadRequest(ctx context.Context, httpClient upload.Client, opts up
 		return false, err
 	}
 
+	// body closed as part of performRequest
+	//nolint:bodyclose
 	resp, body, err := performRequest(ctx, req, httpClient, opts.OutputOptions.Logger)
 	if err != nil {
 		return false, err

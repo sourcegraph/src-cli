@@ -88,6 +88,9 @@ func handleCodeIntelUpload(args []string) error {
 	} else {
 		uploadID, err = UploadUncompressedIndex(ctx, codeintelUploadFlags.file, client, uploadOptions)
 	}
+	if err != nil {
+		return err
+	}
 
 	uploadURL, err := makeCodeIntelUploadURL(uploadID)
 	if err != nil {
