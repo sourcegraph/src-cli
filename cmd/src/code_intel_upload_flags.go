@@ -115,7 +115,7 @@ func parseAndValidateCodeIntelUploadFlags(args []string) (*output.Output, error)
 	}
 
 	if !isFlagSet(codeintelUploadFlagSet, "file") {
-		defaultFile, err := inferDefaultFile()
+		defaultFile, err := inferDefaultFile(out)
 		if err != nil {
 			return nil, err
 		}
@@ -159,7 +159,7 @@ func inferGzipFlag() error {
 			return err
 		}
 		defer file.Close()
-		if err := checkIsGzipped(file); err != nil {
+		if err := checkGzipHeader(file); err != nil {
 			return errors.Wrapf(err, "could not verify that %s is a valid gzip file", codeintelUploadFlags.file)
 		}
 		codeintelUploadFlags.gzipCompressed = true
@@ -189,34 +189,32 @@ type argumentInferenceError struct {
 	err      error
 }
 
-func inferDefaultFile() (string, error) {
+func inferDefaultFile(out *output.Output) (string, error) {
 	const scipFilename = "index.scip"
 	const scipCompressedFilename = "index.scip.gz"
 
-	hasSCIP, err := isFileAvailable(scipFilename)
+	hasSCIP, err := doesFileExist(scipFilename)
 	if err != nil {
 		return "", err
 	}
-	hasCompressedSCIP, err := isFileAvailable(scipCompressedFilename)
+	hasCompressedSCIP, err := doesFileExist(scipCompressedFilename)
 	if err != nil {
 		return "", err
 	}
 
 	if !hasSCIP && !hasCompressedSCIP {
-		return "", formatInferenceError(argumentInferenceError{"file", errors.Newf("neither %s nor %s exist", scipFilename, scipCompressedFilename)})
-	} else if hasSCIP && hasCompressedSCIP {
-		return "", formatInferenceError(argumentInferenceError{
-			"file",
-			errors.Newf("both %s and %s were found, choose the file to upload explicitly using -file flag", scipFilename, scipCompressedFilename),
-		})
-	} else if hasSCIP {
-		return scipFilename, nil
-	} else {
+		return "", formatInferenceError(argumentInferenceError{"file", errors.Newf("Unable to locate SCIP index. Checked paths: %q and %q.", scipFilename, scipCompressedFilename)})
+	} else if hasCompressedSCIP {
+		if hasSCIP {
+			out.WriteLine(output.Linef(output.EmojiInfo, output.StyleBold, "Both %s and %s exist, choosing %s", scipFilename, scipCompressedFilename, scipCompressedFilename))
+		}
 		return scipCompressedFilename, nil
+	} else {
+		return scipFilename, nil
 	}
 }
 
-func isFileAvailable(filename string) (bool, error) {
+func doesFileExist(filename string) (bool, error) {
 	info, err := os.Stat(filename)
 	if os.IsNotExist(err) {
 		return false, nil
@@ -319,8 +317,7 @@ func readIndexerNameAndVersion(indexFile string) (string, string, error) {
 	}
 	defer file.Close()
 
-	var indexReader io.Reader
-	indexReader = file
+	var indexReader io.Reader = file
 
 	if codeintelUploadFlags.gzipCompressed {
 		gzipReader, err := gzip.NewReader(file)
@@ -368,7 +365,7 @@ func validateCodeIntelUploadFlags() error {
 	return nil
 }
 
-func checkIsGzipped(r io.Reader) error {
+func checkGzipHeader(r io.Reader) error {
 	gz, err := gzip.NewReader(r)
 	if err != nil {
 		return err
