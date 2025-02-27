@@ -1,9 +1,12 @@
 package main
 
 import (
+	"compress/gzip"
 	"flag"
 	"fmt"
+	"io"
 	"os"
+	"path"
 	"strings"
 
 	"github.com/sourcegraph/scip/bindings/go/scip"
@@ -15,7 +18,8 @@ import (
 )
 
 var codeintelUploadFlags struct {
-	file string
+	file           string
+	gzipCompressed bool
 
 	// UploadRecordOptions
 	repo              string
@@ -110,7 +114,7 @@ func parseAndValidateCodeIntelUploadFlags(args []string) (*output.Output, error)
 	}
 
 	if !isFlagSet(codeintelUploadFlagSet, "file") {
-		defaultFile, err := inferDefaultFile()
+		defaultFile, err := inferDefaultFile(out)
 		if err != nil {
 			return nil, err
 		}
@@ -131,6 +135,10 @@ func parseAndValidateCodeIntelUploadFlags(args []string) (*output.Output, error)
 		return nil, errors.Newf("file %q does not exist", codeintelUploadFlags.file)
 	}
 
+	if err := inferGzipFlag(); err != nil {
+		return nil, err
+	}
+
 	// Infer the remaining default arguments (may require reading from new file)
 	if inferenceErrors := inferMissingCodeIntelUploadFlags(); len(inferenceErrors) > 0 {
 		return nil, formatInferenceError(inferenceErrors[0])
@@ -141,6 +149,22 @@ func parseAndValidateCodeIntelUploadFlags(args []string) (*output.Output, error)
 	}
 
 	return out, nil
+}
+
+func inferGzipFlag() error {
+	if codeintelUploadFlags.gzipCompressed || path.Ext(codeintelUploadFlags.file) == ".gz" {
+		file, err := os.Open(codeintelUploadFlags.file)
+		if err != nil {
+			return err
+		}
+		defer file.Close()
+		if err := checkGzipHeader(file); err != nil {
+			return errors.Wrapf(err, "could not verify that %s is a valid gzip file", codeintelUploadFlags.file)
+		}
+		codeintelUploadFlags.gzipCompressed = true
+	}
+
+	return nil
 }
 
 // codeintelUploadOutput returns an output object that should be used to print the progres
@@ -164,19 +188,40 @@ type argumentInferenceError struct {
 	err      error
 }
 
-func inferDefaultFile() (string, error) {
+func inferDefaultFile(out *output.Output) (string, error) {
 	const scipFilename = "index.scip"
-	_, err := os.Stat(scipFilename)
+	const scipCompressedFilename = "index.scip.gz"
 
-	if err == nil {
+	hasSCIP, err := doesFileExist(scipFilename)
+	if err != nil {
+		return "", err
+	}
+	hasCompressedSCIP, err := doesFileExist(scipCompressedFilename)
+	if err != nil {
+		return "", err
+	}
+
+	if !hasSCIP && !hasCompressedSCIP {
+		return "", formatInferenceError(argumentInferenceError{"file", errors.Newf("Unable to locate SCIP index. Checked paths: %q and %q.", scipFilename, scipCompressedFilename)})
+	} else if hasCompressedSCIP {
+		if hasSCIP {
+			out.WriteLine(output.Linef(output.EmojiInfo, output.StyleBold, "Both %s and %s exist, choosing %s", scipFilename, scipCompressedFilename, scipCompressedFilename))
+		}
+		return scipCompressedFilename, nil
+	} else {
 		return scipFilename, nil
 	}
+}
 
+func doesFileExist(filename string) (bool, error) {
+	info, err := os.Stat(filename)
 	if os.IsNotExist(err) {
-		return "", formatInferenceError(argumentInferenceError{"file", errors.Newf("%s does not exist", scipFilename)})
+		return false, nil
+	} else if err != nil {
+		return false, err
+	} else {
+		return !info.IsDir(), nil
 	}
-
-	return "", err
 }
 
 func formatInferenceError(inferenceErr argumentInferenceError) error {
@@ -271,6 +316,17 @@ func readIndexerNameAndVersion(indexFile string) (string, string, error) {
 	}
 	defer file.Close()
 
+	var indexReader io.Reader = file
+
+	if codeintelUploadFlags.gzipCompressed {
+		gzipReader, err := gzip.NewReader(file)
+		if err != nil {
+			return "", "", err
+		}
+		indexReader = gzipReader
+		defer gzipReader.Close()
+	}
+
 	var metadata *scip.Metadata
 
 	visitor := scip.IndexVisitor{
@@ -280,7 +336,7 @@ func readIndexerNameAndVersion(indexFile string) (string, string, error) {
 	}
 
 	// convert file to io.Reader
-	if err := visitor.ParseStreaming(file); err != nil {
+	if err := visitor.ParseStreaming(indexReader); err != nil {
 		return "", "", err
 	}
 
@@ -305,5 +361,14 @@ func validateCodeIntelUploadFlags() error {
 		return errors.New("max-payload-size must be at least 25 (MB)")
 	}
 
+	return nil
+}
+
+func checkGzipHeader(r io.Reader) error {
+	gz, err := gzip.NewReader(r)
+	if err != nil {
+		return err
+	}
+	defer gz.Close()
 	return nil
 }

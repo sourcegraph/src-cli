@@ -11,6 +11,8 @@ All notable changes to `src-cli` are documented in this file.
 
 ## Unreleased
 
+- Support uploading GZIP compressed SCIP indexes [1146](https://github.com/sourcegraph/src-cli/pull/1146)
+
 ## 6.0.1
 
 - Container signature verification support: Container signatures can now be verified for Sourcegraph releases after 5.11.4013 using `src signature verify -v <release>` [#1143](https://github.com/sourcegraph/src-cli/pull/1143)
@@ -153,7 +155,7 @@ All notable changes to `src-cli` are documented in this file.
 
 ### Fixed
 
-- Fixed `src validate install` requiring `SRC_GITHUB_TOKEN` in all cases. [958](https://github.com/sourcegraph/src-cli/pull/958) 
+- Fixed `src validate install` requiring `SRC_GITHUB_TOKEN` in all cases. [958](https://github.com/sourcegraph/src-cli/pull/958)
 
 ## 5.0.1
 

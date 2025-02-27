@@ -82,7 +82,12 @@ func handleCodeIntelUpload(args []string) error {
 	})
 
 	uploadOptions := codeintelUploadOptions(out)
-	uploadID, err := upload.UploadIndex(ctx, codeintelUploadFlags.file, client, uploadOptions)
+	var uploadID int
+	if codeintelUploadFlags.gzipCompressed {
+		uploadID, err = UploadCompressedIndex(ctx, codeintelUploadFlags.file, client, uploadOptions, 0)
+	} else {
+		uploadID, err = UploadUncompressedIndex(ctx, codeintelUploadFlags.file, client, uploadOptions)
+	}
 	if err != nil {
 		return handleUploadError(uploadOptions.SourcegraphInstanceOptions.AccessToken, err)
 	}
