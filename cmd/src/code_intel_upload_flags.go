@@ -57,7 +57,6 @@ var (
 
 func init() {
 	codeintelUploadFlagSet.StringVar(&codeintelUploadFlags.file, "file", "", `The path to the SCIP index file.`)
-	codeintelUploadFlagSet.BoolVar(&codeintelUploadFlags.gzipCompressed, "gzip", false, `Treat uploaded file as already gzip compressed`)
 
 	// UploadRecordOptions
 	codeintelUploadFlagSet.StringVar(&codeintelUploadFlags.repo, "repo", "", `The name of the repository (e.g. github.com/gorilla/mux). By default, derived from the origin remote.`)
