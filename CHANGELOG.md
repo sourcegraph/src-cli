@@ -11,7 +11,9 @@ All notable changes to `src-cli` are documented in this file.
 
 ## Unreleased
 
+## 6.1.0
 - Support uploading GZIP compressed SCIP indexes [1146](https://github.com/sourcegraph/src-cli/pull/1146)
+- Remove deprecated `lsif` subcommand, and remove LSIF->SCIP conversion support [1147](https://github.com/sourcegraph/src-cli/pull/1147)
 
 ## 6.0.1
 
