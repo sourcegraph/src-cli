@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+
 	"github.com/sourcegraph/src-cli/internal/api"
 	"github.com/sourcegraph/src-cli/internal/cmderrors"
 )
@@ -43,9 +44,9 @@ Examples:
 	}
 
 	var (
-		queryFlag = flagSet.String("query", "", "Search query")
-		formatFlag = flagSet.String("f", "{{.ID}}: {{.Creator.Username}} {{.State}} ({{.Query}})", `Format for the output, using the syntax of Go package text/template. (e.g. "{{.ID}}: {{.Creator.Username}} ({{.Query}})" or "{{.|json}}")`)
-		apiFlags  = api.NewFlags(flagSet)
+		queryFlag  = flagSet.String("query", "", "Search query")
+		formatFlag = flagSet.String("f", "{{searchJobIDNumber .ID}}: {{.Creator.Username}} {{.State}} ({{.Query}})", `Format for the output, using the syntax of Go package text/template. (e.g. "{{.ID}}: {{.Creator.Username}} ({{.Query}})" or "{{.|json}}")`)
+		apiFlags   = api.NewFlags(flagSet)
 	)
 
 	handler := func(args []string) error {

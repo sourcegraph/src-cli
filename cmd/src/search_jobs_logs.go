@@ -6,10 +6,9 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"github.com/sourcegraph/src-cli/internal/api"
-	"github.com/sourcegraph/src-cli/internal/cmderrors"
-)
 
+	"github.com/sourcegraph/src-cli/internal/api"
+)
 
 // init registers the 'logs' subcommand for search jobs, which allows users to view
 // logs for a specific search job by its ID. The command requires a search job ID
@@ -19,7 +18,7 @@ func init() {
 Examples:
 
 	View the logs of a search job:
-	  $ src search-jobs logs U2VhcmNoSm9iOjY5
+	  $ src search-jobs logs -id 999
 
 	Save the logs to a file:
 	  $ src search-jobs logs U2VhcmNoSm9iOjY5 -out logs.csv
@@ -33,8 +32,8 @@ Examples:
 	}
 
 	var (
-		idFlag = flagSet.String("id", "", "ID of the search job to view logs for")
-		outFlag = flagSet.String("out", "", "File path to save the logs (optional)")
+		idFlag   = flagSet.String("id", "", "ID of the search job to view logs for")
+		outFlag  = flagSet.String("out", "", "File path to save the logs (optional)")
 		apiFlags = api.NewFlags(flagSet)
 	)
 
@@ -43,20 +42,12 @@ Examples:
 			return err
 		}
 
-		if *idFlag == "" {
-			return cmderrors.Usage("must provide a search job ID")
-		}
-
 		client := api.NewClient(api.ClientOpts{
 			Endpoint:    cfg.Endpoint,
 			AccessToken: cfg.AccessToken,
 			Out:         flagSet.Output(),
 			Flags:       apiFlags,
 		})
-
-		if *idFlag == "" {
-			return cmderrors.Usage("must provide a search job ID")
-		}
 
 		job, err := getSearchJob(client, *idFlag)
 		if err != nil {
