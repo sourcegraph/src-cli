@@ -1,10 +1,13 @@
 package main
 
 import (
+	"encoding/base64"
 	"flag"
 	"fmt"
-	"text/template"
-	"os"
+	"regexp"
+	"strconv"
+
+	"github.com/sourcegraph/src-cli/internal/cmderrors"
 )
 
 // searchJobFragment is a GraphQL fragment that defines the fields to be queried
@@ -51,6 +54,8 @@ The commands are:
 	delete     deletes a search job by ID
 	get        gets a search job by ID
 	list       lists search jobs
+	logs       outputs the logs for a search job by ID
+	results    outputs the results for a search job by ID
 
 Use "src search-jobs [command] -h" for more information about a command.
 `
@@ -71,22 +76,12 @@ Use "src search-jobs [command] -h" for more information about a command.
 	})
 }
 
-// printSearchJob formats and prints a search job to stdout using the provided format template.
-// Returns an error if the template parsing or execution fails.
-func printSearchJob(job *SearchJob, format string) error {
-    tmpl, err := template.New("searchJob").Parse(format)
-    if err != nil {
-        return err
-    }
-    return tmpl.Execute(os.Stdout, job)
-}
-
 // SearchJob represents a search job with its metadata, including the search query,
 // execution state, creator information, timestamps, URLs, and repository statistics.
 type SearchJob struct {
-	ID        string
-	Query     string
-	State     string
+	ID      string
+	Query   string
+	State   string
 	Creator struct {
 		Username string
 	}
@@ -96,9 +91,55 @@ type SearchJob struct {
 	URL        string
 	LogURL     string
 	RepoStats  struct {
-		Total       int
-		Completed   int
-		Failed      int
-		InProgress  int
+		Total      int
+		Completed  int
+		Failed     int
+		InProgress int
 	}
+}
+
+type SearchJobID struct {
+	number uint64
+}
+
+func ParseSearchJobID(input string) (*SearchJobID, error) {
+	// accept either:
+	// - the numeric job id (non-negative integer)
+	// - the plain text SearchJob:<integer> form of the id
+	// - the base64-encoded "SearchJob:<integer>" string
+
+	if input == "" {
+		return nil, cmderrors.Usage("must provide a search job ID")
+	}
+
+	// Try to decode if it's base64 first
+	if decoded, err := base64.StdEncoding.DecodeString(input); err == nil {
+		input = string(decoded)
+	}
+
+	// Match either "SearchJob:<integer>" or "<integer>"
+	re := regexp.MustCompile(`^(?:SearchJob:)?(\d+)$`)
+	matches := re.FindStringSubmatch(input)
+	if matches == nil {
+		return nil, fmt.Errorf("invalid ID format: must be a non-negative integer, 'SearchJob:<integer>', or that string base64-encoded")
+	}
+
+	number, err := strconv.ParseUint(matches[1], 10, 64)
+	if err != nil {
+		return nil, fmt.Errorf("invalid ID format: must be a 64-bit non-negative integer")
+	}
+
+	return &SearchJobID{number: number}, nil
+}
+
+func (id *SearchJobID) String() string {
+	return fmt.Sprintf("SearchJob:%d", id.Number())
+}
+
+func (id *SearchJobID) Canonical() string {
+	return base64.StdEncoding.EncodeToString([]byte(id.String()))
+}
+
+func (id *SearchJobID) Number() uint64 {
+	return id.number
 }

@@ -4,8 +4,8 @@ import (
 	"context"
 	"flag"
 	"fmt"
+
 	"github.com/sourcegraph/src-cli/internal/api"
-	"github.com/sourcegraph/src-cli/internal/cmderrors"
 )
 
 const DeleteSearchJobQuery = `mutation DeleteSearchJob($id: ID!) {
@@ -23,7 +23,7 @@ Examples:
 
   Delete a search job by ID:
 
-    $ src search-jobs delete U2VhcmNoSm9iOjY5
+    $ src search-jobs delete -id 999
 `
 
 	flagSet := flag.NewFlagSet("delete", flag.ExitOnError)
@@ -34,7 +34,7 @@ Examples:
 	}
 
 	var (
-		idFlag = flagSet.String("id", "", "ID of the search job to delete")
+		idFlag   = flagSet.String("id", "", "ID of the search job to delete")
 		apiFlags = api.NewFlags(flagSet)
 	)
 
@@ -50,8 +50,9 @@ Examples:
 			Flags:       apiFlags,
 		})
 
-		if *idFlag == "" {
-			return cmderrors.Usage("must provide a search job ID")
+		jobID, err := ParseSearchJobID(*idFlag)
+		if err != nil {
+			return err
 		}
 
 		var result struct {
@@ -61,7 +62,7 @@ Examples:
 		}
 
 		if ok, err := client.NewRequest(DeleteSearchJobQuery, map[string]interface{}{
-			"id": *idFlag,
+			"id": api.NullString(jobID.Canonical()),
 		}).Do(context.Background(), &result); err != nil || !ok {
 			return err
 		}

@@ -4,8 +4,8 @@ import (
 	"context"
 	"flag"
 	"fmt"
+
 	"github.com/sourcegraph/src-cli/internal/api"
-	"github.com/sourcegraph/src-cli/internal/cmderrors"
 )
 
 const CancelSearchJobMutation = `mutation CancelSearchJob($id: ID!) {
@@ -23,7 +23,7 @@ Examples:
 
   Cancel a search job:
 
-    $ src search-jobs cancel --id U2VhcmNoSm9iOjY5
+    $ src search-jobs cancel -id 999
 `
 	flagSet := flag.NewFlagSet("cancel", flag.ExitOnError)
 	usageFunc := func() {
@@ -33,8 +33,8 @@ Examples:
 	}
 
 	var (
-		idFlag = flagSet.String("id", "", "ID of the search job to cancel")
-		apiFlags  = api.NewFlags(flagSet)
+		idFlag   = flagSet.String("id", "", "ID of the search job to cancel")
+		apiFlags = api.NewFlags(flagSet)
 	)
 
 	handler := func(args []string) error {
@@ -49,8 +49,9 @@ Examples:
 			Flags:       apiFlags,
 		})
 
-		if *idFlag == "" {
-			return cmderrors.Usage("must provide a search job ID")
+		jobID, err := ParseSearchJobID(*idFlag)
+		if err != nil {
+			return err
 		}
 
 		query := CancelSearchJobMutation
@@ -62,7 +63,7 @@ Examples:
 		}
 
 		if ok, err := client.NewRequest(query, map[string]interface{}{
-			"id": *idFlag,
+			"id": api.NullString(jobID.Canonical()),
 		}).Do(context.Background(), &result); err != nil || !ok {
 			return err
 		}

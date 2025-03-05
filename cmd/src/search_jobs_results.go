@@ -6,8 +6,8 @@ import (
 	"io"
 	"net/http"
 	"os"
+
 	"github.com/sourcegraph/src-cli/internal/api"
-	"github.com/sourcegraph/src-cli/internal/cmderrors"
 )
 
 func init() {
@@ -15,10 +15,10 @@ func init() {
 Examples:
 
 	Get the results of a search job:
-	  $ src search-jobs results -id U2VhcmNoSm9iOjY5
+	  $ src search-jobs results -id 999
 
 	Save search results to a file:
-	  $ src search-jobs results -id U2VhcmNoSm9iOjY5 -out results.jsonl
+	  $ src search-jobs results -id 999 -out results.jsonl
 `
 
 	flagSet := flag.NewFlagSet("results", flag.ExitOnError)
@@ -29,18 +29,14 @@ Examples:
 	}
 
 	var (
-		idFlag = flagSet.String("id", "", "ID of the search job to get results for")
-		outFlag = flagSet.String("out", "", "File path to save the results (optional)")
+		idFlag   = flagSet.String("id", "", "ID of the search job to get results for")
+		outFlag  = flagSet.String("out", "", "File path to save the results (optional)")
 		apiFlags = api.NewFlags(flagSet)
 	)
 
 	handler := func(args []string) error {
 		if err := flagSet.Parse(args); err != nil {
 			return err
-		}
-
-		if *idFlag == "" {
-			return cmderrors.Usage("must provide a search job ID")
 		}
 
 		client := api.NewClient(api.ClientOpts{

@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+
 	"github.com/sourcegraph/src-cli/internal/api"
 	"github.com/sourcegraph/src-cli/internal/cmderrors"
 )
@@ -30,94 +31,94 @@ Examples:
 
   List all search jobs in ascending order:
 
-    $ src search-jobs list --asc
+    $ src search-jobs list -asc
 
   Limit the number of search jobs returned:
 
-    $ src search-jobs list --limit 5
+    $ src search-jobs list -limit 5
 
   Order search jobs by a field (must be one of: QUERY, CREATED_AT, STATE):
 
-    $ src search-jobs list --order-by QUERY
+    $ src search-jobs list -order-by QUERY
 `
-    flagSet := flag.NewFlagSet("list", flag.ExitOnError)
-    usageFunc := func() {
-        fmt.Fprintf(flag.CommandLine.Output(), "Usage of 'src search-jobs %s':\n", flagSet.Name())
-        flagSet.PrintDefaults()
-        fmt.Println(usage)
-    }
+	flagSet := flag.NewFlagSet("list", flag.ExitOnError)
+	usageFunc := func() {
+		fmt.Fprintf(flag.CommandLine.Output(), "Usage of 'src search-jobs %s':\n", flagSet.Name())
+		flagSet.PrintDefaults()
+		fmt.Println(usage)
+	}
 
-    var (
-        formatFlag = flagSet.String("f", "{{.ID}}: {{.Creator.Username}} {{.State}}", `Format for the output, using the syntax of Go package text/template. (e.g. "{{.ID}}: {{.Creator.Username}} ({{.Query}})" or "{{.|json}}")`)
-        limitFlag = flagSet.Int("limit", 10, "Limit the number of search jobs returned")
-        ascFlag = flagSet.Bool("asc", false, "Sort search jobs in ascending order")
-        orderByFlag = flagSet.String("order-by", "CREATED_AT", "Sort search jobs by a field")
-        apiFlags   = api.NewFlags(flagSet)
-    )
+	var (
+		formatFlag  = flagSet.String("f", "{{searchJobIDNumber .ID}}: {{.Creator.Username}} {{.State}}", `Format for the output, using the syntax of Go package text/template. (e.g. "{{.ID}}: {{.Creator.Username}} ({{.Query}})" or "{{.|json}}")`)
+		limitFlag   = flagSet.Int("limit", 10, "Limit the number of search jobs returned")
+		ascFlag     = flagSet.Bool("asc", false, "Sort search jobs in ascending order")
+		orderByFlag = flagSet.String("order-by", "CREATED_AT", "Sort search jobs by a field")
+		apiFlags    = api.NewFlags(flagSet)
+	)
 
-    validOrderBy := map[string]bool{
-        "QUERY": true,
-        "CREATED_AT": true,
-        "STATE": true,
-    }
+	validOrderBy := map[string]bool{
+		"QUERY":      true,
+		"CREATED_AT": true,
+		"STATE":      true,
+	}
 
-    handler := func(args []string) error {
-        if err := flagSet.Parse(args); err != nil {
-            return err
-        }
+	handler := func(args []string) error {
+		if err := flagSet.Parse(args); err != nil {
+			return err
+		}
 
-        client := api.NewClient(api.ClientOpts{
-            Endpoint:    cfg.Endpoint,
-            AccessToken: cfg.AccessToken,
-            Out:         flagSet.Output(),
-            Flags:       apiFlags,
-        })
+		client := api.NewClient(api.ClientOpts{
+			Endpoint:    cfg.Endpoint,
+			AccessToken: cfg.AccessToken,
+			Out:         flagSet.Output(),
+			Flags:       apiFlags,
+		})
 
 		if *limitFlag < 1 {
 			return cmderrors.Usage("limit flag must be greater than 0")
 		}
 
-        if !validOrderBy[*orderByFlag] {
-            return cmderrors.Usage("order-by must be one of: QUERY, CREATED_AT, STATE")
-        }
+		if !validOrderBy[*orderByFlag] {
+			return cmderrors.Usage("order-by must be one of: QUERY, CREATED_AT, STATE")
+		}
 
 		tmpl, err := parseTemplate(*formatFlag)
 		if err != nil {
 			return err
 		}
 
-        query := ListSearchJobsQuery + SearchJobFragment
+		query := ListSearchJobsQuery + SearchJobFragment
 
-        var result struct {
-            SearchJobs struct {
-                Nodes []SearchJob
-            }
-        }
+		var result struct {
+			SearchJobs struct {
+				Nodes []SearchJob
+			}
+		}
 
-		if ok,err := client.NewRequest(query, map[string]interface{}{
-			"first": *limitFlag,
-            "descending": !*ascFlag,
-            "orderBy": *orderByFlag,
+		if ok, err := client.NewRequest(query, map[string]interface{}{
+			"first":      *limitFlag,
+			"descending": !*ascFlag,
+			"orderBy":    *orderByFlag,
 		}).Do(context.Background(), &result); err != nil || !ok {
 			return err
 		}
 
-        if len(result.SearchJobs.Nodes) == 0 {
-            return cmderrors.ExitCode(1, fmt.Errorf("no search jobs found"))
-        }
+		if len(result.SearchJobs.Nodes) == 0 {
+			return cmderrors.ExitCode(1, fmt.Errorf("no search jobs found"))
+		}
 
-        for _, job := range result.SearchJobs.Nodes {
-            if err := execTemplate(tmpl, job); err != nil {
-                return err
-            }
-        }
+		for _, job := range result.SearchJobs.Nodes {
+			if err := execTemplate(tmpl, job); err != nil {
+				return err
+			}
+		}
 
-        return nil
-    }
+		return nil
+	}
 
-    searchJobsCommands = append(searchJobsCommands, &command{
-        flagSet:   flagSet,
-        handler:   handler,
-        usageFunc: usageFunc,
-    })
+	searchJobsCommands = append(searchJobsCommands, &command{
+		flagSet:   flagSet,
+		handler:   handler,
+		usageFunc: usageFunc,
+	})
 }
