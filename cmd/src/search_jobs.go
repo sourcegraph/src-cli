@@ -53,6 +53,7 @@ The commands are:
 	create     creates a search job
 	delete     deletes a search job by ID
 	get        gets a search job by ID
+	restart    restarts a search job by ID
 	list       lists search jobs
 	logs       outputs the logs for a search job by ID
 	results    outputs the results for a search job by ID
