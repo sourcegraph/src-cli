@@ -75,9 +75,9 @@ func init() {
 	`
 
 	// Use the builder pattern for command creation
-	cmd := NewSearchJobCommand("create", usage)
+	cmd := newSearchJobCommand("create", usage)
 
-	cmd.Build(func(flagSet *flag.FlagSet, apiFlags *api.Flags, columns []string, asJSON bool) error {
+	cmd.build(func(flagSet *flag.FlagSet, apiFlags *api.Flags, columns []string, asJSON bool) error {
 		// Validate that a query was provided
 		if flagSet.NArg() != 1 {
 			return cmderrors.Usage("must provide a query")

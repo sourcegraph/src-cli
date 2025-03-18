@@ -55,9 +55,9 @@ func init() {
 	`
 
 	// Use the builder pattern for command creation
-	cmd := NewSearchJobCommand("delete", usage)
+	cmd := newSearchJobCommand("delete", usage)
 
-	cmd.Build(func(flagSet *flag.FlagSet, apiFlags *api.Flags, columns []string, asJSON bool) error {
+	cmd.build(func(flagSet *flag.FlagSet, apiFlags *api.Flags, columns []string, asJSON bool) error {
 		// Validate job ID using the shared function from search_jobs_get.go
 		jobID, err := validateJobID(flagSet.Args())
 		if err != nil {

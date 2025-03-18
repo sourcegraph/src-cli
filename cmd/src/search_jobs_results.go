@@ -75,12 +75,12 @@ func init() {
 	`
 
 	// Use the builder pattern for command creation
-	cmd := NewSearchJobCommand("results", usage)
+	cmd := newSearchJobCommand("results", usage)
 
 	// Add results-specific flag
 	outFlag := cmd.Flags.String("out", "", "File path to save the results (optional)")
 
-	cmd.Build(func(flagSet *flag.FlagSet, apiFlags *api.Flags, columns []string, asJSON bool) error {
+	cmd.build(func(flagSet *flag.FlagSet, apiFlags *api.Flags, columns []string, asJSON bool) error {
 		// Validate job ID
 		if flagSet.NArg() != 1 {
 			return cmderrors.Usage("must provide a search job ID")

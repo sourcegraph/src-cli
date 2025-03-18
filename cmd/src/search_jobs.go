@@ -63,8 +63,8 @@ type SearchJob struct {
 	}
 }
 
-// AvailableColumns defines the available column names for output
-var AvailableColumns = map[string]bool{
+// availableColumns defines the available column names for output
+var availableColumns = map[string]bool{
 	"id":         true,
 	"query":      true,
 	"state":      true,
@@ -80,8 +80,8 @@ var AvailableColumns = map[string]bool{
 	"inprogress": true,
 }
 
-// DefaultColumns defines the default columns to display
-var DefaultColumns = []string{"id", "username", "state", "query"}
+// defaultColumns defines the default columns to display
+var defaultColumns = []string{"id", "username", "state", "query"}
 
 // SearchJobCommandBuilder helps build search job commands with common flags and options
 type SearchJobCommandBuilder struct {
@@ -94,8 +94,8 @@ type SearchJobCommandBuilder struct {
 // Global variables
 var searchJobsCommands commander
 
-// NewSearchJobCommand creates a new search job command builder
-func NewSearchJobCommand(name string, usage string) *SearchJobCommandBuilder {
+// newSearchJobCommand creates a new search job command builder
+func newSearchJobCommand(name string, usage string) *SearchJobCommandBuilder {
 	flagSet := flag.NewFlagSet(name, flag.ExitOnError)
 	return &SearchJobCommandBuilder{
 		Name:     name,
@@ -105,9 +105,9 @@ func NewSearchJobCommand(name string, usage string) *SearchJobCommandBuilder {
 	}
 }
 
-// Build creates and registers the command
-func (b *SearchJobCommandBuilder) Build(handlerFunc func(*flag.FlagSet, *api.Flags, []string, bool) error) {
-	columnsFlag := b.Flags.String("c", strings.Join(DefaultColumns, ","),
+// build creates and registers the command
+func (b *SearchJobCommandBuilder) build(handlerFunc func(*flag.FlagSet, *api.Flags, []string, bool) error) {
+	columnsFlag := b.Flags.String("c", strings.Join(defaultColumns, ","),
 		"Comma-separated list of columns to display. Available: id,query,state,username,createdat,startedat,finishedat,url,logurl,total,completed,failed,inprogress")
 	jsonFlag := b.Flags.Bool("json", false, "Output results as JSON for programmatic access")
 
@@ -138,7 +138,7 @@ func (b *SearchJobCommandBuilder) Build(handlerFunc func(*flag.FlagSet, *api.Fla
 // parseColumns parses and validates the columns flag
 func parseColumns(columnsFlag string) []string {
 	if columnsFlag == "" {
-		return DefaultColumns
+		return defaultColumns
 	}
 
 	columns := strings.Split(columnsFlag, ",")
@@ -146,13 +146,13 @@ func parseColumns(columnsFlag string) []string {
 
 	for _, col := range columns {
 		col = strings.ToLower(strings.TrimSpace(col))
-		if AvailableColumns[col] {
+		if availableColumns[col] {
 			validColumns = append(validColumns, col)
 		}
 	}
 
 	if len(validColumns) == 0 {
-		return DefaultColumns
+		return defaultColumns
 	}
 
 	return validColumns

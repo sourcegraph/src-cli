@@ -56,9 +56,9 @@ func init() {
 	`
 
 	// Use the builder pattern for command creation
-	cmd := NewSearchJobCommand("get", usage)
+	cmd := newSearchJobCommand("get", usage)
 
-	cmd.Build(func(flagSet *flag.FlagSet, apiFlags *api.Flags, columns []string, asJSON bool) error {
+	cmd.build(func(flagSet *flag.FlagSet, apiFlags *api.Flags, columns []string, asJSON bool) error {
 		// Get the client using the centralized function
 		client := createSearchJobsClient(flagSet, apiFlags)
 

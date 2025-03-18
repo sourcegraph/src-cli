@@ -99,14 +99,14 @@ func init() {
 	`
 
 	// Use the builder pattern for command creation
-	cmd := NewSearchJobCommand("list", usage)
+	cmd := newSearchJobCommand("list", usage)
 
 	// Add list-specific flags
 	limitFlag := cmd.Flags.Int("limit", 10, "Limit the number of search jobs returned")
 	ascFlag := cmd.Flags.Bool("asc", false, "Sort search jobs in ascending order")
 	orderByFlag := cmd.Flags.String("order-by", "CREATED_AT", "Sort search jobs by a field")
 
-	cmd.Build(func(flagSet *flag.FlagSet, apiFlags *api.Flags, columns []string, asJSON bool) error {
+	cmd.build(func(flagSet *flag.FlagSet, apiFlags *api.Flags, columns []string, asJSON bool) error {
 		// Get the client using the centralized function
 		client := createSearchJobsClient(flagSet, apiFlags)
 
