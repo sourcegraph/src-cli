@@ -3,101 +3,97 @@ package main
 import (
 	"context"
 	"flag"
-	"fmt"
 
 	"github.com/sourcegraph/src-cli/internal/api"
 	"github.com/sourcegraph/src-cli/internal/cmderrors"
 )
 
-// ValidateSearchJobQuery defines the GraphQL query for validating search jobs
-const ValidateSearchJobQuery = `query ValidateSearchJob($query: String!) {
-    validateSearchJob(query: $query) {
-        alwaysNil
-    }
-}`
+// GraphQL query and mutation constants
+const (
+	// createSearchJobQuery defines the GraphQL mutation for creating search jobs
+	createSearchJobQuery = `mutation CreateSearchJob($query: String!) {
+		createSearchJob(query: $query) {
+			...SearchJobFields
+		}
+	}` + searchJobFragment
+)
 
-// CreateSearchJobQuery defines the GraphQL mutation for creating search jobs
-const CreateSearchJobQuery = `mutation CreateSearchJob($query: String!) {
-    createSearchJob(query: $query) {
-        ...SearchJobFields
-    }
-}` + SearchJobFragment
-
-// init registers the "search-jobs create" subcommand. It allows users to create a search job
-// with a specified query, validates the query before creation, and outputs the result in a
-// customizable format. The command requires a search query and supports custom output formatting
-// using Go templates.
-func init() {
-	usage := `
-Examples:
-
-  Create a search job:
-
-    $ src search-jobs create -query "repo:^github\.com/sourcegraph/sourcegraph$ sort:indexed-desc"
-`
-
-	flagSet := flag.NewFlagSet("create", flag.ExitOnError)
-	usageFunc := func() {
-		fmt.Fprintf(flag.CommandLine.Output(), "Usage of 'src search-jobs %s':\n", flagSet.Name())
-		flagSet.PrintDefaults()
-		fmt.Println(usage)
+// validateSearchQuery validates a search query with the server
+func validateSearchQuery(client api.Client, query string) error {
+	var validateResult struct {
+		ValidateSearchJob interface{} `json:"validateSearchJob"`
 	}
 
-	var (
-		queryFlag  = flagSet.String("query", "", "Search query")
-		formatFlag = flagSet.String("f", "{{searchJobIDNumber .ID}}: {{.Creator.Username}} {{.State}} ({{.Query}})", `Format for the output, using the syntax of Go package text/template. (e.g. "{{.ID}}: {{.Creator.Username}} ({{.Query}})" or "{{.|json}}")`)
-		apiFlags   = api.NewFlags(flagSet)
-	)
+	if ok, err := client.NewRequest(validateSearchJobQuery, map[string]any{
+		"query": query,
+	}).Do(context.Background(), &validateResult); err != nil || !ok {
+		return err
+	}
 
-	handler := func(args []string) error {
-		if err := flagSet.Parse(args); err != nil {
-			return err
+	return nil
+}
+
+// createSearchJob creates a new search job with the given query
+func createSearchJob(client api.Client, query string) (*SearchJob, error) {
+	var result struct {
+		CreateSearchJob *SearchJob `json:"createSearchJob"`
+	}
+
+	// Validate the query
+	if err := validateSearchQuery(client, query); err != nil {
+		return nil, err
+	}
+
+	if ok, err := client.NewRequest(createSearchJobQuery, map[string]any{
+		"query": query,
+	}).Do(context.Background(), &result); !ok {
+		return nil, err
+	}
+
+	return result.CreateSearchJob, nil
+}
+
+// init registers the "search-jobs create" subcommand.
+func init() {
+	usage := `
+	Examples:
+	
+	  Create a search job:
+	
+		$ src search-jobs create "repo:^github\.com/sourcegraph/sourcegraph$ sort:indexed-desc"
+		
+	  Create a search job and display specific columns:
+		
+		$ src search-jobs create "repo:sourcegraph" -c id,state,username
+		
+	  Create a search job and output in JSON format:
+		
+		$ src search-jobs create "repo:sourcegraph" -json
+		
+	  Available columns are: id, query, state, username, createdat, startedat, finishedat, 
+	  url, logurl, total, completed, failed, inprogress
+	`
+
+	// Use the builder pattern for command creation
+	cmd := NewSearchJobCommand("create", usage)
+
+	cmd.Build(func(flagSet *flag.FlagSet, apiFlags *api.Flags, columns []string, asJSON bool) error {
+		// Validate that a query was provided
+		if flagSet.NArg() != 1 {
+			return cmderrors.Usage("must provide a query")
 		}
+		query := flagSet.Arg(0)
 
-		client := api.NewClient(api.ClientOpts{
-			Endpoint:    cfg.Endpoint,
-			AccessToken: cfg.AccessToken,
-			Out:         flagSet.Output(),
-			Flags:       apiFlags,
-		})
+		// Get the client
+		client := createSearchJobsClient(flagSet, apiFlags)
 
-		tmpl, err := parseTemplate(*formatFlag)
+		// Create the search job
+		job, err := createSearchJob(client, query)
 		if err != nil {
 			return err
 		}
 
-		if *queryFlag == "" {
-			return cmderrors.Usage("must provide a query")
-		}
-
-		var validateResult struct {
-			ValidateSearchJob interface{} `json:"validateSearchJob"`
-		}
-
-		if ok, err := client.NewRequest(ValidateSearchJobQuery, map[string]interface{}{
-			"query": *queryFlag,
-		}).Do(context.Background(), &validateResult); err != nil || !ok {
-			return err
-		}
-
-		query := CreateSearchJobQuery
-
-		var result struct {
-			CreateSearchJob *SearchJob `json:"createSearchJob"`
-		}
-
-		if ok, err := client.NewRequest(query, map[string]interface{}{
-			"query": *queryFlag,
-		}).Do(context.Background(), &result); !ok {
-			return err
-		}
-
-		return execTemplate(tmpl, result.CreateSearchJob)
-	}
-
-	searchJobsCommands = append(searchJobsCommands, &command{
-		flagSet:   flagSet,
-		handler:   handler,
-		usageFunc: usageFunc,
+		// Display the created job
+		return displaySearchJob(job, columns, asJSON)
 	})
 }

@@ -9,7 +9,8 @@ import (
 	"github.com/sourcegraph/src-cli/internal/cmderrors"
 )
 
-const ListSearchJobsQuery = `query SearchJobs($first: Int!, $descending: Boolean!, $orderBy: SearchJobsOrderBy!) {
+// GraphQL query constants
+const listSearchJobsQuery = `query SearchJobs($first: Int!, $descending: Boolean!, $orderBy: SearchJobsOrderBy!) {
     searchJobs(first: $first, orderBy: $orderBy, descending: $descending) {
         nodes {
             ...SearchJobFields
@@ -18,107 +19,114 @@ const ListSearchJobsQuery = `query SearchJobs($first: Int!, $descending: Boolean
 }
 `
 
+// validOrderByValues defines the allowed values for the order-by flag
+var validOrderByValues = map[string]bool{
+	"QUERY":      true,
+	"CREATED_AT": true,
+	"STATE":      true,
+}
+
+// listSearchJobs fetches search jobs based on the provided parameters
+func listSearchJobs(client api.Client, limit int, descending bool, orderBy string) ([]SearchJob, error) {
+	query := listSearchJobsQuery + searchJobFragment
+
+	var result struct {
+		SearchJobs struct {
+			Nodes []SearchJob
+		}
+	}
+
+	if ok, err := client.NewRequest(query, map[string]interface{}{
+		"first":      limit,
+		"descending": descending,
+		"orderBy":    orderBy,
+	}).Do(context.Background(), &result); err != nil || !ok {
+		return nil, err
+	}
+
+	return result.SearchJobs.Nodes, nil
+}
+
+// validateListFlags checks if the provided flags are valid
+func validateListFlags(limit int, orderBy string) error {
+	if limit < 1 {
+		return cmderrors.Usage("limit flag must be greater than 0")
+	}
+
+	if !validOrderByValues[orderBy] {
+		return cmderrors.Usage("order-by must be one of: QUERY, CREATED_AT, STATE")
+	}
+
+	return nil
+}
+
 // init registers the "list" subcommand for search-jobs which displays search jobs
-// based on the provided filtering and formatting options. It supports pagination,
-// sorting by different fields, and custom output formatting using Go templates.
+// based on the provided filtering and formatting options.
 func init() {
 	usage := `
-Examples:
+	Examples:
+	
+	  List all search jobs:
+	
+		$ src search-jobs list
+	
+	  List all search jobs in ascending order:
+	
+		$ src search-jobs list --asc
+	
+	  Limit the number of search jobs returned:
+	
+		$ src search-jobs list --limit 5
+	
+	  Order search jobs by a field (must be one of: QUERY, CREATED_AT, STATE):
+	
+		$ src search-jobs list --order-by QUERY
+		
+	  Select specific columns to display:
+	  
+		$ src search-jobs list -c id,state,username,createdat
+		
+	  Output results as JSON:
+	  
+		$ src search-jobs list -json
+		
+	  Combine options:
+	  
+		$ src search-jobs list --limit 10 --order-by STATE --asc -c id,query,state
+		
+	  Available columns are: id, query, state, username, createdat, startedat, finishedat, 
+	  url, logurl, total, completed, failed, inprogress
+	`
 
-  List all search jobs:
+	// Use the builder pattern for command creation
+	cmd := NewSearchJobCommand("list", usage)
 
-    $ src search-jobs list
+	// Add list-specific flags
+	limitFlag := cmd.Flags.Int("limit", 10, "Limit the number of search jobs returned")
+	ascFlag := cmd.Flags.Bool("asc", false, "Sort search jobs in ascending order")
+	orderByFlag := cmd.Flags.String("order-by", "CREATED_AT", "Sort search jobs by a field")
 
-  List all search jobs in ascending order:
+	cmd.Build(func(flagSet *flag.FlagSet, apiFlags *api.Flags, columns []string, asJSON bool) error {
+		// Get the client using the centralized function
+		client := createSearchJobsClient(flagSet, apiFlags)
 
-    $ src search-jobs list -asc
-
-  Limit the number of search jobs returned:
-
-    $ src search-jobs list -limit 5
-
-  Order search jobs by a field (must be one of: QUERY, CREATED_AT, STATE):
-
-    $ src search-jobs list -order-by QUERY
-`
-	flagSet := flag.NewFlagSet("list", flag.ExitOnError)
-	usageFunc := func() {
-		fmt.Fprintf(flag.CommandLine.Output(), "Usage of 'src search-jobs %s':\n", flagSet.Name())
-		flagSet.PrintDefaults()
-		fmt.Println(usage)
-	}
-
-	var (
-		formatFlag  = flagSet.String("f", "{{searchJobIDNumber .ID}}: {{.Creator.Username}} {{.State}}", `Format for the output, using the syntax of Go package text/template. (e.g. "{{.ID}}: {{.Creator.Username}} ({{.Query}})" or "{{.|json}}")`)
-		limitFlag   = flagSet.Int("limit", 10, "Limit the number of search jobs returned")
-		ascFlag     = flagSet.Bool("asc", false, "Sort search jobs in ascending order")
-		orderByFlag = flagSet.String("order-by", "CREATED_AT", "Sort search jobs by a field")
-		apiFlags    = api.NewFlags(flagSet)
-	)
-
-	validOrderBy := map[string]bool{
-		"QUERY":      true,
-		"CREATED_AT": true,
-		"STATE":      true,
-	}
-
-	handler := func(args []string) error {
-		if err := flagSet.Parse(args); err != nil {
+		// Validate flags
+		if err := validateListFlags(*limitFlag, *orderByFlag); err != nil {
 			return err
 		}
 
-		client := api.NewClient(api.ClientOpts{
-			Endpoint:    cfg.Endpoint,
-			AccessToken: cfg.AccessToken,
-			Out:         flagSet.Output(),
-			Flags:       apiFlags,
-		})
-
-		if *limitFlag < 1 {
-			return cmderrors.Usage("limit flag must be greater than 0")
-		}
-
-		if !validOrderBy[*orderByFlag] {
-			return cmderrors.Usage("order-by must be one of: QUERY, CREATED_AT, STATE")
-		}
-
-		tmpl, err := parseTemplate(*formatFlag)
+		// Fetch search jobs
+		jobs, err := listSearchJobs(client, *limitFlag, !*ascFlag, *orderByFlag)
 		if err != nil {
 			return err
 		}
 
-		query := ListSearchJobsQuery + SearchJobFragment
-
-		var result struct {
-			SearchJobs struct {
-				Nodes []SearchJob
-			}
-		}
-
-		if ok, err := client.NewRequest(query, map[string]interface{}{
-			"first":      *limitFlag,
-			"descending": !*ascFlag,
-			"orderBy":    *orderByFlag,
-		}).Do(context.Background(), &result); err != nil || !ok {
-			return err
-		}
-
-		if len(result.SearchJobs.Nodes) == 0 {
+		// Handle no results case
+		if len(jobs) == 0 {
 			return cmderrors.ExitCode(1, fmt.Errorf("no search jobs found"))
 		}
 
-		for _, job := range result.SearchJobs.Nodes {
-			if err := execTemplate(tmpl, job); err != nil {
-				return err
-			}
-		}
-
-		return nil
-	}
-
-	searchJobsCommands = append(searchJobsCommands, &command{
-		flagSet:   flagSet,
-		handler:   handler,
-		usageFunc: usageFunc,
+		// Display the results with the selected columns or as JSON
+		return displaySearchJobs(jobs, columns, asJSON)
 	})
 }

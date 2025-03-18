@@ -3,12 +3,12 @@ package main
 import (
 	"context"
 	"flag"
-	"fmt"
 
 	"github.com/sourcegraph/src-cli/internal/api"
 )
 
-const GetSearchJobQuery = `query SearchJob($id: ID!) {
+// GraphQL query constants
+const getSearchJobQuery = `query SearchJob($id: ID!) {
     node(id: $id) {
         ... on SearchJob {
             ...SearchJobFields
@@ -17,79 +17,64 @@ const GetSearchJobQuery = `query SearchJob($id: ID!) {
 }
 `
 
-// init registers the "get" subcommand for search-jobs which retrieves a search job by ID.
-// It supports formatting the output using Go templates and requires authentication via API flags.
-func init() {
-	usage := `
-Examples:
-
-  Get a search job by ID:
-
-    $ src search-jobs get -id 999
-`
-
-	flagSet := flag.NewFlagSet("get", flag.ExitOnError)
-	usageFunc := func() {
-		fmt.Fprintf(flag.CommandLine.Output(), "Usage of 'src search-jobs %s':\n", flagSet.Name())
-		flagSet.PrintDefaults()
-		fmt.Println(usage)
-	}
-
-	var (
-		idFlag     = flagSet.String("id", "", "ID of the search job")
-		formatFlag = flagSet.String("f", "{{searchJobIDNumber .ID}}: {{.Creator.Username}} {{.State}} ({{.Query}})", `Format for the output, using the syntax of Go package text/template. (e.g. "{{.ID}}: {{.Creator.Username}} ({{.Query}})" or "{{.|json}}")`)
-		apiFlags   = api.NewFlags(flagSet)
-	)
-
-	handler := func(args []string) error {
-		if err := flagSet.Parse(args); err != nil {
-			return err
-		}
-
-		client := api.NewClient(api.ClientOpts{
-			Endpoint:    cfg.Endpoint,
-			AccessToken: cfg.AccessToken,
-			Out:         flagSet.Output(),
-			Flags:       apiFlags,
-		})
-
-		tmpl, err := parseTemplate(*formatFlag)
-		if err != nil {
-			return err
-		}
-
-		job, err := getSearchJob(client, *idFlag)
-		if err != nil {
-			return err
-		}
-
-		return execTemplate(tmpl, job)
-	}
-	searchJobsCommands = append(searchJobsCommands, &command{
-		flagSet:   flagSet,
-		handler:   handler,
-		usageFunc: usageFunc,
-	})
-}
-
+// getSearchJob fetches a search job by ID
 func getSearchJob(client api.Client, id string) (*SearchJob, error) {
-
-	jobID, err := ParseSearchJobID(id)
-	if err != nil {
-		return nil, err
-	}
-
-	query := GetSearchJobQuery + SearchJobFragment
+	query := getSearchJobQuery + searchJobFragment
 
 	var result struct {
 		Node *SearchJob
 	}
 
 	if ok, err := client.NewRequest(query, map[string]interface{}{
-		"id": api.NullString(jobID.Canonical()),
+		"id": api.NullString(id),
 	}).Do(context.Background(), &result); err != nil || !ok {
 		return nil, err
 	}
 
 	return result.Node, nil
+}
+
+// init registers the "get" subcommand for search-jobs
+func init() {
+	usage := `
+	Examples:
+	
+	  Get a search job by ID:
+	
+		$ src search-jobs get U2VhcmNoSm9iOjY5
+		
+	  Get a search job with specific columns:
+		
+		$ src search-jobs get U2VhcmNoSm9iOjY5 -c id,state,username
+		
+	  Get a search job in JSON format:
+		
+		$ src search-jobs get U2VhcmNoSm9iOjY5 -json
+		
+	  Available columns are: id, query, state, username, createdat, startedat, finishedat, 
+	  url, logurl, total, completed, failed, inprogress
+	`
+
+	// Use the builder pattern for command creation
+	cmd := NewSearchJobCommand("get", usage)
+
+	cmd.Build(func(flagSet *flag.FlagSet, apiFlags *api.Flags, columns []string, asJSON bool) error {
+		// Get the client using the centralized function
+		client := createSearchJobsClient(flagSet, apiFlags)
+
+		// Validate that a job ID was provided
+		id, err := validateJobID(flagSet.Args())
+		if err != nil {
+			return err
+		}
+
+		// Get the search job
+		job, err := getSearchJob(client, id)
+		if err != nil {
+			return err
+		}
+
+		// Display the job with selected columns or as JSON
+		return displaySearchJob(job, columns, asJSON)
+	})
 }

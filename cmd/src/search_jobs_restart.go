@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"flag"
 	"fmt"
 
@@ -9,85 +8,66 @@ import (
 	"github.com/sourcegraph/src-cli/internal/cmderrors"
 )
 
+// restartSearchJob restarts a search job with the same query as the original
+func restartSearchJob(client api.Client, jobID string) (*SearchJob, error) {
+	originalJob, err := getSearchJob(client, jobID)
+	if err != nil {
+		return nil, err
+	}
+
+	if originalJob == nil {
+		return nil, fmt.Errorf("no job found with ID %s", jobID)
+	}
+
+	query := originalJob.Query
+
+	return createSearchJob(client, query)
+}
+
 // init registers the "restart" subcommand for search jobs, which allows restarting
 // a search job by its ID. It sets up command-line flags for job ID and output formatting,
 // validates the search job query, and creates a new search job with the same query
 // as the original job.
 func init() {
 	usage := `
-Examples:
+	Examples:
+	
+	  Restart a search job by ID:
+	
+		$ src search-jobs restart U2VhcmNoSm9iOjY5
+		
+	  Restart a search job and display specific columns:
+		
+		$ src search-jobs restart U2VhcmNoSm9iOjY5 -c id,state,query
+		
+	  Restart a search job and output in JSON format:
+		
+		$ src search-jobs restart U2VhcmNoSm9iOjY5 -json
+		
+	  Available columns are: id, query, state, username, createdat, startedat, finishedat, 
+	  url, logurl, total, completed, failed, inprogress
+	`
 
-  Restart a search job by ID:
+	// Use the builder pattern for command creation
+	cmd := NewSearchJobCommand("restart", usage)
 
-    $ src search-jobs restart -id 999
-`
-
-	flagSet := flag.NewFlagSet("restart", flag.ExitOnError)
-	usageFunc := func() {
-		fmt.Fprintf(flag.CommandLine.Output(), "Usage of 'src search-jobs %s':\n", flagSet.Name())
-		flagSet.PrintDefaults()
-		fmt.Println(usage)
-	}
-
-	var (
-		idFlag     = flagSet.String("id", "", "ID of the search job to restart")
-		formatFlag = flagSet.String("f", "{{searchJobIDNumber .ID}}: {{.Creator.Username}} {{.State}} ({{.Query}})", `Format for the output, using the syntax of Go package text/template. (e.g. "{{.ID}}: {{.Creator.Username}} ({{.Query}})" or "{{.|json}}")`)
-		apiFlags   = api.NewFlags(flagSet)
-	)
-
-	handler := func(args []string) error {
-		if err := flagSet.Parse(args); err != nil {
-			return err
-		}
-
-		client := api.NewClient(api.ClientOpts{
-			Endpoint:    cfg.Endpoint,
-			AccessToken: cfg.AccessToken,
-			Out:         flagSet.Output(),
-			Flags:       apiFlags,
-		})
-
-		tmpl, err := parseTemplate(*formatFlag)
-		if err != nil {
-			return err
-		}
-
-		if *idFlag == "" {
+	cmd.Build(func(flagSet *flag.FlagSet, apiFlags *api.Flags, columns []string, asJSON bool) error {
+		// Validate job ID
+		if flagSet.NArg() != 1 {
 			return cmderrors.Usage("must provide a job ID")
 		}
+		jobID := flagSet.Arg(0)
 
-		originalJob, err := getSearchJob(client, *idFlag)
+		// Get the client
+		client := createSearchJobsClient(flagSet, apiFlags)
+
+		// Restart the job
+		newJob, err := restartSearchJob(client, jobID)
 		if err != nil {
 			return err
 		}
-		query := originalJob.Query
-		var validateResult struct {
-			ValidateSearchJob struct {
-				AlwaysNil bool `json:"alwaysNil"`
-			} `json:"validateSearchJob"`
-		}
 
-		if ok, err := client.NewRequest(ValidateSearchJobQuery, map[string]interface{}{
-			"query": query,
-		}).Do(context.Background(), &validateResult); err != nil || !ok {
-			return err
-		}
-		var result struct {
-			CreateSearchJob *SearchJob `json:"createSearchJob"`
-		}
-
-		if ok, err := client.NewRequest(CreateSearchJobQuery, map[string]interface{}{
-			"query": query,
-		}).Do(context.Background(), &result); !ok {
-			return err
-		}
-
-		return execTemplate(tmpl, result.CreateSearchJob)
-	}
-
-	searchJobsCommands = append(searchJobsCommands, &command{
-		flagSet:   flagSet,
-		handler:   handler,
-		usageFunc: usageFunc,
+		// Display the new job
+		return displaySearchJob(newJob, columns, asJSON)
 	})
 }

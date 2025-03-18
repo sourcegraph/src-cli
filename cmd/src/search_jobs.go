@@ -1,19 +1,19 @@
 package main
 
 import (
-	"encoding/base64"
+	"encoding/json"
 	"flag"
 	"fmt"
-	"regexp"
-	"strconv"
+	"strings"
 
+	"github.com/sourcegraph/src-cli/internal/api"
 	"github.com/sourcegraph/src-cli/internal/cmderrors"
 )
 
 // searchJobFragment is a GraphQL fragment that defines the fields to be queried
 // for a SearchJob. It includes the job's ID, query, state, creator information,
 // timestamps, URLs, and repository statistics.
-const SearchJobFragment = `
+const searchJobFragment = `
 fragment SearchJobFields on SearchJob {
     id
     query
@@ -34,48 +34,12 @@ fragment SearchJobFields on SearchJob {
     }
 }`
 
-var searchJobsCommands commander
-
-// init registers the 'src search-jobs' command with the CLI. It provides subcommands
-// for managing search jobs, including creating, listing, getting, canceling and deleting
-// jobs. The command uses a flagset for parsing options and displays usage information
-// when help is requested.
-func init() {
-	usage := `'src search-jobs' is a tool that manages search jobs on a Sourcegraph instance.
-
-Usage:
-
-	src search-jobs command [command options]
-
-The commands are:
-
-	cancel     cancels a search job by ID
-	create     creates a search job
-	delete     deletes a search job by ID
-	get        gets a search job by ID
-	restart    restarts a search job by ID
-	list       lists search jobs
-	logs       outputs the logs for a search job by ID
-	results    outputs the results for a search job by ID
-
-Use "src search-jobs [command] -h" for more information about a command.
-`
-
-	flagSet := flag.NewFlagSet("search-jobs", flag.ExitOnError)
-	handler := func(args []string) error {
-		searchJobsCommands.run(flagSet, "src search-jobs", usage, args)
-		return nil
+// GraphQL query constant for validating search queries
+const validateSearchJobQuery = `query ValidateSearchJob($query: String!) {
+	validateSearchJob(query: $query) {
+		errors
 	}
-
-	commands = append(commands, &command{
-		flagSet: flagSet,
-		aliases: []string{"search-job"},
-		handler: handler,
-		usageFunc: func() {
-			fmt.Println(usage)
-		},
-	})
-}
+}`
 
 // SearchJob represents a search job with its metadata, including the search query,
 // execution state, creator information, timestamps, URLs, and repository statistics.
@@ -99,48 +63,238 @@ type SearchJob struct {
 	}
 }
 
-type SearchJobID struct {
-	number uint64
+// AvailableColumns defines the available column names for output
+var AvailableColumns = map[string]bool{
+	"id":         true,
+	"query":      true,
+	"state":      true,
+	"username":   true,
+	"createdat":  true,
+	"startedat":  true,
+	"finishedat": true,
+	"url":        true,
+	"logurl":     true,
+	"total":      true,
+	"completed":  true,
+	"failed":     true,
+	"inprogress": true,
 }
 
-func ParseSearchJobID(input string) (*SearchJobID, error) {
-	// accept either:
-	// - the numeric job id (non-negative integer)
-	// - the plain text SearchJob:<integer> form of the id
-	// - the base64-encoded "SearchJob:<integer>" string
+// DefaultColumns defines the default columns to display
+var DefaultColumns = []string{"id", "username", "state", "query"}
 
-	if input == "" {
-		return nil, cmderrors.Usage("must provide a search job ID")
+// SearchJobCommandBuilder helps build search job commands with common flags and options
+type SearchJobCommandBuilder struct {
+	Name     string
+	Usage    string
+	Flags    *flag.FlagSet
+	ApiFlags *api.Flags
+}
+
+// Global variables
+var searchJobsCommands commander
+
+// NewSearchJobCommand creates a new search job command builder
+func NewSearchJobCommand(name string, usage string) *SearchJobCommandBuilder {
+	flagSet := flag.NewFlagSet(name, flag.ExitOnError)
+	return &SearchJobCommandBuilder{
+		Name:     name,
+		Usage:    usage,
+		Flags:    flagSet,
+		ApiFlags: api.NewFlags(flagSet),
+	}
+}
+
+// Build creates and registers the command
+func (b *SearchJobCommandBuilder) Build(handlerFunc func(*flag.FlagSet, *api.Flags, []string, bool) error) {
+	columnsFlag := b.Flags.String("c", strings.Join(DefaultColumns, ","),
+		"Comma-separated list of columns to display. Available: id,query,state,username,createdat,startedat,finishedat,url,logurl,total,completed,failed,inprogress")
+	jsonFlag := b.Flags.Bool("json", false, "Output results as JSON for programmatic access")
+
+	usageFunc := func() {
+		fmt.Fprintf(flag.CommandLine.Output(), "Usage of 'src search-jobs %s':\n", b.Name)
+		b.Flags.PrintDefaults()
+		fmt.Println(b.Usage)
 	}
 
-	// Try to decode if it's base64 first
-	if decoded, err := base64.StdEncoding.DecodeString(input); err == nil {
-		input = string(decoded)
+	handler := func(args []string) error {
+		if err := parseSearchJobsArgs(b.Flags, args); err != nil {
+			return err
+		}
+
+		// Parse columns
+		columns := parseColumns(*columnsFlag)
+
+		return handlerFunc(b.Flags, b.ApiFlags, columns, *jsonFlag)
 	}
 
-	// Match either "SearchJob:<integer>" or "<integer>"
-	re := regexp.MustCompile(`^(?:SearchJob:)?(\d+)$`)
-	matches := re.FindStringSubmatch(input)
-	if matches == nil {
-		return nil, fmt.Errorf("invalid ID format: must be a non-negative integer, 'SearchJob:<integer>', or that string base64-encoded")
+	searchJobsCommands = append(searchJobsCommands, &command{
+		flagSet:   b.Flags,
+		handler:   handler,
+		usageFunc: usageFunc,
+	})
+}
+
+// parseColumns parses and validates the columns flag
+func parseColumns(columnsFlag string) []string {
+	if columnsFlag == "" {
+		return DefaultColumns
 	}
 
-	number, err := strconv.ParseUint(matches[1], 10, 64)
+	columns := strings.Split(columnsFlag, ",")
+	var validColumns []string
+
+	for _, col := range columns {
+		col = strings.ToLower(strings.TrimSpace(col))
+		if AvailableColumns[col] {
+			validColumns = append(validColumns, col)
+		}
+	}
+
+	if len(validColumns) == 0 {
+		return DefaultColumns
+	}
+
+	return validColumns
+}
+
+// createSearchJobsClient creates a reusable API client for search jobs commands
+func createSearchJobsClient(out *flag.FlagSet, apiFlags *api.Flags) api.Client {
+	return api.NewClient(api.ClientOpts{
+		Endpoint:    cfg.Endpoint,
+		AccessToken: cfg.AccessToken,
+		Out:         out.Output(),
+		Flags:       apiFlags,
+	})
+}
+
+// parseSearchJobsArgs parses command arguments with the provided flag set
+// and returns an error if parsing fails
+func parseSearchJobsArgs(flagSet *flag.FlagSet, args []string) error {
+	if err := flagSet.Parse(args); err != nil {
+		return err
+	}
+	return nil
+}
+
+// validateJobID validates that a job ID was provided
+func validateJobID(args []string) (string, error) {
+	if len(args) != 1 {
+		return "", cmderrors.Usage("must provide a search job ID")
+	}
+	return args[0], nil
+}
+
+// displaySearchJob formats and outputs a search job based on selected columns or JSON
+func displaySearchJob(job *SearchJob, columns []string, asJSON bool) error {
+	if asJSON {
+		return outputAsJSON(job)
+	}
+	return outputAsColumns(job, columns)
+}
+
+// displaySearchJobs formats and outputs multiple search jobs
+func displaySearchJobs(jobs []SearchJob, columns []string, asJSON bool) error {
+	if asJSON {
+		return outputAsJSON(jobs)
+	}
+
+	for _, job := range jobs {
+		if err := outputAsColumns(&job, columns); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// outputAsJSON outputs data as JSON
+func outputAsJSON(data interface{}) error {
+	jsonBytes, err := json.MarshalIndent(data, "", "  ")
 	if err != nil {
-		return nil, fmt.Errorf("invalid ID format: must be a 64-bit non-negative integer")
+		return err
+	}
+	fmt.Println(string(jsonBytes))
+	return nil
+}
+
+// outputAsColumns outputs a search job as tab-delimited columns
+func outputAsColumns(job *SearchJob, columns []string) error {
+	values := make([]string, 0, len(columns))
+
+	for _, col := range columns {
+		switch col {
+		case "id":
+			values = append(values, job.ID)
+		case "query":
+			values = append(values, job.Query)
+		case "state":
+			values = append(values, job.State)
+		case "username":
+			values = append(values, job.Creator.Username)
+		case "createdat":
+			values = append(values, job.CreatedAt)
+		case "startedat":
+			values = append(values, job.StartedAt)
+		case "finishedat":
+			values = append(values, job.FinishedAt)
+		case "url":
+			values = append(values, job.URL)
+		case "logurl":
+			values = append(values, job.LogURL)
+		case "total":
+			values = append(values, fmt.Sprintf("%d", job.RepoStats.Total))
+		case "completed":
+			values = append(values, fmt.Sprintf("%d", job.RepoStats.Completed))
+		case "failed":
+			values = append(values, fmt.Sprintf("%d", job.RepoStats.Failed))
+		case "inprogress":
+			values = append(values, fmt.Sprintf("%d", job.RepoStats.InProgress))
+		}
 	}
 
-	return &SearchJobID{number: number}, nil
+	fmt.Println(strings.Join(values, "\t"))
+	return nil
 }
 
-func (id *SearchJobID) String() string {
-	return fmt.Sprintf("SearchJob:%d", id.Number())
-}
+// init registers the 'src search-jobs' command with the CLI. It provides subcommands
+// for managing search jobs, including creating, listing, getting, canceling and deleting
+// jobs. The command uses a flagset for parsing options and displays usage information
+// when help is requested.
+func init() {
+	usage := `'src search-jobs' is a tool that manages search jobs on a Sourcegraph instance.
 
-func (id *SearchJobID) Canonical() string {
-	return base64.StdEncoding.EncodeToString([]byte(id.String()))
-}
+	Usage:
+	
+		src search-jobs command [command options]
+	
+	The commands are:
+	
+		cancel     cancels a search job by ID
+		create     creates a search job
+		delete     deletes a search job by ID
+		get        gets a search job by ID
+		list       lists search jobs
+		restart    restarts a search job by ID
+	
+	Common options for all commands:
+		-c          Select columns to display (e.g., -c id,query,state,username)
+		-json       Output results in JSON format
+	
+	Use "src search-jobs [command] -h" for more information about a command.
+	`
 
-func (id *SearchJobID) Number() uint64 {
-	return id.number
+	flagSet := flag.NewFlagSet("search-jobs", flag.ExitOnError)
+	handler := func(args []string) error {
+		searchJobsCommands.run(flagSet, "src search-jobs", usage, args)
+		return nil
+	}
+
+	commands = append(commands, &command{
+		flagSet: flagSet,
+		aliases: []string{"search-job"},
+		handler: handler,
+		usageFunc: func() {
+			fmt.Println(usage)
+		},
+	})
 }

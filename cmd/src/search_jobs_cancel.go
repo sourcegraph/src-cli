@@ -8,72 +8,73 @@ import (
 	"github.com/sourcegraph/src-cli/internal/api"
 )
 
-const CancelSearchJobMutation = `mutation CancelSearchJob($id: ID!) {
+// GraphQL mutation constants
+const cancelSearchJobMutation = `mutation CancelSearchJob($id: ID!) {
 	cancelSearchJob(id: $id) {
 		alwaysNil
 	}
 }`
 
+// cancelSearchJob cancels a search job with the given ID
+func cancelSearchJob(client api.Client, jobID string) error {
+	var result struct {
+		CancelSearchJob struct {
+			AlwaysNil bool
+		}
+	}
+
+	if ok, err := client.NewRequest(cancelSearchJobMutation, map[string]interface{}{
+		"id": jobID,
+	}).Do(context.Background(), &result); err != nil || !ok {
+		return err
+	}
+
+	return nil
+}
+
+// displayCancelSuccessMessage outputs a success message for the canceled job
+// displayCancelSuccessMessage outputs a success message for the canceled job
+func displayCancelSuccessMessage(out *flag.FlagSet, jobID string) {
+	fmt.Fprintf(out.Output(), "Search job %s canceled successfully\n", jobID)
+}
+
 // init registers the 'cancel' subcommand for search jobs, which allows users to cancel
 // a running search job by its ID. It sets up the command's flag parsing, usage information,
 // and handles the GraphQL mutation to cancel the specified search job.
 func init() {
-	usage := `
-Examples:
+	usage := `cancels a running search job.
+	Examples:
+	
+	  Cancel a search job by ID:
+	
+		$ src search-jobs cancel U2VhcmNoSm9iOjY5
+	
+	Arguments:
+	  The ID of the search job to cancel.
+	
+	The cancel command stops a running search job and outputs a confirmation message.
+	`
 
-  Cancel a search job:
+	// Use the builder pattern for command creation
+	cmd := NewSearchJobCommand("cancel", usage)
 
-    $ src search-jobs cancel -id 999
-`
-	flagSet := flag.NewFlagSet("cancel", flag.ExitOnError)
-	usageFunc := func() {
-		fmt.Fprintf(flag.CommandLine.Output(), "Usage of 'src search-jobs %s':\n", flagSet.Name())
-		flagSet.PrintDefaults()
-		fmt.Println(usage)
-	}
-
-	var (
-		idFlag   = flagSet.String("id", "", "ID of the search job to cancel")
-		apiFlags = api.NewFlags(flagSet)
-	)
-
-	handler := func(args []string) error {
-		if err := flagSet.Parse(args); err != nil {
-			return err
-		}
-
-		client := api.NewClient(api.ClientOpts{
-			Endpoint:    cfg.Endpoint,
-			AccessToken: cfg.AccessToken,
-			Out:         flagSet.Output(),
-			Flags:       apiFlags,
-		})
-
-		jobID, err := ParseSearchJobID(*idFlag)
+	cmd.Build(func(flagSet *flag.FlagSet, apiFlags *api.Flags, columns []string, asJSON bool) error {
+		// Validate job ID using the shared function from search_jobs_get.go
+		jobID, err := validateJobID(flagSet.Args())
 		if err != nil {
 			return err
 		}
 
-		query := CancelSearchJobMutation
+		// Get the client
+		client := createSearchJobsClient(flagSet, apiFlags)
 
-		var result struct {
-			CancelSearchJob struct {
-				AlwaysNil bool
-			}
-		}
-
-		if ok, err := client.NewRequest(query, map[string]interface{}{
-			"id": api.NullString(jobID.Canonical()),
-		}).Do(context.Background(), &result); err != nil || !ok {
+		// Send cancellation request
+		if err := cancelSearchJob(client, jobID); err != nil {
 			return err
 		}
-		fmt.Fprintf(flagSet.Output(), "Search job %s canceled successfully\n", *idFlag)
-		return nil
-	}
 
-	searchJobsCommands = append(searchJobsCommands, &command{
-		flagSet:   flagSet,
-		handler:   handler,
-		usageFunc: usageFunc,
+		// Output success message
+		displayCancelSuccessMessage(flagSet, jobID)
+		return nil
 	})
 }

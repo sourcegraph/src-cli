@@ -80,20 +80,6 @@ func parseTemplate(text string) (*template.Template, error) {
 			}
 			return humanize.Time(t), nil
 		},
-		"searchJobIDNumber": func(id string) string {
-			sjid, err := ParseSearchJobID(id)
-			if err != nil {
-				return id
-			}
-			return fmt.Sprintf("%d", sjid.Number())
-		},
-		"searchJobIDCanonical": func(id string) string {
-			sjid, err := ParseSearchJobID(id)
-			if err != nil {
-				return id
-			}
-			return sjid.Canonical()
-		},
 
 		// Register search-specific template functions
 		"searchSequentialLineNumber":        searchTemplateFuncs["searchSequentialLineNumber"],
