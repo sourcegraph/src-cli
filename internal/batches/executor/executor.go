@@ -69,6 +69,7 @@ type NewExecutorOpts struct {
 	IsRemote         bool
 	GlobalEnv        []string
 	ForceRoot        bool
+	FailFast         bool
 
 	BinaryDiffs bool
 }

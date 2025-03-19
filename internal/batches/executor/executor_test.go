@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -770,6 +771,122 @@ index 3040106..5f2f924 100644
 	})
 }
 
+func TestExecutor_FailFast(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Test doesn't work on Windows because dummydocker is written in bash")
+	}
+
+	addToPath(t, "testdata/dummydocker")
+
+	defaultBatchChangeAttributes := &template.BatchChangeAttributes{
+		Name:        "fail-fast-test-batch-change",
+		Description: "this tests fail-fast functionality",
+	}
+
+	archives := []mock.RepoArchive{
+		{RepoName: testRepo1.Name, Commit: testRepo1.Rev(), Files: map[string]string{
+			"README.md": "# Welcome to the README\n",
+		}},
+		{RepoName: testRepo2.Name, Commit: testRepo2.Rev(), Files: map[string]string{
+			"README.md": "# Sourcegraph README\n",
+		}},
+	}
+
+	steps := []batcheslib.Step{
+		{Run: `echo "success" >> success.txt`},
+		{Run: `exit 1`}, // This step will fail
+	}
+
+	tasks := []*Task{
+		{Repository: testRepo1, BatchChangeAttributes: defaultBatchChangeAttributes, Steps: steps},
+		{Repository: testRepo2, BatchChangeAttributes: defaultBatchChangeAttributes, Steps: steps},
+	}
+
+	// Setup a mock test server
+	mux := mock.NewZipArchivesMux(t, nil, archives...)
+	ts := httptest.NewServer(mux)
+	defer ts.Close()
+
+	// Setup an api.Client that points to this test server
+	var clientBuffer bytes.Buffer
+	client := api.NewClient(api.ClientOpts{Endpoint: ts.URL, Out: &clientBuffer})
+
+	// Temp dir for log files and downloaded archives
+	testTempDir := t.TempDir()
+
+	// Create test images
+	images := make(map[string]docker.Image)
+	for _, step := range steps {
+		images[step.Container] = &mock.Image{RawDigest: step.Container}
+	}
+
+	cr, _ := workspace.NewCreator(context.Background(), "bind", testTempDir, testTempDir, images)
+
+	t.Run("without fail-fast", func(t *testing.T) {
+		// Setup executor without fail-fast
+		opts := NewExecutorOpts{
+			Creator:             cr,
+			RepoArchiveRegistry: repozip.NewArchiveRegistry(client, testTempDir, false),
+			Logger:              mock.LogNoOpManager{},
+			EnsureImage:         imageMapEnsurer(images),
+			TempDir:             testTempDir,
+			Parallelism:         1, // Use sequential execution to ensure predictable order
+			Timeout:             30 * time.Second,
+			FailFast:            false, // Explicitly set to false
+		}
+
+		dummyUI := newDummyTaskExecutionUI()
+		executor := NewExecutor(opts)
+
+		// Run executor
+		ctx := context.Background()
+		executor.Start(ctx, tasks, dummyUI)
+		results, err := executor.Wait(ctx)
+
+		// Without fail-fast, we should have errors but still process all tasks
+		require.Error(t, err, "execution should have failed")
+		require.Len(t, results, 2, "should have results for both tasks")
+		require.Len(t, dummyUI.finishedWithErr, 2, "both tasks should have finished with error")
+	})
+
+	t.Run("with fail-fast", func(t *testing.T) {
+		// Setup executor with fail-fast
+		opts := NewExecutorOpts{
+			Creator:             cr,
+			RepoArchiveRegistry: repozip.NewArchiveRegistry(client, testTempDir, false),
+			Logger:              mock.LogNoOpManager{},
+			EnsureImage:         imageMapEnsurer(images),
+			TempDir:             testTempDir,
+			Parallelism:         1, // Use sequential execution to ensure predictable order
+			Timeout:             30 * time.Second,
+			FailFast:            true, // Enable fail-fast
+		}
+
+		dummyUI := newDummyTaskExecutionUI2()
+		executor := NewExecutor(opts)
+
+		// Run executor
+		ctx := context.Background()
+		executor.Start(ctx, tasks, dummyUI)
+		results, err := executor.Wait(ctx)
+
+		// With fail-fast, we should still have error but only process the first task
+		require.Error(t, err, "execution should have failed")
+
+		// Check that we have at least one result (from the first task)
+		require.NotEmpty(t, results, "should have at least one result")
+
+		// The key check: we should have exactly one task that finished with error
+		// This verifies that execution stopped after the first error
+		require.Equal(t, 1, len(dummyUI.finishedWithErr), "only the first task should have finished with error")
+
+		// Additionally, verify that the second task was never started or at least not finished
+		// This is a more precise check for the fail-fast behavior
+		_, secondTaskFinished := dummyUI.finishedWithErr[tasks[1]]
+		require.False(t, secondTaskFinished, "second task should not have finished with error due to fail-fast")
+	})
+}
+
 func testExecuteTasks(t *testing.T, tasks []*Task, archives ...mock.RepoArchive) ([]taskResult, error) {
 	if runtime.GOOS == "windows" {
 		t.Skip("Test doesn't work on Windows because dummydocker is written in bash")
@@ -821,4 +938,58 @@ func imageMapEnsurer(m map[string]docker.Image) imageEnsurer {
 		}
 		return nil, errors.New(fmt.Sprintf("image for %s not found", container))
 	}
+}
+
+var _ TaskExecutionUI = &dummyTaskExecutionUI2{}
+
+type dummyTaskExecutionUI2 struct {
+	mu sync.Mutex
+
+	started         map[*Task]struct{}
+	finished        map[*Task]struct{}
+	finishedWithErr map[*Task]struct{}
+	specs           map[*Task][]*batcheslib.ChangesetSpec
+}
+
+func newDummyTaskExecutionUI2() *dummyTaskExecutionUI2 {
+	return &dummyTaskExecutionUI2{
+		started:         map[*Task]struct{}{},
+		finished:        map[*Task]struct{}{},
+		finishedWithErr: map[*Task]struct{}{},
+		specs:           map[*Task][]*batcheslib.ChangesetSpec{},
+	}
+}
+
+func (d *dummyTaskExecutionUI2) Start([]*Task)    {}
+func (d *dummyTaskExecutionUI2) Success()         {}
+func (d *dummyTaskExecutionUI2) Failed(err error) {}
+
+func (d *dummyTaskExecutionUI2) TaskStarted(t *Task) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	d.started[t] = struct{}{}
+}
+
+func (d *dummyTaskExecutionUI2) TaskFinished(t *Task, err error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	delete(d.started, t)
+	if err != nil {
+		d.finishedWithErr[t] = struct{}{}
+	} else {
+		d.finished[t] = struct{}{}
+	}
+}
+
+func (d *dummyTaskExecutionUI2) TaskChangesetSpecsBuilt(t *Task, specs []*batcheslib.ChangesetSpec) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	d.specs[t] = specs
+}
+
+func (d *dummyTaskExecutionUI2) StepsExecutionUI(t *Task) StepsExecutionUI {
+	return NoopStepsExecUI{}
 }
