@@ -48,26 +48,24 @@ func init() {
 	  url, logurl, total, completed, failed, inprogress
 	`
 
-	// Use the builder pattern for command creation
 	cmd := newSearchJobCommand("restart", usage)
 
-	cmd.build(func(flagSet *flag.FlagSet, apiFlags *api.Flags, columns []string, asJSON bool) error {
-		// Validate job ID
+	cmd.build(func(flagSet *flag.FlagSet, apiFlags *api.Flags, columns []string, asJSON bool, client api.Client) error {
 		if flagSet.NArg() != 1 {
 			return cmderrors.Usage("must provide a job ID")
 		}
 		jobID := flagSet.Arg(0)
 
-		// Get the client
-		client := createSearchJobsClient(flagSet, apiFlags)
-
-		// Restart the job
 		newJob, err := restartSearchJob(client, jobID)
+
 		if err != nil {
 			return err
 		}
 
-		// Display the new job
+		if apiFlags.GetCurl() {
+			return nil
+		}
+
 		return displaySearchJob(newJob, columns, asJSON)
 	})
 }

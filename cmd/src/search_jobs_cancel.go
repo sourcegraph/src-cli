@@ -33,7 +33,6 @@ func cancelSearchJob(client api.Client, jobID string) error {
 }
 
 // displayCancelSuccessMessage outputs a success message for the canceled job
-// displayCancelSuccessMessage outputs a success message for the canceled job
 func displayCancelSuccessMessage(out *flag.FlagSet, jobID string) {
 	fmt.Fprintf(out.Output(), "Search job %s canceled successfully\n", jobID)
 }
@@ -55,26 +54,25 @@ func init() {
 	The cancel command stops a running search job and outputs a confirmation message.
 	`
 
-	// Use the builder pattern for command creation
 	cmd := newSearchJobCommand("cancel", usage)
 
-	cmd.build(func(flagSet *flag.FlagSet, apiFlags *api.Flags, columns []string, asJSON bool) error {
-		// Validate job ID using the shared function from search_jobs_get.go
+	cmd.build(func(flagSet *flag.FlagSet, apiFlags *api.Flags, columns []string, asJSON bool, client api.Client) error {
+
 		jobID, err := validateJobID(flagSet.Args())
 		if err != nil {
 			return err
 		}
 
-		// Get the client
-		client := createSearchJobsClient(flagSet, apiFlags)
-
-		// Send cancellation request
 		if err := cancelSearchJob(client, jobID); err != nil {
 			return err
 		}
 
-		// Output success message
+		if apiFlags.GetCurl() {
+			return nil
+		}
+
 		displayCancelSuccessMessage(flagSet, jobID)
+
 		return nil
 	})
 }

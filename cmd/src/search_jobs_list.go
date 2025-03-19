@@ -98,35 +98,31 @@ func init() {
 	  url, logurl, total, completed, failed, inprogress
 	`
 
-	// Use the builder pattern for command creation
 	cmd := newSearchJobCommand("list", usage)
 
-	// Add list-specific flags
 	limitFlag := cmd.Flags.Int("limit", 10, "Limit the number of search jobs returned")
 	ascFlag := cmd.Flags.Bool("asc", false, "Sort search jobs in ascending order")
-	orderByFlag := cmd.Flags.String("order-by", "CREATED_AT", "Sort search jobs by a field")
+	orderByFlag := cmd.Flags.String("order-by", "CREATED_AT", "Sort search jobs by a sortable field (QUERY, CREATED_AT, STATE)")
 
-	cmd.build(func(flagSet *flag.FlagSet, apiFlags *api.Flags, columns []string, asJSON bool) error {
-		// Get the client using the centralized function
-		client := createSearchJobsClient(flagSet, apiFlags)
+	cmd.build(func(flagSet *flag.FlagSet, apiFlags *api.Flags, columns []string, asJSON bool, client api.Client) error {
 
-		// Validate flags
 		if err := validateListFlags(*limitFlag, *orderByFlag); err != nil {
 			return err
 		}
 
-		// Fetch search jobs
 		jobs, err := listSearchJobs(client, *limitFlag, !*ascFlag, *orderByFlag)
 		if err != nil {
 			return err
 		}
 
-		// Handle no results case
 		if len(jobs) == 0 {
 			return cmderrors.ExitCode(1, fmt.Errorf("no search jobs found"))
 		}
 
-		// Display the results with the selected columns or as JSON
+		if apiFlags.GetCurl() {
+			return nil
+		}
+
 		return displaySearchJobs(jobs, columns, asJSON)
 	})
 }

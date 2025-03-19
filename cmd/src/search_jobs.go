@@ -34,13 +34,6 @@ fragment SearchJobFields on SearchJob {
     }
 }`
 
-// GraphQL query constant for validating search queries
-const validateSearchJobQuery = `query ValidateSearchJob($query: String!) {
-	validateSearchJob(query: $query) {
-		errors
-	}
-}`
-
 // SearchJob represents a search job with its metadata, including the search query,
 // execution state, creator information, timestamps, URLs, and repository statistics.
 type SearchJob struct {
@@ -106,7 +99,7 @@ func newSearchJobCommand(name string, usage string) *SearchJobCommandBuilder {
 }
 
 // build creates and registers the command
-func (b *SearchJobCommandBuilder) build(handlerFunc func(*flag.FlagSet, *api.Flags, []string, bool) error) {
+func (b *SearchJobCommandBuilder) build(handlerFunc func(*flag.FlagSet, *api.Flags, []string, bool, api.Client) error) {
 	columnsFlag := b.Flags.String("c", strings.Join(defaultColumns, ","),
 		"Comma-separated list of columns to display. Available: id,query,state,username,createdat,startedat,finishedat,url,logurl,total,completed,failed,inprogress")
 	jsonFlag := b.Flags.Bool("json", false, "Output results as JSON for programmatic access")
@@ -125,7 +118,9 @@ func (b *SearchJobCommandBuilder) build(handlerFunc func(*flag.FlagSet, *api.Fla
 		// Parse columns
 		columns := parseColumns(*columnsFlag)
 
-		return handlerFunc(b.Flags, b.ApiFlags, columns, *jsonFlag)
+		client := createSearchJobsClient(b.Flags, b.ApiFlags)
+
+		return handlerFunc(b.Flags, b.ApiFlags, columns, *jsonFlag, client)
 	}
 
 	searchJobsCommands = append(searchJobsCommands, &command{
@@ -274,7 +269,9 @@ func init() {
 		delete     deletes a search job by ID
 		get        gets a search job by ID
 		list       lists search jobs
+		logs       fetches logs for a search job by ID
 		restart    restarts a search job by ID
+		results    fetches results for a search job by ID
 	
 	Common options for all commands:
 		-c          Select columns to display (e.g., -c id,query,state,username)

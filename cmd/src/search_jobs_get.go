@@ -55,23 +55,22 @@ func init() {
 	  url, logurl, total, completed, failed, inprogress
 	`
 
-	// Use the builder pattern for command creation
 	cmd := newSearchJobCommand("get", usage)
 
-	cmd.build(func(flagSet *flag.FlagSet, apiFlags *api.Flags, columns []string, asJSON bool) error {
-		// Get the client using the centralized function
-		client := createSearchJobsClient(flagSet, apiFlags)
+	cmd.build(func(flagSet *flag.FlagSet, apiFlags *api.Flags, columns []string, asJSON bool, client api.Client) error {
 
-		// Validate that a job ID was provided
 		id, err := validateJobID(flagSet.Args())
 		if err != nil {
 			return err
 		}
 
-		// Get the search job
 		job, err := getSearchJob(client, id)
 		if err != nil {
 			return err
+		}
+
+		if apiFlags.GetCurl() {
+			return nil
 		}
 
 		// Display the job with selected columns or as JSON

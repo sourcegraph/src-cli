@@ -54,25 +54,23 @@ func init() {
 	The delete command permanently removes a search job and outputs a confirmation message.
 	`
 
-	// Use the builder pattern for command creation
 	cmd := newSearchJobCommand("delete", usage)
 
-	cmd.build(func(flagSet *flag.FlagSet, apiFlags *api.Flags, columns []string, asJSON bool) error {
-		// Validate job ID using the shared function from search_jobs_get.go
+	cmd.build(func(flagSet *flag.FlagSet, apiFlags *api.Flags, columns []string, asJSON bool, client api.Client) error {
+
 		jobID, err := validateJobID(flagSet.Args())
 		if err != nil {
 			return err
 		}
 
-		// Get the client
-		client := createSearchJobsClient(flagSet, apiFlags)
-
-		// Send deletion request
 		if err := deleteSearchJob(client, jobID); err != nil {
 			return err
 		}
 
-		// Output success message
+		if apiFlags.GetCurl() {
+			return nil
+		}
+
 		displaySuccessMessage(flagSet, jobID)
 		return nil
 	})

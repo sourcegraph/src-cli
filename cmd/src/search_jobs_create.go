@@ -16,13 +16,16 @@ const (
 			...SearchJobFields
 		}
 	}` + searchJobFragment
+
+	// validateSearchJobQuery defines the GraphQL query for validating search queries
+	validateSearchJobQuery = `query ValidateSearchJob($query: String!) {
+		validateSearchJob(query: $query) { alwaysNil }
+	}`
 )
 
 // validateSearchQuery validates a search query with the server
 func validateSearchQuery(client api.Client, query string) error {
-	var validateResult struct {
-		ValidateSearchJob interface{} `json:"validateSearchJob"`
-	}
+	var validateResult struct{}
 
 	if ok, err := client.NewRequest(validateSearchJobQuery, map[string]any{
 		"query": query,
@@ -39,7 +42,6 @@ func createSearchJob(client api.Client, query string) (*SearchJob, error) {
 		CreateSearchJob *SearchJob `json:"createSearchJob"`
 	}
 
-	// Validate the query
 	if err := validateSearchQuery(client, query); err != nil {
 		return nil, err
 	}
@@ -77,23 +79,23 @@ func init() {
 	// Use the builder pattern for command creation
 	cmd := newSearchJobCommand("create", usage)
 
-	cmd.build(func(flagSet *flag.FlagSet, apiFlags *api.Flags, columns []string, asJSON bool) error {
-		// Validate that a query was provided
+	cmd.build(func(flagSet *flag.FlagSet, apiFlags *api.Flags, columns []string, asJSON bool, client api.Client) error {
+
 		if flagSet.NArg() != 1 {
 			return cmderrors.Usage("must provide a query")
 		}
+
 		query := flagSet.Arg(0)
 
-		// Get the client
-		client := createSearchJobsClient(flagSet, apiFlags)
-
-		// Create the search job
 		job, err := createSearchJob(client, query)
 		if err != nil {
 			return err
 		}
 
-		// Display the created job
+		if apiFlags.GetCurl() {
+			return nil
+		}
+
 		return displaySearchJob(job, columns, asJSON)
 	})
 }

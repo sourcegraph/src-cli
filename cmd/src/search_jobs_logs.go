@@ -17,7 +17,6 @@ func fetchJobLogs(jobID string, logURL string) (io.ReadCloser, error) {
 		return nil, fmt.Errorf("no logs URL found for search job %s", jobID)
 	}
 
-	// Prepare HTTP request for logs
 	req, err := http.NewRequest("GET", logURL, nil)
 	if err != nil {
 		return nil, err
@@ -25,7 +24,6 @@ func fetchJobLogs(jobID string, logURL string) (io.ReadCloser, error) {
 
 	req.Header.Add("Authorization", "token "+cfg.AccessToken)
 
-	// Execute request
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return nil, err
@@ -34,10 +32,8 @@ func fetchJobLogs(jobID string, logURL string) (io.ReadCloser, error) {
 	return resp.Body, nil
 }
 
-// outputLogs writes logs to either a file or stdout
 func outputLogs(logs io.Reader, outputPath string) error {
 	if outputPath != "" {
-		// Write to file
 		file, err := os.Create(outputPath)
 		if err != nil {
 			return fmt.Errorf("failed to create output file: %w", err)
@@ -51,7 +47,6 @@ func outputLogs(logs io.Reader, outputPath string) error {
 		return nil
 	}
 
-	// Write to stdout
 	_, err := io.Copy(os.Stdout, logs)
 	return err
 }
@@ -73,21 +68,17 @@ func init() {
 	displayed on stdout or written to the file specified with -out.
 	`
 
-	// Use the builder pattern for command creation
 	cmd := newSearchJobCommand("logs", usage)
 
-	// Add logs-specific flag
 	outFlag := cmd.Flags.String("out", "", "File path to save the logs (optional)")
 
-	cmd.build(func(flagSet *flag.FlagSet, apiFlags *api.Flags, columns []string, asJSON bool) error {
-		// Validate job ID
+	cmd.build(func(flagSet *flag.FlagSet, apiFlags *api.Flags, columns []string, asJSON bool, client api.Client) error {
 		if flagSet.NArg() == 0 {
 			return cmderrors.Usage("must provide a search job ID")
 		}
+
 		jobID := flagSet.Arg(0)
 
-		// Get the client and fetch job details
-		client := createSearchJobsClient(flagSet, apiFlags)
 		job, err := getSearchJob(client, jobID)
 		if err != nil {
 			return err
@@ -97,14 +88,17 @@ func init() {
 			return fmt.Errorf("no job found with ID %s", jobID)
 		}
 
-		// Fetch logs
 		logsData, err := fetchJobLogs(jobID, job.LogURL)
 		if err != nil {
 			return err
 		}
+
+		if apiFlags.GetCurl() {
+			return nil
+		}
+
 		defer logsData.Close()
 
-		// Output logs
 		return outputLogs(logsData, *outFlag)
 	})
 }
