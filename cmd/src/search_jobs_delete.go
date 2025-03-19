@@ -41,7 +41,7 @@ func displaySuccessMessage(out *flag.FlagSet, jobID string) {
 // a search job by its ID. The command requires a search job ID to be provided via
 // the -id flag and will make a GraphQL mutation to delete the specified job.
 func init() {
-	usage := `deletes a search job.
+	usage := `
 	Examples:
 	
 	  Delete a search job by ID:

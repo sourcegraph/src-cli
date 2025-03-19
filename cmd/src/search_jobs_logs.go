@@ -55,7 +55,7 @@ func outputLogs(logs io.Reader, outputPath string) error {
 // logs for a specific search job by its ID. The command requires a search job ID
 // and uses the configured API client to fetch and display the logs.
 func init() {
-	usage := `retrieves the logs of a search job in CSV format.
+	usage := `
 	Examples:
 	
 		View the logs of a search job:

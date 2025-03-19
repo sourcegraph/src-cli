@@ -57,7 +57,7 @@ func outputResults(results io.Reader, outputPath string) error {
 // results for a specific search job by its ID. The command requires a search job ID
 // and uses the configured API client to fetch and display the results.
 func init() {
-	usage := `retrieves the results of a search job in JSON Lines (jsonl) format.
+	usage := `
 	Examples:
 	
 		Get the results of a search job:

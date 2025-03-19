@@ -41,7 +41,7 @@ func displayCancelSuccessMessage(out *flag.FlagSet, jobID string) {
 // a running search job by its ID. It sets up the command's flag parsing, usage information,
 // and handles the GraphQL mutation to cancel the specified search job.
 func init() {
-	usage := `cancels a running search job.
+	usage := `
 	Examples:
 	
 	  Cancel a search job by ID:
