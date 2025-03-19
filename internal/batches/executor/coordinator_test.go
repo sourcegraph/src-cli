@@ -402,7 +402,7 @@ func TestCoordinator_Execute_StepCaching(t *testing.T) {
 	task.Steps[1].Run = `echo "two modified"`
 	// Re-execution should start with the diff produced by steps[0] as the
 	// start state from which steps[1] is then re-executed.
-	execAndEnsure(t, coord, executor, batchSpec, task, func(ctx context.Context, t []*Task, teu TaskExecutionUI) {})
+	execAndEnsure(t, coord, executor, batchSpec, task, func(t []*Task, teu TaskExecutionUI) {})
 	// Cache now contains old entries, plus another "complete task" entry and
 	// two entries for newly executed steps.
 	assertCacheSize(t, cache, 5)
@@ -413,7 +413,7 @@ func TestCoordinator_Execute_StepCaching(t *testing.T) {
 	// Change the 3rd step's definition:
 	task.Steps[2].Run = `echo "three modified"`
 	// Re-execution should use the diff from steps[1] as start state
-	execAndEnsure(t, coord, executor, batchSpec, task, func(ctx context.Context, t []*Task, teu TaskExecutionUI) {})
+	execAndEnsure(t, coord, executor, batchSpec, task, func(t []*Task, teu TaskExecutionUI) {})
 	// Cache now contains old entries, plus another "complete task" entry and
 	// a single new step entry
 	assertCacheSize(t, cache, 6)
@@ -480,8 +480,8 @@ func assertCacheSize(t *testing.T, cache *inMemoryExecutionCache, want int) {
 
 // expectCachedResultForStep returns a function that can be used as a
 // startCallback on dummyExecutor to assert that the first Task has no cached results.
-func assertNoCachedResult(t *testing.T) func(context.Context, []*Task, TaskExecutionUI) {
-	return func(c context.Context, tasks []*Task, ui TaskExecutionUI) {
+func assertNoCachedResult(t *testing.T) func([]*Task, TaskExecutionUI) {
+	return func(tasks []*Task, ui TaskExecutionUI) {
 		t.Helper()
 
 		task := tasks[0]
@@ -491,7 +491,7 @@ func assertNoCachedResult(t *testing.T) func(context.Context, []*Task, TaskExecu
 	}
 }
 
-type startCallback func(context.Context, []*Task, TaskExecutionUI)
+type startCallback func([]*Task, TaskExecutionUI)
 
 var _ TaskExecutionUI = &dummyTaskExecutionUI{}
 
@@ -554,15 +554,15 @@ type dummyExecutor struct {
 	waitErr error
 }
 
-func (d *dummyExecutor) Start(ctx context.Context, ts []*Task, ui TaskExecutionUI) {
+func (d *dummyExecutor) Start(ts []*Task, ui TaskExecutionUI) {
 	if d.startCb != nil {
-		d.startCb(ctx, ts, ui)
+		d.startCb(ts, ui)
 		d.startCbCalled = true
 	}
 	// "noop noop noop", the crowd screams
 }
 
-func (d *dummyExecutor) Wait(context.Context) ([]taskResult, error) {
+func (d *dummyExecutor) Wait() ([]taskResult, error) {
 	return d.results, d.waitErr
 }
 

@@ -13,8 +13,8 @@ import (
 )
 
 type taskExecutor interface {
-	Start(context.Context, []*Task, TaskExecutionUI)
-	Wait(context.Context) ([]taskResult, error)
+	Start([]*Task, TaskExecutionUI)
+	Wait() ([]taskResult, error)
 }
 
 // Coordinator coordinates the execution of Tasks. It makes use of an executor,
@@ -181,8 +181,8 @@ func (c *Coordinator) ExecuteAndBuildSpecs(ctx context.Context, batchSpec *batch
 	ui.Start(tasks)
 
 	// Run executor.
-	c.exec.Start(ctx, tasks, ui)
-	results, errs := c.exec.Wait(ctx)
+	c.exec.Start(tasks, ui)
+	results, errs := c.exec.Wait()
 
 	// Write all step cache results to the cache.
 	for _, res := range results {
