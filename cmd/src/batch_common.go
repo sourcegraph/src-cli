@@ -428,7 +428,6 @@ func executeBatchSpec(ctx context.Context, opts executeBatchSpecOpts) (err error
 	coord := executor.NewCoordinator(
 		executor.NewCoordinatorOpts{
 			ExecOpts: executor.NewExecutorOpts{
-				Context:             ctx,
 				Logger:              logManager,
 				RepoArchiveRegistry: archiveRegistry,
 				Creator:             workspaceCreator,

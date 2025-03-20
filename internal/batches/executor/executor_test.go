@@ -414,7 +414,6 @@ func TestExecutor_Integration(t *testing.T) {
 				parallelism = 1
 			}
 			opts := NewExecutorOpts{
-				Context:             ctx,
 				Creator:             cr,
 				RepoArchiveRegistry: repozip.NewArchiveRegistry(client, testTempDir, false),
 				Logger:              mock.LogNoOpManager{},
@@ -434,7 +433,7 @@ func TestExecutor_Integration(t *testing.T) {
 			executor := NewExecutor(opts)
 
 			// Run executor
-			executor.Start(tc.tasks, dummyUI)
+			executor.Start(ctx, tc.tasks, dummyUI)
 
 			results, err := executor.Wait()
 			if tc.wantErrInclude == "" {
@@ -838,7 +837,6 @@ func testExecuteTasks(t *testing.T, tasks []*Task, archives ...mock.RepoArchive)
 	cr, _ := workspace.NewCreator(ctx, "bind", testTempDir, testTempDir, images)
 	// Setup executor
 	executor := NewExecutor(NewExecutorOpts{
-		Context:             ctx,
 		Creator:             cr,
 		RepoArchiveRegistry: repozip.NewArchiveRegistry(client, testTempDir, false),
 		Logger:              mock.LogNoOpManager{},
@@ -849,7 +847,7 @@ func testExecuteTasks(t *testing.T, tasks []*Task, archives ...mock.RepoArchive)
 		Timeout:     30 * time.Second,
 	})
 
-	executor.Start(tasks, newDummyTaskExecutionUI())
+	executor.Start(ctx, tasks, newDummyTaskExecutionUI())
 	return executor.Wait()
 }
 

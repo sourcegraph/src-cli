@@ -13,7 +13,7 @@ import (
 )
 
 type taskExecutor interface {
-	Start([]*Task, TaskExecutionUI)
+	Start(context.Context, []*Task, TaskExecutionUI)
 	Wait() ([]taskResult, error)
 }
 
@@ -181,7 +181,7 @@ func (c *Coordinator) ExecuteAndBuildSpecs(ctx context.Context, batchSpec *batch
 	ui.Start(tasks)
 
 	// Run executor.
-	c.exec.Start(tasks, ui)
+	c.exec.Start(ctx, tasks, ui)
 	results, errs := c.exec.Wait()
 
 	// Write all step cache results to the cache.

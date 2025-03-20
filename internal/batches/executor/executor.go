@@ -71,7 +71,6 @@ type NewExecutorOpts struct {
 	FailFast         bool
 
 	BinaryDiffs bool
-	Context     context.Context
 }
 
 type executor struct {
@@ -82,33 +81,31 @@ type executor struct {
 }
 
 func NewExecutor(opts NewExecutorOpts) *executor {
-	p := pool.NewWithResults[*taskResult]().WithMaxGoroutines(opts.Parallelism).WithContext(opts.Context)
-	if opts.FailFast {
-		p = p.WithCancelOnError()
-	}
 	return &executor{
-		opts: opts,
-
+		opts:          opts,
 		doneEnqueuing: make(chan struct{}),
-		workPool:      p,
 	}
 }
 
 // Start starts the execution of the given Tasks in goroutines, calling the
 // given taskStatusHandler to update the progress of the tasks.
-func (x *executor) Start(tasks []*Task, ui TaskExecutionUI) {
+func (x *executor) Start(ctx context.Context, tasks []*Task, ui TaskExecutionUI) {
 	defer func() { close(x.doneEnqueuing) }()
+
+	x.workPool = pool.NewWithResults[*taskResult]().WithMaxGoroutines(x.opts.Parallelism).WithContext(ctx)
+	if x.opts.FailFast {
+		x.workPool = x.workPool.WithCancelOnError()
+	}
 
 	for _, task := range tasks {
 		select {
-		case <-x.opts.Context.Done():
+		case <-ctx.Done():
 			return
 		default:
 		}
 
-		t := task
 		x.workPool.Go(func(c context.Context) (*taskResult, error) {
-			return x.do(c, t, ui)
+			return x.do(c, task, ui)
 		})
 	}
 }
