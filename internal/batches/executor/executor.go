@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/sourcegraph/conc/pool"
+
 	"github.com/sourcegraph/sourcegraph/lib/errors"
 
 	"github.com/sourcegraph/src-cli/internal/batches/docker"
