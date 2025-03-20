@@ -331,7 +331,8 @@ func TestExecutor_Integration(t *testing.T) {
 			steps: []batcheslib.Step{
 				{
 					Run: `exit 1`,
-					If:  fmt.Sprintf(`${{ eq repository.name %q }}`, testRepo1.Name),
+					// We must fail for the first repository, so that the other repo's work is cancelled in fail fast mode.
+					If: fmt.Sprintf(`${{ eq repository.name %q }}`, testRepo1.Name),
 				},
 				{Run: `echo -e "foobar\n" >> README.md`},
 			},
@@ -339,19 +340,11 @@ func TestExecutor_Integration(t *testing.T) {
 				{Repository: testRepo1},
 				{Repository: testRepo2},
 			},
-			//wantFilesChanged: filesByRepository{
-			//	testRepo1.ID: {},
-			//	testRepo2.ID: filesByPath{
-			//		rootPath: []string{"README.md"},
-			//	},
-			//},
 			wantErrInclude: "execution in github.com/sourcegraph/src-cli failed: run: exit 1",
-			// In fail fast mode, we expect only the failing task to be processed
-			// and no successful completions
+			// In fail fast mode, we expect that other steps are cancelled.
 			wantFinished:        0,
-			wantFinishedWithErr: 1,
-			//wantCacheCount:      1,
-			failFast: true, // Enable fail fast mode
+			wantFinishedWithErr: 2,
+			failFast:            true,
 		},
 		{
 			name: "mount path",
