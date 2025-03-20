@@ -334,6 +334,11 @@ func TestExecutor_Integration(t *testing.T) {
 					// We must fail for the first repository, so that the other repo's work is cancelled in fail fast mode.
 					If: fmt.Sprintf(`${{ eq repository.name %q }}`, testRepo1.Name),
 				},
+				{
+					// We introduce an artificial way for the second repository, so that it can't complete before the failure of the first one.
+					Run: `sleep 0.1`,
+					If:  fmt.Sprintf(`${{ eq repository.name %q }}`, testRepo2.Name),
+				},
 				{Run: `echo -e "foobar\n" >> README.md`},
 			},
 			tasks: []*Task{
