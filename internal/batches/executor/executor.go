@@ -3,10 +3,9 @@ package executor
 import (
 	"context"
 	"fmt"
-	"sync"
 	"time"
 
-	"github.com/neelance/parallel"
+	"github.com/sourcegraph/conc/pool"
 
 	"github.com/sourcegraph/sourcegraph/lib/errors"
 
@@ -69,6 +68,7 @@ type NewExecutorOpts struct {
 	IsRemote         bool
 	GlobalEnv        []string
 	ForceRoot        bool
+	FailFast         bool
 
 	BinaryDiffs bool
 }
@@ -76,19 +76,14 @@ type NewExecutorOpts struct {
 type executor struct {
 	opts NewExecutorOpts
 
-	par           *parallel.Run
+	workPool      *pool.ResultContextPool[*taskResult]
 	doneEnqueuing chan struct{}
-
-	results   []taskResult
-	resultsMu sync.Mutex
 }
 
 func NewExecutor(opts NewExecutorOpts) *executor {
 	return &executor{
-		opts: opts,
-
+		opts:          opts,
 		doneEnqueuing: make(chan struct{}),
-		par:           parallel.NewRun(opts.Parallelism),
 	}
 }
 
@@ -97,6 +92,11 @@ func NewExecutor(opts NewExecutorOpts) *executor {
 func (x *executor) Start(ctx context.Context, tasks []*Task, ui TaskExecutionUI) {
 	defer func() { close(x.doneEnqueuing) }()
 
+	x.workPool = pool.NewWithResults[*taskResult]().WithMaxGoroutines(x.opts.Parallelism).WithContext(ctx)
+	if x.opts.FailFast {
+		x.workPool = x.workPool.WithCancelOnError()
+	}
+
 	for _, task := range tasks {
 		select {
 		case <-ctx.Done():
@@ -104,48 +104,33 @@ func (x *executor) Start(ctx context.Context, tasks []*Task, ui TaskExecutionUI)
 		default:
 		}
 
-		x.par.Acquire()
-
-		go func(task *Task, ui TaskExecutionUI) {
-			defer x.par.Release()
-
-			select {
-			case <-ctx.Done():
-				return
-			default:
-				err := x.do(ctx, task, ui)
-				if err != nil {
-					x.par.Error(err)
-				}
-			}
-		}(task, ui)
+		x.workPool.Go(func(c context.Context) (*taskResult, error) {
+			return x.do(c, task, ui)
+		})
 	}
 }
 
 // Wait blocks until all Tasks enqueued with Start have been executed.
-func (x *executor) Wait(ctx context.Context) ([]taskResult, error) {
+func (x *executor) Wait() ([]taskResult, error) {
 	<-x.doneEnqueuing
 
-	result := make(chan error, 1)
-
-	go func(ch chan error) {
-		ch <- x.par.Wait()
-	}(result)
-
-	select {
-	case <-ctx.Done():
-		return x.results, ctx.Err()
-	case err := <-result:
-		close(result)
-		if err != nil {
-			return x.results, err
+	r, err := x.workPool.Wait()
+	results := make([]taskResult, len(r))
+	for i, r := range r {
+		if r == nil {
+			results[i] = taskResult{
+				task:        nil,
+				stepResults: nil,
+				err:         err,
+			}
+		} else {
+			results[i] = *r
 		}
 	}
-
-	return x.results, nil
+	return results, err
 }
 
-func (x *executor) do(ctx context.Context, task *Task, ui TaskExecutionUI) (err error) {
+func (x *executor) do(ctx context.Context, task *Task, ui TaskExecutionUI) (result *taskResult, err error) {
 	// Ensure that the status is updated when we're done.
 	defer func() {
 		ui.TaskFinished(task, err)
@@ -157,7 +142,7 @@ func (x *executor) do(ctx context.Context, task *Task, ui TaskExecutionUI) (err 
 	// Let's set up our logging.
 	l, err := x.opts.Logger.AddTask(util.SlugForPathInRepo(task.Repository.Name, task.Repository.Rev(), task.Path))
 	if err != nil {
-		return errors.Wrap(err, "creating log file")
+		return nil, errors.Wrap(err, "creating log file")
 	}
 	defer l.Close()
 
@@ -196,18 +181,10 @@ func (x *executor) do(ctx context.Context, task *Task, ui TaskExecutionUI) (err 
 		}
 		l.MarkErrored()
 	}
-	x.addResult(task, stepResults, err)
 
-	return err
-}
-
-func (x *executor) addResult(task *Task, stepResults []execution.AfterStepResult, err error) {
-	x.resultsMu.Lock()
-	defer x.resultsMu.Unlock()
-
-	x.results = append(x.results, taskResult{
+	return &taskResult{
 		task:        task,
 		stepResults: stepResults,
 		err:         err,
-	})
+	}, err
 }

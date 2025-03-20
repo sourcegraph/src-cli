@@ -98,6 +98,9 @@ type batchExecuteFlags struct {
 	skipErrors    bool
 	runAsRoot     bool
 
+	// If true, fail fast on first error instead of continuing execution
+	failFast bool
+
 	// EXPERIMENTAL
 	textOnly bool
 }
@@ -162,6 +165,11 @@ func newBatchExecuteFlags(flagSet *flag.FlagSet, cacheDir, tempDir string) *batc
 	flagSet.BoolVar(
 		&caf.runAsRoot, "run-as-root", false,
 		"If true, forces all step containers to run as root.",
+	)
+
+	flagSet.BoolVar(
+		&caf.failFast, "fail-fast", false,
+		"Halts execution immediately upon first error instead of continuing with other tasks.",
 	)
 
 	return caf
@@ -430,6 +438,7 @@ func executeBatchSpec(ctx context.Context, opts executeBatchSpecOpts) (err error
 				TempDir:             opts.flags.tempDir,
 				GlobalEnv:           os.Environ(),
 				ForceRoot:           opts.flags.runAsRoot,
+				FailFast:            opts.flags.failFast,
 				BinaryDiffs:         ffs.BinaryDiffs,
 			},
 			Logger:      logManager,

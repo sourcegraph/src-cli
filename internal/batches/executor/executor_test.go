@@ -78,6 +78,8 @@ func TestExecutor_Integration(t *testing.T) {
 		wantFinishedWithErr int
 
 		wantCacheCount int
+
+		failFast bool
 	}{
 		{
 			name: "success",
@@ -317,6 +319,39 @@ func TestExecutor_Integration(t *testing.T) {
 			wantCacheCount:      2,
 		},
 		{
+			name: "fail fast mode",
+			archives: []mock.RepoArchive{
+				{RepoName: testRepo1.Name, Commit: testRepo1.Rev(), Files: map[string]string{
+					"README.md": "# Welcome to the README\n",
+				}},
+				{RepoName: testRepo2.Name, Commit: testRepo2.Rev(), Files: map[string]string{
+					"README.md": "# Sourcegraph README\n",
+				}},
+			},
+			steps: []batcheslib.Step{
+				{
+					Run: `exit 1`,
+					// We must fail for the first repository, so that the other repo's work is cancelled in fail fast mode.
+					If: fmt.Sprintf(`${{ eq repository.name %q }}`, testRepo1.Name),
+				},
+				{
+					// We introduce an artificial way for the second repository, so that it can't complete before the failure of the first one.
+					Run: `sleep 0.1`,
+					If:  fmt.Sprintf(`${{ eq repository.name %q }}`, testRepo2.Name),
+				},
+				{Run: `echo -e "foobar\n" >> README.md`},
+			},
+			tasks: []*Task{
+				{Repository: testRepo1},
+				{Repository: testRepo2},
+			},
+			wantErrInclude: "execution in github.com/sourcegraph/src-cli failed: run: exit 1",
+			// In fail fast mode, we expect that other steps are cancelled.
+			wantFinished:        0,
+			wantFinishedWithErr: 2,
+			failFast:            true,
+		},
+		{
 			name: "mount path",
 			archives: []mock.RepoArchive{
 				{RepoName: testRepo1.Name, Commit: testRepo1.Rev(), Files: map[string]string{
@@ -376,8 +411,13 @@ func TestExecutor_Integration(t *testing.T) {
 			// Temp dir for log files and downloaded archives
 			testTempDir := t.TempDir()
 
-			cr, _ := workspace.NewCreator(context.Background(), "bind", testTempDir, testTempDir, images)
+			ctx := context.Background()
+			cr, _ := workspace.NewCreator(ctx, "bind", testTempDir, testTempDir, images)
 			// Setup executor
+			parallelism := 0
+			if tc.failFast {
+				parallelism = 1
+			}
 			opts := NewExecutorOpts{
 				Creator:             cr,
 				RepoArchiveRegistry: repozip.NewArchiveRegistry(client, testTempDir, false),
@@ -385,8 +425,9 @@ func TestExecutor_Integration(t *testing.T) {
 				EnsureImage:         imageMapEnsurer(images),
 
 				TempDir:     testTempDir,
-				Parallelism: runtime.GOMAXPROCS(0),
+				Parallelism: runtime.GOMAXPROCS(parallelism),
 				Timeout:     tc.executorTimeout,
+				FailFast:    tc.failFast,
 			}
 
 			if opts.Timeout == 0 {
@@ -397,9 +438,9 @@ func TestExecutor_Integration(t *testing.T) {
 			executor := NewExecutor(opts)
 
 			// Run executor
-			executor.Start(context.Background(), tc.tasks, dummyUI)
+			executor.Start(ctx, tc.tasks, dummyUI)
 
-			results, err := executor.Wait(context.Background())
+			results, err := executor.Wait()
 			if tc.wantErrInclude == "" {
 				if err != nil {
 					t.Fatalf("execution failed: %s", err)
@@ -490,10 +531,10 @@ func TestExecutor_Integration(t *testing.T) {
 
 			// Make sure that all the Tasks have been updated correctly
 			if have, want := len(dummyUI.finished), tc.wantFinished; have != want {
-				t.Fatalf("wrong number of finished tasks. want=%d, have=%d", want, have)
+				t.Fatalf("wrong number of UI finished tasks. want=%d, have=%d", want, have)
 			}
 			if have, want := len(dummyUI.finishedWithErr), tc.wantFinishedWithErr; have != want {
-				t.Fatalf("wrong number of finished-with-err tasks. want=%d, have=%d", want, have)
+				t.Fatalf("wrong number of UI finished-with-err tasks. want=%d, have=%d", want, have)
 			}
 		})
 	}
@@ -797,7 +838,8 @@ func testExecuteTasks(t *testing.T, tasks []*Task, archives ...mock.RepoArchive)
 		}
 	}
 
-	cr, _ := workspace.NewCreator(context.Background(), "bind", testTempDir, testTempDir, images)
+	ctx := context.Background()
+	cr, _ := workspace.NewCreator(ctx, "bind", testTempDir, testTempDir, images)
 	// Setup executor
 	executor := NewExecutor(NewExecutorOpts{
 		Creator:             cr,
@@ -810,8 +852,8 @@ func testExecuteTasks(t *testing.T, tasks []*Task, archives ...mock.RepoArchive)
 		Timeout:     30 * time.Second,
 	})
 
-	executor.Start(context.Background(), tasks, newDummyTaskExecutionUI())
-	return executor.Wait(context.Background())
+	executor.Start(ctx, tasks, newDummyTaskExecutionUI())
+	return executor.Wait()
 }
 
 func imageMapEnsurer(m map[string]docker.Image) imageEnsurer {

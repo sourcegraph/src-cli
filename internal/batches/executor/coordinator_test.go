@@ -481,7 +481,7 @@ func assertCacheSize(t *testing.T, cache *inMemoryExecutionCache, want int) {
 // expectCachedResultForStep returns a function that can be used as a
 // startCallback on dummyExecutor to assert that the first Task has no cached results.
 func assertNoCachedResult(t *testing.T) func(context.Context, []*Task, TaskExecutionUI) {
-	return func(c context.Context, tasks []*Task, ui TaskExecutionUI) {
+	return func(_ context.Context, tasks []*Task, ui TaskExecutionUI) {
 		t.Helper()
 
 		task := tasks[0]
@@ -562,7 +562,7 @@ func (d *dummyExecutor) Start(ctx context.Context, ts []*Task, ui TaskExecutionU
 	// "noop noop noop", the crowd screams
 }
 
-func (d *dummyExecutor) Wait(context.Context) ([]taskResult, error) {
+func (d *dummyExecutor) Wait() ([]taskResult, error) {
 	return d.results, d.waitErr
 }
 

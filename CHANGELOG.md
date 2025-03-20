@@ -11,6 +11,10 @@ All notable changes to `src-cli` are documented in this file.
 
 ## Unreleased
 
+### Added
+
+- Batch Changes: Added `-fail-fast` flag to `src batch preview` and `src batch apply` that causes execution to immediately halt on the first error instead of continuing with other repositories. This enables faster iteration on batch specs. [#1154](https://github.com/sourcegraph/src-cli/pull/1154)
+
 ## 6.1.0
 - Support uploading GZIP compressed SCIP indexes [1146](https://github.com/sourcegraph/src-cli/pull/1146)
 - Remove deprecated `lsif` subcommand, and remove LSIF->SCIP conversion support [1147](https://github.com/sourcegraph/src-cli/pull/1147)
