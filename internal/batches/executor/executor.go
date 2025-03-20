@@ -3,9 +3,9 @@ package executor
 import (
 	"context"
 	"fmt"
-	"github.com/sourcegraph/conc/pool"
 	"time"
 
+	"github.com/sourcegraph/conc/pool"
 	"github.com/sourcegraph/sourcegraph/lib/errors"
 
 	"github.com/sourcegraph/src-cli/internal/batches/docker"
@@ -78,8 +78,6 @@ type executor struct {
 
 	workPool      *pool.ResultContextPool[*taskResult]
 	doneEnqueuing chan struct{}
-
-	results []taskResult
 }
 
 func NewExecutor(opts NewExecutorOpts) *executor {

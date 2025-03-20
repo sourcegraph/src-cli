@@ -169,7 +169,7 @@ func newBatchExecuteFlags(flagSet *flag.FlagSet, cacheDir, tempDir string) *batc
 
 	flagSet.BoolVar(
 		&caf.failFast, "fail-fast", false,
-		"If true, fails fast and halts execution immediately upon first error instead of continuing with other repositories.",
+		"Halts execution immediately upon first error instead of continuing with other tasks.",
 	)
 
 	return caf
