@@ -40,9 +40,7 @@ func (m resourceTableModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.table.SelectedRow()[0],
 				))
 			return m, tea.Batch(
-				tea.Printf(
-					copiedMessage,
-				),
+				tea.Printf("%s", copiedMessage),
 			)
 		case "C":
 			tmpDir := os.TempDir()
@@ -55,9 +53,7 @@ func (m resourceTableModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					filePath,
 				))
 			return m, tea.Batch(
-				tea.Printf(
-					savedMessage,
-				),
+				tea.Printf("%s", savedMessage),
 			)
 		}
 	}
@@ -106,14 +102,14 @@ func (m resourceTableModel) dump(rows []table.Row, filePath string) error {
 		}
 	}
 
-	fmt.Fprintf(tw, strings.Join(headers, "\t")+"\n")
+	fmt.Fprintf(tw, "%s\n", strings.Join(headers, "\t"))
 
 	for _, row := range rows {
 		values := []string{row[0], row[1], row[2], row[3], row[4]}
 		if len(row) == 6 {
 			values = append(values, row[5])
 		}
-		fmt.Fprintf(tw, strings.Join(values, "\t")+"\n")
+		fmt.Fprintf(tw, "%s\n", strings.Join(values, "\t"))
 	}
 	return nil
 }
