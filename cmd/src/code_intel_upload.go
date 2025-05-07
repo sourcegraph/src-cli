@@ -291,7 +291,7 @@ func attachHintsForAuthorizationError(accessToken string, originalError error) e
 	return errorWithHint{err: originalError, hint: strings.Join(mergeStringSlices(
 		[]string{"This Sourcegraph instance has enforced auth for SCIP uploads."},
 		actionableHints,
-		[]string{"For more details, see https://docs.sourcegraph.com/cli/references/code-intel/upload."},
+		[]string{"For more details, see https://sourcegraph.com/docs/cli/references/code-intel/upload."},
 	), "\n")}
 }
 

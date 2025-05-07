@@ -12,7 +12,7 @@ func init() {
 
 EXPERIMENTAL: 'validate' is an experimental command in the 'src' tool.
 
-Please visit https://docs.sourcegraph.com/admin/validation for documentation of the validate command.
+Please visit https://sourcegraph.com/docs/admin/validation for documentation of the validate command.
 
 Usage:
 

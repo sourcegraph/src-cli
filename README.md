@@ -7,7 +7,7 @@
 - **Search & get results in your terminal**
 - **Search & get JSON** for programmatic consumption
 - Make **GraphQL API requests** with auth easily & get JSON back fast
-- Execute **[batch changes](https://docs.sourcegraph.com/batch_changes)**
+- Execute **[batch changes](https://sourcegraph.com/docs/batch_changes)**
 - **Manage & administrate** repositories, users, and more
 - **Easily convert src-CLI commands to equivalent curl commands**, just add --get-curl!
 
@@ -161,7 +161,7 @@ Is your Sourcegraph instance behind a custom auth proxy? See [auth proxy configu
  - `src login` - authenticate to a Sourcegraph instance with your user credentials
  - `src search` - perform searches and get results in your terminal or as JSON
  - `src api` - run Sourcegraph GraphQL API requests
- - `src batch` - execute and manage [batch changes](https://docs.sourcegraph.com/batch_changes)
+ - `src batch` - execute and manage [batch changes](https://sourcegraph.com/docs/batch_changes)
  - `src repos` - manage repositories
  - `src users` - manage users
  - `src orgs` - manages organization
@@ -173,7 +173,7 @@ Is your Sourcegraph instance behind a custom auth proxy? See [auth proxy configu
  - `src version` - check version and guaranteed-compatible version for your Sourcegraph instance
 
 Run `src -h` and `src <subcommand> -h` for more detailed usage information.
-You can also read the [usage docs for the latest version of `src-cli`](https://docs.sourcegraph.com/cli/references) online.
+You can also read the [usage docs for the latest version of `src-cli`](https://sourcegraph.com/docs/cli/references) online.
 
 #### Optional: Renaming `src`
 
