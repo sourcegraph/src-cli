@@ -201,6 +201,10 @@ func RunSteps(ctx context.Context, opts *RunStepsOpts) (stepResults []execution.
 			return stepResults, errors.Wrap(err, "getting changed files in step")
 		}
 
+		if len(stepDiff) == 0 {
+			return stepResults, errors.Wrap(err, "diff was empty")
+		}
+
 		version := 1
 		if opts.BinaryDiffs {
 			version = 2

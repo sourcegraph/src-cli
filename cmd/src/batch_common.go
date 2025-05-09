@@ -521,6 +521,9 @@ func executeBatchSpec(ctx context.Context, opts executeBatchSpecOpts) (err error
 		for i, spec := range specs {
 			id, err := svc.CreateChangesetSpec(ctx, spec)
 			if err != nil {
+				fmt.Println("Diff should not be empty")
+				fmt.Println(spec.Diff())
+				fmt.Println("Error creating changeset spec:", i, err)
 				return err
 			}
 			ids[i] = id
