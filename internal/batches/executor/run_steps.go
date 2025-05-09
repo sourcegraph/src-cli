@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	batcheslib "github.com/sourcegraph/sourcegraph/lib/batches"
@@ -57,6 +58,9 @@ type RunStepsOpts struct {
 
 	BinaryDiffs bool
 }
+
+// diffMutex protects workspace diff operations to avoid race conditions during parallel processing
+var diffMutex sync.Mutex
 
 func RunSteps(ctx context.Context, opts *RunStepsOpts) (stepResults []execution.AfterStepResult, err error) {
 	// Set up our timeout.
@@ -123,7 +127,12 @@ func RunSteps(ctx context.Context, opts *RunStepsOpts) (stepResults []execution.
 		// If the previous steps made any modifications to the workspace yet,
 		// apply them.
 		if len(opts.Task.CachedStepResult.Diff) > 0 {
-			if err := ws.ApplyDiff(ctx, opts.Task.CachedStepResult.Diff); err != nil {
+			// Lock to protect ApplyDiff from race conditions
+			diffMutex.Lock()
+			err := ws.ApplyDiff(ctx, opts.Task.CachedStepResult.Diff)
+			diffMutex.Unlock()
+			
+			if err != nil {
 				return nil, errors.Wrap(err, "applying diff of cache result")
 			}
 		}
@@ -190,7 +199,11 @@ func RunSteps(ctx context.Context, opts *RunStepsOpts) (stepResults []execution.
 		}
 
 		// Get the current diff and store that away as the per-step result.
+		// Lock to protect Diff from race conditions
+		diffMutex.Lock()
 		stepDiff, err := ws.Diff(ctx)
+		diffMutex.Unlock()
+		
 		if err != nil {
 			return stepResults, errors.Wrap(err, "getting diff produced by step")
 		}
@@ -202,7 +215,7 @@ func RunSteps(ctx context.Context, opts *RunStepsOpts) (stepResults []execution.
 		}
 
 		if len(stepDiff) == 0 {
-			return stepResults, errors.Wrap(err, "diff was empty")
+			return stepResults, errors.New("diff was empty - likely due to a race condition during parallel processing")
 		}
 
 		version := 1
