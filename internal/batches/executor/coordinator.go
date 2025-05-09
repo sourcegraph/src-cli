@@ -2,6 +2,7 @@ package executor
 
 import (
 	"context"
+	"sync"
 
 	"github.com/sourcegraph/sourcegraph/lib/errors"
 
@@ -24,6 +25,11 @@ type Coordinator struct {
 	opts NewCoordinatorOpts
 
 	exec taskExecutor
+	
+	// cacheMutex protects concurrent access to the cache
+	cacheMutex sync.Mutex
+	// specsMutex protects access to the changesets specs during build
+	specsMutex sync.Mutex
 }
 
 type NewCoordinatorOpts struct {
@@ -66,6 +72,10 @@ func (c *Coordinator) CheckCache(ctx context.Context, batchSpec *batcheslib.Batc
 }
 
 func (c *Coordinator) ClearCache(ctx context.Context, tasks []*Task) error {
+	// Lock to protect cache operations from race conditions
+	c.cacheMutex.Lock()
+	defer c.cacheMutex.Unlock()
+	
 	for _, task := range tasks {
 		for i := len(task.Steps) - 1; i > -1; i-- {
 			key := task.CacheKey(c.opts.GlobalEnv, c.opts.ExecOpts.WorkingDirectory, i)
@@ -86,15 +96,23 @@ func (c *Coordinator) checkCacheForTask(ctx context.Context, batchSpec *batchesl
 	// we build changeset specs and return.
 	// TODO: This doesn't consider skipped steps.
 	if task.CachedStepResultFound && task.CachedStepResult.StepIndex == len(task.Steps)-1 {
+		// Lock to protect cache operations and ensure atomicity
+		c.cacheMutex.Lock()
+		
 		// If the cached result resulted in an empty diff, we don't need to
 		// add it to the list of specs that are displayed to the user and
 		// send to the server. Instead, we can just report that the task is
 		// complete and move on.
 		if len(task.CachedStepResult.Diff) == 0 {
-			return specs, true, nil
+			c.cacheMutex.Unlock()
+			// Force re-execution by clearing cache for this task
+			key := task.CacheKey(c.opts.GlobalEnv, c.opts.ExecOpts.WorkingDirectory, task.CachedStepResult.StepIndex)
+			c.opts.Cache.Clear(ctx, key)
+			return specs, false, nil // Return false to force re-execution
 		}
 
 		specs, err = c.buildChangesetSpecs(task, batchSpec, task.CachedStepResult)
+		c.cacheMutex.Unlock()
 		return specs, true, err
 	}
 
@@ -102,6 +120,15 @@ func (c *Coordinator) checkCacheForTask(ctx context.Context, batchSpec *batchesl
 }
 
 func (c *Coordinator) buildChangesetSpecs(task *Task, batchSpec *batcheslib.BatchSpec, result execution.AfterStepResult) ([]*batcheslib.ChangesetSpec, error) {
+	// Lock to protect spec building and ensure atomicity
+	c.specsMutex.Lock()
+	defer c.specsMutex.Unlock()
+	
+	// Validate diff is not empty
+	if len(result.Diff) == 0 {
+		return nil, errors.New("diff was empty during changeset spec creation")
+	}
+	
 	version := 1
 	if c.opts.BinaryDiffs {
 		version = 2
@@ -131,6 +158,10 @@ func (c *Coordinator) buildChangesetSpecs(task *Task, batchSpec *batcheslib.Batc
 }
 
 func (c *Coordinator) loadCachedStepResults(ctx context.Context, task *Task, globalEnv []string) error {
+	// Lock to protect cache operations from race conditions
+	c.cacheMutex.Lock()
+	defer c.cacheMutex.Unlock()
+	
 	// We start at the back so that we can find the _last_ cached step,
 	// then restart execution on the following step.
 	for i := len(task.Steps) - 1; i > -1; i-- {
@@ -153,6 +184,10 @@ func (c *Coordinator) loadCachedStepResults(ctx context.Context, task *Task, glo
 }
 
 func (c *Coordinator) buildSpecs(ctx context.Context, batchSpec *batcheslib.BatchSpec, taskResult taskResult, ui TaskExecutionUI) ([]*batcheslib.ChangesetSpec, error) {
+	// Lock to protect spec building from race conditions
+	c.specsMutex.Lock()
+	defer c.specsMutex.Unlock()
+	
 	if len(taskResult.stepResults) == 0 {
 		return nil, nil
 	}
@@ -185,14 +220,18 @@ func (c *Coordinator) ExecuteAndBuildSpecs(ctx context.Context, batchSpec *batch
 	results, errs := c.exec.Wait()
 
 	// Write all step cache results to the cache.
+	// Lock to protect cache operations from race conditions
+	c.cacheMutex.Lock()
 	for _, res := range results {
 		for _, stepRes := range res.stepResults {
 			cacheKey := res.task.CacheKey(c.opts.GlobalEnv, c.opts.ExecOpts.WorkingDirectory, stepRes.StepIndex)
 			if err := c.opts.Cache.Set(ctx, cacheKey, stepRes); err != nil {
+				c.cacheMutex.Unlock() // Release the lock before returning
 				return nil, nil, errors.Wrapf(err, "caching result for step %d", stepRes.StepIndex)
 			}
 		}
 	}
+	c.cacheMutex.Unlock()
 
 	var specs []*batcheslib.ChangesetSpec
 
