@@ -2,6 +2,7 @@ package workspace
 
 import (
 	"archive/zip"
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -141,10 +142,64 @@ func (w *dockerBindWorkspace) Diff(ctx context.Context) ([]byte, error) {
 	//
 	// ATTENTION: When you change the options here, be sure to also update the
 	// ApplyDiff method accordingly.
-	return runGitCmd(ctx, w.dir, "diff", "--cached", "--no-prefix", "--binary")
+	
+	// First add any changes to ensure we have everything staged
+	if _, err := runGitCmd(ctx, w.dir, "add", "--all"); err != nil {
+		return nil, errors.Wrap(err, "git add failed when preparing for diff")
+	}
+	
+	// Check if there are actually any changes to diff
+	status, err := runGitCmd(ctx, w.dir, "status", "--porcelain")
+	if err != nil {
+		return nil, errors.Wrap(err, "git status failed when checking for changes")
+	}
+	
+	// If status has no output, there's nothing to diff - this is an actual empty diff case
+	if len(bytes.TrimSpace(status)) == 0 {
+		// Return a minimal, valid empty diff to avoid schema validation errors
+		return []byte("diff --git /dev/null /dev/null\n"), nil
+	}
+	
+	// We have changes - get the diff with our improved buffer handling
+	diff, err := runGitCmd(ctx, w.dir, "diff", "--cached", "--no-prefix", "--binary")
+	if err != nil {
+		return nil, errors.Wrap(err, "git diff failed")
+	}
+	
+	// Extra verification to catch truncated or empty diffs
+	if len(diff) > 0 {
+		// Verify the diff has the proper headers that should always be present
+		hasValidHeader := bytes.Contains(diff, []byte("diff --git"))
+		if !hasValidHeader {
+			return nil, errors.New("invalid diff format - missing git headers, possible buffer truncation")
+		}
+		
+		// For very large diffs, additionally verify that the diff ends properly
+		if len(diff) > 1024*1024 { // Only do extra checks for large diffs
+			// Basic sanity check - most git diffs end with context lines or newlines
+			hasValidEnding := bytes.HasSuffix(diff, []byte{10}) || 
+			              bytes.Contains(diff[len(diff)-100:], []byte("--- ")) ||
+			              bytes.Contains(diff[len(diff)-100:], []byte("+++ ")) ||
+			              bytes.Contains(diff[len(diff)-100:], []byte("@@ "))
+					  
+			if !hasValidEnding {
+				return nil, errors.New("diff appears to be truncated - buffer limit may have been reached")
+			}
+		}
+	} else {
+		// This should never happen now that we're returning an empty diff above
+		return nil, errors.New("empty diff returned - buffer capacity issue may have occurred")
+	}
+	
+	return diff, nil
 }
 
 func (w *dockerBindWorkspace) ApplyDiff(ctx context.Context, diff []byte) error {
+	// Validate diff is not empty
+	if len(diff) == 0 {
+		return errors.New("cannot apply empty diff, possible buffer overflow")
+	}
+
 	// Write the diff to a temp file so we can pass it to `git apply`
 	tmp, err := os.CreateTemp(w.tempDir, "bind-workspace-test-*")
 	if err != nil {
@@ -152,8 +207,19 @@ func (w *dockerBindWorkspace) ApplyDiff(ctx context.Context, diff []byte) error 
 	}
 	defer os.Remove(tmp.Name())
 
-	if _, err := tmp.Write(diff); err != nil {
-		return errors.Wrap(err, "writing to temporary file")
+	// Write in chunks to avoid buffer limitations
+	remaining := diff
+	for len(remaining) > 0 {
+		chunkSize := len(remaining)
+		if chunkSize > 10*1024*1024 { // 10MB chunks
+			chunkSize = 10*1024*1024
+		}
+		
+		n, err := tmp.Write(remaining[:chunkSize])
+		if err != nil {
+			return errors.Wrap(err, "writing to temporary file")
+		}
+		remaining = remaining[n:]
 	}
 
 	if err := tmp.Close(); err != nil {

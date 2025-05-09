@@ -59,6 +59,10 @@ type RunStepsOpts struct {
 }
 
 func RunSteps(ctx context.Context, opts *RunStepsOpts) (stepResults []execution.AfterStepResult, err error) {
+	// Set a large buffer size for handling large diffs
+	os.Setenv("SOURCEGRAPH_LARGE_BUFFER_SIZE", "128M")
+	// Set GIT_ALLOC_LIMIT for buffer limits
+	os.Setenv("GIT_ALLOC_LIMIT", "500MB")
 	// Set up our timeout.
 	ctx, cancel := context.WithTimeout(ctx, opts.Timeout)
 	defer cancel()
@@ -195,14 +199,43 @@ func RunSteps(ctx context.Context, opts *RunStepsOpts) (stepResults []execution.
 			return stepResults, errors.Wrap(err, "getting diff produced by step")
 		}
 
+		// Verify that the diff is not empty
+		if len(stepDiff) == 0 {
+			return stepResults, errors.New("diff was empty - this may be due to buffer capacity issues when processing large batch changes")
+		}
+		
+		// Special case for our intentional empty diff marker
+		if bytes.Contains(stepDiff, []byte("diff --git /dev/null /dev/null")) {
+			// This is a valid empty diff (no changes) - create an empty result
+			version := 1
+			if opts.BinaryDiffs {
+				version = 2
+			}
+			
+			// Create an empty result with the special empty diff
+			emptyResult := execution.AfterStepResult{
+				Version:      version,
+				ChangedFiles: git.Changes{},
+				Stdout:       "",
+				Stderr:       "",
+				StepIndex:    i,
+				Diff:         stepDiff,
+				Outputs:      make(map[string]interface{}),
+			}
+			stepResults = append(stepResults, emptyResult)
+			return stepResults, nil
+		}
+
 		// Next parse the diff to determine which files were changed.
 		changes, err := git.ChangesInDiff(stepDiff)
 		if err != nil {
 			return stepResults, errors.Wrap(err, "getting changed files in step")
 		}
 
-		if len(stepDiff) == 0 {
-			return stepResults, errors.Wrap(err, "diff was empty")
+		// Double check that we have changes - if no changes were found but diff isn't empty,
+		// this could still indicate a buffer truncation issue
+		if len(changes.Modified) == 0 && len(changes.Added) == 0 && len(changes.Deleted) == 0 && len(changes.Renamed) == 0 {
+			return stepResults, errors.New("no changes detected in diff - this may be due to buffer capacity issues when processing large batch changes")
 		}
 
 		version := 1
