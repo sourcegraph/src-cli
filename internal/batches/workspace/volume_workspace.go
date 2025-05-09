@@ -265,6 +265,95 @@ exec git diff --cached --no-prefix --binary
 }
 
 func (w *dockerVolumeWorkspace) ApplyDiff(ctx context.Context, diff []byte) error {
+	// Validate diff is not empty
+	if len(diff) == 0 {
+		return errors.New("cannot apply empty diff, possible buffer overflow")
+	}
+	
+	// For very large diffs, we need to write the diff to a file rather than embedding
+	// it in the script to avoid shell command length limits
+	if len(diff) > 1024*1024 { // If diff is larger than 1MB
+		// Create a temporary file for the diff
+		f, err := os.CreateTemp(w.tempDir, "src-diff-*")
+		if err != nil {
+			return errors.Wrap(err, "creating diff file")
+		}
+		fileName := f.Name()
+		defer os.Remove(fileName)
+		
+		// Write diff in chunks
+		remaining := diff
+		for len(remaining) > 0 {
+			chunkSize := len(remaining)
+			if chunkSize > 10*1024*1024 { // 10MB chunks
+				chunkSize = 10*1024*1024
+			}
+			
+			n, err := f.Write(remaining[:chunkSize])
+			if err != nil {
+				f.Close()
+				return errors.Wrap(err, "writing diff to file")
+			}
+			remaining = remaining[n:]
+		}
+		
+		if err := f.Close(); err != nil {
+			return errors.Wrap(err, "closing diff file")
+		}
+		
+		// Run a script that applies the diff from the file
+		script := fmt.Sprintf(`#!/bin/sh
+
+set -e
+
+# Mount the diff file and apply it
+cat /tmp/diff | exec git apply -p0 -
+
+git add --all > /dev/null
+`)
+		
+		common, err := w.DockerRunOpts(ctx, "/work")
+		if err != nil {
+			return errors.Wrap(err, "generating run options")
+		}
+		
+		f, err = os.CreateTemp(w.tempDir, "src-run-*")
+		if err != nil {
+			return errors.Wrap(err, "creating run script")
+		}
+		scriptName := f.Name()
+		defer os.Remove(scriptName)
+		
+		if _, err := f.WriteString(script); err != nil {
+			f.Close()
+			return errors.Wrap(err, "writing run script")
+		}
+		if err := f.Close(); err != nil {
+			return errors.Wrap(err, "closing run script")
+		}
+		if err := os.Chmod(scriptName, 0755); err != nil {
+			return errors.Wrap(err, "chmodding run script")
+		}
+		
+		opts := append([]string{
+			"run",
+			"--rm",
+			"--init",
+			"--workdir", "/work",
+			"--mount", "type=bind,source=" + scriptName + ",target=/run.sh,ro",
+			"--mount", "type=bind,source=" + fileName + ",target=/tmp/diff,ro",
+		}, common...)
+		opts = append(opts, DockerVolumeWorkspaceImage, "sh", "/run.sh")
+		
+		out, err := exec.CommandContext(ctx, "docker", opts...).CombinedOutput()
+		if err != nil {
+			return errors.Wrapf(err, "Docker output:\n\n%s\n\n", string(out))
+		}
+		
+		return nil
+	}
+
+	// For smaller diffs, use the original approach
 	script := fmt.Sprintf(`#!/bin/sh
 
 set -e
