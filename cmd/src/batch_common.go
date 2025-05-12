@@ -526,7 +526,7 @@ func executeBatchSpec(ctx context.Context, opts executeBatchSpecOpts) (err error
 				fmt.Println("WARNING: Empty diff found for changeset spec", i, "- providing minimal valid diff")
 				// Create a minimal empty diff that will pass schema validation
 				minimalDiff := []byte("diff --git /dev/null /dev/null\n")
-				
+
 				// Directly set the diff in the commits field
 				if len(spec.Commits) > 0 {
 					spec.Commits[0].Diff = minimalDiff

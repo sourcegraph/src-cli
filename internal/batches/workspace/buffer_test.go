@@ -9,25 +9,24 @@ import (
 func TestRunGitCmdDiffBuffering(t *testing.T) {
 	// Mock test for improved buffer handling in runGitCmd
 	// for diff commands specifically
-	
-	
+
 	tests := []struct {
-		name string
-		args []string
+		name                       string
+		args                       []string
 		wantBufferSpecificHandling bool
 	}{
 		{
-			name: "diff command",
-			args: []string{"diff", "--cached", "--no-prefix", "--binary"},
+			name:                       "diff command",
+			args:                       []string{"diff", "--cached", "--no-prefix", "--binary"},
 			wantBufferSpecificHandling: true,
 		},
 		{
-			name: "non-diff command",
-			args: []string{"add", "--all"},
+			name:                       "non-diff command",
+			args:                       []string{"add", "--all"},
 			wantBufferSpecificHandling: false,
 		},
 	}
-	
+
 	// We can't actually run git commands in this test,
 	// but we can check that diff commands are correctly identified
 	for _, tt := range tests {
@@ -43,19 +42,19 @@ func TestRunGitCmdDiffBuffering(t *testing.T) {
 func TestEmptyDiffCheck(t *testing.T) {
 	// Test for empty diff detection
 	bind := &dockerBindWorkspace{}
-	
+
 	// Test with empty diff
 	emptyDiff := []byte{}
 	err := bind.ApplyDiff(context.Background(), emptyDiff)
 	if err == nil {
 		t.Error("Expected error for empty diff, got nil")
 	}
-	
+
 	// Check for buffer capacity message in error
 	if err != nil && !strings.Contains(err.Error(), "buffer") {
 		t.Errorf("Error message doesn't mention buffer issues: %v", err)
 	}
-	
+
 	// Test with non-empty diff (can't actually apply, just check validation)
 	// This will still error because we have no real workspace, but should pass the empty check
 	nonemptyDiff := []byte("diff --git file.txt file.txt\nindex 123..456 789\n--- file.txt\n+++ file.txt\n@@ -1 +1 @@\n-old\n+new\n")
