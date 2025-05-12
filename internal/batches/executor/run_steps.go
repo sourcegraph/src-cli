@@ -204,28 +204,6 @@ func RunSteps(ctx context.Context, opts *RunStepsOpts) (stepResults []execution.
 			return stepResults, errors.New("diff was empty - this may be due to buffer capacity issues when processing large batch changes")
 		}
 
-		// Special case for our intentional empty diff marker
-		if bytes.Contains(stepDiff, []byte("diff --git /dev/null /dev/null")) {
-			// This is a valid empty diff (no changes) - create an empty result
-			version := 1
-			if opts.BinaryDiffs {
-				version = 2
-			}
-
-			// Create an empty result with the special empty diff
-			emptyResult := execution.AfterStepResult{
-				Version:      version,
-				ChangedFiles: git.Changes{},
-				Stdout:       "",
-				Stderr:       "",
-				StepIndex:    i,
-				Diff:         stepDiff,
-				Outputs:      make(map[string]interface{}),
-			}
-			stepResults = append(stepResults, emptyResult)
-			return stepResults, nil
-		}
-
 		// Next parse the diff to determine which files were changed.
 		changes, err := git.ChangesInDiff(stepDiff)
 		if err != nil {
