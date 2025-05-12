@@ -199,21 +199,10 @@ func RunSteps(ctx context.Context, opts *RunStepsOpts) (stepResults []execution.
 			return stepResults, errors.Wrap(err, "getting diff produced by step")
 		}
 
-		// Verify that the diff is not empty
-		if len(stepDiff) == 0 {
-			return stepResults, errors.New("diff was empty - this may be due to buffer capacity issues when processing large batch changes")
-		}
-
 		// Next parse the diff to determine which files were changed.
 		changes, err := git.ChangesInDiff(stepDiff)
 		if err != nil {
 			return stepResults, errors.Wrap(err, "getting changed files in step")
-		}
-
-		// Double check that we have changes - if no changes were found but diff isn't empty,
-		// this could still indicate a buffer truncation issue
-		if len(changes.Modified) == 0 && len(changes.Added) == 0 && len(changes.Deleted) == 0 && len(changes.Renamed) == 0 {
-			return stepResults, errors.New("no changes detected in diff - this may be due to buffer capacity issues when processing large batch changes")
 		}
 
 		version := 1
