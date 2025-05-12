@@ -341,6 +341,7 @@ func TestCoordinator_Execute(t *testing.T) {
 
 			// Run with a cold cache.
 			t.Run("cold cache", func(t *testing.T) {
+				t.Timeout(60 * time.Second) // Reduce timeout to 60 seconds to fail faster
 				execute(t)
 				verifyCache(t)
 			})

@@ -219,10 +219,14 @@ func (c *Coordinator) ExecuteAndBuildSpecs(ctx context.Context, batchSpec *batch
 	c.exec.Start(ctx, tasks, ui)
 	results, errs := c.exec.Wait()
 
+	// Create a copy of results to safely iterate over during cache operations
+	resultsCopy := make([]taskResult, len(results))
+	copy(resultsCopy, results)
+
 	// Write all step cache results to the cache.
 	// Lock to protect cache operations from race conditions
 	c.cacheMutex.Lock()
-	for _, res := range results {
+	for _, res := range resultsCopy {
 		for _, stepRes := range res.stepResults {
 			cacheKey := res.task.CacheKey(c.opts.GlobalEnv, c.opts.ExecOpts.WorkingDirectory, stepRes.StepIndex)
 			if err := c.opts.Cache.Set(ctx, cacheKey, stepRes); err != nil {
@@ -236,7 +240,8 @@ func (c *Coordinator) ExecuteAndBuildSpecs(ctx context.Context, batchSpec *batch
 	var specs []*batcheslib.ChangesetSpec
 
 	// Build ChangesetSpecs if possible and add to list.
-	for _, taskResult := range results {
+	// Using the copy of results to avoid race conditions
+	for _, taskResult := range resultsCopy {
 		// Don't build changeset specs for failed workspaces.
 		if taskResult.err != nil {
 			continue
