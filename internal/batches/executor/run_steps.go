@@ -131,7 +131,7 @@ func RunSteps(ctx context.Context, opts *RunStepsOpts) (stepResults []execution.
 			diffMutex.Lock()
 			err := ws.ApplyDiff(ctx, opts.Task.CachedStepResult.Diff)
 			diffMutex.Unlock()
-			
+
 			if err != nil {
 				return nil, errors.Wrap(err, "applying diff of cache result")
 			}
@@ -203,7 +203,7 @@ func RunSteps(ctx context.Context, opts *RunStepsOpts) (stepResults []execution.
 		diffMutex.Lock()
 		stepDiff, err := ws.Diff(ctx)
 		diffMutex.Unlock()
-		
+
 		if err != nil {
 			return stepResults, errors.Wrap(err, "getting diff produced by step")
 		}

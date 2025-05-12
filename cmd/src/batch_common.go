@@ -508,7 +508,7 @@ func executeBatchSpec(ctx context.Context, opts executeBatchSpecOpts) (err error
 
 	// Add a mutex to protect specs from race conditions
 	var specsMutex sync.Mutex
-	
+
 	// Function to filter specs with empty diffs
 	filterValidSpecs := func(inputSpecs []*batcheslib.ChangesetSpec) []*batcheslib.ChangesetSpec {
 		var validSpecs []*batcheslib.ChangesetSpec
@@ -527,14 +527,14 @@ func executeBatchSpec(ctx context.Context, opts executeBatchSpecOpts) (err error
 		}
 		return validSpecs
 	}
-	
+
 	// Filter both cached and fresh specs
 	specsMutex.Lock()
 	// Filter previously cached specs
 	validCachedSpecs := filterValidSpecs(specs)
 	// Filter fresh specs
 	validFreshSpecs := filterValidSpecs(freshSpecs)
-	
+
 	// Reset specs and add filtered specs
 	specs = validCachedSpecs
 	specs = append(specs, validFreshSpecs...)
@@ -555,29 +555,29 @@ func executeBatchSpec(ctx context.Context, opts executeBatchSpecOpts) (err error
 		var idsMutex sync.Mutex
 		// Create a wait group to wait for all goroutines to finish
 		var wg sync.WaitGroup
-		
+
 		// Limit concurrency to avoid overloading the server
 		semaphore := make(chan struct{}, 3) // Reduced from 5 to 3 to reduce load
-		
+
 		// Create a map to track successful uploads
 		var successfulUploads sync.Map
-		
+
 		// Create a slice to hold any errors for skipping
 		var uploadErrors []error
 		var errorsMutex sync.Mutex
-		
+
 		for i, spec := range specs {
 			// Capture loop variables
 			specIndex := i
 			currentSpec := spec
-			
+
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
 				// Acquire semaphore
 				semaphore <- struct{}{}
 				defer func() { <-semaphore }()
-				
+
 				// Double-check diff is not empty before sending (extra safeguard)
 				diff, err := currentSpec.Diff()
 				if err != nil {
@@ -592,54 +592,54 @@ func executeBatchSpec(ctx context.Context, opts executeBatchSpecOpts) (err error
 					errorsMutex.Unlock()
 					return
 				}
-				
+
 				// Create the changeset spec with retries for transient network errors
 				const maxRetries = 3
 				var retryCount int
 				var id graphql.ChangesetSpecID
 				var createErr error
-				
+
 				for retryCount < maxRetries {
 					id, createErr = svc.CreateChangesetSpec(ctx, currentSpec)
 					if createErr == nil {
 						break // Success
 					}
-					
+
 					// If it's a network error, retry after a short delay
-					if strings.Contains(createErr.Error(), "Transport") || 
-					   strings.Contains(createErr.Error(), "connection") ||
-					   strings.Contains(createErr.Error(), "timeout") {
+					if strings.Contains(createErr.Error(), "Transport") ||
+						strings.Contains(createErr.Error(), "connection") ||
+						strings.Contains(createErr.Error(), "timeout") {
 						retryCount++
 						time.Sleep(time.Duration(retryCount*500) * time.Millisecond) // Exponential backoff
 						continue
 					}
-					
+
 					// Non-retryable error
 					break
 				}
-				
+
 				if createErr != nil {
 					errorsMutex.Lock()
 					uploadErrors = append(uploadErrors, errors.Wrapf(createErr, "error creating changeset spec %d", specIndex))
 					errorsMutex.Unlock()
 					return
 				}
-				
+
 				// Mark as successful
 				successfulUploads.Store(specIndex, id)
-				
+
 				// Safely update the IDs slice
 				idsMutex.Lock()
 				ids[specIndex] = id
 				idsMutex.Unlock()
-				
+
 				execUI.UploadingChangesetSpecsProgress(specIndex+1, len(specs))
 			}()
 		}
-		
+
 		// Wait for all goroutines to finish
 		wg.Wait()
-		
+
 		// Log any errors
 		if len(uploadErrors) > 0 && opts.flags.skipErrors {
 			for _, err := range uploadErrors {

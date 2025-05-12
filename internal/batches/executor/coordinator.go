@@ -25,7 +25,7 @@ type Coordinator struct {
 	opts NewCoordinatorOpts
 
 	exec taskExecutor
-	
+
 	// cacheMutex protects concurrent access to the cache
 	cacheMutex sync.Mutex
 	// specsMutex protects access to the changesets specs during build
@@ -75,7 +75,7 @@ func (c *Coordinator) ClearCache(ctx context.Context, tasks []*Task) error {
 	// Lock to protect cache operations from race conditions
 	c.cacheMutex.Lock()
 	defer c.cacheMutex.Unlock()
-	
+
 	for _, task := range tasks {
 		for i := len(task.Steps) - 1; i > -1; i-- {
 			key := task.CacheKey(c.opts.GlobalEnv, c.opts.ExecOpts.WorkingDirectory, i)
@@ -98,7 +98,7 @@ func (c *Coordinator) checkCacheForTask(ctx context.Context, batchSpec *batchesl
 	if task.CachedStepResultFound && task.CachedStepResult.StepIndex == len(task.Steps)-1 {
 		// Lock to protect cache operations and ensure atomicity
 		c.cacheMutex.Lock()
-		
+
 		// If the cached result resulted in an empty diff, we don't need to
 		// add it to the list of specs that are displayed to the user and
 		// send to the server. Instead, we can just report that the task is
@@ -123,12 +123,12 @@ func (c *Coordinator) buildChangesetSpecs(task *Task, batchSpec *batcheslib.Batc
 	// Lock to protect spec building and ensure atomicity
 	c.specsMutex.Lock()
 	defer c.specsMutex.Unlock()
-	
+
 	// Validate diff is not empty
 	if len(result.Diff) == 0 {
 		return nil, errors.New("diff was empty during changeset spec creation")
 	}
-	
+
 	version := 1
 	if c.opts.BinaryDiffs {
 		version = 2
@@ -161,7 +161,7 @@ func (c *Coordinator) loadCachedStepResults(ctx context.Context, task *Task, glo
 	// Lock to protect cache operations from race conditions
 	c.cacheMutex.Lock()
 	defer c.cacheMutex.Unlock()
-	
+
 	// We start at the back so that we can find the _last_ cached step,
 	// then restart execution on the following step.
 	for i := len(task.Steps) - 1; i > -1; i-- {
@@ -187,7 +187,7 @@ func (c *Coordinator) buildSpecs(ctx context.Context, batchSpec *batcheslib.Batc
 	// Lock to protect spec building from race conditions
 	c.specsMutex.Lock()
 	defer c.specsMutex.Unlock()
-	
+
 	if len(taskResult.stepResults) == 0 {
 		return nil, nil
 	}
