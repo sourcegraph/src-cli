@@ -59,6 +59,10 @@ type RunStepsOpts struct {
 }
 
 func RunSteps(ctx context.Context, opts *RunStepsOpts) (stepResults []execution.AfterStepResult, err error) {
+	// Set a large buffer size for handling large diffs
+	os.Setenv("SOURCEGRAPH_LARGE_BUFFER_SIZE", "128M")
+	// Set GIT_ALLOC_LIMIT for buffer limits
+	os.Setenv("GIT_ALLOC_LIMIT", "500MB")
 	// Set up our timeout.
 	ctx, cancel := context.WithTimeout(ctx, opts.Timeout)
 	defer cancel()
