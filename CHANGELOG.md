@@ -11,6 +11,10 @@ All notable changes to `src-cli` are documented in this file.
 
 ## Unreleased
 
+## 6.3.0
+
+## 6.2.0
+
 ## 6.1.1
 
 ### Added
