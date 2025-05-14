@@ -230,7 +230,7 @@ jobs:
         with:
           repository: sourcegraph/homebrew-src-cli
           fetch-depth: 0
-          token: ${{ secrets.BOT_CROSS_REPO_PAT }}
+          token: ${{ secrets.BOT_GITHUB_TOKEN }}
       - name: Replace symlink
         run: mv ${{ env.old_symlink_name }} ${{ env.new_symlink_name }}
       - name: Commit result
