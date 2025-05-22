@@ -9,6 +9,126 @@ import (
 	"github.com/sourcegraph/src-cli/internal/api"
 )
 
+// availablePromptColumns defines the available column names for output
+var availablePromptColumns = map[string]bool{
+	"id":          true,
+	"name":        true,
+	"description": true,
+	"draft":       true,
+	"visibility":  true,
+	"mode":        true,
+	"tags":        true,
+}
+
+// defaultPromptColumns defines the default columns to display
+var defaultPromptColumns = []string{"id", "name", "visibility", "tags"}
+
+// displayPrompts formats and outputs multiple prompts
+func displayPrompts(prompts []Prompt, columns []string, asJSON bool) error {
+	if asJSON {
+		return outputAsJSON(prompts)
+	}
+
+	// Collect all data first to calculate column widths
+	allRows := make([][]string, 0, len(prompts)+1)
+
+	// Add header row
+	headers := make([]string, 0, len(columns))
+	for _, col := range columns {
+		headers = append(headers, strings.ToUpper(col))
+	}
+	allRows = append(allRows, headers)
+
+	// Collect all data rows
+	for _, p := range prompts {
+		row := make([]string, 0, len(columns))
+
+		// Prepare tag names for display
+		tagNames := []string{}
+		for _, tag := range p.Tags.Nodes {
+			tagNames = append(tagNames, tag.Name)
+		}
+		tagsStr := joinStrings(tagNames, ", ")
+
+		for _, col := range columns {
+			switch col {
+			case "id":
+				row = append(row, p.ID)
+			case "name":
+				row = append(row, p.Name)
+			case "description":
+				row = append(row, p.Description)
+			case "draft":
+				row = append(row, fmt.Sprintf("%t", p.Draft))
+			case "visibility":
+				row = append(row, p.Visibility)
+			case "mode":
+				row = append(row, p.Mode)
+			case "tags":
+				row = append(row, tagsStr)
+			}
+		}
+		allRows = append(allRows, row)
+	}
+
+	// Calculate max width for each column
+	colWidths := make([]int, len(columns))
+	for _, row := range allRows {
+		for i, cell := range row {
+			if len(cell) > colWidths[i] {
+				colWidths[i] = len(cell)
+			}
+		}
+	}
+
+	// Print all rows with proper padding
+	for i, row := range allRows {
+		for j, cell := range row {
+			fmt.Print(cell)
+			// Add padding (at least 2 spaces between columns)
+			padding := colWidths[j] - len(cell) + 2
+			fmt.Print(strings.Repeat(" ", padding))
+		}
+		fmt.Println()
+
+		// Add separator line after headers
+		if i == 0 {
+			for j, width := range colWidths {
+				fmt.Print(strings.Repeat("-", width))
+				if j < len(colWidths)-1 {
+					fmt.Print("  ")
+				}
+			}
+			fmt.Println()
+		}
+	}
+
+	return nil
+}
+
+// parsePromptColumns parses and validates the columns flag
+func parsePromptColumns(columnsFlag string) []string {
+	if columnsFlag == "" {
+		return defaultPromptColumns
+	}
+
+	columns := strings.Split(columnsFlag, ",")
+	var validColumns []string
+
+	for _, col := range columns {
+		col = strings.ToLower(strings.TrimSpace(col))
+		if availablePromptColumns[col] {
+			validColumns = append(validColumns, col)
+		}
+	}
+
+	if len(validColumns) == 0 {
+		return defaultPromptColumns
+	}
+
+	return validColumns
+}
+
 func init() {
 	usage := `
 Examples:
@@ -32,6 +152,14 @@ Examples:
   Paginate through results:
 
     	$ src prompts list -after=<cursor>
+    	
+  Select specific columns to display:
+  
+    	$ src prompts list -c id,name,visibility,tags
+    	
+  Output results as JSON:
+  
+    	$ src prompts list -json
 
 `
 
@@ -52,6 +180,8 @@ Examples:
 		includeBuiltinFlag  = flagSet.Bool("include-builtin", false, "Whether to include builtin prompts")
 		limitFlag           = flagSet.Int("limit", 100, "Maximum number of prompts to list")
 		afterFlag           = flagSet.String("after", "", "Cursor for pagination (from previous page's endCursor)")
+		columnsFlag         = flagSet.String("c", strings.Join(defaultPromptColumns, ","), "Comma-separated list of columns to display. Available: id,name,description,draft,visibility,mode,tags")
+		jsonFlag            = flagSet.Bool("json", false, "Output results as JSON for programmatic access")
 		apiFlags            = api.NewFlags(flagSet)
 	)
 
@@ -171,24 +301,18 @@ Examples:
 			return err
 		}
 
+		// Parse columns
+		columns := parsePromptColumns(*columnsFlag)
+
 		fmt.Printf("Showing %d of %d prompts\n\n", len(result.Prompts.Nodes), result.Prompts.TotalCount)
 
-		for _, p := range result.Prompts.Nodes {
-			tagNames := []string{}
-			for _, tag := range p.Tags.Nodes {
-				tagNames = append(tagNames, tag.Name)
-			}
-
-			fmt.Printf("ID: %s\nName: %s\nDescription: %s\n", p.ID, p.Name, p.Description)
-			fmt.Printf("Draft: %t | Visibility: %s | Mode: %s\n", p.Draft, p.Visibility, p.Mode)
-			if len(tagNames) > 0 {
-				fmt.Printf("Tags: %s\n", joinStrings(tagNames, ", "))
-			}
-			fmt.Println()
+		// Display prompts in tabular format
+		if err := displayPrompts(result.Prompts.Nodes, columns, *jsonFlag); err != nil {
+			return err
 		}
 
 		if result.Prompts.PageInfo.HasNextPage {
-			fmt.Printf("More results available. Use -after=%s to fetch the next page.\n", result.Prompts.PageInfo.EndCursor)
+			fmt.Printf("\nMore results available. Use -after=%s to fetch the next page.\n", result.Prompts.PageInfo.EndCursor)
 		}
 
 		return nil

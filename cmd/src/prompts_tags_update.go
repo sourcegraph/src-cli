@@ -16,7 +16,7 @@ Examples:
 
   Update a prompt tag:
 
-    	$ src prompts tags update -id=<tag-id> -name="updated-tag-name"
+    	$ src prompts tags update <tag-id> -name="updated-tag-name"
 
 `
 
@@ -27,7 +27,6 @@ Examples:
 		fmt.Println(usage)
 	}
 	var (
-		idFlag   = flagSet.String("id", "", "The ID of the tag to update")
 		nameFlag = flagSet.String("name", "", "The new name for the tag")
 		apiFlags = api.NewFlags(flagSet)
 	)
@@ -37,12 +36,17 @@ Examples:
 			return err
 		}
 
-		if *idFlag == "" {
-			return errors.New("provide the ID of the tag to update")
+		// Check for tag ID as positional argument
+		if len(flagSet.Args()) != 1 {
+			if len(flagSet.Args()) == 0 {
+				return errors.New("provide exactly one tag ID as an argument")
+			}
+			return errors.New("provide exactly one tag ID as an argument (flags must come before positional arguments)")
 		}
+		tagID := flagSet.Arg(0)
 
 		if *nameFlag == "" {
-			return errors.New("provide a new name for the tag")
+			return errors.New("provide a new name for the tag using -name flag (flags must come before positional arguments)")
 		}
 
 		client := cfg.apiClient(apiFlags, flagSet.Output())
@@ -58,7 +62,7 @@ Examples:
 			UpdatePromptTag PromptTag
 		}
 		if ok, err := client.NewRequest(query, map[string]interface{}{
-			"id": *idFlag,
+			"id": tagID,
 			"input": map[string]interface{}{
 				"name": *nameFlag,
 			},

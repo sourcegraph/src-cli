@@ -16,14 +16,14 @@ Usage:
 
 The commands are:
 
-	list		lists prompts
-	get		    get a prompt by ID
-	create		create a prompt
-	update		update a prompt
-	delete		delete a prompt
-	export		export prompts to a JSON file
-	import		import prompts from a JSON file
-	tags		manage prompt tags (use "src prompts tags [command] -h" for more info)
+	list        lists prompts
+	get         get a prompt by ID
+	create      create a prompt
+	update      update a prompt
+	delete      delete a prompt
+	export      export prompts to a JSON file
+	import      import prompts from a JSON file
+	tags        manage prompt tags (use "src prompts tags [command] -h" for more info)
 
 Use "src prompts [command] -h" for more information about a command.
 `

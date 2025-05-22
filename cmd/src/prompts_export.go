@@ -225,9 +225,9 @@ func fetchAllPrompts(client api.Client, tagIDs []string) ([]Prompt, error) {
 
 // resolveTagNamesToIDs resolves tag names to their IDs
 func resolveTagNamesToIDs(client api.Client, tagNames []string) ([]string, error) {
-	// Query to get all tags
-	query := `query PromptTags {
-	promptTags {
+	// Query to get all tags with required pagination parameter
+	query := `query PromptTags($first: Int!) {
+	promptTags(first: $first) {
 		nodes {
 			...PromptTagFields
 		}
@@ -240,7 +240,11 @@ func resolveTagNamesToIDs(client api.Client, tagNames []string) ([]string, error
 		}
 	}
 
-	if ok, err := client.NewRequest(query, nil).Do(context.Background(), &result); err != nil || !ok {
+	vars := map[string]interface{}{
+		"first": 1000, // Get enough tags to cover all possible names
+	}
+
+	if ok, err := client.NewRequest(query, vars).Do(context.Background(), &result); err != nil || !ok {
 		return nil, err
 	}
 

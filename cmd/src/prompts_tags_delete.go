@@ -16,7 +16,7 @@ Examples:
 
   Delete a prompt tag by ID:
 
-    	$ src prompts tags delete -id=<tag-id>
+    	$ src prompts tags delete <tag-id>
 
 `
 
@@ -27,7 +27,6 @@ Examples:
 		fmt.Println(usage)
 	}
 	var (
-		idFlag   = flagSet.String("id", "", "The ID of the tag to delete")
 		apiFlags = api.NewFlags(flagSet)
 	)
 
@@ -36,9 +35,11 @@ Examples:
 			return err
 		}
 
-		if *idFlag == "" {
-			return errors.New("provide the ID of the tag to delete")
+		// Check for tag ID as positional argument
+		if len(flagSet.Args()) != 1 {
+			return errors.New("provide exactly one tag ID as an argument")
 		}
+		tagID := flagSet.Arg(0)
 
 		client := cfg.apiClient(apiFlags, flagSet.Output())
 
@@ -56,7 +57,7 @@ Examples:
 		}
 
 		if ok, err := client.NewRequest(query, map[string]interface{}{
-			"id": *idFlag,
+			"id": tagID,
 		}).Do(context.Background(), &result); err != nil || !ok {
 			return err
 		}

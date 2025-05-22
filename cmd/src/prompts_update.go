@@ -17,7 +17,7 @@ Examples:
 
   Update a prompt's description:
 
-    	$ src prompts update -id=<prompt-id> -name="Updated Name" -description="Updated description" [-content="Updated content"] [-tags=id1,id2] [-draft=false] [-auto-submit=false] [-mode=CHAT] [-recommended=false]
+    	$ src prompts update <prompt-id> -name="Updated Name" -description="Updated description" [-content="Updated content"] [-tags=id1,id2] [-draft=false] [-auto-submit=false] [-mode=CHAT] [-recommended=false]
 
 `
 
@@ -28,7 +28,6 @@ Examples:
 		fmt.Println(usage)
 	}
 	var (
-		idFlag          = flagSet.String("id", "", "The ID of the prompt to update")
 		nameFlag        = flagSet.String("name", "", "The updated prompt name")
 		descriptionFlag = flagSet.String("description", "", "Updated description of the prompt")
 		contentFlag     = flagSet.String("content", "", "Updated prompt template text content")
@@ -45,9 +44,11 @@ Examples:
 			return err
 		}
 
-		if *idFlag == "" {
-			return errors.New("provide the ID of the prompt to update")
+		// Check for prompt ID as positional argument
+		if len(flagSet.Args()) != 1 {
+			return errors.New("provide exactly one prompt ID as an argument")
 		}
+		promptID := flagSet.Arg(0)
 
 		if *nameFlag == "" {
 			return errors.New("provide a name for the prompt")
@@ -104,7 +105,7 @@ Examples:
 			UpdatePrompt Prompt
 		}
 		if ok, err := client.NewRequest(query, map[string]interface{}{
-			"id":    *idFlag,
+			"id":    promptID,
 			"input": input,
 		}).Do(context.Background(), &result); err != nil || !ok {
 			return err

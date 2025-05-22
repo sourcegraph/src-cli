@@ -16,7 +16,7 @@ Examples:
 
   Delete a prompt by ID:
 
-    	$ src prompts delete -id=<prompt-id>
+    	$ src prompts delete <prompt-id>
 
 `
 
@@ -27,7 +27,6 @@ Examples:
 		fmt.Println(usage)
 	}
 	var (
-		idFlag   = flagSet.String("id", "", "The ID of the prompt to delete")
 		apiFlags = api.NewFlags(flagSet)
 	)
 
@@ -36,9 +35,11 @@ Examples:
 			return err
 		}
 
-		if *idFlag == "" {
-			return errors.New("provide the ID of the prompt to delete")
+		// Check for prompt ID as positional argument
+		if len(flagSet.Args()) != 1 {
+			return errors.New("provide exactly one prompt ID as an argument")
 		}
+		promptID := flagSet.Arg(0)
 
 		client := cfg.apiClient(apiFlags, flagSet.Output())
 
@@ -56,7 +57,7 @@ Examples:
 		}
 
 		if ok, err := client.NewRequest(query, map[string]interface{}{
-			"id": *idFlag,
+			"id": promptID,
 		}).Do(context.Background(), &result); err != nil || !ok {
 			return err
 		}
