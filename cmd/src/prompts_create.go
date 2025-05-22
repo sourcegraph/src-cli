@@ -33,7 +33,7 @@ Examples:
 		nameFlag        = flagSet.String("name", "", "The prompt name")
 		descriptionFlag = flagSet.String("description", "", "Description of the prompt")
 		contentFlag     = flagSet.String("content", "", "The prompt template text content")
-		ownerFlag       = flagSet.String("owner", "", "The ID of the owner (user or organization)")
+		ownerFlag       = flagSet.String("owner", "", "The ID of the owner (user or organization). Defaults to current user if not specified.")
 		tagsFlag        = flagSet.String("tags", "", "Comma-separated list of tag IDs")
 		draftFlag       = flagSet.Bool("draft", false, "Whether the prompt is a draft")
 		visibilityFlag  = flagSet.String("visibility", "PUBLIC", "Visibility of the prompt (PUBLIC or SECRET)")
@@ -57,8 +57,16 @@ Examples:
 		if *contentFlag == "" {
 			return errors.New("provide content for the prompt")
 		}
-		if *ownerFlag == "" {
-			return errors.New("provide an owner ID for the prompt")
+		client := cfg.apiClient(apiFlags, flagSet.Output())
+
+		// Use current user as default owner if not specified
+		ownerID := *ownerFlag
+		if ownerID == "" {
+			var err error
+			ownerID, err = getViewerUserID(context.Background(), client)
+			if err != nil {
+				return errors.Wrap(err, "failed to get current user ID")
+			}
 		}
 
 		// Validate mode
@@ -81,8 +89,6 @@ Examples:
 			tagIDs = strings.Split(*tagsFlag, ",")
 		}
 
-		client := cfg.apiClient(apiFlags, flagSet.Output())
-
 		query := `mutation CreatePrompt(
 	$input: PromptInput!
 ) {
@@ -96,7 +102,7 @@ Examples:
 			"name":           *nameFlag,
 			"description":    *descriptionFlag,
 			"definitionText": *contentFlag,
-			"owner":          *ownerFlag,
+			"owner":          ownerID,
 			"draft":          *draftFlag,
 			"visibility":     visibility,
 			"autoSubmit":     *autoSubmitFlag,
