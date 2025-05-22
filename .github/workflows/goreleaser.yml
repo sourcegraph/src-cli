@@ -202,7 +202,7 @@ jobs:
           args: release --clean --config=${{ env.config_file }}
         env:
           # Use separate access token, because we need a scope:repo token to publish the brew formula.
-          GITHUB_TOKEN: ${{ secrets.BOT_GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.BOT_CROSS_REPO_PAT }}
 
   # goreleaser_post updates the symlink name to refer to the new release version. The
   # symlink enables users to install the latest src-cli with the versioned command:
@@ -230,7 +230,7 @@ jobs:
         with:
           repository: sourcegraph/homebrew-src-cli
           fetch-depth: 0
-          token: ${{ secrets.BOT_GITHUB_TOKEN }}
+          token: ${{ secrets.BOT_CROSS_REPO_PAT }}
       - name: Replace symlink
         run: mv ${{ env.old_symlink_name }} ${{ env.new_symlink_name }}
       - name: Commit result
