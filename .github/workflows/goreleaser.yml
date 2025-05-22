@@ -124,7 +124,7 @@ jobs:
         with:
           repository: sourcegraph/homebrew-src-cli
           fetch-depth: 0
-          token: ${{ secrets.BOT_GITHUB_TOKEN }}
+          token: ${{ secrets.BOT_CROSS_REPO_PAT }}
       - name: Copy main release formula file to versioned formula file
         run: cp Formula/src-cli.rb ${{ env.versioned_formula_file }}
       # Homebrew expects the name of the class in a versioned formula file to be of the
