@@ -16,11 +16,11 @@ Usage:
 
 The commands are:
 
-	list		lists prompt tags
-	get		get a prompt tag by name
-	create		create a prompt tag
-	update		update a prompt tag
-	delete		delete a prompt tag
+	list        lists prompt tags
+	get         get a prompt tag by name
+	create      create a prompt tag
+	update      update a prompt tag
+	delete      delete a prompt tag
 
 Use "src prompts tags [command] -h" for more information about a command.
 `
