@@ -25,13 +25,23 @@ func init() {
 
 Usage:
 
-    src sbom fetch -v <version>
+    src sbom fetch -v <version> [--image <image-patterns>] [--exclude-image <exclude-patterns>]
 
 Examples:
 
-    $ src sbom fetch -v 5.8.0                            # Fetch all SBOMs for the 5.8.0 release
+    $ src sbom fetch -v 5.8.0                              # Fetch all SBOMs for the 5.8.0 release
 
-    $ src sbom fetch -v 5.8.123 -internal -d /tmp/sboms  # Fetch all SBOMs for the internal 5.8.123 release and store them in /tmp/sboms
+    $ src sbom fetch -v 5.8.0 --image frontend             # Fetch SBOM only for the frontend image
+
+    $ src sbom fetch -v 5.8.0 --image "redis*"             # Fetch SBOMs for all images with names beginning with 'redis'
+
+    $ src sbom fetch -v 5.8.0 --image "frontend,redis*"    # Fetch SBOMs for frontend, and all redis images
+
+    $ src sbom fetch -v 5.8.0 --exclude-image "sg,*redis*" # Fetch SBOMs for all images, except sg and redis
+
+    $ src sbom fetch -v 5.8.0 --image "postgres*" --exclude-image "*exporter*" # Fetch SBOMs for all postgres images, except exporters
+
+    $ src sbom fetch -v 5.8.123 -internal -d /tmp/sboms    # Fetch all SBOMs for the internal 5.8.123 release and store them in /tmp/sboms
 `
 
 	flagSet := flag.NewFlagSet("fetch", flag.ExitOnError)
@@ -39,6 +49,8 @@ Examples:
 	outputDirFlag := flagSet.String("d", "sourcegraph-sboms", "The directory to store validated SBOMs in.")
 	internalReleaseFlag := flagSet.Bool("internal", false, "Fetch SBOMs for an internal release. Defaults to false.")
 	insecureIgnoreTransparencyLogFlag := flagSet.Bool("insecure-ignore-tlog", false, "Disable transparency log verification. Defaults to false.")
+	imageFlag := flagSet.String("image", "", "Filter list of image names, to only fetch SBOMs for Docker images with names matching these patterns. Supports literal names, like frontend, and glob patterns like '*postgres*'. Multiple patterns can be specified as a comma-separated list (e.g., 'frontend,*postgres-1?-*'). The 'sourcegraph/' prefix is optional. If not specified, SBOMs for all images are fetched.")
+	excludeImageFlag := flagSet.String("exclude-image", "", "Exclude Docker images with names matching these patterns from being fetched. Supports the same formats as --image. Takes precedence over --image filters.")
 
 	handler := func(args []string) error {
 		c := cosignConfig{
@@ -71,6 +83,24 @@ Examples:
 
 		if insecureIgnoreTransparencyLogFlag != nil && *insecureIgnoreTransparencyLogFlag {
 			c.insecureIgnoreTransparencyLog = true
+		}
+
+		if imageFlag != nil && *imageFlag != "" {
+			// Parse comma-separated patterns
+			patterns := strings.Split(*imageFlag, ",")
+			for i, pattern := range patterns {
+				patterns[i] = strings.TrimSpace(pattern)
+			}
+			c.imageFilters = patterns
+		}
+
+		if excludeImageFlag != nil && *excludeImageFlag != "" {
+			// Parse comma-separated exclude patterns
+			patterns := strings.Split(*excludeImageFlag, ",")
+			for i, pattern := range patterns {
+				patterns[i] = strings.TrimSpace(pattern)
+			}
+			c.excludeImageFilters = patterns
 		}
 
 		out := output.NewOutput(flagSet.Output(), output.OutputOpts{Verbose: *verbose})
