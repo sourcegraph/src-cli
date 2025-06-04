@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os/exec"
 	"path"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
@@ -26,6 +27,8 @@ type cosignConfig struct {
 	version                       string
 	internalRelease               bool
 	insecureIgnoreTransparencyLog bool
+	imageFilters                  []string
+	excludeImageFilters           []string
 }
 
 // TokenResponse represents the JSON response from dockerHub's token service
@@ -251,7 +254,21 @@ func (c cosignConfig) getImageList() ([]string, error) {
 		if image != "" {
 			// Strip off a version suffix if present
 			parts := strings.SplitN(image, ":", 2)
-			images = append(images, parts[0])
+			imageName := parts[0]
+
+			// If the --image arg was provided, and if the image name doesn't match any of the filters
+			// then skip this image
+			if len(c.imageFilters) > 0 && !matchesImageFilter(c.imageFilters, imageName) {
+				continue
+			}
+
+			// If the --exclude-image arg was provided, and if the image name does match any of the filters
+			// then skip this image
+			if len(c.excludeImageFilters) > 0 && matchesImageFilter(c.excludeImageFilters, imageName) {
+				continue
+			}
+
+			images = append(images, imageName)
 		}
 	}
 
@@ -269,4 +286,25 @@ func (c *cosignConfig) getImageReleaseListURL() string {
 	} else {
 		return fmt.Sprintf("%s/release/%s/%s", imageListBaseURL, c.version, imageListFilename)
 	}
+}
+
+// matchesImageFilter checks if the image name from the list of published images
+// matches any user-provided --image or --exclude-image glob patterns
+// It matches against both the full image name, and the image name without the "sourcegraph/" prefix.
+func matchesImageFilter(patterns []string, imageName string) bool {
+	for _, pattern := range patterns {
+		// Try matching against the full image name
+		if matched, _ := filepath.Match(pattern, imageName); matched {
+			return true
+		}
+
+		// Try matching against the image name without "sourcegraph/" prefix
+		if strings.HasPrefix(imageName, "sourcegraph/") {
+			shortName := strings.TrimPrefix(imageName, "sourcegraph/")
+			if matched, _ := filepath.Match(pattern, shortName); matched {
+				return true
+			}
+		}
+	}
+	return false
 }
