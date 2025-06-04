@@ -11,6 +11,10 @@ All notable changes to `src-cli` are documented in this file.
 
 ## Unreleased
 
+### Added
+
+- SBOM support: Added `--image` and `--exclude-image` flags to `src sbom fetch` for filtering which docker images SBOMs are fetched for. Both flags support glob patterns (e.g., `frontend`, `*api*`) and comma-separated lists. The `sourcegraph/` image name prefix is optional.
+
 ## 6.4.0
 
 ## 6.3.0
