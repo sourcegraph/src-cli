@@ -11,6 +11,8 @@ All notable changes to `src-cli` are documented in this file.
 
 ## Unreleased
 
+- The deprecated `src extensions` commands have been removed.
+
 ## 6.1.1
 
 ### Added

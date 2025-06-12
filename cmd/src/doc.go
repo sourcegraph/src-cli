@@ -56,7 +56,6 @@ Examples:
 			"":             &commands,
 			"batch":        &batchCommands,
 			"config":       &configCommands,
-			"extensions":   &extensionsCommands,
 			"extsvc":       &extsvcCommands,
 			"code-intel":   &codeintelCommands,
 			"orgs":         &orgsCommands,
