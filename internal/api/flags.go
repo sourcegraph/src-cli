@@ -22,6 +22,13 @@ func (f *Flags) Trace() bool {
 	return *(f.trace)
 }
 
+func (f *Flags) GetCurl() bool {
+	if f.getCurl == nil {
+		return false
+	}
+	return *(f.getCurl)
+}
+
 func (f *Flags) UserAgentTelemetry() bool {
 	if f.userAgentTelemetry == nil {
 		return defaultUserAgentTelemetry()

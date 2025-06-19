@@ -60,6 +60,7 @@ The commands are:
 	repos,repo      manages repositories
 	sbom            manages SBOM (Software Bill of Materials) data
 	search          search for results on Sourcegraph
+	search-jobs     manages search jobs
 	serve-git       serves your local git repositories over HTTP for Sourcegraph to pull
 	users,user      manages users
 	codeowners      manages code ownership information
