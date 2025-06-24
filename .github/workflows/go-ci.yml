@@ -38,7 +38,7 @@ jobs:
     needs: go-test
     if: always()
     steps:
-      - name: Check Go CI matrix job results
+      - name: Check Go CI results
         run: |
           if [[ "${{ needs.go-test.result }}" != "success" ]]; then
             echo "One or more Go CI tests failed"
