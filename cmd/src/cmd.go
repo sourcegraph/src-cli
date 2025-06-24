@@ -6,9 +6,6 @@ import (
 	"log"
 	"os"
 	"slices"
-	"strings"
-
-	"github.com/sourcegraph/sourcegraph/lib/errors"
 
 	"github.com/sourcegraph/src-cli/internal/cmderrors"
 )
@@ -127,17 +124,4 @@ func (c commander) run(flagSet *flag.FlagSet, cmdName, usageText string, args []
 	}
 	log.Printf("%s: unknown subcommand %q", cmdName, name)
 	log.Fatalf("Run '%s help' for usage.", cmdName)
-}
-
-func didYouMeanOtherCommand(actual string, suggested []string) *command {
-	fullSuggestions := make([]string, len(suggested))
-	for i, s := range suggested {
-		fullSuggestions[i] = "src " + s
-	}
-	msg := fmt.Sprintf("src: unknown subcommand %q\n\nDid you mean:\n\n\t%s", actual, strings.Join(fullSuggestions, "\n\t"))
-	return &command{
-		flagSet:   flag.NewFlagSet(actual, flag.ExitOnError),
-		handler:   func(args []string) error { return errors.New(msg) },
-		usageFunc: func() { log.Println(msg) },
-	}
 }

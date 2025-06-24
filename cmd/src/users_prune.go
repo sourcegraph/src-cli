@@ -166,7 +166,7 @@ Examples:
 		}
 
 		// confirm and remove users
-		if confirmed, _ := confirmUserRemoval(usersToDelete, int(totalUsers.Site.Users.TotalCount), *daysToDelete, *displayUsersToDelete); !confirmed {
+		if confirmed, _ := confirmUserRemoval(usersToDelete, *daysToDelete, *displayUsersToDelete); !confirmed {
 			fmt.Println("Aborting removal")
 			return nil
 		} else {
@@ -223,7 +223,7 @@ type UserToDelete struct {
 }
 
 // Verify user wants to remove users with table of users and a command prompt for [y/N]
-func confirmUserRemoval(usersToDelete []UserToDelete, totalUsers int, daysThreshold int, displayUsers bool) (bool, error) {
+func confirmUserRemoval(usersToDelete []UserToDelete, daysThreshold int, displayUsers bool) (bool, error) {
 	if displayUsers {
 		fmt.Printf("Users to remove from %s\n", cfg.Endpoint)
 		t := table.NewWriter()
