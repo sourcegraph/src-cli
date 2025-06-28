@@ -141,10 +141,16 @@ func (w *dockerBindWorkspace) Diff(ctx context.Context) ([]byte, error) {
 	//
 	// ATTENTION: When you change the options here, be sure to also update the
 	// ApplyDiff method accordingly.
+
 	return runGitCmd(ctx, w.dir, "diff", "--cached", "--no-prefix", "--binary")
 }
 
 func (w *dockerBindWorkspace) ApplyDiff(ctx context.Context, diff []byte) error {
+	// Validate diff is not empty
+	if len(diff) == 0 {
+		return errors.New("cannot apply empty diff, possible buffer overflow")
+	}
+
 	// Write the diff to a temp file so we can pass it to `git apply`
 	tmp, err := os.CreateTemp(w.tempDir, "bind-workspace-test-*")
 	if err != nil {
@@ -152,8 +158,19 @@ func (w *dockerBindWorkspace) ApplyDiff(ctx context.Context, diff []byte) error 
 	}
 	defer os.Remove(tmp.Name())
 
-	if _, err := tmp.Write(diff); err != nil {
-		return errors.Wrap(err, "writing to temporary file")
+	// Write in chunks to avoid buffer limitations
+	remaining := diff
+	for len(remaining) > 0 {
+		chunkSize := len(remaining)
+		if chunkSize > 10*1024*1024 { // 10MB chunks
+			chunkSize = 10 * 1024 * 1024
+		}
+
+		n, err := tmp.Write(remaining[:chunkSize])
+		if err != nil {
+			return errors.Wrap(err, "writing to temporary file")
+		}
+		remaining = remaining[n:]
 	}
 
 	if err := tmp.Close(); err != nil {
