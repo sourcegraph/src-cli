@@ -1,5 +1,7 @@
 {
-  "$schema": "http://json.schemastore.org/renovate",
+  "$schema": "http://json.schemastore.org/renovate",,
+  "automerge": true,
+  "automergeType": "pr",
   "extends": [
     "github>sourcegraph/renovate-config"
   ],
