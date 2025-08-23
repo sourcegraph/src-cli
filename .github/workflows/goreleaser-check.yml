@@ -23,7 +23,7 @@ jobs:
       - name: Enable pulling Go modules from private sourcegraph/sourcegraph
         run: git config --global url."https://${PRIVATE_TOKEN}@github.com/sourcegraph/".insteadOf "https://github.com/sourcegraph/"
       - name: Check GoReleaser config
-        uses: goreleaser/goreleaser-action@v5
+        uses: goreleaser/goreleaser-action@v6
         with:
           version: latest
           args: check
