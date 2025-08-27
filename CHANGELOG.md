@@ -15,6 +15,14 @@ All notable changes to `src-cli` are documented in this file.
 
 ### Changed
 
+## 6.7.1104
+
+### Added
+
+### Changed
+
+- Updated Docker base image to alpine:3.22
+
 ## 6.7.0
 
 ### Added
