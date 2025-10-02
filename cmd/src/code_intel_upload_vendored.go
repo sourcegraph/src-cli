@@ -501,7 +501,7 @@ func makeUploadURL(opts uploadRequestOptions) (*url.URL, error) {
 
 	path := opts.SourcegraphInstanceOptions.Path
 	if path == "" {
-		path = "/.api/lsif/upload"
+		path = "/.api/scip/upload"
 	}
 
 	parsedUrl, err := url.Parse(opts.SourcegraphInstanceOptions.SourcegraphURL + path)

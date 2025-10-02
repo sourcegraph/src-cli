@@ -168,7 +168,7 @@ Is your Sourcegraph instance behind a custom auth proxy? See [auth proxy configu
  - `src config` - manage global, org, and user settings
  - `src extsvc` - manage external services (repository configuration)
  - `src extensions` - manage extensions
- - `src code-intel` - manages Code Intelligence data (deprecated alias: `src lsif`)
+ - `src code-intel` - manages Code Intelligence data
  - `src serve-git` - serves your local git repositories over HTTP for Sourcegraph to pull
  - `src version` - check version and guaranteed-compatible version for your Sourcegraph instance
 

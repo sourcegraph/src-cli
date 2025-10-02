@@ -1,4 +1,3 @@
-cmd/src/lsif* @sourcegraph/team-graph
 cmd/src/code_intel* @sourcegraph/team-graph
 
 cmd/src/search* @sourcegraph/search-platform
