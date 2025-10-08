@@ -25,7 +25,7 @@ TARGETS FILES
 	Predefined targets are available based on default Sourcegraph configurations ('docker', 'k8s').
 	Custom targets configuration can be provided in YAML format with '--targets=target.yaml', e.g.
 
-		primary:
+		pgsql:
 			target: ...   # the DSN of the database deployment, e.g. in docker, the name of the database container
 			dbname: ...   # name of database
 			username: ... # username for database access
