@@ -15,8 +15,11 @@ USAGE
 
 COMMANDS
 
+	databases export commands to generate Sourcegraph database dumps for migration
+	restore   restore a Sourcegraph instance using database dumps
 	summary   export summary data about an instance for acceptance testing of a restored Sourcegraph instance
 	test      use exported summary data and instance health indicators to validate a restored and upgraded instance
+	upload    upload snapshot contents during a migration to Sourcegraph Cloud
 `
 	flagSet := flag.NewFlagSet("snapshot", flag.ExitOnError)
 

@@ -19,9 +19,16 @@ func init() {
 Note that these commands are intended for use as reference - you may need to adjust the commands for your deployment.
 
 USAGE
-	src [-v] snapshot databases [--targets=<docker|k8s|"targets.yaml">] [--run] <pg_dump|docker|kubectl> 
+
+	src [-v] snapshot databases <pg_dump|docker|kubectl> [--targets=<docker|k8s|"targets.yaml">] [--run]
+
+FLAGS
+
+	--targets       Predefined targets ('docker' or 'k8s'), or a custom targets.yaml file (default: auto)
+	--run           Run the generated commands instead of printing them
 
 TARGETS FILES
+
 	Predefined targets are available based on default Sourcegraph configurations ('docker', 'k8s').
 	Custom targets configuration can be provided in YAML format with '--targets=target.yaml', e.g.
 
