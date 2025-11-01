@@ -9,7 +9,7 @@ import (
 
 // Targets represents configuration for each of Sourcegraph's databases.
 type Targets struct {
-	Pgsql     Target `yaml:"pgsql"`
+	Pgsql        Target `yaml:"pgsql"`
 	CodeIntel    Target `yaml:"codeintel"`
 	CodeInsights Target `yaml:"codeinsights"`
 }

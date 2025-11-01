@@ -154,7 +154,7 @@ func copyDumpToBucket(ctx context.Context, src io.ReadSeeker, stat fs.FileInfo, 
 
 	// Do a partial copy that trims out unwanted statements
 	if trimExtensions {
-		written, err := pgdump.PartialCopyWithoutExtensions(object, src, progressFn)
+		written, err := pgdump.CommentOutInvalidLines(object, src, progressFn)
 		if err != nil {
 			return errors.Wrap(err, "trim extensions and upload")
 		}
