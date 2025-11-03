@@ -22,7 +22,7 @@ func createTestFile(t *testing.T, content string) *os.File {
 	return src
 }
 
-func TestCommentOutInvalidLines(t *testing.T) {
+func TestFilterInvalidLines(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("Test doesn't work on Windows of weirdness with t.TempDir() handling")
 	}
@@ -187,7 +187,7 @@ CREATE TABLE "public"."access_tokens" (
 			src := createTestFile(t, tt.input)
 			var dst bytes.Buffer
 
-			_, err := CommentOutInvalidLines(&dst, src, func(i int64) {})
+			_, err := FilterInvalidLines(&dst, src, func(i int64) {})
 			require.NoError(t, err)
 
 			// Copy rest of contents

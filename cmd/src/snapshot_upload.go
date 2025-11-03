@@ -152,30 +152,30 @@ func copyDumpToBucket(ctx context.Context, src io.ReadSeeker, stat fs.FileInfo, 
 	// To assert against actual file size
 	var totalWritten int64
 
-	// Do a partial copy that trims out unwanted statements
+	// Do a partial copy, that filters out incompatible statements
 	if trimExtensions {
-		written, err := pgdump.CommentOutInvalidLines(object, src, progressFn)
+		written, err := pgdump.FilterInvalidLines(object, src, progressFn)
 		if err != nil {
-			return errors.Wrap(err, "trim extensions and upload")
+			return errors.Wrap(err, "filter out incompatible statements and upload")
 		}
 		totalWritten += written
 	}
 
-	// io.Copy is the best way to copy from a reader to writer in Go, and storage.Writer
-	// has its own chunking mechanisms internally. io.Reader is stateful, so this copy
-	// will just continue from where we left off if we use copyAndTrimExtensions.
+	// io.Copy is the best way to copy from a reader to writer in Go,
+	// storage.Writer has its own chunking mechanisms internally.
+	// io.Reader is stateful, so this copy will just continue from where FilterInvalidLines left off, if used
 	written, err := io.Copy(object, src)
 	if err != nil {
 		return errors.Wrap(err, "upload")
 	}
 	totalWritten += written
 
-	// Progress is not called on completion of io.Copy, so we call it manually after to
-	// update our pretty progress bars.
+	// Progress is not called on completion of io.Copy,
+	// so we call it manually after to update our pretty progress bars.
 	progressFn(written)
 
-	// Validate we have sent all data. copyAndTrimExtensions may add some bytes, so the
-	// check is not a strict equality.
+	// Validate we have sent all data.
+	// FilterInvalidLines may add some bytes, so the check is not a strict equality.
 	size := stat.Size()
 	if totalWritten < size {
 		return errors.Newf("expected to write %d bytes, but actually wrote %d bytes (diff: %d bytes)",

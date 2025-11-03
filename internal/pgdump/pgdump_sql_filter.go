@@ -8,21 +8,22 @@ import (
 	"github.com/sourcegraph/sourcegraph/lib/errors"
 )
 
-// CommentOutInvalidLines will comment out lines in the customer's SQL database dump file
-// which gcloud sql import errors out on
+// FilterInvalidLines copies the initial lines of the pg_dump-created .sql files,
+// from src to dst (the GCS bucket),
+// until it hits a line prefixed with a filterEndMarker,
+// while commenting out the linesToFilter which cause `gcloud sql import` to error out.
+// It then resets src to the position of the last contents written to dst.
 //
-// It performs a partial copy of a SQL database dump from
-// src to dst while commenting out the problematic lines.
-// When it determines there are no more EXTENSIONs-related statements,
-// it will return, resetting src to the position of the last contents written to dst.
+// Filtering requires reading entire lines into memory,
+// this can be a very expensive operation, so when filtering is complete,
+// the more efficient io.Copy is used to perform the remainder of the copy in the calling funciton
 //
-// This is needed for import to Google Cloud Storage, which does not like many statements which pg_dump may insert
-// For more details, see https://cloud.google.com/sql/docs/postgres/import-export/import-export-dmp
-//
-// Filtering requires reading entire lines into memory - this can be a very expensive
-// operation, so when filtering is complete, the more efficient io.Copy should be used
-// to perform the remainder of the copy from src to dst.
-func CommentOutInvalidLines(dst io.Writer, src io.ReadSeeker, progressFn func(int64)) (int64, error) {
+// pg_dump writes these .sql files based on its own version,
+// not based on the Postgres version of either the source or destination database;
+// so self-hosted customers' diverse database environments
+// have inserted a variety of statements into the .sql files which cause the import to fail
+// For details, see https://cloud.google.com/sql/docs/postgres/import-export/import-export-dmp
+func FilterInvalidLines(dst io.Writer, src io.ReadSeeker, progressFn func(int64)) (int64, error) {
 	var (
 		reader = bufio.NewReader(src)
 
@@ -60,8 +61,15 @@ func CommentOutInvalidLines(dst io.Writer, src io.ReadSeeker, progressFn func(in
 			"SET transaction_timeout", // pg_dump v17, importing to Postgres 16
 
 			"\\connect",
+
+			// Cloud instances' databases have been upgraded to Postgres v16.10,
+			// which should include support for \restrict and \unrestrict
+			// but leaving in the list in case we need to re-add them
 			// "\\restrict",
+			// To handle the \unrestrict command,
+			// we'd have to add a search from the end of the file
 			// "\\unrestrict",
+			// Remove comments after databases are upgraded >= Postgres 17
 		}
 	)
 
@@ -71,8 +79,8 @@ func CommentOutInvalidLines(dst io.Writer, src io.ReadSeeker, progressFn func(in
 		line, err := reader.ReadBytes('\n')
 		consumed += int64(len(line))
 
-		// If this function has read through the whole file,
-		// then hand the last line
+		// If this function has read through the whole file without hitting a filterEndMarker,
+		// then handle the last line correctly
 		if err == io.EOF {
 			noMoreLinesToFilter = true
 
