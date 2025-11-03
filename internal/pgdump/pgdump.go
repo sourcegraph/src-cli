@@ -9,7 +9,7 @@ import (
 
 // Targets represents configuration for each of Sourcegraph's databases.
 type Targets struct {
-	Primary      Target `yaml:"primary"`
+	Pgsql        Target `yaml:"pgsql"`
 	CodeIntel    Target `yaml:"codeintel"`
 	CodeInsights Target `yaml:"codeinsights"`
 }
@@ -59,8 +59,8 @@ type Output struct {
 // path. It can be provided a zero-value Targets to just generate the output paths.
 func Outputs(dir string, targets Targets) []Output {
 	return []Output{{
-		Output: filepath.Join(dir, "primary.sql"),
-		Target: targets.Primary,
+		Output: filepath.Join(dir, "pgsql.sql"),
+		Target: targets.Pgsql,
 	}, {
 		Output: filepath.Join(dir, "codeintel.sql"),
 		Target: targets.CodeIntel,
