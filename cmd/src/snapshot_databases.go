@@ -19,13 +19,13 @@ func init() {
 Note that these commands are intended for use as reference - you may need to adjust the commands for your deployment.
 
 USAGE
-	src [-v] snapshot databases [--targets=<docker|k8s|"targets.yaml">] [--run] <pg_dump|docker|kubectl> 
+	src [-v] snapshot databases [--targets=<docker|k8s|"targets.yaml">] [--run] <pg_dump|docker|kubectl>
 
 TARGETS FILES
 	Predefined targets are available based on default Sourcegraph configurations ('docker', 'k8s').
 	Custom targets configuration can be provided in YAML format with '--targets=target.yaml', e.g.
 
-		primary:
+		pgsql:
 			target: ...   # the DSN of the database deployment, e.g. in docker, the name of the database container
 			dbname: ...   # name of database
 			username: ... # username for database access
@@ -109,7 +109,7 @@ TARGETS FILES
 // predefinedDatabaseDumpTargets is based on default Sourcegraph configurations.
 var predefinedDatabaseDumpTargets = map[string]pgdump.Targets{
 	"local": {
-		Primary: pgdump.Target{
+		Pgsql: pgdump.Target{
 			DBName:   "sg",
 			Username: "sg",
 			Password: "sg",
@@ -126,7 +126,7 @@ var predefinedDatabaseDumpTargets = map[string]pgdump.Targets{
 		},
 	},
 	"docker": { // based on deploy-sourcegraph-managed
-		Primary: pgdump.Target{
+		Pgsql: pgdump.Target{
 			Target:   "pgsql",
 			DBName:   "sg",
 			Username: "sg",
@@ -146,7 +146,7 @@ var predefinedDatabaseDumpTargets = map[string]pgdump.Targets{
 		},
 	},
 	"k8s": { // based on deploy-sourcegraph-helm
-		Primary: pgdump.Target{
+		Pgsql: pgdump.Target{
 			Target:   "statefulset/pgsql",
 			DBName:   "sg",
 			Username: "sg",
