@@ -9,7 +9,7 @@ import (
 
 // Targets represents configuration for each of Sourcegraph's databases.
 type Targets struct {
-	Pgsql        Target `yaml:"pgsql"`
+	Primary      Target `yaml:"primary"`
 	CodeIntel    Target `yaml:"codeintel"`
 	CodeInsights Target `yaml:"codeinsights"`
 }
@@ -42,7 +42,7 @@ func RestoreCommand(t Target) string {
 
 // DumpCommand generates a pg_dump command that can be used for on-prem-to-Cloud migrations.
 func DumpCommand(t Target) string {
-	dump := fmt.Sprintf("pg_dump --no-owner --format=p --no-acl --clean --if-exists --quote-all-identifiers --username=%s --dbname=%s",
+	dump := fmt.Sprintf("pg_dump --no-owner --format=p --no-acl --clean --if-exists --username=%s --dbname=%s",
 		t.Username, t.DBName)
 	if t.Password == "" {
 		return dump
@@ -59,8 +59,8 @@ type Output struct {
 // path. It can be provided a zero-value Targets to just generate the output paths.
 func Outputs(dir string, targets Targets) []Output {
 	return []Output{{
-		Output: filepath.Join(dir, "pgsql.sql"),
-		Target: targets.Pgsql,
+		Output: filepath.Join(dir, "primary.sql"),
+		Target: targets.Primary,
 	}, {
 		Output: filepath.Join(dir, "codeintel.sql"),
 		Target: targets.CodeIntel,
