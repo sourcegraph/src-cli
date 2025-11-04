@@ -19,9 +19,6 @@ import (
 	"github.com/sourcegraph/src-cli/internal/pgdump"
 )
 
-// GCP docs
-// https://pkg.go.dev/cloud.google.com/go/storage#section-readme
-
 const srcSnapshotDir = "./src-snapshot"
 
 var srcSnapshotSummaryPath = path.Join(srcSnapshotDir, "summary.json")
@@ -34,7 +31,7 @@ type uploadArgs struct {
 	filesToUpload   []string
 }
 
-type uploadClients struct {
+type gcsClient struct {
 	ctx           context.Context
 	out           *output.Output
 	storageClient *storage.Client
@@ -92,8 +89,8 @@ func snapshotUploadHandler(flagSet *flag.FlagSet, bucketName, credentialsPath *s
 			return err
 		}
 
-		// Create clients
-		clients, err := createUploadClients(flagSet, uploadArgs.credentialsPath)
+		// Create client
+		client, err := createGcsClient(flagSet, uploadArgs.credentialsPath)
 		if err != nil {
 			return err
 		}
@@ -105,11 +102,11 @@ func snapshotUploadHandler(flagSet *flag.FlagSet, bucketName, credentialsPath *s
 		}
 
 		// Upload files to bucket
-		return uploadFilesToBucket(clients, uploadArgs, openedFiles, progressBars)
+		return uploadFilesToBucket(client, uploadArgs, openedFiles, progressBars)
 	}
 }
 
-// Validate user inputs
+// Validate user inputs, and convert them to an object of type uploadArgs
 func validateUploadInputs(bucketName, credentialsPath, fileFilter string, filterSQL bool) (*uploadArgs, error) {
 	if bucketName == "" {
 		return nil, errors.New("-bucket required")
@@ -131,7 +128,7 @@ func validateUploadInputs(bucketName, credentialsPath, fileFilter string, filter
 	}, nil
 }
 
-// Parse the --file arg values
+// Parse the --file arg values, and return a list of strings of the files to upload
 func parseFileFilter(fileFilter string) ([]string, error) {
 
 	validFiles := map[string]bool{
@@ -167,18 +164,18 @@ func parseFileFilter(fileFilter string) ([]string, error) {
 	return filesToUpload, nil
 }
 
-func createUploadClients(flagSet *flag.FlagSet, credentialsPath string) (*uploadClients, error) {
+func createGcsClient(flagSet *flag.FlagSet, credentialsPath string) (*gcsClient, error) {
 
 	out := output.NewOutput(flagSet.Output(), output.OutputOpts{Verbose: *verbose})
 	ctx := context.Background()
+	// https://pkg.go.dev/cloud.google.com/go/storage#section-readme
 	client, err := storage.NewClient(ctx, option.WithCredentialsFile(credentialsPath))
 
 	if err != nil {
-		return nil, errors.Wrap(err, "create Cloud Storage client")
+		return nil, errors.Wrap(err, "create Google Cloud Storage client")
 	}
 
-	// TODO: Does upload client need to be plural?
-	return &uploadClients{
+	return &gcsClient{
 		ctx:           ctx,
 		out:           out,
 		storageClient: client,
@@ -250,12 +247,12 @@ func openFilesAndCreateProgressBars(args *uploadArgs) ([]uploadFile, []output.Pr
 
 // uploadFilesToBucket uploads the prepared files to Google Cloud Storage bucket.
 // Uploads are performed in parallel with progress tracking.
-func uploadFilesToBucket(clients *uploadClients, args *uploadArgs, openedFiles []uploadFile, progressBars []output.ProgressBar) error {
+func uploadFilesToBucket(client *gcsClient, args *uploadArgs, openedFiles []uploadFile, progressBars []output.ProgressBar) error {
 	// Start uploads with progress tracking
-	progress := clients.out.Progress(progressBars, nil)
+	progress := client.out.Progress(progressBars, nil)
 	progress.WriteLine(output.Emoji(output.EmojiHourglass, "Starting uploads..."))
-	bucket := clients.storageClient.Bucket(args.bucketName)
-	uploadPool := pool.New().WithErrors().WithContext(clients.ctx)
+	bucket := client.storageClient.Bucket(args.bucketName)
+	uploadPool := pool.New().WithErrors().WithContext(client.ctx)
 
 	// Upload each file in parallel
 	for fileIndex, openedFile := range openedFiles {
@@ -276,11 +273,11 @@ func uploadFilesToBucket(clients *uploadClients, args *uploadArgs, openedFiles [
 	errs := uploadPool.Wait()
 	progress.Complete()
 	if errs != nil {
-		clients.out.WriteLine(output.Line(output.EmojiFailure, output.StyleFailure, "Some snapshot contents failed to upload."))
+		client.out.WriteLine(output.Line(output.EmojiFailure, output.StyleFailure, "Some snapshot contents failed to upload."))
 		return errs
 	}
 
-	clients.out.WriteLine(output.Emoji(output.EmojiSuccess, "Summary contents uploaded!"))
+	client.out.WriteLine(output.Emoji(output.EmojiSuccess, "Summary contents uploaded!"))
 	return nil
 }
 
