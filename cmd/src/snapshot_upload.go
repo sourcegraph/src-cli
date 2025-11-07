@@ -74,7 +74,7 @@ FILE
 	flagSet := flag.NewFlagSet("upload", flag.ExitOnError)
 	bucketName := flagSet.String("bucket", "", "destination Cloud Storage bucket name")
 	credentialsPath := flagSet.String("credentials", "", "JSON credentials file for Google Cloud service account")
-	fileFilter := flagSet.String("file", strings.Join(listOfValidFiles, ","), "comma-delimited list of files to upload")
+	fileArg := flagSet.String("file", strings.Join(listOfValidFiles, ","), "comma-delimited list of files to upload")
 	filterSQL := flagSet.Bool("filter-sql", true, "filter incompatible SQL statements from database dumps for import to Google Cloud SQL")
 
 	// Register this command with the parent 'src snapshot' command.
@@ -83,20 +83,20 @@ FILE
 	// when their init() functions run, without requiring a central registry file.
 	snapshotCommands = append(snapshotCommands, &command{
 		flagSet:   flagSet,
-		handler:   snapshotUploadHandler(flagSet, bucketName, credentialsPath, filterSQL, fileFilter),
+		handler:   snapshotUploadHandler(flagSet, bucketName, credentialsPath, filterSQL, fileArg),
 		usageFunc: func() { fmt.Fprint(flag.CommandLine.Output(), usage) },
 	})
 }
 
 // Handler function to keep init() succinct
-func snapshotUploadHandler(flagSet *flag.FlagSet, bucketName, credentialsPath *string, filterSQL *bool, fileFilter *string) func([]string) error {
+func snapshotUploadHandler(flagSet *flag.FlagSet, bucketName, credentialsPath *string, filterSQL *bool, fileArg *string) func([]string) error {
 	return func(args []string) error {
 		if err := flagSet.Parse(args); err != nil {
 			return err
 		}
 
 		// Validate and parse inputs into an uploadArgs-type object
-		uploadArgs, err := validateUploadInputs(*bucketName, *credentialsPath, *fileFilter, *filterSQL)
+		uploadArgs, err := validateUploadInputs(*bucketName, *credentialsPath, *fileArg, *filterSQL)
 		if err != nil {
 			return err
 		}
@@ -119,7 +119,7 @@ func snapshotUploadHandler(flagSet *flag.FlagSet, bucketName, credentialsPath *s
 }
 
 // Validate user inputs, and convert them to an object of type uploadArgs
-func validateUploadInputs(bucketName, credentialsPath, fileFilter string, filterSQL bool) (*uploadArgs, error) {
+func validateUploadInputs(bucketName, credentialsPath, fileArg string, filterSQL bool) (*uploadArgs, error) {
 	if bucketName == "" {
 		return nil, errors.New("-bucket required")
 	}
@@ -127,7 +127,7 @@ func validateUploadInputs(bucketName, credentialsPath, fileFilter string, filter
 		return nil, errors.New("-credentials required")
 	}
 
-	filesToUpload, err := parseFileFilter(fileFilter)
+	filesToUpload, err := parseFileArg(fileArg)
 	if err != nil {
 		return nil, err
 	}
@@ -141,17 +141,17 @@ func validateUploadInputs(bucketName, credentialsPath, fileFilter string, filter
 }
 
 // Parse the --file arg values, and return a list of strings of the files to upload
-func parseFileFilter(fileFilter string) ([]string, error) {
+func parseFileArg(fileArg string) ([]string, error) {
 
 	// Default: all files
-	if fileFilter == "" {
+	if fileArg == "" {
 		return listOfValidFiles, nil
 	}
 
 	var filesToUpload []string
 
 	// Parse comma-delimited list
-	for _, part := range strings.Split(fileFilter, ",") {
+	for _, part := range strings.Split(fileArg, ",") {
 
 		// Trim whitespace
 		filename := strings.TrimSpace(part)
