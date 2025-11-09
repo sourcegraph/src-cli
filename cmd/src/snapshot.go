@@ -25,7 +25,7 @@ The commands are:
 
 Use "src snapshot [command] -h" for more information about a command.
 
-	`
+`
 	flagSet := flag.NewFlagSet("snapshot", flag.ExitOnError)
 
 	commands = append(commands, &command{

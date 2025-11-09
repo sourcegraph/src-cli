@@ -67,11 +67,11 @@ Usage:
 
 Examples:
 
-	src snapshot upload -bucket=sourcegraph-cloud-data-migration-example-bucket -credentials=path/to/migration_private_key.json
+	src snapshot upload -bucket=example-bucket-name -credentials=path/to/migration_private_key.json
 
-	src snapshot upload -bucket=sourcegraph-cloud-data-migration-example-bucket -credentials=./migration_private_key.json -file=pgsql.sql
+	src snapshot upload -bucket=example-bucket-name -credentials=./migration_private_key.json -file=pgsql.sql
 
-	src snapshot upload -bucket=sourcegraph-cloud-data-migration-example-bucket -credentials=./migration_private_key.json -file="codeinsights.sql, codeintel.sql, pgsql.sql"
+	src snapshot upload -bucket=example-bucket-name -credentials=./migration_private_key.json -file="codeinsights.sql, codeintel.sql, pgsql.sql"
 
 Args:
 
@@ -95,10 +95,10 @@ Args:
 `, strings.Join(listOfValidFiles, ", "))
 
 	flagSet := flag.NewFlagSet("upload", flag.ExitOnError)
-	bucketName := flagSet.String("bucket", "", "destination Cloud Storage bucket name")
-	credentialsPath := flagSet.String("credentials", "", "JSON credentials file for Google Cloud service account")
-	fileArg := flagSet.String("file", strings.Join(listOfValidFiles, ","), "comma-delimited list of files to upload")
-	filterSQL := flagSet.Bool("filter-sql", true, "filter incompatible SQL statements from database dumps for import to Google Cloud SQL")
+	bucketName := flagSet.String("bucket", "", "Name of the Google Cloud Storage bucket provided by Sourcegraph")
+	credentialsPath := flagSet.String("credentials", "", "File path to the credentials file provided by Sourcegraph")
+	fileArg := flagSet.String("file", strings.Join(listOfValidFiles, ","), "Specify which files from the ./src-snapshot directory to upload")
+	filterSQL := flagSet.Bool("filter-sql", true, "Filter incompatible SQL statements from database snapshots which break the import into Google Cloud SQL")
 
 	// Register this command with the parent 'src snapshot' command.
 	// The parent snapshot.go command runs all registered subcommands via snapshotCommands.run().
