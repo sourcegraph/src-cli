@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"slices"
+	"strings"
 
 	"github.com/sourcegraph/src-cli/internal/cmderrors"
 )
@@ -44,16 +45,32 @@ type commander []*command
 
 // run runs the command.
 func (c commander) run(flagSet *flag.FlagSet, cmdName, usageText string, args []string) {
+
+	// Check if --help args are anywhere in the command; if yes, then
+	// remove it from the list of args at this point to avoid interrupting recursive function calls,
+	// and append it to the deepest command / subcommand
+	filteredArgs := make([]string, 0, len(args))
+	helpFlags := []string{"help", "h"}
+	helpRequested := false
+	for _, arg := range args {
+		trimmedArg := strings.TrimLeft(arg, "-")
+		if slices.Contains(helpFlags, trimmedArg) {
+			helpRequested = true
+		} else {
+			filteredArgs = append(filteredArgs, arg)
+		}
+	}
+
 	// Parse flags.
 	flagSet.Usage = func() {
 		_, _ = fmt.Fprint(flag.CommandLine.Output(), usageText)
 	}
 	if !flagSet.Parsed() {
-		_ = flagSet.Parse(args)
+		_ = flagSet.Parse(filteredArgs)
 	}
 
-	// Print usage if the command is "help".
-	if flagSet.Arg(0) == "help" || flagSet.NArg() == 0 {
+	// If no subcommands remain (or help requested with no subcommands), print usage.
+	if flagSet.NArg() == 0 {
 		flagSet.SetOutput(os.Stdout)
 		flagSet.Usage()
 		os.Exit(0)
@@ -62,10 +79,16 @@ func (c commander) run(flagSet *flag.FlagSet, cmdName, usageText string, args []
 	// Configure default usage funcs for commands.
 	for _, cmd := range c {
 		cmd := cmd
+
+		// If the command / subcommand has defined its own usageFunc, then use it
 		if cmd.usageFunc != nil {
 			cmd.flagSet.Usage = cmd.usageFunc
 			continue
 		}
+
+		// If the command / subcommand has not defined its own usageFunc,
+		// then generate a basic default usageFunc,
+		// using the command's defined flagSet and their defaults
 		cmd.flagSet.Usage = func() {
 			_, _ = fmt.Fprintf(flag.CommandLine.Output(), "Usage of '%s %s':\n", cmdName, cmd.flagSet.Name())
 			cmd.flagSet.PrintDefaults()
@@ -86,25 +109,18 @@ func (c commander) run(flagSet *flag.FlagSet, cmdName, usageText string, args []
 			log.Fatal("reading config: ", err)
 		}
 
-		// Print help to stdout if requested
-		if slices.IndexFunc(args, func(s string) bool {
-			return s == "--help"
-		}) >= 0 {
-			cmd.flagSet.SetOutput(os.Stdout)
-			flag.CommandLine.SetOutput(os.Stdout)
-			cmd.flagSet.Usage()
-			os.Exit(0)
-		}
-
-		// Parse subcommand flags.
+		// Get subcommand args, and re-add help flag if it was requested
 		args := flagSet.Args()[1:]
-		if err := cmd.flagSet.Parse(args); err != nil {
-			fmt.Printf("Error parsing subcommand flags: %s\n", err)
-			panic(fmt.Sprintf("all registered commands should use flag.ExitOnError: error: %s", err))
+		if helpRequested {
+			args = append(args, "-h")
 		}
 
-		// Execute the subcommand.
-		if err := cmd.handler(flagSet.Args()[1:]); err != nil {
+		// Set output to stdout for help (flag package defaults to stderr)
+		cmd.flagSet.SetOutput(os.Stdout)
+		flag.CommandLine.SetOutput(os.Stdout)
+
+		// Execute the subcommand
+		if err := cmd.handler(args); err != nil {
 			if _, ok := err.(*cmderrors.UsageError); ok {
 				log.Printf("error: %s\n\n", err)
 				cmd.flagSet.SetOutput(os.Stderr)
