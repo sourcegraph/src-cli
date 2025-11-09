@@ -6,7 +6,6 @@ import (
 	"log"
 	"os"
 	"slices"
-	"strings"
 
 	"github.com/sourcegraph/src-cli/internal/cmderrors"
 )
@@ -50,11 +49,18 @@ func (c commander) run(flagSet *flag.FlagSet, cmdName, usageText string, args []
 	// remove it from the list of args at this point to avoid interrupting recursive function calls,
 	// and append it to the deepest command / subcommand
 	filteredArgs := make([]string, 0, len(args))
-	helpFlags := []string{"help", "h"}
 	helpRequested := false
+
+	helpFlags := []string{
+		"--h",
+		"--help",
+		"-h",
+		"-help",
+		"help",
+	}
+
 	for _, arg := range args {
-		trimmedArg := strings.TrimLeft(arg, "-")
-		if slices.Contains(helpFlags, trimmedArg) {
+		if slices.Contains(helpFlags, arg) {
 			helpRequested = true
 		} else {
 			filteredArgs = append(filteredArgs, arg)
