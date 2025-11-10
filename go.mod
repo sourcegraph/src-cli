@@ -1,8 +1,6 @@
 module github.com/sourcegraph/src-cli
 
-go 1.24
-
-toolchain go1.24.1
+go 1.25
 
 require (
 	cloud.google.com/go/storage v1.30.1
@@ -19,7 +17,6 @@ require (
 	github.com/dustin/go-humanize v1.0.1
 	github.com/gobwas/glob v0.2.3
 	github.com/google/go-cmp v0.6.0
-	github.com/gorilla/websocket v1.5.3
 	github.com/grafana/regexp v0.0.0-20221123153739-15dc172cd2db
 	github.com/hexops/autogold v1.3.1
 	github.com/jedib0t/go-pretty/v6 v6.3.7
@@ -51,6 +48,7 @@ require (
 	github.com/fxamacker/cbor/v2 v2.7.0 // indirect
 	github.com/google/gnostic-models v0.6.8 // indirect
 	github.com/google/s2a-go v0.1.4 // indirect
+	github.com/gorilla/websocket v1.5.3 // indirect
 	github.com/jackc/chunkreader/v2 v2.0.1 // indirect
 	github.com/jackc/pgconn v1.14.3 // indirect
 	github.com/jackc/pgio v1.0.0 // indirect
