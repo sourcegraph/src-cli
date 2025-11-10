@@ -42,7 +42,7 @@ func (c *command) matches(name string) bool {
 // commander represents a top-level command with subcommands.
 type commander []*command
 
-// run runs the command.
+// Run the command
 func (c commander) run(flagSet *flag.FlagSet, cmdName, usageText string, args []string) {
 
 	// Check if --help args are anywhere in the command; if yes, then
@@ -67,22 +67,24 @@ func (c commander) run(flagSet *flag.FlagSet, cmdName, usageText string, args []
 		}
 	}
 
-	// Parse flags.
+	// Define the usage function from usageText
 	flagSet.Usage = func() {
 		_, _ = fmt.Fprint(flag.CommandLine.Output(), usageText)
 	}
+
+	// Parse the command's flags, if not already parsed
 	if !flagSet.Parsed() {
 		_ = flagSet.Parse(filteredArgs)
 	}
 
-	// If no subcommands remain (or help requested with no subcommands), print usage.
+	// If no subcommands remain (or help requested with no subcommands), print usage
 	if flagSet.NArg() == 0 {
 		flagSet.SetOutput(os.Stdout)
 		flagSet.Usage()
 		os.Exit(0)
 	}
 
-	// Configure default usage funcs for commands.
+	// Configure default usage funcs for all commands.
 	for _, cmd := range c {
 		cmd := cmd
 
@@ -101,32 +103,51 @@ func (c commander) run(flagSet *flag.FlagSet, cmdName, usageText string, args []
 		}
 	}
 
-	// Find the subcommand to execute.
+	// Find the subcommand to execute
+	// Assume the subcommand is the first arg in the flagSet
 	name := flagSet.Arg(0)
+
+	// Loop through the list of all registered subcommands
 	for _, cmd := range c {
+
+		// If the first arg is not this registered commmand in the loop, try the next registered command
 		if !cmd.matches(name) {
 			continue
 		}
+		// If the first arg is this registered commmand in the loop, then try and run it, then exit
 
-		// Read global configuration now.
+		// Read global configuration
 		var err error
 		cfg, err = readConfig()
 		if err != nil {
 			log.Fatal("reading config: ", err)
 		}
 
-		// Get subcommand args, and re-add help flag if it was requested
+		// Get the remaining args, to pass to the subcommand, as an unparsed array of previously parsed args
 		args := flagSet.Args()[1:]
-		if helpRequested {
-			args = append(args, "-h")
-		}
 
 		// Set output to stdout for help (flag package defaults to stderr)
 		cmd.flagSet.SetOutput(os.Stdout)
 		flag.CommandLine.SetOutput(os.Stdout)
 
+		// Note: We can't parse flags here because commanders need to pass unparsed args to subcommand handlers
+		// Each handler is responsible for parsing its own flags
+		// All commands must use `flagSet := flag.NewFlagSet("<name>", flag.ExitOnError)` to ensure usage helper text is printed automatically on arg parse errors
+		// Parse the subcommand's args, on its behalf, to test if flag.ExitOnError is not set
+		// if err := cmd.flagSet.Parse(args); err != nil {
+		// 	fmt.Printf("Error parsing subcommand flags: %s\n", err)
+		// 	panic(fmt.Sprintf("all registered commands should use flag.ExitOnError: error: %s", err))
+		// }
+
+		// If the --help arg was provided, re-add it here for the lowest command to parse and action
+		if helpRequested {
+			args = append(args, "-h")
+		}
+
 		// Execute the subcommand
 		if err := cmd.handler(args); err != nil {
+
+			// If the subcommand returns a UsageError, then print the error and usage helper text
 			if _, ok := err.(*cmderrors.UsageError); ok {
 				log.Printf("error: %s\n\n", err)
 				cmd.flagSet.SetOutput(os.Stderr)
@@ -134,6 +155,8 @@ func (c commander) run(flagSet *flag.FlagSet, cmdName, usageText string, args []
 				cmd.flagSet.Usage()
 				os.Exit(2)
 			}
+
+			// If the subcommand returns any other error, then print the error
 			if e, ok := err.(*cmderrors.ExitCodeError); ok {
 				if e.HasError() {
 					log.Println(e)
@@ -142,8 +165,12 @@ func (c commander) run(flagSet *flag.FlagSet, cmdName, usageText string, args []
 			}
 			log.Fatal(err)
 		}
+
+		// If no error was returned, then exit the application
 		os.Exit(0)
 	}
+
+	// If the first arg didn't match any registered commands, print errors and exit the application
 	log.Printf("%s: unknown subcommand %q", cmdName, name)
 	log.Fatalf("Run '%s help' for usage.", cmdName)
 }
