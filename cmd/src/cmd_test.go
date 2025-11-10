@@ -74,10 +74,10 @@ func TestCommand_Matches(t *testing.T) {
 
 func TestCommander_Run_ErrorHandling(t *testing.T) {
 	tests := []struct {
-		name          string
-		handlerError  error
-		expectedExit  int
-		description   string
+		name         string
+		handlerError error
+		expectedExit int
+		description  string
 	}{
 		{
 			name:         "usage error",
