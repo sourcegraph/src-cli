@@ -8,15 +8,23 @@ import (
 var snapshotCommands commander
 
 func init() {
-	usage := `'src snapshot' manages snapshots of Sourcegraph instance data. All subcommands are currently EXPERIMENTAL.
+	usage := `'src snapshot' manages snapshots of Sourcegraph instance databases. All subcommands are currently EXPERIMENTAL.
 
-USAGE
-	src [-v] snapshot <command>
+Usage:
 
-COMMANDS
+	src snapshot <command>
+
+The commands are:
+
+	databases export databases from a Sourcegraph instance
+	restore   restore databases from an export
+	upload    upload exported databases and summary file when migrating to Sourcegraph Cloud
 
 	summary   export summary data about an instance for acceptance testing of a restored Sourcegraph instance
 	test      use exported summary data and instance health indicators to validate a restored and upgraded instance
+
+Use "src snapshot [command] -h" for more information about a command.
+
 `
 	flagSet := flag.NewFlagSet("snapshot", flag.ExitOnError)
 
