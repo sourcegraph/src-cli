@@ -45,6 +45,9 @@ type commander []*command
 // Run the command
 func (c commander) run(flagSet *flag.FlagSet, cmdName, usageText string, args []string) {
 
+	// NOTE: This function is quite brittle
+	// Especially with printing helper text at all 3 different levels of depth
+
 	// Check if --help args are anywhere in the command
 	// If yes, then remove it from the list of args at this point,
 	// then append it to the deepest command / subcommand, later,
