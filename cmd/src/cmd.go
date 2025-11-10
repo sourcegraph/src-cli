@@ -93,10 +93,10 @@ func (c commander) run(flagSet *flag.FlagSet, cmdName, usageText string, args []
 		// If the first arg is this registered commmand in the loop, then try and run it, then exit
 
 		// Set up the usage function for this subcommand
-		// If the subcommand has a usageFunc defined, then use it
 		if cmd.usageFunc != nil {
+			// If the subcommand has a usageFunc defined, then use it
 			cmd.flagSet.Usage = cmd.usageFunc
-			} else {
+		} else {
 			// If the subcommand does not have a usageFunc defined,
 			// then define a simple default one,
 			// using the list of flags defined in the subcommand, and their description strings
@@ -163,7 +163,23 @@ func (c commander) run(flagSet *flag.FlagSet, cmdName, usageText string, args []
 		os.Exit(0)
 	}
 
-	// If the first arg didn't match any registered commands, print errors and exit the application
-	log.Printf("%s: unknown subcommand %q", cmdName, name)
-	log.Fatalf("Run '%s help' for usage.", cmdName)
+	// To make it after the big loop, that means name didn't match any registered commands
+	if name != "" {
+		log.Printf("%s: unknown command %q", cmdName, name)
+		flagSet.Usage()
+		os.Exit(2)
+	}
+
+	// Special case to handle --help usage text for src command
+	if helpRequested {
+		// Set output to stdout, for usage / helper text printed for the --help flag (flag package defaults to stderr)
+		flagSet.SetOutput(os.Stdout)
+		flagSet.Usage()
+		os.Exit(0)
+	}
+
+	// Special case to handle src command with no args
+	flagSet.Usage()
+	os.Exit(2)
+
 }
