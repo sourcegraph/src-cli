@@ -181,7 +181,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: 1.24.1
+          go-version: 1.25
       - name: Enable pulling Go modules from private sourcegraph/sourcegraph
         run: git config --global url."https://${PRIVATE_TOKEN}@github.com/sourcegraph/".insteadOf "https://github.com/sourcegraph/"
       - run: go test ./...
