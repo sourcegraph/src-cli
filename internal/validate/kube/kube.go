@@ -379,13 +379,14 @@ func CurrentContextSetTo(clusterService string) error {
 		return err
 	}
 
-	if clusterService == "gke" {
+	switch clusterService {
+	case "gke":
 		got := strings.Split(currentContext, "_")[0]
 		want := clusterService
 		if got != want {
 			return errors.New("no gke cluster configured")
 		}
-	} else if clusterService == "eks" {
+	case "eks":
 		got := strings.Split(currentContext, ":")
 		want := []string{"arn", "aws", clusterService}
 
