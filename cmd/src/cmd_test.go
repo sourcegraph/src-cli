@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"flag"
+	"fmt"
 	"os"
 	"os/exec"
 	"testing"
@@ -206,7 +207,60 @@ func TestCommander_Run_HelpFlag(t *testing.T) {
 }
 
 func TestCommander_Run_NestedHelpFlags(t *testing.T) {
-	t.Skip("Complex nested help flag testing requires integration with actual src commands")
+	if os.Getenv("TEST_SUBPROCESS") == "1" {
+		testHomeDir = os.Getenv("TEST_TEMP_DIR")
+
+		uploadFlagSet := flag.NewFlagSet("upload", flag.ExitOnError)
+		uploadCmd := &command{
+			flagSet: uploadFlagSet,
+			handler: func(args []string) error { return nil },
+			usageFunc: func() {
+				fmt.Fprint(flag.CommandLine.Output(), "upload usage text")
+			},
+		}
+
+		snapshotCommands := commander{uploadCmd}
+
+		snapshotFlagSet := flag.NewFlagSet("snapshot", flag.ExitOnError)
+		snapshotCmd := &command{
+			flagSet: snapshotFlagSet,
+			handler: func(args []string) error {
+				snapshotCommands.run(snapshotFlagSet, "src snapshot", "snapshot usage text", args)
+				return nil
+			},
+			usageFunc: func() {
+				fmt.Fprint(flag.CommandLine.Output(), "snapshot usage text")
+			},
+		}
+
+		cmdr := commander{snapshotCmd}
+		flagSet := flag.NewFlagSet("test", flag.ExitOnError)
+		args := []string{"snapshot", "upload", "--h"}
+		cmdr.run(flagSet, "src", "root usage", args)
+		return
+	}
+
+	tempDir := t.TempDir()
+	cmd := exec.Command(os.Args[0], "-test.run=^TestCommander_Run_NestedHelpFlags$")
+	cmd.Env = append(os.Environ(), "TEST_SUBPROCESS=1", "TEST_TEMP_DIR="+tempDir)
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	err := cmd.Run()
+
+	output := stdout.String() + stderr.String()
+
+	if err != nil {
+		t.Errorf("expected success, got error: %v\noutput: %s", err, output)
+	}
+
+	if !bytes.Contains([]byte(output), []byte("upload usage text")) {
+		t.Errorf("expected output to contain 'upload usage text', got:\n%s", output)
+	}
+
+	if bytes.Contains([]byte(output), []byte("snapshot usage text")) {
+		t.Errorf("expected output NOT to contain 'snapshot usage text', got:\n%s", output)
+	}
 }
 
 func TestCommander_Run_InvalidSubcommand(t *testing.T) {
