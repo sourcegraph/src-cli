@@ -400,7 +400,7 @@ func CurrentContextSetTo(clusterService string) error {
 				return errors.New("no eks cluster configured")
 			}
 		}
-	} else if clusterService == "aks" {
+	case "aks":
 		colons := strings.Split(currentContext, ":")      // aws string
 		underscores := strings.Split(currentContext, "_") // gke string
 

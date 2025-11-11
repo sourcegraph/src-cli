@@ -20,7 +20,7 @@ var cacheRepo1 = batcheslib.Repository{
 	FileMatches: []string{"README.md", "main.go"},
 }
 
-var cacheRepo2 = batches.Repository{
+var cacheRepo2 = batcheslib.Repository{
 	ID:          "sourcegraph",
 	Name:        "github.com/sourcegraph/sourcegraph",
 	BaseRef:     "refs/heads/main-2",
