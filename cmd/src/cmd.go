@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"slices"
 
 	"github.com/sourcegraph/src-cli/internal/cmderrors"
 )
@@ -84,16 +83,6 @@ func (c commander) run(flagSet *flag.FlagSet, cmdName, usageText string, args []
 		cfg, err = readConfig()
 		if err != nil {
 			log.Fatal("reading config: ", err)
-		}
-
-		// Print help to stdout if requested
-		if slices.IndexFunc(args, func(s string) bool {
-			return s == "--help"
-		}) >= 0 {
-			cmd.flagSet.SetOutput(os.Stdout)
-			flag.CommandLine.SetOutput(os.Stdout)
-			cmd.flagSet.Usage()
-			os.Exit(0)
 		}
 
 		// Parse subcommand flags.

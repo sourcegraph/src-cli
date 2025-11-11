@@ -17,9 +17,9 @@ jobs:
         with:
           fetch-depth: 0
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@faf52423ec0d44c58f68e83b614bfcd99dded66f
         with:
-          go-version: '1.25'
+          go-version-file: '.tool-versions'
       - name: Enable pulling Go modules from private sourcegraph/sourcegraph
         run: git config --global url."https://${PRIVATE_TOKEN}@github.com/sourcegraph/".insteadOf "https://github.com/sourcegraph/"
       - name: Check GoReleaser config
