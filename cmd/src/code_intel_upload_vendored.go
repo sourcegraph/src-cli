@@ -479,8 +479,8 @@ func makeUploadURL(opts uploadRequestOptions) (*url.URL, error) {
 	if opts.IndexerVersion != "" {
 		qs.Add("indexerVersion", opts.IndexerVersion)
 	}
-	if opts.AssociatedIndexID != nil {
-		qs.Add("associatedIndexId", formatInt(*opts.AssociatedIndexID))
+	if opts.UploadRecordOptions.AssociatedIndexID != nil {
+		qs.Add("associatedIndexId", formatInt(*opts.UploadRecordOptions.AssociatedIndexID))
 	}
 	if opts.MultiPart {
 		qs.Add("multiPart", "true")
