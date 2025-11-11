@@ -45,6 +45,7 @@ linters:
       checks:
         - all
         - -QF1001 # De Morgan's law simplifications
+        - -QF1008 # Embedded field selector simplifications
         - -ST1003 # Naming conventions (ID vs Id, URL vs Url, etc.)
   exclusions:
     generated: lax
