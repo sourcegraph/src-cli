@@ -12,7 +12,7 @@ func CheckVersion(ctx context.Context) error {
 	_, err := executeFastCommand(ctx, "version")
 	if err != nil {
 		return fmt.Errorf(
-			"failed to execute \"docker version\":\n\t%s\n\n'src batch' requires \"docker\" to be available.",
+			"failed to execute \"docker version\":\n\t%s\n\n'src batch' requires \"docker\" to be available",
 			err,
 		)
 	}
