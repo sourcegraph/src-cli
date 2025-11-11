@@ -6,14 +6,13 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 
-	"github.com/sourcegraph/sourcegraph/lib/batches"
 	batcheslib "github.com/sourcegraph/sourcegraph/lib/batches"
 	"github.com/sourcegraph/sourcegraph/lib/batches/execution"
 	"github.com/sourcegraph/sourcegraph/lib/batches/execution/cache"
 	"github.com/sourcegraph/sourcegraph/lib/batches/git"
 )
 
-var cacheRepo1 = batches.Repository{
+var cacheRepo1 = batcheslib.Repository{
 	ID:          "src-cli",
 	Name:        "github.com/sourcegraph/src-cli",
 	BaseRef:     "refs/heads/main",
