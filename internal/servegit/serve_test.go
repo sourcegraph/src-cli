@@ -201,6 +201,6 @@ type testWriter struct {
 }
 
 func (tw testWriter) Write(p []byte) (n int, err error) {
-	tw.T.Log(string(p))
+	tw.Log(string(p))
 	return len(p), nil
 }

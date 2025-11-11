@@ -162,8 +162,8 @@ func TestValidateServiceAccount(t *testing.T) {
 		{
 			name: "should pass if 'ebs-csi-controller-sa' present on cluster",
 			sa: func(sa *corev1.ServiceAccount) {
-				sa.ObjectMeta.Name = "ebs-csi-controller-sa"
-				sa.ObjectMeta.Namespace = "kube-system"
+				sa.Name = "ebs-csi-controller-sa"
+				sa.Namespace = "kube-system"
 			},
 			result: []validate.Result{
 				{
