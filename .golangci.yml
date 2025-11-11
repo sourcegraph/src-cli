@@ -44,8 +44,8 @@ linters:
     staticcheck:
       checks:
         - all
-        - -QF1001
-        - -ST1003
+        - -QF1001 # De Morgan's law simplifications
+        - -ST1003 # Naming conventions (ID vs Id, URL vs Url, etc.)
   exclusions:
     generated: lax
     presets:
