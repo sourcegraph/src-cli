@@ -54,12 +54,12 @@ func applyProxy(transport *http.Transport, proxyURL *url.URL, proxyPath string) 
 		transport.Proxy = nil
 		proxyApplied = true
 	} else if proxyURL != nil {
-		if proxyURL.Scheme == "socks5" ||
-			proxyURL.Scheme == "socks5h" {
+		switch proxyURL.Scheme {
+		case "socks5", "socks5h":
 			// SOCKS proxies work out of the box - no need to manually dial
 			transport.Proxy = http.ProxyURL(proxyURL)
 			proxyApplied = true
-		} else if proxyURL.Scheme == "http" || proxyURL.Scheme == "https" {
+		case "http", "https":
 			dial := func(ctx context.Context, network, addr string) (net.Conn, error) {
 				// Dial the proxy
 				d := net.Dialer{}

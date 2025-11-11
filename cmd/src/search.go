@@ -457,9 +457,10 @@ func applyHighlightsForFile(fileContent string, highlights []highlight) string {
 	for _, highlight := range highlights {
 		line := lines[highlight.line]
 		for characterIndex, character := range []rune(line + "\n") {
-			if characterIndex == highlight.character {
+			switch characterIndex {
+			case highlight.character:
 				result = append(result, []rune(start)...)
-			} else if characterIndex == highlight.character+highlight.length {
+			case highlight.character + highlight.length:
 				result = append(result, []rune(end)...)
 			}
 			result = append(result, character)
@@ -478,9 +479,10 @@ func applyHighlights(input string, highlights []highlight, start, end string) st
 		for characterIndex, character := range []rune(line + "\n") {
 			for _, highlight := range highlights {
 				if highlight.line == lineNumber {
-					if characterIndex == highlight.character {
+					switch characterIndex {
+					case highlight.character:
 						result = append(result, []rune(start)...)
-					} else if characterIndex == highlight.character+highlight.length {
+					case highlight.character + highlight.length:
 						result = append(result, []rune(end)...)
 					}
 				}

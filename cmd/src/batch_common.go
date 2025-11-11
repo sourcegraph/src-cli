@@ -632,7 +632,7 @@ func getBatchSpecDirectory(file string) (string, error) {
 func checkExecutable(cmd string, args ...string) error {
 	if err := exec.Command(cmd, args...).Run(); err != nil {
 		return fmt.Errorf(
-			"failed to execute \"%s %s\":\n\t%s\n\n'src batch' requires %q to be available.",
+			"failed to execute \"%s %s\":\n\t%s\n\n'src batch' requires %q to be available",
 			cmd,
 			strings.Join(args, " "),
 			err,
