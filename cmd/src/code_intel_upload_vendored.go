@@ -458,8 +458,8 @@ func decodeUploadPayload(resp *http.Response, body []byte, target *int) (bool, e
 func makeUploadURL(opts uploadRequestOptions) (*url.URL, error) {
 	qs := url.Values{}
 
-	if opts.GitHubToken != "" {
-		qs.Add("github_token", opts.GitHubToken)
+	if opts.SourcegraphInstanceOptions.GitHubToken != "" {
+		qs.Add("github_token", opts.SourcegraphInstanceOptions.GitHubToken)
 	}
 	if opts.GitLabToken != "" {
 		qs.Add("gitlab_token", opts.GitLabToken)
@@ -471,13 +471,13 @@ func makeUploadURL(opts uploadRequestOptions) (*url.URL, error) {
 		qs.Add("commit", opts.Commit)
 	}
 	if opts.Root != "" {
-		qs.Add("root", opts.Root)
+		qs.Add("root", opts.UploadRecordOptions.Root)
 	}
-	if opts.Indexer != "" {
-		qs.Add("indexerName", opts.Indexer)
+	if opts.UploadRecordOptions.Indexer != "" {
+		qs.Add("indexerName", opts.UploadRecordOptions.Indexer)
 	}
-	if opts.IndexerVersion != "" {
-		qs.Add("indexerVersion", opts.IndexerVersion)
+	if opts.UploadRecordOptions.IndexerVersion != "" {
+		qs.Add("indexerVersion", opts.UploadRecordOptions.IndexerVersion)
 	}
 	if opts.UploadRecordOptions.AssociatedIndexID != nil {
 		qs.Add("associatedIndexId", formatInt(*opts.UploadRecordOptions.AssociatedIndexID))
@@ -499,12 +499,12 @@ func makeUploadURL(opts uploadRequestOptions) (*url.URL, error) {
 		qs.Add("done", "true")
 	}
 
-	path := opts.Path
+	path := opts.SourcegraphInstanceOptions.Path
 	if path == "" {
 		path = "/.api/scip/upload"
 	}
 
-	parsedUrl, err := url.Parse(opts.SourcegraphURL + path)
+	parsedUrl, err := url.Parse(opts.SourcegraphInstanceOptions.SourcegraphURL + path)
 	if err != nil {
 		return nil, err
 	}
