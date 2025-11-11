@@ -41,6 +41,11 @@ linters:
     govet:
       disable:
         - composites
+    staticcheck:
+      checks:
+        - all
+        - -QF1001
+        - -ST1003
   exclusions:
     generated: lax
     presets:
