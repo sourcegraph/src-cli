@@ -17,7 +17,7 @@ jobs:
         with:
           fetch-depth: 0
       - name: Set up Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@faf52423ec0d44c58f68e83b614bfcd99dded66f
         with:
           go-version-file: '.tool-versions'
       - name: Enable pulling Go modules from private sourcegraph/sourcegraph
