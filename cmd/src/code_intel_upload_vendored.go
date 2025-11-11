@@ -355,7 +355,7 @@ func performUploadRequest(ctx context.Context, httpClient upload.Client, opts up
 
 	// body closed as part of performRequest
 	//nolint:bodyclose
-	resp, body, err := performRequest(ctx, req, httpClient, opts.Logger)
+	resp, body, err := performRequest(ctx, req, httpClient, opts.OutputOptions.Logger)
 	if err != nil {
 		return false, err
 	}
@@ -377,11 +377,11 @@ func makeUploadRequest(opts uploadRequestOptions) (*http.Request, error) {
 	if opts.UncompressedSize != 0 {
 		req.Header.Set("X-Uncompressed-Size", strconv.Itoa(int(opts.UncompressedSize)))
 	}
-	if opts.AccessToken != "" {
-		req.Header.Set("Authorization", fmt.Sprintf("token %s", opts.AccessToken))
+	if opts.SourcegraphInstanceOptions.AccessToken != "" {
+		req.Header.Set("Authorization", fmt.Sprintf("token %s", opts.SourcegraphInstanceOptions.AccessToken))
 	}
 
-	for k, v := range opts.AdditionalHeaders {
+	for k, v := range opts.SourcegraphInstanceOptions.AdditionalHeaders {
 		req.Header.Set(k, v)
 	}
 
@@ -461,16 +461,16 @@ func makeUploadURL(opts uploadRequestOptions) (*url.URL, error) {
 	if opts.SourcegraphInstanceOptions.GitHubToken != "" {
 		qs.Add("github_token", opts.SourcegraphInstanceOptions.GitHubToken)
 	}
-	if opts.GitLabToken != "" {
-		qs.Add("gitlab_token", opts.GitLabToken)
+	if opts.SourcegraphInstanceOptions.GitLabToken != "" {
+		qs.Add("gitlab_token", opts.SourcegraphInstanceOptions.GitLabToken)
 	}
-	if opts.Repo != "" {
-		qs.Add("repository", opts.Repo)
+	if opts.UploadRecordOptions.Repo != "" {
+		qs.Add("repository", opts.UploadRecordOptions.Repo)
 	}
-	if opts.Commit != "" {
-		qs.Add("commit", opts.Commit)
+	if opts.UploadRecordOptions.Commit != "" {
+		qs.Add("commit", opts.UploadRecordOptions.Commit)
 	}
-	if opts.Root != "" {
+	if opts.UploadRecordOptions.Root != "" {
 		qs.Add("root", opts.UploadRecordOptions.Root)
 	}
 	if opts.UploadRecordOptions.Indexer != "" {

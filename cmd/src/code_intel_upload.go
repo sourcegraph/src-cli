@@ -89,7 +89,7 @@ func handleCodeIntelUpload(args []string) error {
 		uploadID, err = UploadUncompressedIndex(ctx, codeintelUploadFlags.file, client, uploadOptions)
 	}
 	if err != nil {
-		return handleUploadError(uploadOptions.AccessToken, err)
+		return handleUploadError(uploadOptions.SourcegraphInstanceOptions.AccessToken, err)
 	}
 
 	uploadURL, err := makeCodeIntelUploadURL(uploadID)
