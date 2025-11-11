@@ -12,9 +12,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
-          go-version: 1.25
+          go-version-file: '.tool-versions'
 
       - name: Set directory to safe for git
         run: git config --global --add safe.directory $GITHUB_WORKSPACE
