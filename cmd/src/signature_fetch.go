@@ -174,7 +174,7 @@ func (c cosignConfig) verifySignatureForImageHash(image string, hash string) err
 
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("Signature verification failed: %w\nOutput: %s", err, output)
+		return fmt.Errorf("signature verification failed: %w\nOutput: %s", err, output)
 	}
 
 	return nil

@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/sourcegraph/sourcegraph/lib/errors"
@@ -89,7 +90,21 @@ func main() {
 	log.SetFlags(0)
 	log.SetPrefix("")
 
-	commands.run(flag.CommandLine, "src", usageText, os.Args[1:])
+	commands.run(flag.CommandLine, "src", usageText, normalizeDashHelp(os.Args[1:]))
+}
+
+// normalizeDashHelp converts --help to -help since Go's flag parser only supports single dash.
+func normalizeDashHelp(args []string) []string {
+	args = slices.Clone(args)
+	for i, arg := range args {
+		if arg == "--" {
+			break
+		}
+		if arg == "--help" {
+			args[i] = "-help"
+		}
+	}
+	return args
 }
 
 var cfg *config

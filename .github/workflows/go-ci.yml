@@ -11,16 +11,15 @@ jobs:
   go-test:
     strategy:
       matrix:
-        go-version: [1.24.1]
         os: [ubuntu-latest, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@faf52423ec0d44c58f68e83b614bfcd99dded66f
         with:
-          go-version: ${{ matrix.go-version }}
+          go-version-file: '.tool-versions'
       - name: (Windows) Enable pulling Go modules from private sourcegraph/sourcegraph
         if: runner.os == 'Windows'
         run: git config --global url."https://$env:PRIVATE_TOKEN@github.com/sourcegraph/".insteadOf "https://github.com/sourcegraph/"

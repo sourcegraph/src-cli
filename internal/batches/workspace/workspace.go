@@ -56,11 +56,12 @@ const (
 
 func NewCreator(ctx context.Context, preference, cacheDir, tempDir string, images map[string]docker.Image) (Creator, CreatorType) {
 	var workspaceType CreatorType
-	if preference == "volume" {
+	switch preference {
+	case "volume":
 		workspaceType = CreatorTypeVolume
-	} else if preference == "bind" {
+	case "bind":
 		workspaceType = CreatorTypeBind
-	} else {
+	default:
 		workspaceType = BestCreatorType(ctx, images)
 	}
 

@@ -236,8 +236,7 @@ func (r *request) do(ctx context.Context, result interface{}) (bool, error) {
 
 	// Check trace header before we potentially early exit
 	if *r.client.opts.Flags.trace {
-		_, err := r.client.opts.Out.Write([]byte(fmt.Sprintf("x-trace: %s\n", resp.Header.Get("x-trace"))))
-		if err != nil {
+		if _, err := fmt.Fprintf(r.client.opts.Out, "x-trace: %s\n", resp.Header.Get("x-trace")); err != nil {
 			return false, err
 		}
 	}
