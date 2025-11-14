@@ -16,7 +16,6 @@ import (
 	"time"
 
 	"github.com/sourcegraph/sourcegraph/lib/errors"
-	"github.com/sourcegraph/sourcegraph/lib/gitservice"
 )
 
 type Serve struct {
@@ -102,9 +101,9 @@ func (s *Serve) handler() http.Handler {
 	})
 
 	fs := http.FileServer(http.Dir(s.Root))
-	svc := &gitservice.Handler{
-		Dir: func(name string) string {
-			return filepath.Join(s.Root, filepath.FromSlash(name))
+	svc := &Handler{
+		Dir: func(_ context.Context, name string) (string, error) {
+			return filepath.Join(s.Root, filepath.FromSlash(name)), nil
 		},
 		ErrorHook: func(err error, stderr string) {
 			s.Info.Printf("git-service error: %s\nstderr:\n%s", err.Error(), stderr)
