@@ -2,6 +2,7 @@ package main
 
 import (
 	"compress/gzip"
+	"context"
 	"flag"
 	"fmt"
 	"io"
@@ -330,13 +331,14 @@ func readIndexerNameAndVersion(indexFile string) (string, string, error) {
 	var metadata *scip.Metadata
 
 	visitor := scip.IndexVisitor{
-		VisitMetadata: func(m *scip.Metadata) {
+		VisitMetadata: func(ctx context.Context, m *scip.Metadata) error {
 			metadata = m
+			return nil
 		},
 	}
 
 	// convert file to io.Reader
-	if err := visitor.ParseStreaming(indexReader); err != nil {
+	if err := visitor.ParseStreaming(context.Background(), indexReader); err != nil {
 		return "", "", err
 	}
 
