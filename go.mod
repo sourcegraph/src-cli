@@ -29,6 +29,7 @@ require (
 	github.com/sourcegraph/scip v0.6.1
 	github.com/sourcegraph/sourcegraph/lib v0.0.0-20240709083501-1af563b61442
 	github.com/stretchr/testify v1.11.1
+	github.com/urfave/cli/v3 v3.6.1
 	golang.org/x/net v0.44.0
 	golang.org/x/sync v0.17.0
 	google.golang.org/api v0.132.0
