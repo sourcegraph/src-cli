@@ -11,10 +11,13 @@ jobs:
     container: sourcegraph/scip-go
     steps:
       - uses: actions/checkout@v4
-      - name: Set up mise
-        uses: jdx/mise-action@v2
+      - name: Get Go version from mise
+        id: mise
+        run: echo "go-version=$(grep 'golang' mise.toml | cut -d'"' -f2)" >> $GITHUB_OUTPUT
+      - name: Set up Go
+        uses: actions/setup-go@v6
         with:
-          cache: true
+          go-version: ${{ steps.mise.outputs.go-version }}
 
       - name: Set directory to safe for git
         run: git config --global --add safe.directory $GITHUB_WORKSPACE
