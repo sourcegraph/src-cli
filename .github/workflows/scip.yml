@@ -11,10 +11,10 @@ jobs:
     container: sourcegraph/scip-go
     steps:
       - uses: actions/checkout@v4
-      - name: Set up Go
-        uses: actions/setup-go@v6.1.0
+      - name: Set up mise
+        uses: jdx/mise-action@v2
         with:
-          go-version-file: '.tool-versions'
+          cache: true
 
       - name: Set directory to safe for git
         run: git config --global --add safe.directory $GITHUB_WORKSPACE

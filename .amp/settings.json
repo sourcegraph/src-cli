@@ -1,0 +1,19 @@
+{
+  "amp.experimental.fuzzySearch.enabled": true,
+  "amp.experimental.planMode": true,
+  "amp.experimental.tools": ["codemod"],
+  "amp.mcpServers": {
+    "s2": {
+      "command": "npx",
+      "args": [
+        "mcp-remote",
+        "https://sourcegraph.sourcegraph.com/.api/mcp/v1",
+        "3334",
+        "--static-oauth-client-info",
+        "{\"client_id\":\"sgo_cid_019aa0a8-a62d-74e6-92bd-30fe0ff1d4d4\"}",
+        "--static-oauth-client-metadata",
+        "{\"scope\":\"user:all\"}"
+      ]
+    }
+  }
+}
