@@ -13,8 +13,6 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/urfave/cli/v3"
-
 	"github.com/sourcegraph/sourcegraph/lib/errors"
 
 	"github.com/sourcegraph/src-cli/internal/api"
@@ -66,6 +64,7 @@ The commands are:
 	search          search for results on Sourcegraph
 	search-jobs     manages search jobs
 	serve-git       serves your local git repositories over HTTP for Sourcegraph to pull
+	tool            exposes tools for AI agents to interact with Sourcegraph
 	users,user      manages users
 	codeowners      manages code ownership information
 	version         display and compare the src-cli version against the recommended version for your instance
@@ -88,56 +87,19 @@ var (
 // commands contains all registered subcommands.
 var commands commander
 
-var mainCmd = &cli.Command{
-	Name:      "src",
-	Aliases:   []string{},
-	Usage:     "Sourcegraph CLI tool",
-	ArgsUsage: "command [options]",
-	Version:   "dev",
-	Description: `src is a tool that provides access to Sourcegraph instances.
-For more information, see https://github.com/sourcegraph/src-cli`,
-	DefaultCommand: "old",
-	Category:       "",
-	Commands: []*cli.Command{
-		oldSrcCmd,
-	},
-	Flags:                    []cli.Flag{},
-	InvalidFlagAccessHandler: nil,
-	Hidden:                   false,
-	Authors:                  []any{},
-	Copyright:                "Sourcegraph, Inc.",
-	HideVersion:              false,
-}
-
-// oldSrcCmd is a temporary command that just runs the old cli.
-//
-// Any top level flags like --help / -v will be capture by urfave parser
-var oldSrcCmd = &cli.Command{
-	Name:        "old",
-	Description: "run the old src command line parser",
-	Hidden:      true,
-	HideHelp:    true,
-	Action: func(ctx context.Context, c *cli.Command) error {
-		oldRun()
-		return nil
-	},
-}
-
 func main() {
 	// Configure logging.
 	log.SetFlags(0)
 	log.SetPrefix("")
 
-	if os.Getenv("SRC_INTERNAL_CLIFLAGS_V2") == "1" {
-		if err := mainCmd.Run(context.Background(), os.Args); err != nil {
+	// "tool" does not use the legacy commander cli framework and uses urfave/cli v3 instead
+	if len(os.Args) >= 2 && os.Args[1] == "tool" {
+		if err := toolCmd.Run(context.Background(), os.Args[1:]); err != nil {
 			log.Fatal(err)
 		}
-	} else {
-		oldRun()
+		return
 	}
-}
 
-func oldRun() {
 	commands.run(flag.CommandLine, "src", usageText, normalizeDashHelp(os.Args[1:]))
 }
 
