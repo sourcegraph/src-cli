@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"flag"
 	"io"
@@ -63,6 +64,7 @@ The commands are:
 	search          search for results on Sourcegraph
 	search-jobs     manages search jobs
 	serve-git       serves your local git repositories over HTTP for Sourcegraph to pull
+	tool            exposes tools for AI agents to interact with Sourcegraph (EXPERIMENTAL)
 	users,user      manages users
 	codeowners      manages code ownership information
 	version         display and compare the src-cli version against the recommended version for your instance
@@ -89,6 +91,14 @@ func main() {
 	// Configure logging.
 	log.SetFlags(0)
 	log.SetPrefix("")
+
+	// "tool" does not use the legacy commander cli framework and uses urfave/cli v3 instead
+	if len(os.Args) >= 2 && os.Args[1] == "tool" {
+		if err := toolCmd.Run(context.Background(), os.Args[1:]); err != nil {
+			log.Fatal(err)
+		}
+		return
+	}
 
 	commands.run(flag.CommandLine, "src", usageText, normalizeDashHelp(os.Args[1:]))
 }
