@@ -11,7 +11,26 @@ jobs:
   go-test:
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Go
+        uses: actions/setup-go@v6.1.0
+        with:
+          go-version-file: '.tool-versions'
+      - name: Enable pulling Go modules from private sourcegraph/sourcegraph
+        run: git config --global url."https://${PRIVATE_TOKEN}@github.com/sourcegraph/".insteadOf "https://github.com/sourcegraph/"
+      - run: |
+          go test -race -v ./...
+          go test -v ./...
+
+  go-test-macos-windows:
+    if: github.ref == 'refs/heads/main'
+    strategy:
+      matrix:
+        os: [macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
@@ -34,13 +53,17 @@ jobs:
   # It will only pass if all Go CI matrix tests above pass
   go-test-complete:
     runs-on: ubuntu-latest
-    needs: go-test
+    needs: [go-test, go-test-macos-windows]
     if: always()
     steps:
       - name: Check Go CI results
         run: |
           if [[ "${{ needs.go-test.result }}" != "success" ]]; then
-            echo "One or more Go CI tests failed"
+            echo "Go tests failed"
+            exit 1
+          fi
+          if [[ "${{ needs.go-test-macos-windows.result }}" != "success" && "${{ needs.go-test-macos-windows.result }}" != "skipped" ]]; then
+            echo "macOS/Windows tests failed"
             exit 1
           fi
           echo "All Go CI tests passed"
