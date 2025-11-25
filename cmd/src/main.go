@@ -64,7 +64,7 @@ The commands are:
 	search          search for results on Sourcegraph
 	search-jobs     manages search jobs
 	serve-git       serves your local git repositories over HTTP for Sourcegraph to pull
-	tool            exposes tools for AI agents to interact with Sourcegraph
+	tool            exposes tools for AI agents to interact with Sourcegraph (EXPERIMENTAL)
 	users,user      manages users
 	codeowners      manages code ownership information
 	version         display and compare the src-cli version against the recommended version for your instance
