@@ -16,10 +16,10 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Set up Go
-        uses: actions/setup-go@v6.1.0
+      - name: Set up mise
+        uses: jdx/mise-action@v2
         with:
-          go-version-file: '.tool-versions'
+          cache: true
       - name: (Windows) Enable pulling Go modules from private sourcegraph/sourcegraph
         if: runner.os == 'Windows'
         run: git config --global url."https://$env:PRIVATE_TOKEN@github.com/sourcegraph/".insteadOf "https://github.com/sourcegraph/"
