@@ -1,0 +1,4 @@
+[tools]
+golang = "1.25.4"
+shfmt = "3.8.0"
+shellcheck = "0.10.0"
