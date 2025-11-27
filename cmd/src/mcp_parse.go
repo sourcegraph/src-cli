@@ -5,6 +5,7 @@ import (
 	_ "embed"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/sourcegraph/sourcegraph/lib/errors"
 )
@@ -143,6 +144,12 @@ func (p *Parser) parseProperties(props map[string]json.RawMessage) map[string]Sc
 	return res
 }
 
+// normalizeToolName takes mcp tool names like 'sg_keyword_search' and normalizes it to 'keyword-search"
+func normalizeToolName(toolName string) string {
+	toolName, _ = strings.CutPrefix(toolName, "sg_")
+	return strings.ReplaceAll(toolName, "_", "-")
+}
+
 func LoadMCPToolDefinitions(data []byte) (map[string]*MCPToolDef, error) {
 	defs := struct {
 		Tools []struct {
@@ -154,7 +161,6 @@ func LoadMCPToolDefinitions(data []byte) (map[string]*MCPToolDef, error) {
 	}{}
 
 	if err := json.Unmarshal(data, &defs); err != nil {
-		// TODO: think we should panic instead
 		return nil, err
 	}
 
@@ -162,7 +168,8 @@ func LoadMCPToolDefinitions(data []byte) (map[string]*MCPToolDef, error) {
 	parser := &Parser{}
 
 	for _, t := range defs.Tools {
-		tools[t.Name] = &MCPToolDef{
+		name := normalizeToolName(t.Name)
+		tools[name] = &MCPToolDef{
 			Name:         t.Name,
 			Description:  t.Description,
 			InputSchema:  parser.parseRootSchema(t.InputSchema),
