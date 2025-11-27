@@ -55,9 +55,9 @@ type SchemaObject struct {
 func (s SchemaObject) Type() string { return s.Kind }
 
 type SchemaArray struct {
-	Kind        string        `json:"type"`
-	Description string        `json:"description"`
-	Items       []SchemaValue `json:"items"`
+	Kind        string      `json:"type"`
+	Description string      `json:"description"`
+	Items       SchemaValue `json:"items,omitempty"`
 }
 
 func (s SchemaArray) Type() string { return s.Kind }
@@ -101,13 +101,19 @@ func (p *Parser) parseSchema(r *RawSchema) SchemaValue {
 			Properties:           p.parseProperties(r.Properties),
 		}
 	case "array":
-		var items []SchemaValue
+		var items SchemaValue
 		if len(r.Items) > 0 {
-			var itemRaw RawSchema
-			if err := json.Unmarshal(r.Items, &itemRaw); err == nil {
-				items = append(items, p.parseSchema(&itemRaw))
+			var boolItems bool
+			if err := json.Unmarshal(r.Items, &boolItems); err == nil {
+				// Sometimes items is defined as "items: true", so we handle it here and
+				// consider it "empty" array
 			} else {
-				p.errors = append(p.errors, fmt.Errorf("failed to unmarshal array items: %w", err))
+				var itemRaw RawSchema
+				if err := json.Unmarshal(r.Items, &itemRaw); err == nil {
+					items = p.parseSchema(&itemRaw)
+				} else {
+					p.errors = append(p.errors, fmt.Errorf("failed to unmarshal array items: %w", err))
+				}
 			}
 		}
 		return &SchemaArray{
