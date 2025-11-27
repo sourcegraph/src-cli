@@ -38,7 +38,7 @@ func parseAdditionalHeadersFromEnviron(environ []string) map[string]string {
 
 			for _, h := range splitHeaders {
 				p := strings.SplitN(h, ":", 2)
-				if len(parts) != 2 || p[1] == "" {
+				if len(p) != 2 || p[1] == "" {
 					continue
 				}
 
