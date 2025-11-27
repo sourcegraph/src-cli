@@ -13,10 +13,15 @@ import (
 var mcpToolListJSON []byte
 
 type ToolDef struct {
-	Name         string `json:"name"`
+	RawName      string `json:"name"`
 	Description  string `json:"description"`
 	InputSchema  Schema `json:"inputSchema"`
 	OutputSchema Schema `json:"outputSchema"`
+}
+
+func (m *ToolDef) Name() string {
+	name, _ := strings.CutPrefix(m.RawName, "sg_")
+	return strings.ReplaceAll(name, "_", "-")
 }
 
 type RawSchema struct {
@@ -98,6 +103,10 @@ func loadToolDefinitions(data []byte) (map[string]*ToolDef, error) {
 		}
 	}
 
+	// make it so that can find a tool definition by it's original name (RawName) and normalized name (Name())
+	tools[def.RawName] = def
+	tools[def.Name()] = def
+
 	if len(decoder.errors) > 0 {
 		return tools, errors.Append(nil, decoder.errors...)
 	}
@@ -168,10 +177,4 @@ func (d *decoder) decodeProperties(props map[string]json.RawMessage) map[string]
 		res[name] = d.decodeSchema(&r)
 	}
 	return res
-}
-
-// normalizeToolName takes mcp tool names like 'sg_keyword_search' and normalizes it to 'keyword-search"
-func normalizeToolName(toolName string) string {
-	toolName, _ = strings.CutPrefix(toolName, "sg_")
-	return strings.ReplaceAll(toolName, "_", "-")
 }
