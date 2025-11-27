@@ -4,6 +4,7 @@ import (
 	_ "embed"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/sourcegraph/sourcegraph/lib/errors"
 )
@@ -80,7 +81,8 @@ func LoadToolDefinitions(data []byte) (map[string]*ToolDef, error) {
 	decoder := &decoder{}
 
 	for _, t := range defs.Tools {
-		tools[t.Name] = &ToolDef{
+		name := normalizeToolName(t.Name)
+		tools[name] = &ToolDef{
 			Name:         t.Name,
 			Description:  t.Description,
 			InputSchema:  decoder.decodeRootSchema(t.InputSchema),
@@ -156,4 +158,10 @@ func (d *decoder) decodeProperties(props map[string]json.RawMessage) map[string]
 		res[name] = d.decodeSchema(&r)
 	}
 	return res
+}
+
+// normalizeToolName takes mcp tool names like 'sg_keyword_search' and normalizes it to 'keyword-search"
+func normalizeToolName(toolName string) string {
+	toolName, _ = strings.CutPrefix(toolName, "sg_")
+	return strings.ReplaceAll(toolName, "_", "-")
 }
