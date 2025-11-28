@@ -4,13 +4,13 @@ package main
 import (
 	_ "embed"
 	"encoding/json"
-	"fmt"
+	"strings"
 
 	"github.com/sourcegraph/sourcegraph/lib/errors"
 )
 
 //go:embed mcp_tools.json
-var _ []byte
+var mcpToolListJSON []byte
 
 type MCPToolDef struct {
 	Name         string `json:"name"`
@@ -135,12 +135,18 @@ func (p *Parser) parseProperties(props map[string]json.RawMessage) map[string]Sc
 	for name, raw := range props {
 		var r RawSchema
 		if err := json.Unmarshal(raw, &r); err != nil {
-			p.errors = append(p.errors, fmt.Errorf("failed to parse property %q: %w", name, err))
+			p.errors = append(p.errors, errors.Newf("failed to parse property %q: %w", name, err))
 			continue
 		}
 		res[name] = p.parseSchema(&r)
 	}
 	return res
+}
+
+// normalizeToolName takes mcp tool names like 'sg_keyword_search' and normalizes it to 'keyword-search"
+func normalizeToolName(toolName string) string {
+	toolName, _ = strings.CutPrefix(toolName, "sg_")
+	return strings.ReplaceAll(toolName, "_", "-")
 }
 
 func LoadMCPToolDefinitions(data []byte) (map[string]*MCPToolDef, error) {
@@ -154,7 +160,6 @@ func LoadMCPToolDefinitions(data []byte) (map[string]*MCPToolDef, error) {
 	}{}
 
 	if err := json.Unmarshal(data, &defs); err != nil {
-		// TODO: think we should panic instead
 		return nil, err
 	}
 
@@ -162,7 +167,8 @@ func LoadMCPToolDefinitions(data []byte) (map[string]*MCPToolDef, error) {
 	parser := &Parser{}
 
 	for _, t := range defs.Tools {
-		tools[t.Name] = &MCPToolDef{
+		name := normalizeToolName(t.Name)
+		tools[name] = &MCPToolDef{
 			Name:         t.Name,
 			Description:  t.Description,
 			InputSchema:  parser.parseRootSchema(t.InputSchema),
