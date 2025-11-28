@@ -22,7 +22,7 @@ func (s *strSliceFlag) String() string {
 	return strings.Join(s.vals, ",")
 }
 
-func derefFlagValues(vars map[string]any) {
+func sanitizeFlagValues(vars map[string]any) {
 	for k, v := range vars {
 		rfl := reflect.ValueOf(v)
 		if rfl.Kind() == reflect.Pointer {
@@ -30,12 +30,29 @@ func derefFlagValues(vars map[string]any) {
 			if slice, ok := vv.(strSliceFlag); ok {
 				vv = slice.vals
 			}
-			vars[k] = vv
+			if isNil(vv) {
+				delete(vars, k)
+			} else {
+				vars[k] = vv
+			}
 		}
 	}
 }
 
-func buildArgFlagSet(tool *MCPToolDef) (*flag.FlagSet, map[string]any, error) {
+func isNil(v any) bool {
+	if v == nil {
+		return true
+	}
+	rv := reflect.ValueOf(v)
+	switch rv.Kind() {
+	case reflect.Slice, reflect.Map, reflect.Pointer, reflect.Interface:
+		return rv.IsNil()
+	default:
+		return false
+	}
+}
+
+func buildToolFlagSet(tool *MCPToolDef) (*flag.FlagSet, map[string]any, error) {
 	fs := flag.NewFlagSet(tool.Name(), flag.ContinueOnError)
 	flagVars := map[string]any{}
 
