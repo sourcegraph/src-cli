@@ -32,8 +32,25 @@ func DerefFlagValues(vars map[string]any) {
 			if slice, ok := vv.(strSliceFlag); ok {
 				vv = slice.vals
 			}
-			vars[k] = vv
+			if isNil(vv) {
+				delete(vars, k)
+			} else {
+				vars[k] = vv
+			}
 		}
+	}
+}
+
+func isNil(v any) bool {
+	if v == nil {
+		return true
+	}
+	rv := reflect.ValueOf(v)
+	switch rv.Kind() {
+	case reflect.Slice, reflect.Map, reflect.Pointer, reflect.Interface:
+		return rv.IsNil()
+	default:
+		return false
 	}
 }
 
