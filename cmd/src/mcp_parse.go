@@ -4,8 +4,9 @@ package main
 import (
 	_ "embed"
 	"encoding/json"
-	"errors"
 	"fmt"
+
+	"github.com/sourcegraph/sourcegraph/lib/errors"
 )
 
 //go:embed mcp_tools.json
@@ -112,7 +113,7 @@ func (p *Parser) parseSchema(r *RawSchema) SchemaValue {
 				if err := json.Unmarshal(r.Items, &itemRaw); err == nil {
 					items = p.parseSchema(&itemRaw)
 				} else {
-					p.errors = append(p.errors, fmt.Errorf("failed to unmarshal array items: %w", err))
+					p.errors = append(p.errors, errors.Errorf("failed to unmarshal array items: %w", err))
 				}
 			}
 		}
@@ -170,7 +171,7 @@ func LoadMCPToolDefinitions(data []byte) (map[string]*MCPToolDef, error) {
 	}
 
 	if len(parser.errors) > 0 {
-		return tools, errors.Join(parser.errors...)
+		return tools, errors.Append(nil, parser.errors...)
 	}
 
 	return tools, nil
