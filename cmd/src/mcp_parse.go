@@ -4,7 +4,6 @@ package main
 import (
 	_ "embed"
 	"encoding/json"
-	"fmt"
 	"strings"
 
 	"github.com/sourcegraph/sourcegraph/lib/errors"
@@ -136,7 +135,7 @@ func (p *Parser) parseProperties(props map[string]json.RawMessage) map[string]Sc
 	for name, raw := range props {
 		var r RawSchema
 		if err := json.Unmarshal(raw, &r); err != nil {
-			p.errors = append(p.errors, fmt.Errorf("failed to parse property %q: %w", name, err))
+			p.errors = append(p.errors, errors.Newf("failed to parse property %q: %w", name, err))
 			continue
 		}
 		res[name] = p.parseSchema(&r)
