@@ -7,13 +7,9 @@ import (
 
 func init() {
 	flagSet := flag.NewFlagSet("mcp", flag.ExitOnError)
-	handler := func(args []string) error {
-		return mcpMain(args)
-	}
-
 	commands = append(commands, &command{
 		flagSet: flagSet,
-		handler: handler,
+		handler: mcpMain,
 	})
 }
 func mcpMain(args []string) error {
