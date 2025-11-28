@@ -49,7 +49,7 @@ func TestFlagSetParse(t *testing.T) {
 		t.Fatalf("failed to load tool json: %v", err)
 	}
 
-	flagSet, vars, err := buildArgFlagSet(defs["sg_test_tool"])
+	flagSet, vars, err := buildToolFlagSet(defs["sg_test_tool"])
 	if err != nil {
 		t.Fatalf("failed to build flagset from mcp tool definition: %v", err)
 	}
@@ -63,7 +63,7 @@ func TestFlagSetParse(t *testing.T) {
 	if err := flagSet.Parse(args); err != nil {
 		t.Fatalf("flagset parsing failed: %v", err)
 	}
-	derefFlagValues(vars)
+	sanitizeFlagValues(vars)
 
 	if v, ok := vars["repos"].([]string); ok {
 		if len(v) != 2 {

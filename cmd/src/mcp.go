@@ -1,10 +1,21 @@
 package main
 
 import (
+	"bytes"
+	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
+	"net/http"
 	"strings"
+
+	"github.com/sourcegraph/src-cli/internal/api"
+
+	"github.com/sourcegraph/sourcegraph/lib/errors"
 )
+
+const McpPath = ".api/mcp/v1"
 
 func init() {
 	flagSet := flag.NewFlagSet("mcp", flag.ExitOnError)
@@ -33,37 +44,115 @@ func mcpMain(args []string) error {
 	if !ok {
 		return fmt.Errorf("tool definition for %q not found - run src mcp list-tools to see a list of available tools", subcmd)
 	}
-	return handleMcpTool(tool, args[1:])
+
+	flagArgs := args[1:] // skip subcommand name
+	if len(args) > 1 && args[1] == "schema" {
+		return printSchemas(tool)
+	}
+
+	flags, vars, err := buildToolFlagSet(tool)
+	if err != nil {
+		return err
+	}
+	if err := flags.Parse(flagArgs); err != nil {
+		return err
+	}
+	sanitizeFlagValues(vars)
+
+	if err := validateToolArgs(tool.InputSchema, args, vars); err != nil {
+		return err
+	}
+
+	apiClient := cfg.apiClient(nil, flags.Output())
+	return handleMcpTool(context.Background(), apiClient, tool, vars)
 }
 
-func handleMcpTool(tool *MCPToolDef, args []string) error {
-	fs, vars, err := buildArgFlagSet(tool)
+func printSchemas(tool *MCPToolDef) error {
+	input, err := json.MarshalIndent(tool.InputSchema, "", " ")
+	if err != nil {
+		return err
+	}
+	output, err := json.MarshalIndent(tool.OutputSchema, "", " ")
 	if err != nil {
 		return err
 	}
 
-	if err := fs.Parse(args); err != nil {
-		return err
-	}
+	fmt.Printf("Input:\n%v\nOutput:\n%v\n", string(input), string(output))
+	return nil
+}
 
-	inputSchema := tool.InputSchema
-
+func validateToolArgs(inputSchema Schema, args []string, vars map[string]any) error {
 	for _, reqName := range inputSchema.Required {
 		if vars[reqName] == nil {
-			return fmt.Errorf("no value provided for required flag --%s", reqName)
+			return errors.Newf("no value provided for required flag --%s", reqName)
 		}
 	}
 
 	if len(args) < len(inputSchema.Required) {
-		return fmt.Errorf("not enough arguments provided - the following flags are required:\n%s", strings.Join(inputSchema.Required, "\n"))
-	}
-
-	derefFlagValues(vars)
-
-	fmt.Println("Flags")
-	for name, val := range vars {
-		fmt.Printf("--%s=%v\n", name, val)
+		return errors.Newf("not enough arguments provided - the following flags are required:\n%s", strings.Join(inputSchema.Required, "\n"))
 	}
 
 	return nil
+}
+
+func handleMcpTool(ctx context.Context, client api.Client, tool *MCPToolDef, vars map[string]any) error {
+	jsonRPC := struct {
+		Version string `json:"jsonrpc"`
+		ID      int    `json:"id"`
+		Method  string `json:"method"`
+		Params  any    `json:"params"`
+	}{
+		Version: "2.0",
+		ID:      1,
+		Method:  "tools/call",
+		Params: struct {
+			Name      string         `json:"name"`
+			Arguments map[string]any `json:"arguments"`
+		}{
+			Name:      tool.RawName,
+			Arguments: vars,
+		},
+	}
+
+	buf := bytes.NewBuffer(nil)
+	data, err := json.Marshal(jsonRPC)
+	if err != nil {
+		return err
+	}
+	buf.Write(data)
+
+	req, err := client.NewHTTPRequest(ctx, http.MethodPost, McpPath, buf)
+	if err != nil {
+		return err
+	}
+	req.Header.Add("Content-Type", "application/json")
+	req.Header.Add("Accept", "*/*")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+
+	data, err = io.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+
+	jsonData, err := parseSSEResponse(data)
+	if err != nil {
+		return err
+	}
+
+	fmt.Println(jsonData)
+	return nil
+}
+
+func parseSSEResponse(data []byte) ([]byte, error) {
+	lines := bytes.SplitSeq(data, []byte("\n"))
+	for line := range lines {
+		if jsonData, ok := bytes.CutPrefix(line, []byte("data: ")); ok {
+			return jsonData, nil
+		}
+	}
+	return nil, errors.New("no data found in SSE response")
 }
