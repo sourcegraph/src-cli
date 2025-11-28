@@ -4,7 +4,6 @@ package mcp
 import (
 	_ "embed"
 	"encoding/json"
-	"fmt"
 	"strings"
 
 	"github.com/sourcegraph/sourcegraph/lib/errors"
@@ -159,7 +158,7 @@ func (d *decoder) decodeProperties(props map[string]json.RawMessage) map[string]
 	for name, raw := range props {
 		var r RawSchema
 		if err := json.Unmarshal(raw, &r); err != nil {
-			d.errors = append(d.errors, fmt.Errorf("failed to parse property %q: %w", name, err))
+			d.errors = append(d.errors, errors.Newf("failed to parse property %q: %w", name, err))
 			continue
 		}
 		res[name] = d.decodeSchema(&r)
