@@ -13,17 +13,15 @@ import (
 var mcpToolListJSON []byte
 
 type MCPToolDef struct {
-	Name         string `json:"name"`
+	RawName      string `json:"name"`
 	Description  string `json:"description"`
 	InputSchema  Schema `json:"inputSchema"`
 	OutputSchema Schema `json:"outputSchema"`
 }
 
-type InputProperty struct {
-	Name        string
-	Type        string
-	Description string
-	ItemType    string
+func (m *MCPToolDef) Name() string {
+	name, _ := strings.CutPrefix(m.RawName, "sg_")
+	return strings.ReplaceAll(name, "_", "-")
 }
 
 type Schema struct {
@@ -143,12 +141,6 @@ func (p *Parser) parseProperties(props map[string]json.RawMessage) map[string]Sc
 	return res
 }
 
-// normalizeToolName takes mcp tool names like 'sg_keyword_search' and normalizes it to 'keyword-search"
-func normalizeToolName(toolName string) string {
-	toolName, _ = strings.CutPrefix(toolName, "sg_")
-	return strings.ReplaceAll(toolName, "_", "-")
-}
-
 func LoadMCPToolDefinitions(data []byte) (map[string]*MCPToolDef, error) {
 	defs := struct {
 		Tools []struct {
@@ -167,13 +159,16 @@ func LoadMCPToolDefinitions(data []byte) (map[string]*MCPToolDef, error) {
 	parser := &Parser{}
 
 	for _, t := range defs.Tools {
-		name := normalizeToolName(t.Name)
-		tools[name] = &MCPToolDef{
-			Name:         t.Name,
+		def := &MCPToolDef{
+			RawName:      t.Name,
 			Description:  t.Description,
 			InputSchema:  parser.parseRootSchema(t.InputSchema),
 			OutputSchema: parser.parseRootSchema(t.OutputSchema),
 		}
+
+		// make it so that can find a tool definition by it's original name (RawName) and normalized name (Name())
+		tools[def.RawName] = def
+		tools[def.Name()] = def
 	}
 
 	if len(parser.errors) > 0 {

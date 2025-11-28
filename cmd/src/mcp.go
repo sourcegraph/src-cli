@@ -36,6 +36,6 @@ func mcpMain(args []string) error {
 }
 
 func handleMcpTool(tool *MCPToolDef, args []string) error {
-	fmt.Printf("handling tool %q args: %+v", tool.Name, args)
+	fmt.Printf("handling tool %q args: %+v", tool.Name(), args)
 	return nil
 }
