@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"reflect"
 	"strings"
 )
 
@@ -19,6 +20,19 @@ func (s *strSliceFlag) Set(v string) error {
 
 func (s *strSliceFlag) String() string {
 	return strings.Join(s.vals, ",")
+}
+
+func derefFlagValues(vars map[string]any) {
+	for k, v := range vars {
+		rfl := reflect.ValueOf(v)
+		if rfl.Kind() == reflect.Pointer {
+			vv := rfl.Elem().Interface()
+			if slice, ok := vv.(strSliceFlag); ok {
+				vv = slice.vals
+			}
+			vars[k] = vv
+		}
+	}
 }
 
 func buildArgFlagSet(tool *MCPToolDef) (*flag.FlagSet, map[string]any, error) {
