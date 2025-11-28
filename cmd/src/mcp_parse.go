@@ -10,7 +10,7 @@ import (
 )
 
 //go:embed mcp_tools.json
-var mcpToolListJSON []byte
+var _ []byte
 
 type MCPToolDef struct {
 	Name         string `json:"name"`
