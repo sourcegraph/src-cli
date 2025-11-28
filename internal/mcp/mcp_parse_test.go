@@ -46,7 +46,8 @@ func TestLoadToolDefinitions(t *testing.T) {
 		t.Fatalf("Expected 1 tool, got %d", len(tools))
 	}
 
-	tool := tools["test_tool"]
+	// Temporary: map keys have normalized names
+	tool := tools["test-tool"]
 	if tool == nil {
 		t.Fatal("Tool 'test_tool' not found")
 	}
