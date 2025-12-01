@@ -58,11 +58,18 @@ Documentation at https://sourcegraph.com/docs/admin/code_hosts/src_serve_git
 			dbug = log.New(os.Stderr, "DBUG serve-git: ", log.LstdFlags)
 		}
 
+		root, err := os.OpenRoot(repoDir)
+		if err != nil {
+			return err
+		}
+		defer root.Close()
+
 		s := &servegit.Serve{
-			Addr:  *addrFlag,
-			Root:  repoDir,
-			Info:  log.New(os.Stderr, "serve-git: ", log.LstdFlags),
-			Debug: dbug,
+			Addr:   *addrFlag,
+			Root:   repoDir,
+			RootFS: root,
+			Info:   log.New(os.Stderr, "serve-git: ", log.LstdFlags),
+			Debug:  dbug,
 		}
 
 		if *listFlag {

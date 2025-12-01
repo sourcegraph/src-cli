@@ -9,6 +9,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"os"
 	"os/exec"
 	pathpkg "path"
 	"path/filepath"
@@ -19,10 +20,11 @@ import (
 )
 
 type Serve struct {
-	Addr  string
-	Root  string
-	Info  *log.Logger
-	Debug *log.Logger
+	Addr   string
+	Root   string
+	RootFS *os.Root
+	Info   *log.Logger
+	Debug  *log.Logger
 }
 
 func (s *Serve) Start() error {
@@ -69,7 +71,7 @@ func (s *Serve) handler() http.Handler {
 
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		err := indexHTML.Execute(w, map[string]interface{}{
+		err := indexHTML.Execute(w, map[string]any{
 			"Explain": explainAddr(s.Addr),
 			"Links": []string{
 				"/v1/list-repos",
@@ -100,7 +102,8 @@ func (s *Serve) handler() http.Handler {
 		_ = enc.Encode(&resp)
 	})
 
-	fs := http.FileServer(http.Dir(s.Root))
+	safeFS := http.FS(s.RootFS.FS())
+	fs := http.FileServer(safeFS)
 	svc := &Handler{
 		Dir: func(_ context.Context, name string) (string, error) {
 			return filepath.Join(s.Root, filepath.FromSlash(name)), nil
@@ -117,6 +120,7 @@ func (s *Serve) handler() http.Handler {
 				}
 			}
 		},
+		RootFS: s.RootFS,
 	}
 	mux.Handle("/repos/", http.StripPrefix("/repos/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Use git service if git is trying to clone. Otherwise show http.FileServer for convenience
