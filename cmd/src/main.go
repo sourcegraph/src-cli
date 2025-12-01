@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
 	"flag"
 	"io"
@@ -91,14 +90,6 @@ func main() {
 	// Configure logging.
 	log.SetFlags(0)
 	log.SetPrefix("")
-
-	// "tool" does not use the legacy commander cli framework and uses urfave/cli v3 instead
-	if len(os.Args) >= 2 && os.Args[1] == "tool" {
-		if err := toolCmd.Run(context.Background(), os.Args[1:]); err != nil {
-			log.Fatal(err)
-		}
-		return
-	}
 
 	commands.run(flag.CommandLine, "src", usageText, normalizeDashHelp(os.Args[1:]))
 }
