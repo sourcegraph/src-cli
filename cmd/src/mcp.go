@@ -37,7 +37,7 @@ func mcpMain(args []string) error {
 	return handleMcpTool(tool, args[1:])
 }
 
-func handleMcpTool(tool *mcp.MCPToolDef, args []string) error {
+func handleMcpTool(tool *mcp.ToolDef, args []string) error {
 	fmt.Printf("handling tool %q args: %+v", tool.Name, args)
 	return nil
 }
