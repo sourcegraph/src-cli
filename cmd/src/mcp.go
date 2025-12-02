@@ -3,6 +3,8 @@ package main
 import (
 	"flag"
 	"fmt"
+
+	"github.com/sourcegraph/src-cli/internal/mcp"
 )
 
 func init() {
@@ -14,7 +16,7 @@ func init() {
 }
 func mcpMain(args []string) error {
 	fmt.Println("NOTE: This command is still experimental")
-	tools, err := LoadMCPToolDefinitions(mcpToolListJSON)
+	tools, err := mcp.LoadToolDefinitions()
 	if err != nil {
 		return err
 	}
@@ -35,7 +37,7 @@ func mcpMain(args []string) error {
 	return handleMcpTool(tool, args[1:])
 }
 
-func handleMcpTool(tool *MCPToolDef, args []string) error {
+func handleMcpTool(tool *mcp.MCPToolDef, args []string) error {
 	fmt.Printf("handling tool %q args: %+v", tool.Name, args)
 	return nil
 }
