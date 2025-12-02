@@ -1,5 +1,5 @@
 //go:generate ../../scripts/gen-mcp-tool-json.sh mcp_tools.json
-package main
+package mcp
 
 import (
 	_ "embed"
