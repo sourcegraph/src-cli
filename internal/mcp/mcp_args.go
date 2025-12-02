@@ -1,6 +1,7 @@
 package mcp
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"reflect"
@@ -36,6 +37,9 @@ func DerefFlagValues(vars map[string]any) {
 }
 
 func BuildArgFlagSet(tool *ToolDef) (*flag.FlagSet, map[string]any, error) {
+	if tool == nil {
+		return nil, nil, errors.New("cannot build flagset on nil Tool Definition")
+	}
 	fs := flag.NewFlagSet(tool.Name, flag.ContinueOnError)
 	flagVars := map[string]any{}
 
