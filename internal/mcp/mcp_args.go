@@ -1,12 +1,10 @@
-package main
+package mcp
 
 import (
 	"flag"
 	"fmt"
 	"reflect"
 	"strings"
-
-	"github.com/sourcegraph/src-cli/internal/mcp"
 )
 
 var _ flag.Value = (*strSliceFlag)(nil)
@@ -24,7 +22,7 @@ func (s *strSliceFlag) String() string {
 	return strings.Join(s.vals, ",")
 }
 
-func derefFlagValues(vars map[string]any) {
+func DerefFlagValues(vars map[string]any) {
 	for k, v := range vars {
 		rfl := reflect.ValueOf(v)
 		if rfl.Kind() == reflect.Pointer {
@@ -37,13 +35,13 @@ func derefFlagValues(vars map[string]any) {
 	}
 }
 
-func buildArgFlagSet(tool *mcp.ToolDef) (*flag.FlagSet, map[string]any, error) {
+func BuildArgFlagSet(tool *ToolDef) (*flag.FlagSet, map[string]any, error) {
 	fs := flag.NewFlagSet(tool.Name, flag.ContinueOnError)
 	flagVars := map[string]any{}
 
 	for name, pVal := range tool.InputSchema.Properties {
 		switch pv := pVal.(type) {
-		case *mcp.SchemaPrimitive:
+		case *SchemaPrimitive:
 			switch pv.Kind {
 			case "integer":
 				dst := fs.Int(name, 0, pv.Description)
@@ -59,11 +57,11 @@ func buildArgFlagSet(tool *mcp.ToolDef) (*flag.FlagSet, map[string]any, error) {
 				return nil, nil, fmt.Errorf("unknown schema primitive kind %q", pv.Kind)
 
 			}
-		case *mcp.SchemaArray:
+		case *SchemaArray:
 			strSlice := new(strSliceFlag)
 			fs.Var(strSlice, name, pv.Description)
 			flagVars[name] = strSlice
-		case *mcp.SchemaObject:
+		case *SchemaObject:
 			// not supported yet
 		}
 	}

@@ -1,9 +1,7 @@
-package main
+package mcp
 
 import (
 	"testing"
-
-	"github.com/sourcegraph/src-cli/internal/mcp"
 )
 
 func TestFlagSetParse(t *testing.T) {
@@ -46,12 +44,12 @@ func TestFlagSetParse(t *testing.T) {
 	  ]
 	}`)
 
-	defs, err := mcp.LoadToolDefinitions(toolJSON)
+	defs, err := loadToolDefinitions(toolJSON)
 	if err != nil {
 		t.Fatalf("failed to load tool json: %v", err)
 	}
 
-	flagSet, vars, err := buildArgFlagSet(defs["sg_test_tool"])
+	flagSet, vars, err := BuildArgFlagSet(defs["sg_test_tool"])
 	if err != nil {
 		t.Fatalf("failed to build flagset from mcp tool definition: %v", err)
 	}
@@ -65,7 +63,7 @@ func TestFlagSetParse(t *testing.T) {
 	if err := flagSet.Parse(args); err != nil {
 		t.Fatalf("flagset parsing failed: %v", err)
 	}
-	derefFlagValues(vars)
+	DerefFlagValues(vars)
 
 	if v, ok := vars["repos"].([]string); ok {
 		if len(v) != 2 {
