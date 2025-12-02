@@ -19,13 +19,6 @@ type MCPToolDef struct {
 	OutputSchema Schema `json:"outputSchema"`
 }
 
-type InputProperty struct {
-	Name        string
-	Type        string
-	Description string
-	ItemType    string
-}
-
 type Schema struct {
 	Schema string `json:"$schema"`
 	SchemaObject
@@ -70,15 +63,45 @@ type SchemaPrimitive struct {
 
 func (s SchemaPrimitive) Type() string { return s.Kind }
 
-type PropertyType struct {
-	Type string `json:"type"`
-}
-
-type Parser struct {
+type parser struct {
 	errors []error
 }
 
-func (p *Parser) parseRootSchema(r RawSchema) Schema {
+func LoadToolDefinitions(data []byte) (map[string]*MCPToolDef, error) {
+	defs := struct {
+		Tools []struct {
+			Name         string    `json:"name"`
+			Description  string    `json:"description"`
+			InputSchema  RawSchema `json:"inputSchema"`
+			OutputSchema RawSchema `json:"outputSchema"`
+		} `json:"tools"`
+	}{}
+
+	if err := json.Unmarshal(data, &defs); err != nil {
+		// TODO: think we should panic instead
+		return nil, err
+	}
+
+	tools := map[string]*MCPToolDef{}
+	parser := &parser{}
+
+	for _, t := range defs.Tools {
+		tools[t.Name] = &MCPToolDef{
+			Name:         t.Name,
+			Description:  t.Description,
+			InputSchema:  parser.parseRootSchema(t.InputSchema),
+			OutputSchema: parser.parseRootSchema(t.OutputSchema),
+		}
+	}
+
+	if len(parser.errors) > 0 {
+		return tools, errors.Append(nil, parser.errors...)
+	}
+
+	return tools, nil
+}
+
+func (p *parser) parseRootSchema(r RawSchema) Schema {
 	return Schema{
 		Schema: r.Schema,
 		SchemaObject: SchemaObject{
@@ -91,7 +114,7 @@ func (p *Parser) parseRootSchema(r RawSchema) Schema {
 	}
 }
 
-func (p *Parser) parseSchema(r *RawSchema) SchemaValue {
+func (p *parser) parseSchema(r *RawSchema) SchemaValue {
 	switch r.Type {
 	case "object":
 		return &SchemaObject{
@@ -130,7 +153,7 @@ func (p *Parser) parseSchema(r *RawSchema) SchemaValue {
 	}
 }
 
-func (p *Parser) parseProperties(props map[string]json.RawMessage) map[string]SchemaValue {
+func (p *parser) parseProperties(props map[string]json.RawMessage) map[string]SchemaValue {
 	res := make(map[string]SchemaValue)
 	for name, raw := range props {
 		var r RawSchema
@@ -141,38 +164,4 @@ func (p *Parser) parseProperties(props map[string]json.RawMessage) map[string]Sc
 		res[name] = p.parseSchema(&r)
 	}
 	return res
-}
-
-func LoadMCPToolDefinitions(data []byte) (map[string]*MCPToolDef, error) {
-	defs := struct {
-		Tools []struct {
-			Name         string    `json:"name"`
-			Description  string    `json:"description"`
-			InputSchema  RawSchema `json:"inputSchema"`
-			OutputSchema RawSchema `json:"outputSchema"`
-		} `json:"tools"`
-	}{}
-
-	if err := json.Unmarshal(data, &defs); err != nil {
-		// TODO: think we should panic instead
-		return nil, err
-	}
-
-	tools := map[string]*MCPToolDef{}
-	parser := &Parser{}
-
-	for _, t := range defs.Tools {
-		tools[t.Name] = &MCPToolDef{
-			Name:         t.Name,
-			Description:  t.Description,
-			InputSchema:  parser.parseRootSchema(t.InputSchema),
-			OutputSchema: parser.parseRootSchema(t.OutputSchema),
-		}
-	}
-
-	if len(parser.errors) > 0 {
-		return tools, errors.Append(nil, parser.errors...)
-	}
-
-	return tools, nil
 }
