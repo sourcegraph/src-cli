@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+
+	"github.com/sourcegraph/src-cli/internal/mcp"
 )
 
 var _ flag.Value = (*strSliceFlag)(nil)
@@ -35,13 +37,13 @@ func derefFlagValues(vars map[string]any) {
 	}
 }
 
-func buildArgFlagSet(tool *MCPToolDef) (*flag.FlagSet, map[string]any, error) {
-	fs := flag.NewFlagSet(tool.Name(), flag.ContinueOnError)
+func buildArgFlagSet(tool *mcp.ToolDef) (*flag.FlagSet, map[string]any, error) {
+	fs := flag.NewFlagSet(tool.Name, flag.ContinueOnError)
 	flagVars := map[string]any{}
 
 	for name, pVal := range tool.InputSchema.Properties {
 		switch pv := pVal.(type) {
-		case *SchemaPrimitive:
+		case *mcp.SchemaPrimitive:
 			switch pv.Kind {
 			case "integer":
 				dst := fs.Int(name, 0, pv.Description)
@@ -57,11 +59,11 @@ func buildArgFlagSet(tool *MCPToolDef) (*flag.FlagSet, map[string]any, error) {
 				return nil, nil, fmt.Errorf("unknown schema primitive kind %q", pv.Kind)
 
 			}
-		case *SchemaArray:
+		case *mcp.SchemaArray:
 			strSlice := new(strSliceFlag)
 			fs.Var(strSlice, name, pv.Description)
 			flagVars[name] = strSlice
-		case *SchemaObject:
+		case *mcp.SchemaObject:
 			// not supported yet
 		}
 	}

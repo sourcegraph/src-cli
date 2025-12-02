@@ -2,6 +2,8 @@ package main
 
 import (
 	"testing"
+
+	"github.com/sourcegraph/src-cli/internal/mcp"
 )
 
 func TestFlagSetParse(t *testing.T) {
@@ -44,7 +46,7 @@ func TestFlagSetParse(t *testing.T) {
 	  ]
 	}`)
 
-	defs, err := LoadMCPToolDefinitions(toolJSON)
+	defs, err := mcp.LoadToolDefinitions(toolJSON)
 	if err != nil {
 		t.Fatalf("failed to load tool json: %v", err)
 	}
