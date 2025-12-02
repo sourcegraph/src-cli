@@ -1,10 +1,10 @@
-package main
+package mcp
 
 import (
 	"testing"
 )
 
-func TestLoadMCPToolDefinitions(t *testing.T) {
+func TestLoadToolDefinitions(t *testing.T) {
 	toolJSON := []byte(`{
 	  "tools": [
 		{
@@ -37,7 +37,7 @@ func TestLoadMCPToolDefinitions(t *testing.T) {
 	  ]
 	}`)
 
-	tools, err := LoadMCPToolDefinitions(toolJSON)
+	tools, err := LoadToolDefinitions(toolJSON)
 	if err != nil {
 		t.Fatalf("Failed to load tool definitions: %v", err)
 	}
