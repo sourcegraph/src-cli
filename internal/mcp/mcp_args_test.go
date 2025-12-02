@@ -49,7 +49,7 @@ func TestFlagSetParse(t *testing.T) {
 		t.Fatalf("failed to load tool json: %v", err)
 	}
 
-	flagSet, vars, err := BuildArgFlagSet(defs["sg_test_tool"])
+	flagSet, vars, err := BuildArgFlagSet(defs["test-tool"])
 	if err != nil {
 		t.Fatalf("failed to build flagset from mcp tool definition: %v", err)
 	}
