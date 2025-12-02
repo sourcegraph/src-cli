@@ -62,7 +62,11 @@ type decoder struct {
 	errors []error
 }
 
-func LoadToolDefinitions(data []byte) (map[string]*ToolDef, error) {
+func LoadToolDefinitions() (map[string]*ToolDef, error) {
+	return loadToolDefinitions(mcpToolListJSON)
+}
+
+func loadToolDefinitions(data []byte) (map[string]*ToolDef, error) {
 	defs := struct {
 		Tools []struct {
 			Name         string    `json:"name"`

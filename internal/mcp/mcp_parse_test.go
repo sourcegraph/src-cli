@@ -37,7 +37,7 @@ func TestLoadToolDefinitions(t *testing.T) {
 	  ]
 	}`)
 
-	tools, err := LoadToolDefinitions(toolJSON)
+	tools, err := loadToolDefinitions(toolJSON)
 	if err != nil {
 		t.Fatalf("Failed to load tool definitions: %v", err)
 	}
