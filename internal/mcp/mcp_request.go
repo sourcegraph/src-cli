@@ -75,7 +75,6 @@ func ParseToolResponse(resp *http.Response) (map[string]json.RawMessage, error) 
 	return jsonRPCResp.Result.StructuredContent, nil
 }
 func readSSEResponseData(resp *http.Response) ([]byte, error) {
-	defer resp.Body.Close()
 	data, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err

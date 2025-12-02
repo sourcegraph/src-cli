@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/sourcegraph/src-cli/internal/api"
@@ -14,11 +15,13 @@ import (
 )
 
 func init() {
-	flagSet := flag.NewFlagSet("mcp", flag.ExitOnError)
-	commands = append(commands, &command{
-		flagSet: flagSet,
-		handler: mcpMain,
-	})
+	if os.Getenv("SRC_EXPERIMENT_MCP") == "true" {
+		flagSet := flag.NewFlagSet("mcp", flag.ExitOnError)
+		commands = append(commands, &command{
+			flagSet: flagSet,
+			handler: mcpMain,
+		})
+	}
 }
 func mcpMain(args []string) error {
 	fmt.Println("NOTE: This command is still experimental")
@@ -110,6 +113,7 @@ func handleMcpTool(ctx context.Context, client api.Client, tool *mcp.ToolDef, va
 	if err != nil {
 		return err
 	}
+	defer resp.Body.Close()
 
 	output, err := json.MarshalIndent(result, "", "  ")
 	if err != nil {
