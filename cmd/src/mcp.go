@@ -106,11 +106,15 @@ func handleMcpTool(ctx context.Context, client api.Client, tool *mcp.ToolDef, va
 		return err
 	}
 
-	data, err := mcp.ParseToolResponse(ctx, resp)
+	result, err := mcp.ParseToolResponse(resp)
 	if err != nil {
 		return err
 	}
 
-	fmt.Printf(string(data))
+	output, err := json.MarshalIndent(result, "", "  ")
+	if err != nil {
+		return err
+	}
+	fmt.Println(string(output))
 	return nil
 }

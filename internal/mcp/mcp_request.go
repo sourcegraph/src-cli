@@ -7,8 +7,9 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/sourcegraph/sourcegraph/lib/errors"
 	"github.com/sourcegraph/src-cli/internal/api"
+
+	"github.com/sourcegraph/sourcegraph/lib/errors"
 )
 
 const McpURLPath = ".api/mcp/v1"
@@ -49,7 +50,32 @@ func DoToolRequest(ctx context.Context, client api.Client, tool *ToolDef, vars m
 	return client.Do(req)
 }
 
-func ParseToolResponse(ctx context.Context, resp *http.Response) ([]byte, error) {
+func ParseToolResponse(resp *http.Response) (map[string]json.RawMessage, error) {
+	data, err := readSSEResponseData(resp)
+	if err != nil {
+		return nil, err
+	}
+
+	if data == nil {
+		return map[string]json.RawMessage{}, nil
+	}
+
+	jsonRPCResp := struct {
+		Version string `json:"jsonrpc"`
+		ID      int    `json:"id"`
+		Result  struct {
+			Content           []json.RawMessage          `json:"content"`
+			StructuredContent map[string]json.RawMessage `json:"structuredContent"`
+		} `json:"result"`
+	}{}
+	if err := json.Unmarshal(data, &jsonRPCResp); err != nil {
+		return nil, errors.Wrapf(err, "failed to unmarshal MCP JSON-RPC response")
+	}
+
+	return jsonRPCResp.Result.StructuredContent, nil
+}
+func readSSEResponseData(resp *http.Response) ([]byte, error) {
+	defer resp.Body.Close()
 	data, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
