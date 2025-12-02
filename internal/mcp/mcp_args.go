@@ -1,11 +1,12 @@
 package mcp
 
 import (
-	"errors"
 	"flag"
 	"fmt"
 	"reflect"
 	"strings"
+
+	"github.com/sourcegraph/sourcegraph/lib/errors"
 )
 
 var _ flag.Value = (*strSliceFlag)(nil)
