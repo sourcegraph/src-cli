@@ -64,10 +64,10 @@ type decoder struct {
 }
 
 func LoadDefaultToolDefinitions() (map[string]*ToolDef, error) {
-	return LoadToolDefinitions(mcpToolListJSON)
+	return loadToolDefinitions(mcpToolListJSON)
 }
 
-func LoadToolDefinitions(data []byte) (map[string]*ToolDef, error) {
+func loadToolDefinitions(data []byte) (map[string]*ToolDef, error) {
 	defs := struct {
 		Tools []struct {
 			Name         string    `json:"name"`
