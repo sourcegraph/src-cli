@@ -48,7 +48,7 @@ func mcpMain(args []string) error {
 }
 
 func handleMcpTool(tool *mcp.ToolDef, args []string) error {
-	fs, vars, err := buildArgFlagSet(tool)
+	fs, vars, err := mcp.BuildArgFlagSet(tool)
 	if err != nil {
 		return err
 	}
@@ -69,7 +69,7 @@ func handleMcpTool(tool *mcp.ToolDef, args []string) error {
 		return fmt.Errorf("not enough arguments provided - the following flags are required:\n%s", strings.Join(inputSchema.Required, "\n"))
 	}
 
-	derefFlagValues(vars)
+	mcp.DerefFlagValues(vars)
 
 	fmt.Println("Flags")
 	for name, val := range vars {
