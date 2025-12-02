@@ -8,7 +8,7 @@ func TestLoadToolDefinitions(t *testing.T) {
 	toolJSON := []byte(`{
 	  "tools": [
 		{
-		  "name": "test_tool",
+		  "name": "sg_test_tool",
 		  "description": "test description",
 		  "inputSchema": {
 			"type": "object",
