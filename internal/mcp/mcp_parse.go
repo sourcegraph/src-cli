@@ -12,26 +12,26 @@ import (
 //go:embed mcp_tools.json
 var _ []byte
 
-type MCPToolDef struct {
+type ToolDef struct {
 	Name         string `json:"name"`
 	Description  string `json:"description"`
 	InputSchema  Schema `json:"inputSchema"`
 	OutputSchema Schema `json:"outputSchema"`
 }
 
-type Schema struct {
-	Schema string `json:"$schema"`
-	SchemaObject
-}
-
 type RawSchema struct {
 	Type                 string                     `json:"type"`
 	Description          string                     `json:"description"`
-	Schema               string                     `json:"$schema"`
+	SchemaVersion        string                     `json:"$schema"`
 	Required             []string                   `json:"required,omitempty"`
 	AdditionalProperties bool                       `json:"additionalProperties"`
 	Properties           map[string]json.RawMessage `json:"properties"`
 	Items                json.RawMessage            `json:"items"`
+}
+
+type Schema struct {
+	Schema string `json:"$schema"`
+	SchemaObject
 }
 
 type SchemaValue interface {
@@ -67,7 +67,7 @@ type parser struct {
 	errors []error
 }
 
-func LoadToolDefinitions(data []byte) (map[string]*MCPToolDef, error) {
+func LoadToolDefinitions(data []byte) (map[string]*ToolDef, error) {
 	defs := struct {
 		Tools []struct {
 			Name         string    `json:"name"`
@@ -78,15 +78,14 @@ func LoadToolDefinitions(data []byte) (map[string]*MCPToolDef, error) {
 	}{}
 
 	if err := json.Unmarshal(data, &defs); err != nil {
-		// TODO: think we should panic instead
 		return nil, err
 	}
 
-	tools := map[string]*MCPToolDef{}
+	tools := map[string]*ToolDef{}
 	parser := &parser{}
 
 	for _, t := range defs.Tools {
-		tools[t.Name] = &MCPToolDef{
+		tools[t.Name] = &ToolDef{
 			Name:         t.Name,
 			Description:  t.Description,
 			InputSchema:  parser.parseRootSchema(t.InputSchema),
@@ -103,7 +102,7 @@ func LoadToolDefinitions(data []byte) (map[string]*MCPToolDef, error) {
 
 func (p *parser) parseRootSchema(r RawSchema) Schema {
 	return Schema{
-		Schema: r.Schema,
+		Schema: r.SchemaVersion,
 		SchemaObject: SchemaObject{
 			Kind:                 r.Type,
 			Description:          r.Description,
