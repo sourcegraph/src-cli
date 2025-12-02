@@ -13,15 +13,11 @@ import (
 var mcpToolListJSON []byte
 
 type ToolDef struct {
+	Name         string
 	RawName      string `json:"name"`
 	Description  string `json:"description"`
 	InputSchema  Schema `json:"inputSchema"`
 	OutputSchema Schema `json:"outputSchema"`
-}
-
-func (m *ToolDef) Name() string {
-	name, _ := strings.CutPrefix(m.RawName, "sg_")
-	return strings.ReplaceAll(name, "_", "-")
 }
 
 type RawSchema struct {
@@ -94,13 +90,19 @@ func loadToolDefinitions(data []byte) (map[string]*ToolDef, error) {
 	decoder := &decoder{}
 
 	for _, t := range defs.Tools {
-		name := normalizeToolName(t.Name)
-		tools[name] = &ToolDef{
-			Name:         t.Name,
+		// normalize the raw mcp tool name to be without the mcp identifiers
+		rawName := t.Name
+		name, _ := strings.CutPrefix(rawName, "sg_")
+		name = strings.ReplaceAll(name, "_", "-")
+
+		tool := &ToolDef{
+			Name:         name,
+			RawName:      rawName,
 			Description:  t.Description,
 			InputSchema:  decoder.decodeRootSchema(t.InputSchema),
 			OutputSchema: decoder.decodeRootSchema(t.OutputSchema),
 		}
+		tools[tool.Name] = tool
 	}
 
 	// make it so that can find a tool definition by it's original name (RawName) and normalized name (Name())
