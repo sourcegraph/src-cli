@@ -1,13 +1,10 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
-	"io"
-	"net/http"
 	"strings"
 
 	"github.com/sourcegraph/src-cli/internal/api"
@@ -15,8 +12,6 @@ import (
 
 	"github.com/sourcegraph/sourcegraph/lib/errors"
 )
-
-const McpPath = ".api/mcp/v1"
 
 func init() {
 	flagSet := flag.NewFlagSet("mcp", flag.ExitOnError)
@@ -60,14 +55,14 @@ func mcpMain(args []string) error {
 		return printSchemas(tool)
 	}
 
-	flags, vars, err := mcp.BuildToolFlagSet(tool)
+	flags, vars, err := mcp.BuildArgFlagSet(tool)
 	if err != nil {
 		return err
 	}
 	if err := flags.Parse(flagArgs); err != nil {
 		return err
 	}
-	sanitizeFlagValues(vars)
+	mcp.DerefFlagValues(vars)
 
 	if err := validateToolArgs(tool.InputSchema, args, vars); err != nil {
 		return err
@@ -106,58 +101,16 @@ func validateToolArgs(inputSchema mcp.Schema, args []string, vars map[string]any
 }
 
 func handleMcpTool(ctx context.Context, client api.Client, tool *mcp.ToolDef, vars map[string]any) error {
-	jsonRPC := struct {
-		Version string `json:"jsonrpc"`
-		ID      int    `json:"id"`
-		Method  string `json:"method"`
-		Params  any    `json:"params"`
-	}{
-		Version: "2.0",
-		ID:      1,
-		Method:  "tools/call",
-		Params: struct {
-			Name      string         `json:"name"`
-			Arguments map[string]any `json:"arguments"`
-		}{
-			Name:      tool.RawName,
-			Arguments: vars,
-		},
-	}
-
-	buf := bytes.NewBuffer(nil)
-	data, err := json.Marshal(jsonRPC)
-	if err != nil {
-		return err
-	}
-	buf.Write(data)
-
-	req, err := client.NewHTTPRequest(ctx, http.MethodPost, McpPath, buf)
-	if err != nil {
-		return err
-	}
-	req.Header.Add("Content-Type", "application/json")
-	req.Header.Add("Accept", "*/*")
-
-	resp, err := client.Do(req)
+	resp, err := mcp.DoToolRequest(ctx, client, tool, vars)
 	if err != nil {
 		return err
 	}
 
-	jsonData, err := parseSSEResponse(data)
+	data, err := mcp.ParseToolResponse(ctx, resp)
 	if err != nil {
 		return err
 	}
 
-	fmt.Println(string(jsonData))
+	fmt.Printf(string(data))
 	return nil
-}
-
-func parseSSEResponse(data []byte) ([]byte, error) {
-	lines := bytes.SplitSeq(data, []byte("\n"))
-	for line := range lines {
-		if jsonData, ok := bytes.CutPrefix(line, []byte("data: ")); ok {
-			return jsonData, nil
-		}
-	}
-	return nil, errors.New("no data found in SSE response")
 }
