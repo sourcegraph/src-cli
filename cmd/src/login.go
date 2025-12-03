@@ -28,6 +28,10 @@ Examples:
   Authenticate to Sourcegraph.com:
 
     $ src login https://sourcegraph.com
+
+  Use OAuth device flow to authenticate:
+
+    $ src login --device-flow https://sourcegraph.com
 `
 
 	flagSet := flag.NewFlagSet("login", flag.ExitOnError)
@@ -122,6 +126,43 @@ func loginCmd(ctx context.Context, cfg *config, client api.Client, endpointArg s
 	}
 	fmt.Fprintln(out)
 	fmt.Fprintf(out, "✔️  Authenticated as %s on %s\n", result.CurrentUser.Username, endpointArg)
+
+	if p.useDeviceFlow {
+		fmt.Fprintln(out)
+		fmt.Fprintf(out, "To use this access token, set the following environment variables in your terminal:\n\n")
+		fmt.Fprintf(out, "   export SRC_ENDPOINT=%s\n", endpointArg)
+		fmt.Fprintf(out, "   export SRC_ACCESS_TOKEN=%s\n", cfg.AccessToken)
+	}
+
 	fmt.Fprintln(out)
 	return nil
+}
+
+func runDeviceFlow(ctx context.Context, endpoint string, out io.Writer, client oauthdevice.Client) (string, error) {
+	authResp, err := client.Start(ctx, endpoint, nil)
+	if err != nil {
+		return "", err
+	}
+
+	fmt.Fprintln(out)
+	fmt.Fprintf(out, "To authenticate, visit %s and enter the code: %s\n", authResp.VerificationURI, authResp.UserCode)
+	if authResp.VerificationURIComplete != "" {
+		fmt.Fprintln(out)
+		fmt.Fprintf(out, "Alternatively, you can open: %s\n", authResp.VerificationURIComplete)
+	}
+	fmt.Fprintln(out)
+	fmt.Fprint(out, "Waiting for authorization...")
+	defer fmt.Fprintf(out, "DONE\n\n")
+
+	interval := time.Duration(authResp.Interval) * time.Second
+	if interval <= 0 {
+		interval = 5 * time.Second
+	}
+
+	tokenResp, err := client.Poll(ctx, endpoint, authResp.DeviceCode, interval, authResp.ExpiresIn)
+	if err != nil {
+		return "", err
+	}
+
+	return tokenResp.AccessToken, nil
 }
