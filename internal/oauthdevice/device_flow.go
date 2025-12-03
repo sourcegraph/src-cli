@@ -17,8 +17,10 @@ import (
 )
 
 const (
-	ClientID = "sgo_cid_sourcegraph-cli"
+	// DefaultClientID is a predefined Client ID built into Sourcegraph
+	DefaultClientID = "sgo_cid_sourcegraph-cli"
 
+	// wellKnownPath is the path on the sourcegraph server where clients can discover OAuth configuration
 	wellKnownPath = "/.well-known/openid-configuration"
 
 	GrantTypeDeviceCode string = "urn:ietf:params:oauth:grant-type:device_code"
@@ -69,13 +71,15 @@ type Client interface {
 }
 
 type httpClient struct {
-	client *http.Client
+	clientID string
+	client   *http.Client
 	// cached OIDC configuration per endpoint
 	configCache map[string]*OIDCConfiguration
 }
 
-func NewClient() Client {
+func NewClient(clientID string) Client {
 	return &httpClient{
+		clientID: clientID,
 		client: &http.Client{
 			Timeout: 30 * time.Second,
 		},
@@ -152,7 +156,7 @@ func (c *httpClient) Start(ctx context.Context, endpoint string, scopes []string
 	}
 
 	data := url.Values{}
-	data.Set("client_id", ClientID)
+	data.Set("client_id", DefaultClientID)
 	if len(scopes) > 0 {
 		data.Set("scope", strings.Join(scopes, " "))
 	} else {
@@ -266,7 +270,7 @@ func (e *PollError) Error() string {
 
 func (c *httpClient) pollOnce(ctx context.Context, tokenEndpoint, deviceCode string) (*TokenResponse, error) {
 	data := url.Values{}
-	data.Set("client_id", ClientID)
+	data.Set("client_id", DefaultClientID)
 	data.Set("device_code", deviceCode)
 	data.Set("grant_type", GrantTypeDeviceCode)
 
