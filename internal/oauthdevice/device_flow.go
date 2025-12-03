@@ -134,7 +134,7 @@ func (c *httpClient) Discover(ctx context.Context, endpoint string) (*OIDCConfig
 	return &config, nil
 }
 
-// Start strats the OAuth device flow with the given endpoint. If no scopes are given the default scopes are used.
+// Start starts the OAuth device flow with the given endpoint. If no scopes are given the default scopes are used.
 //
 // Default Scopes: "openid" "profile" "email" "offline_access" "user:all"
 func (c *httpClient) Start(ctx context.Context, endpoint string, scopes []string) (*DeviceAuthResponse, error) {
@@ -194,7 +194,7 @@ func (c *httpClient) Start(ctx context.Context, endpoint string, scopes []string
 
 // Poll polls the OAuth token endpoint until the device has been authorized or not
 //
-// We poll as long as the authorization is pending. If the server tells us to slow down, we will will wait 5 secs.
+// We poll as long as the authorization is pending. If the server tells us to slow down, we will wait 5 secs extra.
 //
 // Polling will stop when:
 // - Device is authorized, and a token is returned
