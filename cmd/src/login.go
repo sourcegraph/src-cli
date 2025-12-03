@@ -28,6 +28,10 @@ Examples:
   Authenticate to Sourcegraph.com:
 
     $ src login https://sourcegraph.com
+
+  Use OAuth device flow to authenticate:
+
+    $ src login --device-flow https://sourcegraph.com
 `
 
 	flagSet := flag.NewFlagSet("login", flag.ExitOnError)
