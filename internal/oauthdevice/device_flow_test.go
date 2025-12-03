@@ -50,7 +50,7 @@ func TestDiscover_Success(t *testing.T) {
 	server := newTestServer(t, testServerOptions{})
 	defer server.Close()
 
-	client := NewClient()
+	client := NewClient(DefaultClientID)
 	config, err := client.Discover(context.Background(), server.URL)
 	if err != nil {
 		t.Fatalf("Discover() error = %v", err)
@@ -78,7 +78,7 @@ func TestDiscover_Caching(t *testing.T) {
 	})
 	defer server.Close()
 
-	client := NewClient()
+	client := NewClient(DefaultClientID)
 
 	// Populate the cache
 	_, err := client.Discover(context.Background(), server.URL)
@@ -105,7 +105,7 @@ func TestDiscover_Error(t *testing.T) {
 	})
 	defer server.Close()
 
-	client := NewClient()
+	client := NewClient(DefaultClientID)
 	_, err := client.Discover(context.Background(), server.URL)
 	if err == nil {
 		t.Fatal("Discover() expected error, got nil")
@@ -141,8 +141,8 @@ func TestStart_Success(t *testing.T) {
 					return
 				}
 
-				if got := r.FormValue("client_id"); got != ClientID {
-					t.Errorf("unexpected client_id: got %q, want %q", got, ClientID)
+				if got := r.FormValue("client_id"); got != DefaultClientID {
+					t.Errorf("unexpected client_id: got %q, want %q", got, DefaultClientID)
 				}
 
 				w.Header().Set("Content-Type", "application/json")
@@ -152,7 +152,7 @@ func TestStart_Success(t *testing.T) {
 	})
 	defer server.Close()
 
-	client := NewClient()
+	client := NewClient(DefaultClientID)
 	resp, err := client.Start(context.Background(), server.URL, nil)
 	if err != nil {
 		t.Fatalf("Start() error = %v", err)
@@ -204,7 +204,7 @@ func TestStart_WithScopes(t *testing.T) {
 	})
 	defer server.Close()
 
-	client := NewClient()
+	client := NewClient(DefaultClientID)
 	_, err := client.Start(context.Background(), server.URL, []string{"read", "write"})
 	if err != nil {
 		t.Fatalf("Start() error = %v", err)
@@ -230,7 +230,7 @@ func TestStart_Error(t *testing.T) {
 	})
 	defer server.Close()
 
-	client := NewClient()
+	client := NewClient(DefaultClientID)
 	_, err := client.Start(context.Background(), server.URL, nil)
 	if err == nil {
 		t.Fatal("Start() expected error, got nil")
@@ -253,7 +253,7 @@ func TestStart_NoDeviceEndpoint(t *testing.T) {
 	})
 	defer server.Close()
 
-	client := NewClient()
+	client := NewClient(DefaultClientID)
 	_, err := client.Start(context.Background(), server.URL, nil)
 	if err == nil {
 		t.Fatal("Start() expected error, got nil")
@@ -287,8 +287,8 @@ func TestPoll_Success(t *testing.T) {
 					return
 				}
 
-				if got := r.FormValue("client_id"); got != ClientID {
-					t.Errorf("unexpected client_id: got %q, want %q", got, ClientID)
+				if got := r.FormValue("client_id"); got != DefaultClientID {
+					t.Errorf("unexpected client_id: got %q, want %q", got, DefaultClientID)
 				}
 				if got := r.FormValue("grant_type"); got != GrantTypeDeviceCode {
 					t.Errorf("unexpected grant_type: got %q", got)
@@ -301,7 +301,7 @@ func TestPoll_Success(t *testing.T) {
 	})
 	defer server.Close()
 
-	client := NewClient().(*httpClient)
+	client := NewClient(DefaultClientID).(*httpClient)
 	resp, err := client.Poll(context.Background(), server.URL, "test-device-code", 10*time.Millisecond, 60)
 	if err != nil {
 		t.Fatalf("Poll() error = %v", err)
@@ -343,7 +343,7 @@ func TestPoll_AuthorizationPending(t *testing.T) {
 	})
 	defer server.Close()
 
-	client := NewClient().(*httpClient)
+	client := NewClient(DefaultClientID).(*httpClient)
 	resp, err := client.Poll(context.Background(), server.URL, "test-device-code", 10*time.Millisecond, 60)
 	if err != nil {
 		t.Fatalf("Poll() error = %v", err)
@@ -385,7 +385,7 @@ func TestPoll_SlowDown(t *testing.T) {
 	})
 	defer server.Close()
 
-	client := NewClient().(*httpClient)
+	client := NewClient(DefaultClientID).(*httpClient)
 	resp, err := client.Poll(context.Background(), server.URL, "test-device-code", 10*time.Millisecond, 60)
 	if err != nil {
 		t.Fatalf("Poll() error = %v", err)
@@ -415,7 +415,7 @@ func TestPoll_ExpiredToken(t *testing.T) {
 	})
 	defer server.Close()
 
-	client := NewClient().(*httpClient)
+	client := NewClient(DefaultClientID).(*httpClient)
 	_, err := client.Poll(context.Background(), server.URL, "test-device-code", 10*time.Millisecond, 60)
 	if err == nil {
 		t.Fatal("Poll() expected error, got nil")
@@ -442,7 +442,7 @@ func TestPoll_AccessDenied(t *testing.T) {
 	})
 	defer server.Close()
 
-	client := NewClient().(*httpClient)
+	client := NewClient(DefaultClientID).(*httpClient)
 	_, err := client.Poll(context.Background(), server.URL, "test-device-code", 10*time.Millisecond, 60)
 	if err == nil {
 		t.Fatal("Poll() expected error, got nil")
@@ -468,7 +468,7 @@ func TestPoll_Timeout(t *testing.T) {
 	})
 	defer server.Close()
 
-	client := NewClient().(*httpClient)
+	client := NewClient(DefaultClientID).(*httpClient)
 	_, err := client.Poll(context.Background(), server.URL, "test-device-code", 10*time.Millisecond, 0)
 	if err == nil {
 		t.Fatal("Poll() expected error, got nil")
@@ -497,7 +497,7 @@ func TestPoll_ContextCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	client := NewClient().(*httpClient)
+	client := NewClient(DefaultClientID).(*httpClient)
 	_, err := client.Poll(ctx, server.URL, "test-device-code", 10*time.Millisecond, 3600)
 	if err == nil {
 		t.Fatal("Poll() expected error, got nil")
