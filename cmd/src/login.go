@@ -31,7 +31,7 @@ Examples:
 
     $ src login https://sourcegraph.com
 
-  Use OAuth device flow to authenticate (opens a browser):
+  Use OAuth device flow to authenticate:
 
     $ src login --device-flow https://sourcegraph.com
 `
