@@ -7,9 +7,11 @@ import (
 	"io"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/sourcegraph/src-cli/internal/api"
 	"github.com/sourcegraph/src-cli/internal/cmderrors"
+	"github.com/sourcegraph/src-cli/internal/oauthdevice"
 )
 
 func init() {
@@ -17,7 +19,7 @@ func init() {
 
 Usage:
 
-    src login SOURCEGRAPH_URL
+    src login [flags] SOURCEGRAPH_URL
 
 Examples:
 
@@ -32,6 +34,11 @@ Examples:
   Use OAuth device flow to authenticate:
 
     $ src login --device-flow https://sourcegraph.com
+
+
+  Override the default client id used during device flow when authenticating:
+
+    $ src login --device-flow https://sourcegraph.com --client-id sgo_my_own_client_id
 `
 
 	flagSet := flag.NewFlagSet("login", flag.ExitOnError)
@@ -41,7 +48,9 @@ Examples:
 	}
 
 	var (
-		apiFlags = api.NewFlags(flagSet)
+		apiFlags      = api.NewFlags(flagSet)
+		useDeviceFlow = flagSet.Bool("device-flow", false, "Use OAuth device flow to obtain an access token interactively")
+		OAuthClientID = flagSet.String("client-id", oauthdevice.DefaultClientID, "Client ID to use with OAuth device flow. Will use the predefined src cli client ID if not specified.")
 	)
 
 	handler := func(args []string) error {
@@ -56,9 +65,21 @@ Examples:
 			return cmderrors.Usage("expected exactly one argument: the Sourcegraph URL, or SRC_ENDPOINT to be set")
 		}
 
+		if *OAuthClientID == "" {
+			return cmderrors.Usage("no value specified for client-id")
+		}
+
 		client := cfg.apiClient(apiFlags, io.Discard)
 
-		return loginCmd(context.Background(), cfg, client, endpoint, os.Stdout)
+		return loginCmd(context.Background(), loginParams{
+			cfg:              cfg,
+			client:           client,
+			endpoint:         endpoint,
+			out:              os.Stdout,
+			useDeviceFlow:    *useDeviceFlow,
+			apiFlags:         apiFlags,
+			deviceFlowClient: oauthdevice.NewClient(*OAuthClientID),
+		})
 	}
 
 	commands = append(commands, &command{
@@ -68,8 +89,21 @@ Examples:
 	})
 }
 
-func loginCmd(ctx context.Context, cfg *config, client api.Client, endpointArg string, out io.Writer) error {
-	endpointArg = cleanEndpoint(endpointArg)
+type loginParams struct {
+	cfg              *config
+	client           api.Client
+	endpoint         string
+	out              io.Writer
+	useDeviceFlow    bool
+	apiFlags         *api.Flags
+	deviceFlowClient oauthdevice.Client
+}
+
+func loginCmd(ctx context.Context, p loginParams) error {
+	endpointArg := cleanEndpoint(p.endpoint)
+	cfg := p.cfg
+	client := p.client
+	out := p.out
 
 	printProblem := func(problem string) {
 		fmt.Fprintf(out, "❌ Problem: %s\n", problem)
@@ -90,7 +124,19 @@ func loginCmd(ctx context.Context, cfg *config, client api.Client, endpointArg s
 
 	noToken := cfg.AccessToken == ""
 	endpointConflict := endpointArg != cfg.Endpoint
-	if noToken || endpointConflict {
+
+	if p.useDeviceFlow {
+		token, err := runDeviceFlow(ctx, endpointArg, out, p.deviceFlowClient)
+		if err != nil {
+			printProblem(fmt.Sprintf("Device flow authentication failed: %s", err))
+			fmt.Fprintln(out, createAccessTokenMessage)
+			return cmderrors.ExitCode1
+		}
+
+		cfg.AccessToken = token
+		cfg.Endpoint = endpointArg
+		client = cfg.apiClient(p.apiFlags, out)
+	} else if noToken || endpointConflict {
 		fmt.Fprintln(out)
 		switch {
 		case noToken:
