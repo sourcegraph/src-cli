@@ -169,7 +169,12 @@ func (c *client) createHTTPRequest(ctx context.Context, method, p string, body i
 		req.Header.Set("User-Agent", "src-cli/"+version.BuildTag)
 	}
 	if c.opts.AccessToken != "" {
-		req.Header.Set("Authorization", "token "+c.opts.AccessToken)
+		// If this is a SG OAuth access token, then we need to use "Bearer <token>"
+		if strings.HasPrefix(c.opts.AccessToken, "sgo_at_") {
+			req.Header.Set("Authorization", "Bearer "+c.opts.AccessToken)
+		} else {
+			req.Header.Set("Authorization", "token "+c.opts.AccessToken)
+		}
 	}
 	if *c.opts.Flags.trace {
 		req.Header.Set("X-Sourcegraph-Should-Trace", "true")
