@@ -181,10 +181,10 @@ func runDeviceFlow(ctx context.Context, endpoint string, out io.Writer, client o
 	}
 
 	fmt.Fprintln(out)
-	fmt.Fprintf(out, "🔐 To authenticate, visit %s and enter the code: %s\n", authResp.VerificationURI, authResp.UserCode)
+	fmt.Fprintf(out, "To authenticate, visit %s and enter the code: %s\n", authResp.VerificationURI, authResp.UserCode)
 	if authResp.VerificationURIComplete != "" {
 		fmt.Fprintln(out)
-		fmt.Fprintf(out, "   Alternatively, you can open: %s\n", authResp.VerificationURIComplete)
+		fmt.Fprintf(out, "Alternatively, you can open: %s\n", authResp.VerificationURIComplete)
 	}
 	fmt.Fprintln(out)
 	fmt.Fprint(out, "Waiting for authorization...")
