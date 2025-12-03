@@ -7,9 +7,11 @@ import (
 	"io"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/sourcegraph/src-cli/internal/api"
 	"github.com/sourcegraph/src-cli/internal/cmderrors"
+	"github.com/sourcegraph/src-cli/internal/oauthdevice"
 )
 
 func init() {
@@ -17,7 +19,7 @@ func init() {
 
 Usage:
 
-    src login SOURCEGRAPH_URL
+    src login [flags] SOURCEGRAPH_URL
 
 Examples:
 
@@ -28,6 +30,10 @@ Examples:
   Authenticate to Sourcegraph.com:
 
     $ src login https://sourcegraph.com
+
+  Use OAuth device flow to authenticate (opens a browser):
+
+    $ src login --device-flow https://sourcegraph.com
 `
 
 	flagSet := flag.NewFlagSet("login", flag.ExitOnError)
@@ -37,7 +43,8 @@ Examples:
 	}
 
 	var (
-		apiFlags = api.NewFlags(flagSet)
+		apiFlags      = api.NewFlags(flagSet)
+		useDeviceFlow = flagSet.Bool("device-flow", false, "Use OAuth device flow to obtain an access token interactively")
 	)
 
 	handler := func(args []string) error {
@@ -54,7 +61,15 @@ Examples:
 
 		client := cfg.apiClient(apiFlags, io.Discard)
 
-		return loginCmd(context.Background(), cfg, client, endpoint, os.Stdout)
+		return loginCmd(context.Background(), loginParams{
+			cfg:              cfg,
+			client:           client,
+			endpoint:         endpoint,
+			out:              os.Stdout,
+			useDeviceFlow:    *useDeviceFlow,
+			apiFlags:         apiFlags,
+			deviceFlowClient: oauthdevice.NewClient(),
+		})
 	}
 
 	commands = append(commands, &command{
@@ -64,8 +79,21 @@ Examples:
 	})
 }
 
-func loginCmd(ctx context.Context, cfg *config, client api.Client, endpointArg string, out io.Writer) error {
-	endpointArg = cleanEndpoint(endpointArg)
+type loginParams struct {
+	cfg              *config
+	client           api.Client
+	endpoint         string
+	out              io.Writer
+	useDeviceFlow    bool
+	apiFlags         *api.Flags
+	deviceFlowClient oauthdevice.Client
+}
+
+func loginCmd(ctx context.Context, p loginParams) error {
+	endpointArg := cleanEndpoint(p.endpoint)
+	cfg := p.cfg
+	client := p.client
+	out := p.out
 
 	printProblem := func(problem string) {
 		fmt.Fprintf(out, "❌ Problem: %s\n", problem)
@@ -86,7 +114,19 @@ func loginCmd(ctx context.Context, cfg *config, client api.Client, endpointArg s
 
 	noToken := cfg.AccessToken == ""
 	endpointConflict := endpointArg != cfg.Endpoint
-	if noToken || endpointConflict {
+
+	if p.useDeviceFlow {
+		token, err := runDeviceFlow(ctx, endpointArg, out, p.deviceFlowClient)
+		if err != nil {
+			printProblem(fmt.Sprintf("Device flow authentication failed: %s", err))
+			fmt.Fprintln(out, createAccessTokenMessage)
+			return cmderrors.ExitCode1
+		}
+
+		cfg.AccessToken = token
+		cfg.Endpoint = endpointArg
+		client = cfg.apiClient(p.apiFlags, out)
+	} else if noToken || endpointConflict {
 		fmt.Fprintln(out)
 		switch {
 		case noToken:
@@ -122,6 +162,43 @@ func loginCmd(ctx context.Context, cfg *config, client api.Client, endpointArg s
 	}
 	fmt.Fprintln(out)
 	fmt.Fprintf(out, "✔️  Authenticated as %s on %s\n", result.CurrentUser.Username, endpointArg)
+
+	if p.useDeviceFlow {
+		fmt.Fprintln(out)
+		fmt.Fprintf(out, "To use this access token, set the following environment variables in your terminal:\n\n")
+		fmt.Fprintf(out, "   export SRC_ENDPOINT=%s\n", endpointArg)
+		fmt.Fprintf(out, "   export SRC_ACCESS_TOKEN=%s\n", cfg.AccessToken)
+	}
+
 	fmt.Fprintln(out)
 	return nil
+}
+
+func runDeviceFlow(ctx context.Context, endpoint string, out io.Writer, client oauthdevice.Client) (string, error) {
+	authResp, err := client.Start(ctx, endpoint, nil)
+	if err != nil {
+		return "", err
+	}
+
+	fmt.Fprintln(out)
+	fmt.Fprintf(out, "🔐 To authenticate, visit %s and enter the code: %s\n", authResp.VerificationURI, authResp.UserCode)
+	if authResp.VerificationURIComplete != "" {
+		fmt.Fprintln(out)
+		fmt.Fprintf(out, "   Alternatively, you can open: %s\n", authResp.VerificationURIComplete)
+	}
+	fmt.Fprintln(out)
+	fmt.Fprint(out, "Waiting for authorization...")
+	defer fmt.Fprintf(out, "DONE\n\n")
+
+	interval := time.Duration(authResp.Interval) * time.Second
+	if interval <= 0 {
+		interval = 5 * time.Second
+	}
+
+	tokenResp, err := client.Poll(ctx, endpoint, authResp.DeviceCode, interval, authResp.ExpiresIn)
+	if err != nil {
+		return "", err
+	}
+
+	return tokenResp.AccessToken, nil
 }
