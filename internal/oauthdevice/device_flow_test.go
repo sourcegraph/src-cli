@@ -11,8 +11,6 @@ import (
 	"time"
 )
 
-func noSleep(ctx context.Context, d time.Duration) error { return nil }
-
 const (
 	testDeviceAuthPath = "/device/code"
 	testTokenPath      = "/token"
