@@ -266,10 +266,12 @@ func TestStart_NoDeviceEndpoint(t *testing.T) {
 
 func TestPoll_Success(t *testing.T) {
 	wantToken := TokenResponse{
-		AccessToken: "test-access-token",
-		TokenType:   "Bearer",
-		ExpiresIn:   3600,
-		Scope:       "read write",
+		Token: Token{
+			AccessToken: "test-access-token",
+			ExpiresIn:   3600,
+		},
+		Scope:     "read write",
+		TokenType: "Bearer",
 	}
 
 	server := newTestServer(t, testServerOptions{
@@ -335,8 +337,8 @@ func TestPoll_AuthorizationPending(t *testing.T) {
 				}
 
 				json.NewEncoder(w).Encode(TokenResponse{
-					AccessToken: "test-access-token",
-					TokenType:   "Bearer",
+					Token:     Token{AccessToken: "test-access-token"},
+					TokenType: "Bearer",
 				})
 			},
 		},
@@ -377,8 +379,8 @@ func TestPoll_SlowDown(t *testing.T) {
 				}
 
 				json.NewEncoder(w).Encode(TokenResponse{
-					AccessToken: "test-access-token",
-					TokenType:   "Bearer",
+					Token:     Token{AccessToken: "test-access-token"},
+					TokenType: "Bearer",
 				})
 			},
 		},
@@ -525,10 +527,12 @@ func TestRefresh_Success(t *testing.T) {
 
 				w.Header().Set("Content-Type", "application/json")
 				json.NewEncoder(w).Encode(TokenResponse{
-					AccessToken:  "new-access-token",
-					RefreshToken: "new-refresh-token",
-					TokenType:    "Bearer",
-					ExpiresIn:    3600,
+					Token: Token{
+						AccessToken:  "new-access-token",
+						RefreshToken: "new-refresh-token",
+						ExpiresIn:    3600,
+					},
+					TokenType: "Bearer",
 				})
 			},
 		},

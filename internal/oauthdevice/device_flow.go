@@ -50,13 +50,16 @@ type DeviceAuthResponse struct {
 	ExpiresIn               int    `json:"expires_in"`
 	Interval                int    `json:"interval"`
 }
-
-type TokenResponse struct {
+type Token struct {
 	AccessToken  string `json:"access_token"`
 	RefreshToken string `json:"refresh_token,omitempty"`
-	TokenType    string `json:"token_type"`
 	ExpiresIn    int    `json:"expires_in,omitempty"`
-	Scope        string `json:"scope,omitempty"`
+}
+
+type TokenResponse struct {
+	Token
+	TokenType string `json:"token_type"`
+	Scope     string `json:"scope,omitempty"`
 }
 
 type ErrorResponse struct {
@@ -360,3 +363,4 @@ func (c *httpClient) Refresh(ctx context.Context, endpoint, refreshToken string)
 
 	return &tokenResp, nil
 }
+
