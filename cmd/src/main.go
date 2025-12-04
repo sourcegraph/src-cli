@@ -25,23 +25,22 @@ Usage:
 	src [options] command [command options]
 
 Environment variables
-	SRC_ACCESS_TOKEN        Sourcegraph access token
-	SRC_ENDPOINT            Endpoint to use, if unset will default to "https://sourcegraph.com"
-	SRC_PROXY               A proxy to use for proxying requests to the Sourcegraph endpoint.
-	                        Supports HTTP(S), SOCKS5/5h, and UNIX Domain Socket proxies.
-					        If a UNIX Domain Socket, the path can be either an absolute path,
-					        or can start with ~/ or %USERPROFILE%\ for a path in the user's home directory.
-					        Examples:
-					         - https://localhost:3080
-					         - https://<user>:<password>localhost:8080
-					         - socks5h://localhost:1080
-					         - socks5://<username>:<password>@localhost:1080
-					         - unix://~/src-proxy.sock
-					         - unix://%USERPROFILE%\src-proxy.sock
-					         - ~/src-proxy.sock
-					         - %USERPROFILE%\src-proxy.sock
-					         - C:\some\path\src-proxy.sock
-    SRC_MAX_REQUESTSIZE_MB   Maximum request body size in MB for git operations (default: 10)
+	SRC_ACCESS_TOKEN  Sourcegraph access token
+	SRC_ENDPOINT      endpoint to use, if unset will default to "https://sourcegraph.com"
+	SRC_PROXY         A proxy to use for proxying requests to the Sourcegraph endpoint.
+	                  Supports HTTP(S), SOCKS5/5h, and UNIX Domain Socket proxies.
+					  If a UNIX Domain Socket, the path can be either an absolute path,
+					  or can start with ~/ or %USERPROFILE%\ for a path in the user's home directory.
+					  Examples:
+						- https://localhost:3080
+						- https://<user>:<password>localhost:8080
+						- socks5h://localhost:1080
+						- socks5://<username>:<password>@localhost:1080
+						- unix://~/src-proxy.sock
+						- unix://%USERPROFILE%\src-proxy.sock
+						- ~/src-proxy.sock
+						- %USERPROFILE%\src-proxy.sock
+						- C:\some\path\src-proxy.sock
 
 The options are:
 
