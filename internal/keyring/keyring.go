@@ -6,11 +6,7 @@ import (
 	"github.com/sourcegraph/sourcegraph/lib/errors"
 )
 
-const (
-	serviceName = "sourcegraph-cli"
-
-	KeyOAuth = "oauth"
-)
+const serviceName = "sourcegraph-cli"
 
 // Store provides secure credential storage operations.
 type Store struct {
