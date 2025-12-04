@@ -45,6 +45,8 @@ require (
 	cloud.google.com/go/auth v0.17.0 // indirect
 	cloud.google.com/go/auth/oauth2adapt v0.2.8 // indirect
 	cloud.google.com/go/monitoring v1.24.2 // indirect
+	github.com/99designs/go-keychain v0.0.0-20191008050251-8e49817e8af4 // indirect
+	github.com/99designs/keyring v1.2.2 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp v1.29.0 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/metric v0.50.0 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/resourcemapping v0.50.0 // indirect
@@ -64,6 +66,7 @@ require (
 	github.com/clipperhouse/uax29/v2 v2.2.0 // indirect
 	github.com/cncf/xds/go v0.0.0-20250501225837-2ac532fd4443 // indirect
 	github.com/containerd/stargz-snapshotter/estargz v0.14.3 // indirect
+	github.com/danieljoos/wincred v1.2.0 // indirect
 	github.com/distribution/reference v0.6.0 // indirect
 	github.com/docker/cli v24.0.4+incompatible // indirect
 	github.com/docker/distribution v2.8.2+incompatible // indirect
@@ -71,6 +74,7 @@ require (
 	github.com/docker/docker-credential-helpers v0.8.0 // indirect
 	github.com/docker/go-connections v0.4.0 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
+	github.com/dvsekhvalnov/jose2go v1.5.0 // indirect
 	github.com/envoyproxy/go-control-plane/envoy v1.32.4 // indirect
 	github.com/felixge/fgprof v0.9.3 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
@@ -78,6 +82,7 @@ require (
 	github.com/go-chi/chi/v5 v5.2.2 // indirect
 	github.com/go-jose/go-jose/v4 v4.1.2 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
+	github.com/godbus/dbus v0.0.0-20190726142602-4481cbc300e2 // indirect
 	github.com/gofrs/uuid/v5 v5.0.0 // indirect
 	github.com/google/gnostic-models v0.6.9 // indirect
 	github.com/google/go-containerregistry v0.19.1 // indirect
@@ -85,6 +90,7 @@ require (
 	github.com/google/s2a-go v0.1.9 // indirect
 	github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.27.2 // indirect
+	github.com/gsterjov/go-libsecret v0.0.0-20161001094733-a6f4afe4910c // indirect
 	github.com/iancoleman/strcase v0.3.0 // indirect
 	github.com/jackc/chunkreader/v2 v2.0.1 // indirect
 	github.com/jackc/pgconn v1.14.3 // indirect
@@ -95,6 +101,7 @@ require (
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
 	github.com/moby/docker-image-spec v1.3.1 // indirect
 	github.com/morikuni/aec v1.0.0 // indirect
+	github.com/mtibben/percent v0.2.1 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.1.0-rc4 // indirect
 	github.com/petermattis/goid v0.0.0-20240813172612-4fcff4a6cae7 // indirect
