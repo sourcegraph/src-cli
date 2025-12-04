@@ -23,10 +23,19 @@ func mcpMain(args []string) error {
 
 	subcmd := args[0]
 	if subcmd == "list-tools" {
-		fmt.Println("Available tools")
+		fmt.Println("The following tools are available:")
 		for name := range tools {
-			fmt.Printf("- %s\n", name)
+			fmt.Printf(" • %s\n", name)
 		}
+		fmt.Println("\nUSAGE:")
+		fmt.Printf(" • Invoke a tool\n")
+		fmt.Printf("     src mcp <tool-name> <flags>\n")
+		fmt.Printf("\n • View the Input / Output Schema of a tool\n")
+		fmt.Printf("     src mcp <tool-name> schema\n")
+		fmt.Printf("\n • List the available flags of a tool\n")
+		fmt.Printf("     src mcp <tool-name> -h\n")
+		fmt.Printf("\n • View the Input / Output Schema of a tool\n")
+		fmt.Printf("     src mcp <tool-name> schema\n")
 		return nil
 	}
 
