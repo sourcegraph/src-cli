@@ -266,12 +266,10 @@ func TestStart_NoDeviceEndpoint(t *testing.T) {
 
 func TestPoll_Success(t *testing.T) {
 	wantToken := TokenResponse{
-		Token: Token{
-			AccessToken: "test-access-token",
-			ExpiresIn:   3600,
-		},
-		Scope:     "read write",
-		TokenType: "Bearer",
+		AccessToken: "test-access-token",
+		ExpiresIn:   3600,
+		Scope:       "read write",
+		TokenType:   "Bearer",
 	}
 
 	server := newTestServer(t, testServerOptions{
@@ -315,6 +313,7 @@ func TestPoll_Success(t *testing.T) {
 	if resp.TokenType != wantToken.TokenType {
 		t.Errorf("TokenType = %q, want %q", resp.TokenType, wantToken.TokenType)
 	}
+
 }
 
 func TestPoll_AuthorizationPending(t *testing.T) {
@@ -337,8 +336,8 @@ func TestPoll_AuthorizationPending(t *testing.T) {
 				}
 
 				json.NewEncoder(w).Encode(TokenResponse{
-					Token:     Token{AccessToken: "test-access-token"},
-					TokenType: "Bearer",
+					AccessToken: "test-access-token",
+					TokenType:   "Bearer",
 				})
 			},
 		},
@@ -379,8 +378,8 @@ func TestPoll_SlowDown(t *testing.T) {
 				}
 
 				json.NewEncoder(w).Encode(TokenResponse{
-					Token:     Token{AccessToken: "test-access-token"},
-					TokenType: "Bearer",
+					AccessToken: "test-access-token",
+					TokenType:   "Bearer",
 				})
 			},
 		},
@@ -527,12 +526,10 @@ func TestRefresh_Success(t *testing.T) {
 
 				w.Header().Set("Content-Type", "application/json")
 				json.NewEncoder(w).Encode(TokenResponse{
-					Token: Token{
-						AccessToken:  "new-access-token",
-						RefreshToken: "new-refresh-token",
-						ExpiresIn:    3600,
-					},
-					TokenType: "Bearer",
+					AccessToken:  "new-access-token",
+					RefreshToken: "new-refresh-token",
+					ExpiresIn:    3600,
+					TokenType:    "Bearer",
 				})
 			},
 		},
@@ -540,7 +537,13 @@ func TestRefresh_Success(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient(DefaultClientID)
-	resp, err := client.Refresh(context.Background(), server.URL, "test-refresh-token")
+	token := &Token{
+		Endpoint:     server.URL,
+		AccessToken:  "new-access-token",
+		RefreshToken: "test-refresh-token",
+		ExpiresAt:    time.Now().Add(time.Second * time.Duration(3600)),
+	}
+	resp, err := client.Refresh(context.Background(), token)
 	if err != nil {
 		t.Fatalf("Refresh() error = %v", err)
 	}
