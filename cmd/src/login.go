@@ -13,6 +13,7 @@ import (
 
 	"github.com/sourcegraph/src-cli/internal/api"
 	"github.com/sourcegraph/src-cli/internal/cmderrors"
+	"github.com/sourcegraph/src-cli/internal/keyring"
 	"github.com/sourcegraph/src-cli/internal/oauth"
 )
 
@@ -122,6 +123,13 @@ func loginCmd(ctx context.Context, p loginParams) error {
 	noToken := cfg.AccessToken == ""
 	endpointConflict := endpointArg != cfg.Endpoint
 
+	secretStore, err := keyring.Open()
+	if err != nil {
+		printProblem(fmt.Sprintf("could not open keyring for secret storage: %s", err))
+	}
+
+	cfg.Endpoint = endpointArg
+
 	if p.useOAuth {
 		token, err := runOAuthDeviceFlow(ctx, endpointArg, out, p.deviceFlowClient)
 		if err != nil {
@@ -130,8 +138,11 @@ func loginCmd(ctx context.Context, p loginParams) error {
 			return cmderrors.ExitCode1
 		}
 
-		cfg.AccessToken = token
-		cfg.Endpoint = endpointArg
+		if err := oauth.StoreToken(secretStore, token); err != nil {
+			printProblem(fmt.Sprintf("Failed to store token in keyring store: %s", err))
+			return cmderrors.ExitCode1
+		}
+
 		client = cfg.apiClient(p.apiFlags, out)
 	} else if noToken || endpointConflict {
 		fmt.Fprintln(out)
@@ -179,10 +190,10 @@ func loginCmd(ctx context.Context, p loginParams) error {
 	return nil
 }
 
-func runOAuthDeviceFlow(ctx context.Context, endpoint string, out io.Writer, client oauth.Client) (string, error) {
+func runOAuthDeviceFlow(ctx context.Context, endpoint string, out io.Writer, client oauth.Client) (*oauth.Token, error) {
 	authResp, err := client.Start(ctx, endpoint, nil)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	authURL := authResp.VerificationURIComplete
@@ -204,12 +215,12 @@ func runOAuthDeviceFlow(ctx context.Context, endpoint string, out io.Writer, cli
 		interval = 5 * time.Second
 	}
 
-	tokenResp, err := client.Poll(ctx, endpoint, authResp.DeviceCode, interval, authResp.ExpiresIn)
+	resp, err := client.Poll(ctx, endpoint, authResp.DeviceCode, interval, authResp.ExpiresIn)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
-	return tokenResp.AccessToken, nil
+	return resp.Token(endpoint), nil
 }
 
 func openInBrowser(url string) error {

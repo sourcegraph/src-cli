@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/sourcegraph/src-cli/internal/cmderrors"
+	"github.com/sourcegraph/src-cli/internal/oauth"
 )
 
 func TestLogin(t *testing.T) {
@@ -18,7 +19,13 @@ func TestLogin(t *testing.T) {
 		t.Helper()
 
 		var out bytes.Buffer
-		err = loginCmd(context.Background(), loginParams{cfg: cfg, client: cfg.apiClient(nil, io.Discard), endpoint: endpointArg, out: &out})
+		err = loginCmd(context.Background(), loginParams{
+			cfg:              cfg,
+			client:           cfg.apiClient(nil, io.Discard),
+			endpoint:         endpointArg,
+			out:              &out,
+			deviceFlowClient: oauth.NewClient(oauth.DefaultClientID),
+		})
 		return strings.TrimSpace(out.String()), err
 	}
 
