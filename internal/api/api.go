@@ -18,6 +18,7 @@ import (
 	"github.com/kballard/go-shellquote"
 	"github.com/mattn/go-isatty"
 
+	"github.com/sourcegraph/src-cli/internal/oauthdevice"
 	"github.com/sourcegraph/src-cli/internal/version"
 )
 
@@ -85,21 +86,35 @@ type ClientOpts struct {
 
 	ProxyURL  *url.URL
 	ProxyPath string
+
+	OAuthToken *oauthdevice.Token
 }
 
-func buildTransport(opts ClientOpts, flags *Flags) *http.Transport {
-	transport := http.DefaultTransport.(*http.Transport).Clone()
+func buildTransport(opts ClientOpts, flags *Flags) http.RoundTripper {
+	var transport http.RoundTripper
+	{
+		tp := http.DefaultTransport.(*http.Transport).Clone()
 
-	if flags.insecureSkipVerify != nil && *flags.insecureSkipVerify {
-		transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+		if flags.insecureSkipVerify != nil && *flags.insecureSkipVerify {
+			tp.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+		}
+
+		if tp.TLSClientConfig == nil {
+			tp.TLSClientConfig = &tls.Config{}
+		}
+
+		if opts.ProxyURL != nil || opts.ProxyPath != "" {
+			tp = withProxyTransport(tp, opts.ProxyURL, opts.ProxyPath)
+		}
+
+		transport = tp
 	}
 
-	if transport.TLSClientConfig == nil {
-		transport.TLSClientConfig = &tls.Config{}
-	}
-
-	if opts.ProxyURL != nil || opts.ProxyPath != "" {
-		transport = withProxyTransport(transport, opts.ProxyURL, opts.ProxyPath)
+	if opts.AccessToken == "" && opts.OAuthToken != nil {
+		transport = &oauthdevice.Transport{
+			Base:  transport,
+			Token: opts.OAuthToken,
+		}
 	}
 
 	return transport
