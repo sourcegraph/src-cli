@@ -5,10 +5,10 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
-	"io"
 	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -100,7 +100,11 @@ func (s *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// os.Root only accepts relative paths from it's root. So we trim the
 	// prefix.
-	relDir := strings.TrimPrefix(dir, s.RootFS.Name()+string(os.PathSeparator))
+	relDir, err := filepath.Rel(s.RootFS.Name(), dir)
+	if err != nil {
+		http.Error(w, "invalid path specified: "+err.Error(), http.StatusBadRequest)
+		return
+	}
 	if _, err = s.RootFS.Stat(relDir); os.IsNotExist(err) {
 		http.Error(w, "repository not found", http.StatusNotFound)
 		return
@@ -112,7 +116,6 @@ func (s *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	body := r.Body
 	defer body.Close()
 
-	// TODO(@evict) max filereader
 	if r.Header.Get("Content-Encoding") == "gzip" {
 		gzipReader, err := gzip.NewReader(body)
 		if err != nil {
