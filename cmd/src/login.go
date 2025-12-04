@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
@@ -14,8 +13,6 @@ import (
 	"github.com/sourcegraph/src-cli/internal/cmderrors"
 	"github.com/sourcegraph/src-cli/internal/keyring"
 	"github.com/sourcegraph/src-cli/internal/oauthdevice"
-
-	"github.com/sourcegraph/sourcegraph/lib/errors"
 )
 
 func init() {
@@ -137,14 +134,14 @@ func loginCmd(ctx context.Context, p loginParams) error {
 	cfg.Endpoint = endpointArg
 
 	if p.useDeviceFlow {
-		resp, err := runDeviceFlow(ctx, endpointArg, out, p.deviceFlowClient)
+		token, err := runDeviceFlow(ctx, endpointArg, out, p.deviceFlowClient)
 		if err != nil {
 			printProblem(fmt.Sprintf("Device flow authentication failed: %s", err))
 			fmt.Fprintln(out, createAccessTokenMessage)
 			return cmderrors.ExitCode1
 		}
 
-		if err := oauthdevice.StoreToken(secretStore, &resp.Token); err != nil {
+		if err := oauthdevice.StoreToken(secretStore, token); err != nil {
 			printProblem(fmt.Sprintf("Failed to store token in keyring store: %s", err))
 			return cmderrors.ExitCode1
 		}
@@ -198,10 +195,7 @@ func loginCmd(ctx context.Context, p loginParams) error {
 	return nil
 }
 
-func storeToken(store *keyring.Store, token *oauthdevice.Token) error {
-}
-
-func runDeviceFlow(ctx context.Context, endpoint string, out io.Writer, client oauthdevice.Client) (*oauthdevice.TokenResponse, error) {
+func runDeviceFlow(ctx context.Context, endpoint string, out io.Writer, client oauthdevice.Client) (*oauthdevice.Token, error) {
 	authResp, err := client.Start(ctx, endpoint, nil)
 	if err != nil {
 		return nil, err
@@ -222,10 +216,10 @@ func runDeviceFlow(ctx context.Context, endpoint string, out io.Writer, client o
 		interval = 5 * time.Second
 	}
 
-	tokenResp, err := client.Poll(ctx, endpoint, authResp.DeviceCode, interval, authResp.ExpiresIn)
+	resp, err := client.Poll(ctx, endpoint, authResp.DeviceCode, interval, authResp.ExpiresIn)
 	if err != nil {
 		return nil, err
 	}
 
-	return tokenResp, nil
+	return resp.Token(endpoint), nil
 }

@@ -380,6 +380,15 @@ func (t *TokenResponse) Token(endpoint string) *Token {
 	}
 }
 
+func (t *Token) HasExpired() bool {
+	return time.Now().After(t.ExpiresAt)
+}
+
+func (t *Token) ExpiringIn(d time.Duration) bool {
+	future := time.Now().Add(d)
+	return future.After(t.ExpiresAt)
+}
+
 func StoreToken(store *keyring.Store, token *Token) error {
 	data, err := json.Marshal(token)
 	if err != nil {
