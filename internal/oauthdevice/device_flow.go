@@ -13,6 +13,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/sourcegraph/src-cli/internal/keyring"
+
 	"github.com/sourcegraph/sourcegraph/lib/errors"
 )
 
@@ -22,6 +24,9 @@ const (
 
 	// wellKnownPath is the path on the sourcegraph server where clients can discover OAuth configuration
 	wellKnownPath = "/.well-known/openid-configuration"
+
+	// Key used to store the token in the store
+	KeyOAuth = "oauth"
 
 	GrantTypeDeviceCode string = "urn:ietf:params:oauth:grant-type:device_code"
 
@@ -364,3 +369,26 @@ func (c *httpClient) Refresh(ctx context.Context, endpoint, refreshToken string)
 	return &tokenResp, nil
 }
 
+func StoreToken(store *keyring.Store, token *Token) error {
+	data, err := json.Marshal(token)
+	if err != nil {
+		return errors.Wrap(err, "failed to marshal token")
+	}
+
+	// TODO(burmudar): do we need a suffix that is the endpoint? ex. oauth-sourcegraph.com
+	return store.Set(KeyOAuth, data)
+}
+
+func LoadToken(store *keyring.Store) (*Token, error) {
+	var t Token
+	data, err := store.Get(KeyOAuth)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get token from store")
+	}
+
+	if err := json.Unmarshal(data, &t); err != nil {
+		return nil, errors.Wrap(err, "failed to unmarshall token")
+	}
+
+	return &t, nil
+}
