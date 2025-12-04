@@ -36,13 +36,21 @@ func TestReposHandler(t *testing.T) {
 	}}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
+
 			root := gitInitRepos(t, tc.repos...)
 
+			rootFS, err := os.OpenRoot(root)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { rootFS.Close() })
+
 			h := (&Serve{
-				Info:  testLogger(t),
-				Debug: discardLogger,
-				Addr:  testAddress,
-				Root:  root,
+				Info:   testLogger(t),
+				Debug:  discardLogger,
+				Addr:   testAddress,
+				Root:   root,
+				RootFS: rootFS,
 			}).handler()
 
 			var want []Repo
@@ -132,6 +140,12 @@ func gitInit(t *testing.T, path string) {
 
 func gitInitRepos(t *testing.T, names ...string) string {
 	root := t.TempDir()
+
+	// We cannot os.OpenRoot on a non-existent dir so we return tmpdir
+	if len(names) == 0 {
+		return root
+	}
+
 	root = filepath.Join(root, "repos-root")
 
 	for _, name := range names {
@@ -161,10 +175,17 @@ func TestIgnoreGitSubmodules(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	rootFS, err := os.OpenRoot(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { rootFS.Close() })
+
 	repos, err := (&Serve{
-		Info:  testLogger(t),
-		Debug: discardLogger,
-		Root:  root,
+		Info:   testLogger(t),
+		Debug:  discardLogger,
+		Root:   root,
+		RootFS: rootFS,
 	}).Repos()
 	if err != nil {
 		t.Fatal(err)
@@ -201,6 +222,6 @@ type testWriter struct {
 }
 
 func (tw testWriter) Write(p []byte) (n int, err error) {
-	tw.T.Log(string(p))
+	tw.Log(string(p))
 	return len(p), nil
 }

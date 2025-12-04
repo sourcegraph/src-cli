@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -65,6 +66,10 @@ type Handler struct {
 	// call the returned function when done executing. If the executation
 	// failed, it will pass in a non-nil error.
 	Trace func(ctx context.Context, svc, repo, protocol string) func(error)
+
+	// RootFS is a traversal safe API that ensures files outside of the
+	// root cannot be opened.
+	RootFS *os.Root
 }
 
 func (s *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -93,7 +98,14 @@ func (s *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, err = os.Stat(dir); os.IsNotExist(err) {
+	// os.Root only accepts relative paths from it's root. So we trim the
+	// prefix.
+	relDir, err := filepath.Rel(s.RootFS.Name(), dir)
+	if err != nil {
+		http.Error(w, "invalid path specified: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+	if _, err = s.RootFS.Stat(relDir); os.IsNotExist(err) {
 		http.Error(w, "repository not found", http.StatusNotFound)
 		return
 	} else if err != nil {

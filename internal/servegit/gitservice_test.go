@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"net/http/httptest"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -31,10 +32,17 @@ func TestHandler(t *testing.T) {
 		runCmd(t, repo, "git", "tag", fmt.Sprintf("v%d", i+1))
 	}
 
+	rootFS, err := os.OpenRoot(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { rootFS.Close() })
+
 	ts := httptest.NewServer(&Handler{
 		Dir: func(_ context.Context, s string) (string, error) {
 			return filepath.Join(root, s, ".git"), nil
 		},
+		RootFS: rootFS,
 	})
 	defer ts.Close()
 
