@@ -63,7 +63,7 @@ type SchemaPrimitive struct {
 
 func (s SchemaPrimitive) Type() string { return s.Kind }
 
-type parser struct {
+type decoder struct {
 	errors []error
 }
 
@@ -82,25 +82,25 @@ func LoadToolDefinitions(data []byte) (map[string]*ToolDef, error) {
 	}
 
 	tools := map[string]*ToolDef{}
-	parser := &parser{}
+	decoder := &decoder{}
 
 	for _, t := range defs.Tools {
 		tools[t.Name] = &ToolDef{
 			Name:         t.Name,
 			Description:  t.Description,
-			InputSchema:  parser.parseRootSchema(t.InputSchema),
-			OutputSchema: parser.parseRootSchema(t.OutputSchema),
+			InputSchema:  decoder.decodeRootSchema(t.InputSchema),
+			OutputSchema: decoder.decodeRootSchema(t.OutputSchema),
 		}
 	}
 
-	if len(parser.errors) > 0 {
-		return tools, errors.Append(nil, parser.errors...)
+	if len(decoder.errors) > 0 {
+		return tools, errors.Append(nil, decoder.errors...)
 	}
 
 	return tools, nil
 }
 
-func (p *parser) parseRootSchema(r RawSchema) Schema {
+func (d *decoder) decodeRootSchema(r RawSchema) Schema {
 	return Schema{
 		Schema: r.SchemaVersion,
 		SchemaObject: SchemaObject{
@@ -108,12 +108,12 @@ func (p *parser) parseRootSchema(r RawSchema) Schema {
 			Description:          r.Description,
 			Required:             r.Required,
 			AdditionalProperties: r.AdditionalProperties,
-			Properties:           p.parseProperties(r.Properties),
+			Properties:           d.decodeProperties(r.Properties),
 		},
 	}
 }
 
-func (p *parser) parseSchema(r *RawSchema) SchemaValue {
+func (d *decoder) decodeSchema(r *RawSchema) SchemaValue {
 	switch r.Type {
 	case "object":
 		return &SchemaObject{
@@ -121,7 +121,7 @@ func (p *parser) parseSchema(r *RawSchema) SchemaValue {
 			Description:          r.Description,
 			Required:             r.Required,
 			AdditionalProperties: r.AdditionalProperties,
-			Properties:           p.parseProperties(r.Properties),
+			Properties:           d.decodeProperties(r.Properties),
 		}
 	case "array":
 		var items SchemaValue
@@ -133,9 +133,9 @@ func (p *parser) parseSchema(r *RawSchema) SchemaValue {
 			} else {
 				var itemRaw RawSchema
 				if err := json.Unmarshal(r.Items, &itemRaw); err == nil {
-					items = p.parseSchema(&itemRaw)
+					items = d.decodeSchema(&itemRaw)
 				} else {
-					p.errors = append(p.errors, errors.Errorf("failed to unmarshal array items: %w", err))
+					d.errors = append(d.errors, errors.Errorf("failed to unmarshal array items: %w", err))
 				}
 			}
 		}
@@ -152,15 +152,15 @@ func (p *parser) parseSchema(r *RawSchema) SchemaValue {
 	}
 }
 
-func (p *parser) parseProperties(props map[string]json.RawMessage) map[string]SchemaValue {
+func (d *decoder) decodeProperties(props map[string]json.RawMessage) map[string]SchemaValue {
 	res := make(map[string]SchemaValue)
 	for name, raw := range props {
 		var r RawSchema
 		if err := json.Unmarshal(raw, &r); err != nil {
-			p.errors = append(p.errors, fmt.Errorf("failed to parse property %q: %w", name, err))
+			d.errors = append(d.errors, fmt.Errorf("failed to parse property %q: %w", name, err))
 			continue
 		}
-		res[name] = p.parseSchema(&r)
+		res[name] = d.decodeSchema(&r)
 	}
 	return res
 }
