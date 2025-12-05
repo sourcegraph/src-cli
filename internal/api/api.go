@@ -87,6 +87,24 @@ type ClientOpts struct {
 	ProxyPath string
 }
 
+func buildTransport(opts ClientOpts, flags *Flags) *http.Transport {
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+
+	if flags.insecureSkipVerify != nil && *flags.insecureSkipVerify {
+		transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+	}
+
+	if transport.TLSClientConfig == nil {
+		transport.TLSClientConfig = &tls.Config{}
+	}
+
+	if opts.ProxyURL != nil || opts.ProxyPath != "" {
+		transport = NewProxyTransport(transport, opts.ProxyURL, opts.ProxyPath)
+	}
+
+	return transport
+}
+
 // NewClient creates a new API client.
 func NewClient(opts ClientOpts) Client {
 	if opts.Out == nil {
@@ -98,28 +116,10 @@ func NewClient(opts ClientOpts) Client {
 		flags = defaultFlags()
 	}
 
-	httpClient := http.DefaultClient
+	transport := buildTransport(opts, flags)
 
-	transport := http.DefaultTransport.(*http.Transport).Clone()
-	customTransport := false
-
-	if flags.insecureSkipVerify != nil && *flags.insecureSkipVerify {
-		customTransport = true
-		transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
-	}
-
-	if transport.TLSClientConfig == nil {
-		transport.TLSClientConfig = &tls.Config{}
-	}
-
-	if applyProxy(transport, opts.ProxyURL, opts.ProxyPath) {
-		customTransport = true
-	}
-
-	if customTransport {
-		httpClient = &http.Client{
-			Transport: transport,
-		}
+	httpClient := &http.Client{
+		Transport: transport,
 	}
 
 	return &client{
