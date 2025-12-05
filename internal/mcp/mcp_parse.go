@@ -100,10 +100,6 @@ func loadToolDefinitions(data []byte) (map[string]*ToolDef, error) {
 		tools[tool.Name] = tool
 	}
 
-	// make it so that can find a tool definition by it's original name (RawName) and normalized name (Name())
-	tools[def.RawName] = def
-	tools[def.Name()] = def
-
 	if len(decoder.errors) > 0 {
 		return tools, errors.Append(nil, decoder.errors...)
 	}
