@@ -50,7 +50,7 @@ func DoToolRequest(ctx context.Context, client api.Client, tool *ToolDef, vars m
 	return client.Do(req)
 }
 
-func ParseToolResponse(resp *http.Response) (map[string]json.RawMessage, error) {
+func DecodeToolResponse(resp *http.Response) (map[string]json.RawMessage, error) {
 	data, err := readSSEResponseData(resp)
 	if err != nil {
 		return nil, err
