@@ -51,7 +51,7 @@ Examples:
 		var result struct {
 			RemoveUserFromOrg struct{}
 		}
-		if ok, err := client.NewRequest(query, map[string]interface{}{
+		if ok, err := client.NewRequest(query, map[string]any{
 			"orgID":  *orgIDFlag,
 			"userID": *userIDFlag,
 		}).Do(context.Background(), &result); err != nil || !ok {

@@ -76,7 +76,7 @@ Examples:
 		}
 
 		// Determine which variables to use in the request.
-		vars := map[string]interface{}{}
+		vars := map[string]any{}
 		if *varsFlag != "" {
 			if err := json.Unmarshal([]byte(*varsFlag), &vars); err != nil {
 				return err
@@ -93,7 +93,7 @@ Examples:
 		}
 
 		// Perform the request.
-		var result interface{}
+		var result any
 		if ok, err := cfg.apiClient(apiFlags, flagSet.Output()).NewRequest(query, vars).DoRaw(context.Background(), &result); err != nil || !ok {
 			return err
 		}

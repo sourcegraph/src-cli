@@ -259,7 +259,7 @@ Other tips:
 			}
 		}
 
-		if ok, err := client.NewRequest(query, map[string]interface{}{
+		if ok, err := client.NewRequest(query, map[string]any{
 			"query": api.NullString(queryString),
 		}).Do(context.Background(), &result); err != nil || !ok {
 			return err
@@ -303,9 +303,9 @@ Other tips:
 
 // searchResults represents the data we get back from the GraphQL search request.
 type searchResults struct {
-	Results                    []map[string]interface{}
+	Results                    []map[string]any
 	LimitHit                   bool
-	Cloning, Missing, Timedout []map[string]interface{}
+	Cloning, Missing, Timedout []map[string]any
 	ResultCount                int
 	ElapsedMilliseconds        int
 	Alert                      searchResultsAlert
@@ -335,18 +335,18 @@ func envSetDefault(env []string, key, value string) []string {
 	return env
 }
 
-func searchHighlightPreview(preview interface{}, start, end string) string {
+func searchHighlightPreview(preview any, start, end string) string {
 	if start == "" {
 		start = ansiColors["search-match"]
 	}
 	if end == "" {
 		end = ansiColors["nc"]
 	}
-	p := preview.(map[string]interface{})
+	p := preview.(map[string]any)
 	value := p["value"].(string)
 	var highlights []highlight
-	for _, highlightObject := range p["highlights"].([]interface{}) {
-		h := highlightObject.(map[string]interface{})
+	for _, highlightObject := range p["highlights"].([]any) {
+		h := highlightObject.(map[string]any)
 		line := int(h["line"].(float64))
 		character := int(h["character"].(float64))
 		length := int(h["length"].(float64))
@@ -355,7 +355,7 @@ func searchHighlightPreview(preview interface{}, start, end string) string {
 	return applyHighlights(value, highlights, start, end)
 }
 
-func searchHighlightDiffPreview(diffPreview interface{}) string {
+func searchHighlightDiffPreview(diffPreview any) string {
 	useColordiff, err := strconv.ParseBool(os.Getenv("COLORDIFF"))
 	if err != nil {
 		useColordiff = true
@@ -388,7 +388,7 @@ func searchHighlightDiffPreview(diffPreview interface{}) string {
 	}
 	colorized := buf.String()
 	var final []string
-	for _, line := range strings.Split(colorized, "\n") {
+	for line := range strings.SplitSeq(colorized, "\n") {
 		// fmt.Println("LINE", line)
 		// Find where the start-of-match token is in the line.
 		somToken := strings.Index(line, uniqueStartOfMatchToken)
@@ -498,10 +498,10 @@ func applyHighlights(input string, highlights []highlight, start, end string) st
 // one line, and the offets are relative to this line. When isPreview is false,
 // the lineNumber from the FileMatch data is used, which is relative to the file
 // content.
-func convertMatchToHighlights(m map[string]interface{}, isPreview bool) (highlights []highlight) {
+func convertMatchToHighlights(m map[string]any, isPreview bool) (highlights []highlight) {
 	var line int
-	for _, offsetAndLength := range m["offsetAndLengths"].([]interface{}) {
-		ol := offsetAndLength.([]interface{})
+	for _, offsetAndLength := range m["offsetAndLengths"].([]any) {
+		ol := offsetAndLength.([]any)
 		offset := int(ol[0].(float64))
 		length := int(ol[1].(float64))
 		if isPreview {
@@ -514,18 +514,18 @@ func convertMatchToHighlights(m map[string]interface{}, isPreview bool) (highlig
 	return highlights
 }
 
-var searchTemplateFuncs = map[string]interface{}{
-	"searchSequentialLineNumber": func(lineMatches []interface{}, index int) bool {
+var searchTemplateFuncs = map[string]any{
+	"searchSequentialLineNumber": func(lineMatches []any, index int) bool {
 		prevIndex := index - 1
 		if prevIndex < 0 {
 			return true
 		}
-		prevLineNumber := lineMatches[prevIndex].(map[string]interface{})["lineNumber"]
-		lineNumber := lineMatches[index].(map[string]interface{})["lineNumber"]
+		prevLineNumber := lineMatches[prevIndex].(map[string]any)["lineNumber"]
+		lineNumber := lineMatches[index].(map[string]any)["lineNumber"]
 		return prevLineNumber.(float64) == lineNumber.(float64)-1
 	},
-	"searchHighlightMatch": func(content, query, match interface{}) string {
-		m := match.(map[string]interface{})
+	"searchHighlightMatch": func(content, query, match any) string {
+		m := match.(map[string]any)
 		q := query.(string)
 		var highlights []highlight
 		if strings.Contains(q, "patterntype:structural") {
@@ -537,11 +537,11 @@ var searchTemplateFuncs = map[string]interface{}{
 			return applyHighlights(preview, highlights, ansiColors["search-match"], ansiColors["nc"])
 		}
 	},
-	"searchHighlightPreview": func(preview interface{}) string {
+	"searchHighlightPreview": func(preview any) string {
 		return searchHighlightPreview(preview, "", "")
 	},
 	"searchHighlightDiffPreview": searchHighlightDiffPreview,
-	"searchMaxRepoNameLength": func(results []map[string]interface{}) int {
+	"searchMaxRepoNameLength": func(results []map[string]any) int {
 		max := 0
 		for _, r := range results {
 			if r["__typename"] != "Repository" {
@@ -555,19 +555,19 @@ var searchTemplateFuncs = map[string]interface{}{
 	},
 	"htmlToPlainText":                   htmlToPlainText,
 	"buildVersionHasNewSearchInterface": buildVersionHasNewSearchInterface,
-	"renderResult": func(searchResult map[string]interface{}) string {
-		searchResultBody := searchResult["body"].(map[string]interface{})
+	"renderResult": func(searchResult map[string]any) string {
+		searchResultBody := searchResult["body"].(map[string]any)
 		html := searchResultBody["html"].(string)
 		markdown := searchResultBody["text"].(string)
 		plainText := htmlToPlainText(html)
 		highlights := searchResult["highlights"]
 		isDiff := strings.HasPrefix(markdown, "```diff") && strings.HasSuffix(markdown, "```")
-		if _, ok := highlights.([]interface{}); ok {
+		if _, ok := highlights.([]any); ok {
 			if isDiff {
 				// We special case diffs because we want to display them with color.
-				return searchHighlightDiffPreview(map[string]interface{}{"value": plainText, "highlights": highlights.([]interface{})})
+				return searchHighlightDiffPreview(map[string]any{"value": plainText, "highlights": highlights.([]any)})
 			}
-			return searchHighlightPreview(map[string]interface{}{"value": plainText, "highlights": highlights.([]interface{})}, "", "")
+			return searchHighlightPreview(map[string]any{"value": plainText, "highlights": highlights.([]any)}, "", "")
 		}
 		return markdown
 	},

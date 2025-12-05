@@ -32,7 +32,7 @@ func (lm *DiskManager) AddTask(slug string) (TaskLogger, error) {
 func (lm *DiskManager) Close() error {
 	var errs errors.MultiError
 
-	lm.tasks.Range(func(_, v interface{}) bool {
+	lm.tasks.Range(func(_, v any) bool {
 		logger := v.(*FileTaskLogger)
 
 		if err := logger.Close(); err != nil {
@@ -48,7 +48,7 @@ func (lm *DiskManager) Close() error {
 func (lm *DiskManager) LogFiles() []string {
 	var files []string
 
-	lm.tasks.Range(func(_, v interface{}) bool {
+	lm.tasks.Range(func(_, v any) bool {
 		files = append(files, v.(*FileTaskLogger).Path())
 		return true
 	})

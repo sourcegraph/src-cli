@@ -11,7 +11,7 @@ import (
 	"github.com/sourcegraph/sourcegraph/lib/errors"
 )
 
-type jsonVars map[string]interface{}
+type jsonVars map[string]any
 
 type clientQuery struct {
 	opName    string
@@ -56,7 +56,7 @@ func Validate(ctx context.Context, client api.Client, config *ValidationSpec) er
 							totalCount
 						} 
 					}`
-		executorVars := map[string]interface{}{
+		executorVars := map[string]any{
 			"query":  "",
 			"active": true,
 			"first":  100,
@@ -81,7 +81,7 @@ func Validate(ctx context.Context, client api.Client, config *ValidationSpec) er
 		smtpQuery := `mutation sendTestEmail($to: String!) {
 			sendTestEmail(to: $to)
 		  }`
-		smtpVars := map[string]interface{}{
+		smtpVars := map[string]any{
 			"to": config.Smtp.To,
 		}
 
@@ -116,7 +116,7 @@ func Validate(ctx context.Context, client api.Client, config *ValidationSpec) er
 	return nil
 }
 
-func checkExecutors(ctx context.Context, client api.Client, query string, variables map[string]interface{}) (int, error) {
+func checkExecutors(ctx context.Context, client api.Client, query string, variables map[string]any) (int, error) {
 	q := clientQuery{
 		opName:    "CheckExecutorConnection",
 		query:     query,
@@ -199,7 +199,7 @@ func searchMatchCount(ctx context.Context, client api.Client, searchExpr string)
 	return result.Search.Results.MatchCount, nil
 }
 
-func checkSmtp(ctx context.Context, client api.Client, query string, variables map[string]interface{}) (string, error) {
+func checkSmtp(ctx context.Context, client api.Client, query string, variables map[string]any) (string, error) {
 	q := clientQuery{
 		opName:    "CheckSmtpConfig",
 		query:     query,

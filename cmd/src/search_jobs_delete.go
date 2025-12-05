@@ -23,7 +23,7 @@ func deleteSearchJob(client api.Client, jobID string) error {
 		}
 	}
 
-	if ok, err := client.NewRequest(deleteSearchJobQuery, map[string]interface{}{
+	if ok, err := client.NewRequest(deleteSearchJobQuery, map[string]any{
 		"id": jobID,
 	}).Do(context.Background(), &result); err != nil || !ok {
 		return err

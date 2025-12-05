@@ -64,7 +64,7 @@ Examples:
 		var result struct {
 			UpdateTeam Team
 		}
-		if ok, err := client.NewRequest(query, map[string]interface{}{
+		if ok, err := client.NewRequest(query, map[string]any{
 			"name":        *nameFlag,
 			"displayName": api.NullString(*displayNameFlag),
 			"parentTeam":  api.NullString(*parentTeamFlag),

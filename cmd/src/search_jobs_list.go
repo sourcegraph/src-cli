@@ -36,7 +36,7 @@ func listSearchJobs(client api.Client, limit int, descending bool, orderBy strin
 		}
 	}
 
-	if ok, err := client.NewRequest(query, map[string]interface{}{
+	if ok, err := client.NewRequest(query, map[string]any{
 		"first":      limit,
 		"descending": descending,
 		"orderBy":    orderBy,

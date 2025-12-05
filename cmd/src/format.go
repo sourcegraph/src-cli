@@ -14,9 +14,9 @@ import (
 
 func parseTemplate(text string) (*template.Template, error) {
 	tmpl := template.New("")
-	tmpl.Funcs(map[string]interface{}{
+	tmpl.Funcs(map[string]any{
 		"join": strings.Join,
-		"json": func(v interface{}) (string, error) {
+		"json": func(v any) (string, error) {
 			b, err := marshalIndent(v)
 			return string(b), err
 		},
@@ -26,26 +26,20 @@ func parseTemplate(text string) (*template.Template, error) {
 		"msDuration": func(ms int) time.Duration {
 			return time.Duration(ms) * time.Millisecond
 		},
-		"repoNames": func(repos []map[string]interface{}) (names []string) {
+		"repoNames": func(repos []map[string]any) (names []string) {
 			for _, r := range repos {
 				names = append(names, r["name"].(string))
 			}
 			return
 		},
-		"pad": func(value interface{}, padding int, padCharacter string) string {
+		"pad": func(value any, padding int, padCharacter string) string {
 			val := fmt.Sprint(value)
-			repeat := padding - len(val)
-			if repeat < 0 {
-				repeat = 0
-			}
+			repeat := max(padding-len(val), 0)
 			return strings.Repeat(padCharacter, repeat) + val
 		},
-		"padRight": func(value interface{}, padding int, padCharacter string) string {
+		"padRight": func(value any, padding int, padCharacter string) string {
 			val := fmt.Sprint(value)
-			repeat := padding - len(val)
-			if repeat < 0 {
-				repeat = 0
-			}
+			repeat := max(padding-len(val), 0)
 			return val + strings.Repeat(padCharacter, repeat)
 		},
 		"indent": func(lines, indention string) string {
@@ -60,7 +54,7 @@ func parseTemplate(text string) (*template.Template, error) {
 		"addFloat": func(x, y float64) float64 {
 			return x + y
 		},
-		"debug": func(v interface{}) string {
+		"debug": func(v any) string {
 			data, _ := marshalIndent(v)
 			fmt.Println(string(data))
 
@@ -111,7 +105,7 @@ func parseTemplate(text string) (*template.Template, error) {
 	return tmpl.Parse(text)
 }
 
-func execTemplate(tmpl *template.Template, data interface{}) error {
+func execTemplate(tmpl *template.Template, data any) error {
 	if err := tmpl.Execute(os.Stdout, data); err != nil {
 		return err
 	}
@@ -120,6 +114,6 @@ func execTemplate(tmpl *template.Template, data interface{}) error {
 }
 
 // json.MarshalIndent, but with defaults.
-func marshalIndent(v interface{}) ([]byte, error) {
+func marshalIndent(v any) ([]byte, error) {
 	return json.MarshalIndent(v, "", "  ")
 }

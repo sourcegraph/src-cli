@@ -98,7 +98,7 @@ func handleCodeIntelUpload(args []string) error {
 	}
 
 	if codeintelUploadFlags.json {
-		serialized, err := json.Marshal(map[string]interface{}{
+		serialized, err := json.Marshal(map[string]any{
 			"repo":           codeintelUploadFlags.repo,
 			"commit":         codeintelUploadFlags.commit,
 			"root":           codeintelUploadFlags.root,
@@ -202,7 +202,7 @@ func makeCodeIntelUploadURL(uploadID int) (string, error) {
 		return "", err
 	}
 
-	graphqlID := base64.URLEncoding.EncodeToString([]byte(fmt.Sprintf(`SCIPUpload:%d`, uploadID)))
+	graphqlID := base64.URLEncoding.EncodeToString(fmt.Appendf(nil, `SCIPUpload:%d`, uploadID))
 	url.Path = codeintelUploadFlags.repo + "/-/code-intelligence/uploads/" + graphqlID
 	url.User = nil
 	return url.String(), nil

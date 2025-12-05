@@ -159,7 +159,7 @@ query SettingsSubjectLatestSettingsID($subject: ID!) {
 		}
 	}
 
-	if _, err := client.NewRequest(query, map[string]interface{}{
+	if _, err := client.NewRequest(query, map[string]any{
 		"subject": subjectID,
 	}).Do(ctx, &result); err != nil {
 		return nil, err

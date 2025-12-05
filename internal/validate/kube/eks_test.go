@@ -44,7 +44,6 @@ func TestValidateVpc(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			vpc := testVPC()
 			if tc.vpc != nil {
@@ -114,7 +113,6 @@ func TestValidateAddons(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			addons := testAddonOutput()
 			if tc.addons != nil {
@@ -185,7 +183,6 @@ func TestValidateServiceAccount(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			sa := testServiceAccount()
 			if tc.sa != nil {
@@ -258,7 +255,6 @@ func TestValidateRolePolicy(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			rp := testEBSCSIRole()
 			if tc.rp != nil {

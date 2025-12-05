@@ -177,7 +177,7 @@ func parseFileArg(fileArg string) ([]string, error) {
 	var filesToUpload []string
 
 	// Parse comma-delimited list
-	for _, part := range strings.Split(fileArg, ",") {
+	for part := range strings.SplitSeq(fileArg, ",") {
 
 		// Trim whitespace
 		filename := strings.TrimSpace(part)
@@ -292,7 +292,6 @@ func uploadFilesToBucket(client *gcsClient, args *uploadArgs, openedFiles []uplo
 	// Upload each file in parallel
 	for fileIndex, openedFile := range openedFiles {
 
-		fileIndex := fileIndex
 		openedFile := openedFile
 
 		uploadPool.Go(func(ctx context.Context) error {

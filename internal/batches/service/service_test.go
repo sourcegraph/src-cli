@@ -185,7 +185,7 @@ func TestEnsureDockerImages(t *testing.T) {
 		steps := []batcheslib.Step{}
 
 		total := 100
-		for i := 0; i < total; i++ {
+		for i := range total {
 			name := strconv.Itoa(i)
 			if i%25 == 0 {
 				images[name] = &mock.Image{EnsureErr: wantErr}

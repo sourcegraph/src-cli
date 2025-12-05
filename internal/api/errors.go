@@ -28,7 +28,7 @@ func (gg GraphQlErrors) Error() string {
 }
 
 // GraphQlError wraps a raw JSON error returned from a GraphQL endpoint.
-type GraphQlError struct{ v interface{} }
+type GraphQlError struct{ v any }
 
 // Code returns the GraphQL error code, if one was set on the error.
 func (g *GraphQlError) Code() (string, error) {
@@ -55,15 +55,15 @@ func (g *GraphQlError) Error() string {
 
 // Extensions returns the GraphQL error extensions, if set, or nil if no
 // extensions were set on the error.
-func (g *GraphQlError) Extensions() (map[string]interface{}, error) {
-	e, ok := g.v.(map[string]interface{})
+func (g *GraphQlError) Extensions() (map[string]any, error) {
+	e, ok := g.v.(map[string]any)
 	if !ok {
 		return nil, errors.Errorf("unexpected GraphQL error of type %T", g.v)
 	}
 
 	if e["extensions"] == nil {
 		return nil, nil
-	} else if me, ok := e["extensions"].(map[string]interface{}); ok {
+	} else if me, ok := e["extensions"].(map[string]any); ok {
 		return me, nil
 	}
 	return nil, errors.Errorf("unexpected extensions of type %T", e["extensions"])

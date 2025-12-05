@@ -11,7 +11,7 @@ type LogManager interface {
 type TaskLogger interface {
 	Close() error
 	Log(string)
-	Logf(string, ...interface{})
+	Logf(string, ...any)
 	MarkErrored()
 	Path() string
 	PrefixWriter(prefix string) io.Writer

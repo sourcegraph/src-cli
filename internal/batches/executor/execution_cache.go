@@ -35,7 +35,7 @@ func (c ExecutionDiskCache) cacheFilePath(key cache.Keyer) (string, error) {
 	return filepath.Join(c.Dir, key.Slug(), keyString+cacheFileExt), nil
 }
 
-func readCacheFile(path string, result interface{}) (bool, error) {
+func readCacheFile(path string, result any) (bool, error) {
 	if _, err := os.Stat(path); os.IsNotExist(err) {
 		return false, nil
 	}
@@ -56,7 +56,7 @@ func readCacheFile(path string, result interface{}) (bool, error) {
 	return true, nil
 }
 
-func (c ExecutionDiskCache) writeCacheFile(path string, result interface{}) error {
+func (c ExecutionDiskCache) writeCacheFile(path string, result any) error {
 	raw, err := json.Marshal(result)
 	if err != nil {
 		return errors.Wrap(err, "serializing cache content to JSON")

@@ -109,12 +109,12 @@ mutation EditSettings($input: SettingsMutationGroupInput!, $edit: SettingsEdit!)
     }
   }
 }`
-		queryVars := map[string]interface{}{
-			"input": map[string]interface{}{
+		queryVars := map[string]any{
+			"input": map[string]any{
 				"subject": subjectID,
 				"lastID":  lastID,
 			},
-			"edit": map[string]interface{}{
+			"edit": map[string]any{
 				"keyPath":                   keyPath,
 				"value":                     value,
 				"valueIsJSONCEncodedString": true,

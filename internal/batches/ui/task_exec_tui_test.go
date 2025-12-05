@@ -333,10 +333,7 @@ func (t *ttyBuf) Write(b []byte) (int, error) {
 
 			case 'D':
 				// *d*elete cursor by <digit> amount
-				t.column = t.column - int(digit)
-				if t.column < 0 {
-					t.column = 0
-				}
+				t.column = max(t.column-int(digit), 0)
 
 			case 'm':
 				// noop

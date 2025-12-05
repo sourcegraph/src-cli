@@ -3,6 +3,7 @@ package workspace
 import (
 	"archive/zip"
 	"context"
+	"maps"
 	"os"
 	"path/filepath"
 	"strings"
@@ -134,12 +135,8 @@ func TestDockerBindWorkspaceCreator_Create(t *testing.T) {
 		}
 
 		wantFiles := map[string]string{}
-		for name, content := range filesInZip {
-			wantFiles[name] = content
-		}
-		for name, content := range additionalFiles {
-			wantFiles[name] = content
-		}
+		maps.Copy(wantFiles, filesInZip)
+		maps.Copy(wantFiles, additionalFiles)
 		if !cmp.Equal(wantFiles, haveUnzippedFiles) {
 			t.Fatalf("wrong files in workspace:\n%s", cmp.Diff(wantFiles, haveUnzippedFiles))
 		}

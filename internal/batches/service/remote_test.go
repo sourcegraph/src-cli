@@ -41,7 +41,7 @@ func TestService_UpsertBatchChange(t *testing.T) {
 		{
 			name: "New Batch Change",
 			mockInvokes: func() {
-				client.On("NewRequest", mock.Anything, map[string]interface{}{
+				client.On("NewRequest", mock.Anything, map[string]any{
 					"name":      "my-change",
 					"namespace": "my-namespace",
 				}).
@@ -62,7 +62,7 @@ func TestService_UpsertBatchChange(t *testing.T) {
 		{
 			name: "Failed to upsert batch change",
 			mockInvokes: func() {
-				client.On("NewRequest", mock.Anything, map[string]interface{}{
+				client.On("NewRequest", mock.Anything, map[string]any{
 					"name":      "my-change",
 					"namespace": "my-namespace",
 				}).
@@ -121,7 +121,7 @@ func TestService_CreateBatchSpecFromRaw(t *testing.T) {
 		{
 			name: "Create batch spec",
 			mockInvokes: func() {
-				client.On("NewRequest", mock.Anything, map[string]interface{}{
+				client.On("NewRequest", mock.Anything, map[string]any{
 					"batchSpec":        "abc",
 					"namespace":        "some-namespace",
 					"allowIgnored":     false,
@@ -149,7 +149,7 @@ func TestService_CreateBatchSpecFromRaw(t *testing.T) {
 		{
 			name: "Failed to create batch spec",
 			mockInvokes: func() {
-				client.On("NewRequest", mock.Anything, map[string]interface{}{
+				client.On("NewRequest", mock.Anything, map[string]any{
 					"batchSpec":        "abc",
 					"namespace":        "some-namespace",
 					"allowIgnored":     false,

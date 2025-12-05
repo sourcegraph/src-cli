@@ -13,7 +13,7 @@ type TaskNoOpLogger struct{}
 
 func (tl TaskNoOpLogger) Close() error                         { return nil }
 func (tl TaskNoOpLogger) Log(string)                           {}
-func (tl TaskNoOpLogger) Logf(string, ...interface{})          {}
+func (tl TaskNoOpLogger) Logf(string, ...any)                  {}
 func (tl TaskNoOpLogger) MarkErrored()                         {}
 func (tl TaskNoOpLogger) Path() string                         { return "" }
 func (tl TaskNoOpLogger) PrefixWriter(prefix string) io.Writer { return &bytes.Buffer{} }

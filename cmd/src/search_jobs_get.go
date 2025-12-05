@@ -25,7 +25,7 @@ func getSearchJob(client api.Client, id string) (*SearchJob, error) {
 		Node *SearchJob
 	}
 
-	if ok, err := client.NewRequest(query, map[string]interface{}{
+	if ok, err := client.NewRequest(query, map[string]any{
 		"id": api.NullString(id),
 	}).Do(context.Background(), &result); err != nil || !ok {
 		return nil, err

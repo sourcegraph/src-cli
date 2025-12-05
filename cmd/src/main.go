@@ -203,12 +203,7 @@ func readConfig() (*config, error) {
 		urlSchemes := []string{"http", "https", "socks", "socks5", "socks5h"}
 
 		isURLScheme := func(scheme string) bool {
-			for _, s := range urlSchemes {
-				if scheme == s {
-					return true
-				}
-			}
-			return false
+			return slices.Contains(urlSchemes, scheme)
 		}
 
 		scheme, address := parseEndpoint(cfg.Proxy)

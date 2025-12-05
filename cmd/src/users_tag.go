@@ -62,7 +62,7 @@ Related examples:
   }
 }`
 
-		_, err := client.NewRequest(query, map[string]interface{}{
+		_, err := client.NewRequest(query, map[string]any{
 			"user":    *userIDFlag,
 			"tag":     *tagFlag,
 			"present": !*removeFlag,

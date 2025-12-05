@@ -57,7 +57,7 @@ func Test_CurrentContext(t *testing.T) {
 
 func contextInspectSuccess(ncpu string) *expect.Expectation {
 	return expect.NewLiteral(
-		expect.Behaviour{Stdout: []byte(fmt.Sprintf("%s\n", ncpu))},
+		expect.Behaviour{Stdout: fmt.Appendf(nil, "%s\n", ncpu)},
 		"docker", "context", "inspect", "--format", "{{ .Name }}",
 	)
 }

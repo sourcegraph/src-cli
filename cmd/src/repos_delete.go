@@ -41,7 +41,7 @@ Examples:
 			}
 		}`
 		var result struct{}
-		if ok, err := client.NewRequest(query, map[string]interface{}{
+		if ok, err := client.NewRequest(query, map[string]any{
 			"repoID": repoID,
 		}).Do(ctx, &result); err != nil || !ok {
 			return err

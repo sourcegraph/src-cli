@@ -19,12 +19,12 @@ func (m *Client) NewQuery(query string) api.Request {
 	return args.Get(0).(api.Request)
 }
 
-func (m *Client) NewRequest(query string, vars map[string]interface{}) api.Request {
+func (m *Client) NewRequest(query string, vars map[string]any) api.Request {
 	args := m.Called(query, vars)
 	return args.Get(0).(api.Request)
 }
 
-func (m *Client) NewGzippedRequest(query string, vars map[string]interface{}) api.Request {
+func (m *Client) NewGzippedRequest(query string, vars map[string]any) api.Request {
 	args := m.Called(query, vars)
 	return args.Get(0).(api.Request)
 }
@@ -57,7 +57,7 @@ type Request struct {
 	Response string
 }
 
-func (r *Request) Do(ctx context.Context, result interface{}) (bool, error) {
+func (r *Request) Do(ctx context.Context, result any) (bool, error) {
 	args := r.Called(ctx, result)
 	if r.Response != "" {
 		if err := json.Unmarshal([]byte(r.Response), result); err != nil {
@@ -67,7 +67,7 @@ func (r *Request) Do(ctx context.Context, result interface{}) (bool, error) {
 	return args.Bool(0), args.Error(1)
 }
 
-func (r *Request) DoRaw(ctx context.Context, result interface{}) (bool, error) {
+func (r *Request) DoRaw(ctx context.Context, result any) (bool, error) {
 	args := r.Called(ctx, result)
 	if r.Response != "" {
 		if err := json.Unmarshal([]byte(r.Response), result); err != nil {

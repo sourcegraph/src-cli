@@ -318,7 +318,7 @@ func ensureAll(base, path string, perm os.FileMode) error {
 	// In plain English: for each directory in the path parameter, we should
 	// chmod that path to the permissions that are expected.
 	acc := []string{base}
-	for _, element := range strings.Split(path, string(os.PathSeparator)) {
+	for element := range strings.SplitSeq(path, string(os.PathSeparator)) {
 		acc = append(acc, element)
 		if err := os.Chmod(filepath.Join(acc...), perm); err != nil {
 			errs = errors.Append(errs, err)

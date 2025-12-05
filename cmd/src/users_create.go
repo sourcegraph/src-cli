@@ -55,7 +55,7 @@ Examples:
 				ResetPasswordURL string
 			}
 		}
-		if ok, err := client.NewRequest(query, map[string]interface{}{
+		if ok, err := client.NewRequest(query, map[string]any{
 			"username": *usernameFlag,
 			"email":    *emailFlag,
 		}).Do(context.Background(), &result); err != nil || !ok {

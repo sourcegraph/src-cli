@@ -16,7 +16,7 @@ func Usage(msg string) *UsageError {
 	return &UsageError{errors.New(msg)}
 }
 
-func Usagef(f string, args ...interface{}) *UsageError {
+func Usagef(f string, args ...any) *UsageError {
 	return &UsageError{fmt.Errorf(f, args...)}
 }
 

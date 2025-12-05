@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
@@ -182,14 +183,12 @@ func validateEbsCsiDrivers(testers EbsTestObjects) (result []validate.Result) {
 }
 
 func validateAddons(addons []string) (result []validate.Result) {
-	for _, addon := range addons {
-		if addon == "aws-ebs-csi-driver" {
-			result = append(result, validate.Result{
-				Status:  validate.Success,
-				Message: "EKS: 'aws-ebs-csi-driver' present in addons",
-			})
-			return result
-		}
+	if slices.Contains(addons, "aws-ebs-csi-driver") {
+		result = append(result, validate.Result{
+			Status:  validate.Success,
+			Message: "EKS: 'aws-ebs-csi-driver' present in addons",
+		})
+		return result
 	}
 
 	result = append(result, validate.Result{

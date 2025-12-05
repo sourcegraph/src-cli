@@ -333,7 +333,7 @@ func (ui *stepsExecutionJSONLines) StepOutputWriter(ctx context.Context, task *e
 	return NewIntervalProcessWriter(ctx, stepFlushDuration, sink)
 }
 
-func (ui *stepsExecutionJSONLines) StepFinished(step int, diff []byte, changes git.Changes, outputs map[string]interface{}) {
+func (ui *stepsExecutionJSONLines) StepFinished(step int, diff []byte, changes git.Changes, outputs map[string]any) {
 	logOperationSuccess(
 		batcheslib.LogEventOperationTaskStep,
 		&batcheslib.TaskStepMetadata{
@@ -371,19 +371,19 @@ func (ui *JSONLines) UploadingWorkspaceFilesSuccess() {
 	// No workspace file upload required for executor mode.
 }
 
-func logOperationStart(op batcheslib.LogEventOperation, metadata interface{}) {
+func logOperationStart(op batcheslib.LogEventOperation, metadata any) {
 	logEvent(batcheslib.LogEvent{Operation: op, Status: batcheslib.LogEventStatusStarted, Metadata: metadata})
 }
 
-func logOperationSuccess(op batcheslib.LogEventOperation, metadata interface{}) {
+func logOperationSuccess(op batcheslib.LogEventOperation, metadata any) {
 	logEvent(batcheslib.LogEvent{Operation: op, Status: batcheslib.LogEventStatusSuccess, Metadata: metadata})
 }
 
-func logOperationFailure(op batcheslib.LogEventOperation, metadata interface{}) {
+func logOperationFailure(op batcheslib.LogEventOperation, metadata any) {
 	logEvent(batcheslib.LogEvent{Operation: op, Status: batcheslib.LogEventStatusFailure, Metadata: metadata})
 }
 
-func logOperationProgress(op batcheslib.LogEventOperation, metadata interface{}) {
+func logOperationProgress(op batcheslib.LogEventOperation, metadata any) {
 	logEvent(batcheslib.LogEvent{Operation: op, Status: batcheslib.LogEventStatusProgress, Metadata: metadata})
 }
 

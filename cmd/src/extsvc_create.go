@@ -59,12 +59,12 @@ func init() {
 			}
 		}
 
-		createExternalServiceInput := map[string]interface{}{
+		createExternalServiceInput := map[string]any{
 			"kind":        strings.ToUpper(*kindFlag),
 			"displayName": *nameFlag,
 			"config":      string(createJSON),
 		}
-		queryVars := map[string]interface{}{
+		queryVars := map[string]any{
 			"input": createExternalServiceInput,
 		}
 		var result struct{} // TODO: future: allow formatting resulting external service

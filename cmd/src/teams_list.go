@@ -95,7 +95,7 @@ Examples:
 				}
 			}
 		}
-		if ok, err := client.NewRequest(query, map[string]interface{}{
+		if ok, err := client.NewRequest(query, map[string]any{
 			"first":          api.NullInt(*firstFlag),
 			"search":         api.NullString(*queryFlag),
 			"parentTeamName": api.NullString(*parentTeamFlag),

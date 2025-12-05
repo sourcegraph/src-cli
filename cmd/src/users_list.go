@@ -56,7 +56,7 @@ Examples:
 		if err != nil {
 			return err
 		}
-		vars := map[string]interface{}{
+		vars := map[string]any{
 			"first": api.NullInt(*firstFlag),
 			"query": api.NullString(*queryFlag),
 			"tag":   api.NullString(*tagFlag),

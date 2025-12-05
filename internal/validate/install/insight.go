@@ -9,20 +9,20 @@ import (
 )
 
 func createInsight(ctx context.Context, client api.Client, insight Insight) (string, error) {
-	var dataSeries []map[string]interface{}
+	var dataSeries []map[string]any
 
 	for _, ds := range insight.DataSeries {
-		var series = map[string]interface{}{
+		var series = map[string]any{
 			"query": ds["query"],
-			"options": map[string]interface{}{
+			"options": map[string]any{
 				"label":     ds["label"],
 				"lineColor": ds["lineColor"],
 			},
-			"repositoryScope": map[string]interface{}{
+			"repositoryScope": map[string]any{
 				"repositories": ds["repositoryScope"],
 			},
-			"timeScope": map[string]interface{}{
-				"stepInterval": map[string]interface{}{
+			"timeScope": map[string]any{
+				"stepInterval": map[string]any{
 					"unit":  ds["timeScopeUnit"],
 					"value": ds["timeScopeValue"],
 				},
@@ -42,8 +42,8 @@ func createInsight(ctx context.Context, client api.Client, insight Insight) (str
 			}
 		}`,
 		variables: jsonVars{
-			"input": map[string]interface{}{
-				"options":    map[string]interface{}{"title": insight.Title},
+			"input": map[string]any{
+				"options":    map[string]any{"title": insight.Title},
 				"dataSeries": dataSeries,
 			},
 		},

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -213,7 +214,7 @@ func RunSteps(ctx context.Context, opts *RunStepsOpts) (stepResults []execution.
 			StepIndex:    i,
 			Diff:         stepDiff,
 			// Those will be set below.
-			Outputs: make(map[string]interface{}),
+			Outputs: make(map[string]any),
 		}
 
 		// Set stepContext.Step to current step's results before rendering outputs.
@@ -222,9 +223,7 @@ func RunSteps(ctx context.Context, opts *RunStepsOpts) (stepResults []execution.
 		if err := setOutputs(step.Outputs, lastOutputs, &stepContext); err != nil {
 			return stepResults, errors.Wrap(err, "setting step outputs")
 		}
-		for k, v := range lastOutputs {
-			stepResult.Outputs[k] = v
-		}
+		maps.Copy(stepResult.Outputs, lastOutputs)
 		stepResults = append(stepResults, stepResult)
 		previousStepResult = stepResult
 
@@ -420,7 +419,7 @@ func executeSingleStep(
 	return stdout, stderr, nil
 }
 
-func setOutputs(stepOutputs batcheslib.Outputs, global map[string]interface{}, stepCtx *template.StepContext) error {
+func setOutputs(stepOutputs batcheslib.Outputs, global map[string]any, stepCtx *template.StepContext) error {
 	for name, output := range stepOutputs {
 		var value bytes.Buffer
 
@@ -430,7 +429,7 @@ func setOutputs(stepOutputs batcheslib.Outputs, global map[string]interface{}, s
 
 		switch output.Format {
 		case "yaml":
-			var out interface{}
+			var out any
 			// We use yamlv3 here, because it unmarshals YAML into
 			// map[string]interface{} which we need to serialize it back to
 			// JSON when we cache the results.
@@ -440,7 +439,7 @@ func setOutputs(stepOutputs batcheslib.Outputs, global map[string]interface{}, s
 			}
 			global[name] = out
 		case "json":
-			var out interface{}
+			var out any
 			if err := json.NewDecoder(&value).Decode(&out); err != nil {
 				return err
 			}
@@ -664,7 +663,7 @@ func (e stepFailedErr) Error() string {
 	out.WriteString(fmt.Sprintf("run: %s\ncontainer: %s\n", fmtRun(e.Run), e.Container))
 
 	printOutput := func(output string) {
-		for _, line := range strings.Split(output, "\n") {
+		for line := range strings.SplitSeq(output, "\n") {
 			if e.TmpFilename != "" {
 				line = strings.ReplaceAll(line, e.TmpFilename+": ", "")
 			}

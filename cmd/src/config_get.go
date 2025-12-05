@@ -50,12 +50,12 @@ Examples:
 		}
 
 		var query string
-		var queryVars map[string]interface{}
+		var queryVars map[string]any
 		if *subjectFlag == "" {
 			query = viewerSettingsQuery
 		} else {
 			query = settingsSubjectCascadeQuery
-			queryVars = map[string]interface{}{
+			queryVars = map[string]any{
 				"subject": api.NullString(*subjectFlag),
 			}
 		}

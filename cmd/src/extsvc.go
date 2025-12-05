@@ -61,7 +61,7 @@ func lookupExternalService(ctx context.Context, client api.Client, byID, byName 
 			Nodes []*externalService
 		}
 	}
-	if ok, err := client.NewRequest(externalServicesListQuery, map[string]interface{}{
+	if ok, err := client.NewRequest(externalServicesListQuery, map[string]any{
 		"first": 99999,
 	}).Do(ctx, &result); err != nil || !ok {
 		return nil, err
