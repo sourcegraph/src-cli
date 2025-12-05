@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"strings"
 
 	"github.com/sourcegraph/src-cli/internal/mcp"
 )
@@ -16,7 +17,7 @@ func init() {
 }
 func mcpMain(args []string) error {
 	fmt.Println("NOTE: This command is still experimental")
-	tools, err := mcp.LoadToolDefinitions()
+	tools, err := mcp.LoadDefaultToolDefinitions()
 	if err != nil {
 		return err
 	}
@@ -47,6 +48,33 @@ func mcpMain(args []string) error {
 }
 
 func handleMcpTool(tool *mcp.ToolDef, args []string) error {
-	fmt.Printf("handling tool %q args: %+v", tool.Name, args)
+	fs, vars, err := mcp.BuildArgFlagSet(tool)
+	if err != nil {
+		return err
+	}
+
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+
+	inputSchema := tool.InputSchema
+
+	for _, reqName := range inputSchema.Required {
+		if vars[reqName] == nil {
+			return fmt.Errorf("no value provided for required flag --%s", reqName)
+		}
+	}
+
+	if len(args) < len(inputSchema.Required) {
+		return fmt.Errorf("not enough arguments provided - the following flags are required:\n%s", strings.Join(inputSchema.Required, "\n"))
+	}
+
+	mcp.DerefFlagValues(vars)
+
+	fmt.Println("Flags")
+	for name, val := range vars {
+		fmt.Printf("--%s=%v\n", name, val)
+	}
+
 	return nil
 }
