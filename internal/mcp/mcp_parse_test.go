@@ -8,7 +8,7 @@ func TestLoadToolDefinitions(t *testing.T) {
 	toolJSON := []byte(`{
 	  "tools": [
 		{
-		  "name": "test_tool",
+		  "name": "sg_test_tool",
 		  "description": "test description",
 		  "inputSchema": {
 			"type": "object",
@@ -37,7 +37,7 @@ func TestLoadToolDefinitions(t *testing.T) {
 	  ]
 	}`)
 
-	tools, err := LoadToolDefinitions(toolJSON)
+	tools, err := loadToolDefinitions(toolJSON)
 	if err != nil {
 		t.Fatalf("Failed to load tool definitions: %v", err)
 	}
@@ -46,13 +46,13 @@ func TestLoadToolDefinitions(t *testing.T) {
 		t.Fatalf("Expected 1 tool, got %d", len(tools))
 	}
 
-	tool := tools["test_tool"]
+	tool := tools["test-tool"]
 	if tool == nil {
 		t.Fatal("Tool 'test_tool' not found")
 	}
 
-	if tool.Name != "test_tool" {
-		t.Errorf("Expected name 'test_tool', got '%s'", tool.Name)
+	if tool.RawName != "sg_test_tool" {
+		t.Errorf("Expected name 'sg_test_tool', got '%s'", tool.RawName)
 	}
 
 	inputSchema := tool.InputSchema
