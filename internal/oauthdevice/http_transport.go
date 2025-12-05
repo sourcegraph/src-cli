@@ -12,20 +12,20 @@ var _ http.RoundTripper = (*Transport)(nil)
 
 type Transport struct {
 	Base  http.RoundTripper
-	token *Token
+	Token *Token
 }
 
 // RoundTrip implements http.RoundTripper.
 func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 	ctx := req.Context()
-	token, err := maybeRefresh(ctx, t.token)
+	token, err := maybeRefresh(ctx, t.Token)
 	if err != nil {
 		return nil, err
 	}
-	t.token = token
+	t.Token = token
 
 	req2 := req.Clone(req.Context())
-	req2.Header.Set("Authorization", "Bearer "+t.token.AccessToken)
+	req2.Header.Set("Authorization", "Bearer "+t.Token.AccessToken)
 
 	if t.Base != nil {
 		return t.Base.RoundTrip(req2)

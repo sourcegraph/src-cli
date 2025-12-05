@@ -15,6 +15,8 @@ import (
 	"github.com/sourcegraph/sourcegraph/lib/errors"
 
 	"github.com/sourcegraph/src-cli/internal/api"
+	"github.com/sourcegraph/src-cli/internal/keyring"
+	"github.com/sourcegraph/src-cli/internal/oauthdevice"
 )
 
 const usageText = `src is a tool that provides access to Sourcegraph instances.
@@ -123,7 +125,7 @@ type config struct {
 
 // apiClient returns an api.Client built from the configuration.
 func (c *config) apiClient(flags *api.Flags, out io.Writer) api.Client {
-	return api.NewClient(api.ClientOpts{
+	opts := api.ClientOpts{
 		Endpoint:          c.Endpoint,
 		AccessToken:       c.AccessToken,
 		AdditionalHeaders: c.AdditionalHeaders,
@@ -131,7 +133,17 @@ func (c *config) apiClient(flags *api.Flags, out io.Writer) api.Client {
 		Out:               out,
 		ProxyURL:          c.ProxyURL,
 		ProxyPath:         c.ProxyPath,
-	})
+	}
+	store, err := keyring.Open()
+	if err != nil {
+		panic("HALP")
+	}
+
+	if t, err := oauthdevice.LoadToken(store, c.Endpoint); err == nil {
+		opts.OAuthToken = t
+	}
+
+	return api.NewClient(opts)
 }
 
 // readConfig reads the config file from the given path.
