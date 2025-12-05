@@ -11,7 +11,7 @@ import (
 
 func TestGzipReader(t *testing.T) {
 	var uncompressed []byte
-	for i := 0; i < 20000; i++ {
+	for i := range 20000 {
 		uncompressed = append(uncompressed, byte(i))
 	}
 

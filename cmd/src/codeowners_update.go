@@ -86,7 +86,7 @@ Examples:
 		var result struct {
 			UpdateCodeownersFile CodeownersIngestedFile
 		}
-		if ok, err := client.NewRequest(query, map[string]interface{}{
+		if ok, err := client.NewRequest(query, map[string]any{
 			"repoName": *repoFlag,
 			"content":  string(content),
 		}).Do(context.Background(), &result); err != nil || !ok {

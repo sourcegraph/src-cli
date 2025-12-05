@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"slices"
 
 	"github.com/sourcegraph/src-cli/internal/cmderrors"
 )
@@ -30,12 +31,7 @@ func (c *command) matches(name string) bool {
 	if name == c.flagSet.Name() {
 		return true
 	}
-	for _, alias := range c.aliases {
-		if name == alias {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(c.aliases, name)
 }
 
 // commander represents a top-level command with subcommands.
@@ -60,7 +56,6 @@ func (c commander) run(flagSet *flag.FlagSet, cmdName, usageText string, args []
 
 	// Configure default usage funcs for commands.
 	for _, cmd := range c {
-		cmd := cmd
 		if cmd.usageFunc != nil {
 			cmd.flagSet.Usage = cmd.usageFunc
 			continue

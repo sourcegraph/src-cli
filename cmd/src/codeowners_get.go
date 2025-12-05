@@ -59,7 +59,7 @@ Examples:
 				IngestedCodeowners *CodeownersIngestedFile
 			}
 		}
-		if ok, err := client.NewRequest(query, map[string]interface{}{
+		if ok, err := client.NewRequest(query, map[string]any{
 			"repoName": *repoFlag,
 		}).Do(context.Background(), &result); err != nil || !ok {
 			return err

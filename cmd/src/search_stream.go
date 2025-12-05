@@ -36,7 +36,7 @@ func streamSearch(query string, opts streaming.Opts, client api.Client, w io.Wri
 // jsonDecoder streams results as JSON to w.
 func jsonDecoder(w io.Writer) streaming.Decoder {
 	// write json.Marshals data and writes it as one line to w plus a newline.
-	write := func(data interface{}) error {
+	write := func(data any) error {
 		b, err := json.Marshal(data)
 		if err != nil {
 			return err
@@ -316,7 +316,7 @@ const streamingTemplate = `
 {{- end -}}
 `
 
-var streamSearchTemplateFuncs = map[string]interface{}{
+var streamSearchTemplateFuncs = map[string]any{
 	"streamSearchHighlightMatch": func(match streaming.ChunkMatch) string {
 		var result []rune
 
@@ -437,7 +437,7 @@ func streamSearchHighlightDiffPreview(diffPreview string, highlights []highlight
 	}
 	colorized := buf.String()
 	var final []string
-	for _, line := range strings.Split(colorized, "\n") {
+	for line := range strings.SplitSeq(colorized, "\n") {
 		// fmt.Println("LINE", line)
 		// Find where the start-of-match token is in the line.
 		somToken := strings.Index(line, uniqueStartOfMatchToken)

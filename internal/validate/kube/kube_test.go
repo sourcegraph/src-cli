@@ -141,7 +141,6 @@ func TestValidatePod(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			pod := testPod()
 			if tc.pod != nil {
@@ -220,7 +219,6 @@ func TestValidateService(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			service := testService()
 			if tc.service != nil {
@@ -275,7 +273,6 @@ func TestValidatePVC(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			pvc := testPVC()
 			if tc.pvc != nil {

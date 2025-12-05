@@ -28,7 +28,7 @@ type Client interface {
 	NewQuery(query string) Request
 
 	// NewRequest creates a GraphQL request.
-	NewRequest(query string, vars map[string]interface{}) Request
+	NewRequest(query string, vars map[string]any) Request
 
 	// NewHTTPRequest creates an http.Request for the Sourcegraph API.
 	//
@@ -47,13 +47,13 @@ type Request interface {
 	//
 	// If no data was available to be unmarshalled — for example, due to the
 	// -get-curl flag being set — then ok will return false.
-	Do(ctx context.Context, result interface{}) (ok bool, err error)
+	Do(ctx context.Context, result any) (ok bool, err error)
 
 	// DoRaw has the same behaviour as Do, with one exception: the result will
 	// not be unwrapped, and will include the GraphQL errors. Therefore the
 	// structure that is provided as the result should have top level Data and
 	// Errors keys for the GraphQL wrapper to be unmarshalled into.
-	DoRaw(ctx context.Context, result interface{}) (ok bool, err error)
+	DoRaw(ctx context.Context, result any) (ok bool, err error)
 }
 
 // client is the internal concrete type implementing Client.
@@ -66,7 +66,7 @@ type client struct {
 type request struct {
 	client *client
 	query  string
-	vars   map[string]interface{}
+	vars   map[string]any
 }
 
 // ClientOpts encapsulates the options given to NewClient.
@@ -137,7 +137,7 @@ func (c *client) NewQuery(query string) Request {
 	return c.NewRequest(query, nil)
 }
 
-func (c *client) NewRequest(query string, vars map[string]interface{}) Request {
+func (c *client) NewRequest(query string, vars map[string]any) Request {
 	return &request{
 		client: c,
 		query:  query,
@@ -181,7 +181,7 @@ func (c *client) createHTTPRequest(ctx context.Context, method, p string, body i
 	return req, nil
 }
 
-func (r *request) do(ctx context.Context, result interface{}) (bool, error) {
+func (r *request) do(ctx context.Context, result any) (bool, error) {
 	if *r.client.opts.Flags.getCurl {
 		curl, err := r.curlCmd()
 		if err != nil {
@@ -207,7 +207,7 @@ func (r *request) do(ctx context.Context, result interface{}) (bool, error) {
 	}
 
 	// Create the JSON object.
-	reqBody, err := json.Marshal(map[string]interface{}{
+	reqBody, err := json.Marshal(map[string]any{
 		"query":     r.query,
 		"variables": r.vars,
 	})
@@ -280,7 +280,7 @@ func (r *request) do(ctx context.Context, result interface{}) (bool, error) {
 // given result. If GraphQL errors are returned, then the returned error will be
 // an instance of GraphQlErrors. Other errors (such as HTTP or network errors)
 // will be returned as-is.
-func (r *request) Do(ctx context.Context, result interface{}) (bool, error) {
+func (r *request) Do(ctx context.Context, result any) (bool, error) {
 	raw := rawResult{Data: result}
 	ok, err := r.do(ctx, &raw)
 	if err != nil {
@@ -300,17 +300,17 @@ func (r *request) Do(ctx context.Context, result interface{}) (bool, error) {
 	return true, nil
 }
 
-func (r *request) DoRaw(ctx context.Context, result interface{}) (bool, error) {
+func (r *request) DoRaw(ctx context.Context, result any) (bool, error) {
 	return r.do(ctx, result)
 }
 
 type rawResult struct {
-	Data   interface{}   `json:"data,omitempty"`
-	Errors []interface{} `json:"errors,omitempty"`
+	Data   any   `json:"data,omitempty"`
+	Errors []any `json:"errors,omitempty"`
 }
 
 func (r *request) curlCmd() (string, error) {
-	data, err := json.Marshal(map[string]interface{}{
+	data, err := json.Marshal(map[string]any{
 		"query":     r.query,
 		"variables": r.vars,
 	})

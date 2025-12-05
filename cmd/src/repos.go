@@ -117,7 +117,7 @@ func fetchRepositoryID(ctx context.Context, client api.Client, repoName string) 
 			ID string
 		}
 	}
-	if ok, err := client.NewRequest(query, map[string]interface{}{
+	if ok, err := client.NewRequest(query, map[string]any{
 		"repoName": repoName,
 	}).Do(ctx, &result); err != nil || !ok {
 		return "", err

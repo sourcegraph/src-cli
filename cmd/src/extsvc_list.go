@@ -59,7 +59,7 @@ Examples:
 		ctx := context.Background()
 		client := cfg.apiClient(apiFlags, flagSet.Output())
 
-		queryVars := map[string]interface{}{
+		queryVars := map[string]any{
 			"first": first,
 		}
 		var result externalServicesListResult
@@ -99,7 +99,7 @@ const externalServicesListQuery = `
 // Typing here is primarily for ordering of results as we format them (maps are unordered).
 type externalServicesListResult struct {
 	ExternalServices struct {
-		Nodes      []map[string]interface{}
+		Nodes      []map[string]any
 		TotalCount int
 		PageInfo   struct {
 			HasNextPage bool

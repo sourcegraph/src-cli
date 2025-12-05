@@ -101,8 +101,8 @@ func TestFileFilterValidation(t *testing.T) {
 				// Empty is valid (defaults to all files)
 				hasError = false
 			} else {
-				parts := strings.Split(tt.fileFlag, ",")
-				for _, part := range parts {
+				parts := strings.SplitSeq(tt.fileFlag, ",")
+				for part := range parts {
 					filename := strings.TrimSpace(part)
 
 					if !slices.Contains(listOfValidFiles, filename) {
@@ -193,8 +193,8 @@ func TestFileSelection(t *testing.T) {
 			if tt.fileFilter == "" {
 				filesToUpload = listOfValidFiles
 			} else {
-				parts := strings.Split(tt.fileFilter, ",")
-				for _, part := range parts {
+				parts := strings.SplitSeq(tt.fileFilter, ",")
+				for part := range parts {
 					filename := strings.TrimSpace(part)
 					filesToUpload = append(filesToUpload, filename)
 				}

@@ -106,7 +106,7 @@ Examples:
 				Nodes []Repository
 			}
 		}
-		if ok, err := client.NewRequest(query, map[string]interface{}{
+		if ok, err := client.NewRequest(query, map[string]any{
 			"first":      api.NullInt(*firstFlag),
 			"query":      api.NullString(*queryFlag),
 			"cloned":     *clonedFlag,

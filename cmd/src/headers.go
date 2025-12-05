@@ -34,9 +34,9 @@ func parseAdditionalHeadersFromEnviron(environ []string) map[string]string {
 			// Most shell convert line breaks added to a string, so we need to replace all occurence of the stringified line
 			// breaks to actual line breaks.
 			headers = strings.ReplaceAll(headers, `\n`, "\n")
-			splitHeaders := strings.Split(headers, "\n")
+			splitHeaders := strings.SplitSeq(headers, "\n")
 
-			for _, h := range splitHeaders {
+			for h := range splitHeaders {
 				p := strings.SplitN(h, ":", 2)
 				if len(p) != 2 || p[1] == "" {
 					continue

@@ -577,7 +577,7 @@ index 02a19af..c9644dd 100644
 				Version:   2,
 				StepIndex: 0,
 				Diff:      cachedDiff,
-				Outputs:   map[string]interface{}{},
+				Outputs:   map[string]any{},
 			},
 			Repository: testRepo1,
 		}
@@ -693,7 +693,7 @@ echo "previous_step.modified_files=${{ previous_step.modified_files }}" >> READM
 				Version:   2,
 				StepIndex: 2,
 				Diff:      cachedDiff,
-				Outputs: map[string]interface{}{
+				Outputs: map[string]any{
 					"myOutput": "my-output.txt",
 				},
 				ChangedFiles: git.Changes{
@@ -770,7 +770,7 @@ index 3040106..5f2f924 100644
 				Version:      2,
 				StepIndex:    0,
 				Diff:         []byte(""),
-				Outputs:      map[string]interface{}{},
+				Outputs:      map[string]any{},
 				ChangedFiles: git.Changes{},
 				Stdout:       "hello world",
 				Stderr:       "",

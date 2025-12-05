@@ -102,7 +102,7 @@ Examples:
 			updateJSON = []byte(updated)
 		}
 
-		updateExternalServiceInput := map[string]interface{}{
+		updateExternalServiceInput := map[string]any{
 			"id": id,
 		}
 		if *renameFlag != "" {
@@ -115,7 +115,7 @@ Examples:
 			return nil // nothing to update
 		}
 
-		queryVars := map[string]interface{}{
+		queryVars := map[string]any{
 			"input": updateExternalServiceInput,
 		}
 		var result struct{} // TODO: future: allow formatting resulting external service
@@ -151,23 +151,23 @@ mutation ($input: UpdateExternalServiceInput!) {
 // doesn't exist.
 func appendExcludeRepositories(input string, excludeRepoNames []string) (string, error) {
 	// Known issue: Comments are not retained in the existing array value.
-	var m interface{}
+	var m any
 	if err := jsonxUnmarshal(input, &m); err != nil {
 		return "", err
 	}
-	root, ok := m.(map[string]interface{})
+	root, ok := m.(map[string]any)
 	if !ok {
 		return "", errors.New("existing JSONx external service configuration is invalid (not an object)")
 	}
-	var exclude []interface{}
+	var exclude []any
 	alreadyExcludedNames := map[string]struct{}{}
 	if existing, ok := root["exclude"]; ok {
-		exclude, ok = existing.([]interface{})
+		exclude, ok = existing.([]any)
 		if !ok {
 			return "", errors.New("existing JSONx external service configuration is invalid (exclude is not an array)")
 		}
 		for i, exclude := range exclude {
-			obj, ok := exclude.(map[string]interface{})
+			obj, ok := exclude.(map[string]any)
 			if !ok {
 				return "", fmt.Errorf("existing JSONx external service configuration is invalid (exclude.%d is not object)", i)
 			}
@@ -189,7 +189,7 @@ func appendExcludeRepositories(input string, excludeRepoNames []string) (string,
 		if _, already := alreadyExcludedNames[repoName]; already {
 			continue
 		}
-		exclude = append(exclude, map[string]interface{}{
+		exclude = append(exclude, map[string]any{
 			"name": repoName,
 		})
 	}
@@ -218,7 +218,7 @@ func jsonxToJSON(text string) ([]byte, error) {
 // jsonxUnmarshal unmarshals jsonx into Go data.
 //
 // This process loses comments, trailing commas, formatting, etc.
-func jsonxUnmarshal(text string, v interface{}) error {
+func jsonxUnmarshal(text string, v any) error {
 	data, err := jsonxToJSON(text)
 	if err != nil {
 		return err

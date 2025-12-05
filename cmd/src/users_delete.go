@@ -92,7 +92,7 @@ Examples:
 		var result struct {
 			DeleteUser struct{}
 		}
-		if ok, err := client.NewRequest(query, map[string]interface{}{
+		if ok, err := client.NewRequest(query, map[string]any{
 			"user": *userIDFlag,
 		}).Do(context.Background(), &result); err != nil || !ok {
 			return err

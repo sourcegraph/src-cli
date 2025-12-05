@@ -80,7 +80,7 @@ Examples:
   }
 }`
 
-		if ok, err := client.NewRequest(query, map[string]interface{}{
+		if ok, err := client.NewRequest(query, map[string]any{
 			"repo":  *repoID,
 			"key":   *keyFlag,
 			"value": valueFlag,

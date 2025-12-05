@@ -57,7 +57,7 @@ Examples:
 		var result struct {
 			DeleteOrganization struct{}
 		}
-		if ok, err := client.NewRequest(query, map[string]interface{}{
+		if ok, err := client.NewRequest(query, map[string]any{
 			"organization": *orgIDFlag,
 		}).Do(context.Background(), &result); err != nil || !ok {
 			return err

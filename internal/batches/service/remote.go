@@ -41,7 +41,7 @@ func (svc *Service) UpsertBatchChange(
 		} `json:"upsertEmptyBatchChange"`
 	}
 
-	if ok, err := svc.client.NewRequest(upsertEmptyBatchChangeQuery, map[string]interface{}{
+	if ok, err := svc.client.NewRequest(upsertEmptyBatchChangeQuery, map[string]any{
 		"name":      name,
 		"namespace": namespaceID,
 	}).Do(ctx, &resp); err != nil || !ok {
@@ -88,7 +88,7 @@ func (svc *Service) CreateBatchSpecFromRaw(
 		} `json:"createBatchSpecFromRaw"`
 	}
 
-	if ok, err := svc.client.NewRequest(createBatchSpecFromRawQuery, map[string]interface{}{
+	if ok, err := svc.client.NewRequest(createBatchSpecFromRawQuery, map[string]any{
 		"batchSpec":        batchSpec,
 		"namespace":        namespaceID,
 		"allowIgnored":     allowIgnored,
@@ -260,7 +260,7 @@ func (svc *Service) ExecuteBatchSpec(
 		} `json:"executeBatchSpec"`
 	}
 
-	if ok, err := svc.client.NewRequest(executeBatchSpecQuery, map[string]interface{}{
+	if ok, err := svc.client.NewRequest(executeBatchSpecQuery, map[string]any{
 		"batchSpec": batchSpecID,
 		"noCache":   noCache,
 	}).Do(ctx, &resp); err != nil || !ok {
@@ -301,7 +301,7 @@ func (svc *Service) GetBatchSpecWorkspaceResolution(ctx context.Context, id stri
 		} `json:"node"`
 	}
 
-	if ok, err := svc.client.NewRequest(batchSpecWorkspaceResolutionQuery, map[string]interface{}{
+	if ok, err := svc.client.NewRequest(batchSpecWorkspaceResolutionQuery, map[string]any{
 		"batchSpec": id,
 	}).Do(ctx, &resp); err != nil || !ok {
 		return nil, err

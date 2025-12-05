@@ -299,8 +299,8 @@ func matchesImageFilter(patterns []string, imageName string) bool {
 		}
 
 		// Try matching against the image name without "sourcegraph/" prefix
-		if strings.HasPrefix(imageName, "sourcegraph/") {
-			shortName := strings.TrimPrefix(imageName, "sourcegraph/")
+		if after, ok := strings.CutPrefix(imageName, "sourcegraph/"); ok {
+			shortName := after
 			if matched, _ := filepath.Match(pattern, shortName); matched {
 				return true
 			}

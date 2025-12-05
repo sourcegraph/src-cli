@@ -52,7 +52,7 @@ Examples:
 		var result struct {
 			CreateOrg Org
 		}
-		if ok, err := client.NewRequest(query, map[string]interface{}{
+		if ok, err := client.NewRequest(query, map[string]any{
 			"name":        *nameFlag,
 			"displayName": *displayNameFlag,
 		}).Do(context.Background(), &result); err != nil || !ok {

@@ -64,7 +64,7 @@ Examples:
 		var result struct {
 			User *User
 		}
-		if ok, err := client.NewRequest(query, map[string]interface{}{
+		if ok, err := client.NewRequest(query, map[string]any{
 			"username": api.NullString(*usernameFlag),
 			"email":    api.NullString(*emailFlag),
 		}).Do(context.Background(), &result); err != nil || !ok {

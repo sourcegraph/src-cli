@@ -136,9 +136,9 @@ func TestCoordinator_Execute(t *testing.T) {
 						stepResults: []execution.AfterStepResult{{
 							Version: 2,
 							Diff:    []byte(`dummydiff1`),
-							Outputs: map[string]interface{}{
+							Outputs: map[string]any{
 								"output1": "myOutputValue1",
-								"output2": map[string]interface{}{
+								"output2": map[string]any{
 									"subField": "subFieldValue",
 								},
 							},
@@ -568,13 +568,13 @@ func (d *dummyExecutor) Wait() ([]taskResult, error) {
 
 // inMemoryExecutionCache provides an in-memory cache for testing purposes.
 type inMemoryExecutionCache struct {
-	cache map[string]interface{}
+	cache map[string]any
 	mu    sync.RWMutex
 }
 
 func newInMemoryExecutionCache() *inMemoryExecutionCache {
 	return &inMemoryExecutionCache{
-		cache: make(map[string]interface{}),
+		cache: make(map[string]any),
 	}
 }
 
@@ -585,7 +585,7 @@ func (c *inMemoryExecutionCache) size() int {
 	return len(c.cache)
 }
 
-func (c *inMemoryExecutionCache) getCacheItem(key cache.Keyer) (interface{}, bool, error) {
+func (c *inMemoryExecutionCache) getCacheItem(key cache.Keyer) (any, bool, error) {
 	k, err := key.Key()
 	if err != nil {
 		return execution.AfterStepResult{}, false, err

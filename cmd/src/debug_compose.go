@@ -138,13 +138,11 @@ func archiveCompose(ctx context.Context, zw *zip.Writer, verbose, archiveConfigs
 
 	// start goroutine to run docker container logs <container>
 	for _, container := range containers {
-		container := container
 		run(func() *archiveFile { return getContainerLog(ctx, container, baseDir) })
 	}
 
 	// start goroutine to run docker container inspect <container>
 	for _, container := range containers {
-		container := container
 		run(func() *archiveFile { return getInspect(ctx, container, baseDir) })
 	}
 

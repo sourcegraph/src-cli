@@ -70,7 +70,7 @@ Examples:
 				Nodes []Org
 			}
 		}
-		if ok, err := client.NewRequest(query, map[string]interface{}{
+		if ok, err := client.NewRequest(query, map[string]any{
 			"first": api.NullInt(*firstFlag),
 			"query": api.NullString(*queryFlag),
 		}).Do(context.Background(), &result); err != nil || !ok {

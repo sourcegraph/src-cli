@@ -27,7 +27,7 @@ func TestWatchDog(t *testing.T) {
 	}
 
 	go w.Start()
-	for i := 0; i < expectedCount; i++ {
+	for range expectedCount {
 		wg.Add(1)
 		ticker.BlockingAdvance(5 * time.Minute)
 	}

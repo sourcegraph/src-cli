@@ -101,7 +101,7 @@ Examples:
 
 		// paginate requests until all site users have been checked -- this includes soft deleted users
 		for len(aggregatedUsers) < int(totalUsers.Site.Users.TotalCount) {
-			pagVars := map[string]interface{}{
+			pagVars := map[string]any{
 				"offset": offset,
 				"limit":  limit,
 			}
@@ -208,7 +208,7 @@ func computeDaysSinceLastUse(user SiteUser) (timeDiff int, hasLastActive bool, _
 // Issue graphQL api request to remove user
 func removeUser(user SiteUser, client api.Client, ctx context.Context) error {
 	query := `mutation DeleteUser($user: ID!) { deleteUser(user: $user) { alwaysNil }}`
-	vars := map[string]interface{}{
+	vars := map[string]any{
 		"user": user.ID,
 	}
 	if ok, err := client.NewRequest(query, vars).Do(ctx, nil); err != nil || !ok {
@@ -231,10 +231,10 @@ func confirmUserRemoval(usersToDelete []UserToDelete, daysThreshold int, display
 		t.AppendHeader(table.Row{"Username", "Email", "Days Since Last Active"})
 		for _, user := range usersToDelete {
 			if user.User.Email != "" {
-				t.AppendRow([]interface{}{user.User.Username, user.User.Email, user.DaysSinceLastUse})
+				t.AppendRow([]any{user.User.Username, user.User.Email, user.DaysSinceLastUse})
 				t.AppendSeparator()
 			} else {
-				t.AppendRow([]interface{}{user.User.Username, "", user.DaysSinceLastUse})
+				t.AppendRow([]any{user.User.Username, "", user.DaysSinceLastUse})
 				t.AppendSeparator()
 			}
 		}

@@ -3,7 +3,7 @@ package ui
 import (
 	"context"
 	"fmt"
-	"sort"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -125,10 +125,7 @@ func (ui *taskExecTUI) Start(tasks []*executor.Task) {
 		ui.statuses[t] = status
 	}
 
-	ui.numStatusBars = ui.numParallelism
-	if len(tasks) < ui.numStatusBars {
-		ui.numStatusBars = len(tasks)
-	}
+	ui.numStatusBars = min(len(tasks), ui.numParallelism)
 
 	statusBars := make([]*output.StatusBar, 0, ui.numStatusBars)
 	for i := 0; i < ui.numStatusBars; i++ {
@@ -370,7 +367,7 @@ func verboseDiffSummary(fileDiffs []*diff.FileDiff) ([]string, error) {
 		fileStats[name] = fmt.Sprintf("%d %s", num, diffStatDiagram(stat))
 	}
 
-	sort.Slice(fileNames, func(i, j int) bool { return fileNames[i] < fileNames[j] })
+	slices.Sort(fileNames)
 
 	for _, name := range fileNames {
 		stats := fileStats[name]
@@ -471,7 +468,7 @@ func (ui stepsExecTUI) StepOutputWriter(ctx context.Context, task *executor.Task
 	return executor.NoopStepOutputWriter{}
 }
 
-func (ui stepsExecTUI) StepFinished(idx int, diff []byte, changes git.Changes, outputs map[string]interface{}) {
+func (ui stepsExecTUI) StepFinished(idx int, diff []byte, changes git.Changes, outputs map[string]any) {
 	// noop right now
 }
 func (ui stepsExecTUI) StepFailed(idx int, err error, exitCode int) {

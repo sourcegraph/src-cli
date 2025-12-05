@@ -203,7 +203,7 @@ func displaySearchJobs(jobs []SearchJob, columns []string, asJSON bool) error {
 }
 
 // outputAsJSON outputs data as JSON
-func outputAsJSON(data interface{}) error {
+func outputAsJSON(data any) error {
 	jsonBytes, err := json.MarshalIndent(data, "", "  ")
 	if err != nil {
 		return err

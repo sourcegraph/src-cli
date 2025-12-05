@@ -107,7 +107,7 @@ func (svc *Service) ApplyBatchChange(ctx context.Context, spec graphql.BatchSpec
 	var result struct {
 		BatchChange *graphql.BatchChange `json:"applyBatchChange"`
 	}
-	if ok, err := svc.client.NewRequest(applyBatchChangeMutation, map[string]interface{}{
+	if ok, err := svc.client.NewRequest(applyBatchChangeMutation, map[string]any{
 		"batchSpec": spec,
 	}).Do(ctx, &result); err != nil || !ok {
 		return nil, err
@@ -136,7 +136,7 @@ func (svc *Service) CreateBatchSpec(ctx context.Context, namespace, spec string,
 	var result struct {
 		CreateBatchSpec graphql.CreateBatchSpecResponse
 	}
-	if ok, err := svc.client.NewRequest(createBatchSpecMutation, map[string]interface{}{
+	if ok, err := svc.client.NewRequest(createBatchSpecMutation, map[string]any{
 		"namespace":      namespace,
 		"spec":           spec,
 		"changesetSpecs": ids,
@@ -170,7 +170,7 @@ func (svc *Service) CreateChangesetSpec(ctx context.Context, spec *batcheslib.Ch
 			ID string
 		}
 	}
-	if ok, err := svc.client.NewRequest(createChangesetSpecMutation, map[string]interface{}{
+	if ok, err := svc.client.NewRequest(createChangesetSpecMutation, map[string]any{
 		"spec": string(raw),
 	}).Do(ctx, &result); err != nil || !ok {
 		return "", err
@@ -224,7 +224,7 @@ func (svc *Service) ResolveWorkspacesForBatchSpec(ctx context.Context, spec *bat
 			SearchResultPaths  []string
 		}
 	}
-	if ok, err := svc.client.NewRequest(resolveWorkspacesForBatchSpecQuery, map[string]interface{}{
+	if ok, err := svc.client.NewRequest(resolveWorkspacesForBatchSpecQuery, map[string]any{
 		"spec": string(raw),
 	}).Do(ctx, &result); err != nil || !ok {
 		return nil, nil, err
@@ -566,7 +566,7 @@ func (svc *Service) GenerateExampleSpec(ctx context.Context, fileName string) er
 		author.Email = gitAuthorEmail
 	}
 
-	err = tmpl.Execute(f, map[string]interface{}{"Author": author})
+	err = tmpl.Execute(f, map[string]any{"Author": author})
 	if err != nil {
 		return errors.Wrap(err, "failed to write batch spec to file")
 	}
@@ -637,9 +637,9 @@ func (svc *Service) ResolveNamespace(ctx context.Context, namespace string) (Nam
 				URL string
 			}
 		}
-		Errors []interface{}
+		Errors []any
 	}
-	if ok, err := svc.client.NewRequest(namespaceQuery, map[string]interface{}{
+	if ok, err := svc.client.NewRequest(namespaceQuery, map[string]any{
 		"name": namespace,
 	}).DoRaw(ctx, &result); err != nil || !ok {
 		return Namespace{}, err
@@ -670,7 +670,7 @@ query Repository($name: String!, $queryCommit: Boolean!, $rev: String!) {
 
 func (svc *Service) resolveRepositoryName(ctx context.Context, name string) (*graphql.Repository, error) {
 	var result struct{ Repository *graphql.Repository }
-	if ok, err := svc.client.NewRequest(repositoryNameQuery, map[string]interface{}{
+	if ok, err := svc.client.NewRequest(repositoryNameQuery, map[string]any{
 		"name":        name,
 		"queryCommit": false,
 		"rev":         "",

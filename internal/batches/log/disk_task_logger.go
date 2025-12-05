@@ -51,8 +51,8 @@ func (tl *FileTaskLogger) Log(s string) {
 	fmt.Fprintf(tl.f, "%s %s\n", time.Now().Format(time.RFC3339Nano), s)
 }
 
-func (tl *FileTaskLogger) Logf(format string, a ...interface{}) {
-	fmt.Fprintf(tl.f, "%s "+format+"\n", append([]interface{}{time.Now().Format(time.RFC3339Nano)}, a...)...)
+func (tl *FileTaskLogger) Logf(format string, a ...any) {
+	fmt.Fprintf(tl.f, "%s "+format+"\n", append([]any{time.Now().Format(time.RFC3339Nano)}, a...)...)
 }
 
 func (tl *FileTaskLogger) MarkErrored() {
@@ -85,7 +85,7 @@ func (pw *prefixWriter) Write(p []byte) (int, error) {
 	// Hello Sourcegraph
 	//
 	t := bytes.TrimSuffix(p, []byte("\n"))
-	for _, line := range bytes.Split(t, []byte("\n")) {
+	for line := range bytes.SplitSeq(t, []byte("\n")) {
 		pw.logger.Logf("%s | %s", pw.prefix, string(line))
 	}
 	return len(p), nil

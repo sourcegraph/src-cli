@@ -12,7 +12,7 @@ func (tl *NoopTaskLogger) Close() error {
 
 func (tl *NoopTaskLogger) Log(s string) {}
 
-func (tl *NoopTaskLogger) Logf(format string, a ...interface{}) {}
+func (tl *NoopTaskLogger) Logf(format string, a ...any) {}
 
 func (tl *NoopTaskLogger) MarkErrored() {}
 

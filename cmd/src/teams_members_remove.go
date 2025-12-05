@@ -82,7 +82,7 @@ Examples:
 		var result struct {
 			RemoveTeamMembers Team
 		}
-		if ok, err := client.NewRequest(query, map[string]interface{}{
+		if ok, err := client.NewRequest(query, map[string]any{
 			"teamName":                   *teamNameFlag,
 			"skipUnmatchedMembers":       *skipUnmatchedMembersFlag,
 			"id":                         api.NullString(*idFlag),
