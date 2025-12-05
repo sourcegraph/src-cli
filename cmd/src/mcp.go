@@ -109,7 +109,7 @@ func handleMcpTool(ctx context.Context, client api.Client, tool *mcp.ToolDef, va
 		return err
 	}
 
-	result, err := mcp.ParseToolResponse(resp)
+	result, err := mcp.DecodeToolResponse(resp)
 	if err != nil {
 		return err
 	}
