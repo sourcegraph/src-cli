@@ -11,10 +11,9 @@ import (
 	"net/url"
 )
 
-func applyProxy(transport *http.Transport, proxyURL *url.URL, proxyPath string) (applied bool) {
-	if proxyURL == nil && proxyPath == "" {
-		return false
-	}
+func NewProxyTransport(base *http.Transport, proxyURL *url.URL, proxyPath string) *http.Transport {
+	// Clone so that we don't change the original transport
+	transport := base.Clone()
 
 	handshakeTLS := func(ctx context.Context, conn net.Conn, addr string) (net.Conn, error) {
 		// Extract the hostname (without the port) for TLS SNI
@@ -34,8 +33,6 @@ func applyProxy(transport *http.Transport, proxyURL *url.URL, proxyPath string) 
 		return tlsConn, nil
 	}
 
-	proxyApplied := false
-
 	if proxyPath != "" {
 		dial := func(ctx context.Context, _, _ string) (net.Conn, error) {
 			d := net.Dialer{}
@@ -52,13 +49,11 @@ func applyProxy(transport *http.Transport, proxyURL *url.URL, proxyPath string) 
 		transport.DialTLSContext = dialTLS
 		// clear out any system proxy settings
 		transport.Proxy = nil
-		proxyApplied = true
 	} else if proxyURL != nil {
 		switch proxyURL.Scheme {
 		case "socks5", "socks5h":
 			// SOCKS proxies work out of the box - no need to manually dial
 			transport.Proxy = http.ProxyURL(proxyURL)
-			proxyApplied = true
 		case "http", "https":
 			dial := func(ctx context.Context, network, addr string) (net.Conn, error) {
 				// Dial the proxy
@@ -130,9 +125,8 @@ func applyProxy(transport *http.Transport, proxyURL *url.URL, proxyPath string) 
 			transport.DialTLSContext = dialTLS
 			// clear out any system proxy settings
 			transport.Proxy = nil
-			proxyApplied = true
 		}
 	}
 
-	return proxyApplied
+	return transport
 }
