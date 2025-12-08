@@ -15,7 +15,6 @@ import (
 	"github.com/sourcegraph/sourcegraph/lib/errors"
 
 	"github.com/sourcegraph/src-cli/internal/api"
-	"github.com/sourcegraph/src-cli/internal/keyring"
 	"github.com/sourcegraph/src-cli/internal/oauthdevice"
 )
 
@@ -133,13 +132,12 @@ func (c *config) apiClient(flags *api.Flags, out io.Writer) api.Client {
 		ProxyURL:          c.ProxyURL,
 		ProxyPath:         c.ProxyPath,
 	}
-	store, err := keyring.Open()
-	if err != nil {
-		panic("HALP")
-	}
 
-	if t, err := oauthdevice.LoadToken(store, c.Endpoint); err == nil {
-		opts.OAuthToken = t
+	// Only use OAuth if we do not have SRC_ACCESS_TOKEN set
+	if c.AccessToken == "" {
+		if t, err := oauthdevice.LoadToken(c.Endpoint); err == nil {
+			opts.OAuthToken = t
+		}
 	}
 
 	return api.NewClient(opts)
