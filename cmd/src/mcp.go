@@ -89,7 +89,7 @@ func printSchemas(tool *mcp.ToolDef) error {
 	return nil
 }
 
-func validateToolArgs(inputSchema mcp.Schema, args []string, vars map[string]any) error {
+func validateToolArgs(inputSchema mcp.SchemaObject, args []string, vars map[string]any) error {
 	for _, reqName := range inputSchema.Required {
 		if vars[reqName] == nil {
 			return errors.Newf("no value provided for required flag --%s", reqName)
