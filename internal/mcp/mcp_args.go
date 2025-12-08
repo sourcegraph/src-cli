@@ -86,6 +86,7 @@ func BuildArgFlagSet(tool *ToolDef) (*flag.FlagSet, map[string]any, error) {
 		case *SchemaObject:
 			// TODO(burmudar): we can support SchemaObject as part of stdin echo '{ stuff }' | sg mcp commit-search
 			// not supported yet
+			// Also support sg mcp commit-search --json '{ stuff }'
 		}
 	}
 
