@@ -47,7 +47,7 @@ func BuildArgFlagSet(tool *ToolDef) (*flag.FlagSet, map[string]any, error) {
 	for name, pVal := range tool.InputSchema.Properties {
 		switch pv := pVal.(type) {
 		case *SchemaPrimitive:
-			switch pv.Kind {
+			switch pv.Type {
 			case "integer":
 				dst := fs.Int(name, 0, pv.Description)
 				flagVars[name] = dst
@@ -59,7 +59,7 @@ func BuildArgFlagSet(tool *ToolDef) (*flag.FlagSet, map[string]any, error) {
 				dst := fs.String(name, "", pv.Description)
 				flagVars[name] = dst
 			default:
-				return nil, nil, fmt.Errorf("unknown schema primitive kind %q", pv.Kind)
+				return nil, nil, fmt.Errorf("unknown schema primitive kind %q", pv.Type)
 
 			}
 		case *SchemaArray:
