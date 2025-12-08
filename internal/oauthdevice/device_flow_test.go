@@ -507,3 +507,44 @@ func TestPoll_ContextCancellation(t *testing.T) {
 		t.Errorf("error = %v, want context.Canceled or wrapped context canceled error", err)
 	}
 }
+
+func TestRefresh_Success(t *testing.T) {
+	server := newTestServer(t, testServerOptions{
+		handlers: map[string]http.HandlerFunc{
+			testTokenPath: func(w http.ResponseWriter, r *http.Request) {
+				if err := r.ParseForm(); err != nil {
+					http.Error(w, "bad request", http.StatusBadRequest)
+					return
+				}
+				if got := r.FormValue("grant_type"); got != "refresh_token" {
+					t.Errorf("grant_type = %q, want %q", got, "refresh_token")
+				}
+				if got := r.FormValue("refresh_token"); got != "test-refresh-token" {
+					t.Errorf("refresh_token = %q, want %q", got, "test-refresh-token")
+				}
+
+				w.Header().Set("Content-Type", "application/json")
+				json.NewEncoder(w).Encode(TokenResponse{
+					AccessToken:  "new-access-token",
+					RefreshToken: "new-refresh-token",
+					TokenType:    "Bearer",
+					ExpiresIn:    3600,
+				})
+			},
+		},
+	})
+	defer server.Close()
+
+	client := NewClient(DefaultClientID)
+	resp, err := client.Refresh(context.Background(), server.URL, "test-refresh-token")
+	if err != nil {
+		t.Fatalf("Refresh() error = %v", err)
+	}
+
+	if resp.AccessToken != "new-access-token" {
+		t.Errorf("AccessToken = %q, want %q", resp.AccessToken, "new-access-token")
+	}
+	if resp.RefreshToken != "new-refresh-token" {
+		t.Errorf("RefreshToken = %q, want %q", resp.RefreshToken, "new-refresh-token")
+	}
+}
