@@ -13,6 +13,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/sourcegraph/src-cli/internal/keyring"
+
 	"github.com/sourcegraph/sourcegraph/lib/errors"
 )
 
@@ -22,6 +24,9 @@ const (
 
 	// wellKnownPath is the path on the sourcegraph server where clients can discover OAuth configuration
 	wellKnownPath = "/.well-known/openid-configuration"
+
+	// Key used to store the token in the store
+	KeyOAuth = "Sourcegraph CLI key storage"
 
 	GrantTypeDeviceCode string = "urn:ietf:params:oauth:grant-type:device_code"
 
@@ -54,9 +59,16 @@ type DeviceAuthResponse struct {
 type TokenResponse struct {
 	AccessToken  string `json:"access_token"`
 	RefreshToken string `json:"refresh_token,omitempty"`
-	TokenType    string `json:"token_type"`
 	ExpiresIn    int    `json:"expires_in,omitempty"`
+	TokenType    string `json:"token_type"`
 	Scope        string `json:"scope,omitempty"`
+}
+
+type Token struct {
+	Endpoint     string    `json:"endpoint"`
+	AccessToken  string    `json:"access_token"`
+	RefreshToken string    `json:"refresh_token,omitempty"`
+	ExpiresAt    time.Time `json:"expires_at"`
 }
 
 type ErrorResponse struct {
@@ -68,7 +80,7 @@ type Client interface {
 	Discover(ctx context.Context, endpoint string) (*OIDCConfiguration, error)
 	Start(ctx context.Context, endpoint string, scopes []string) (*DeviceAuthResponse, error)
 	Poll(ctx context.Context, endpoint, deviceCode string, interval time.Duration, expiresIn int) (*TokenResponse, error)
-	Refresh(ctx context.Context, endpoint, refreshToken string) (*TokenResponse, error)
+	Refresh(ctx context.Context, token *Token) (*TokenResponse, error)
 }
 
 type httpClient struct {
@@ -310,22 +322,20 @@ func (c *httpClient) pollOnce(ctx context.Context, tokenEndpoint, deviceCode str
 }
 
 // Refresh exchanges a refresh token for a new access token.
-func (c *httpClient) Refresh(ctx context.Context, endpoint, refreshToken string) (*TokenResponse, error) {
-	endpoint = strings.TrimRight(endpoint, "/")
-
-	config, err := c.Discover(ctx, endpoint)
+func (c *httpClient) Refresh(ctx context.Context, token *Token) (*TokenResponse, error) {
+	config, err := c.Discover(ctx, token.Endpoint)
 	if err != nil {
-		return nil, errors.Wrap(err, "OIDC discovery failed")
+		errors.Wrap(err, "failed to discover OIDC configuration")
 	}
 
 	if config.TokenEndpoint == "" {
-		return nil, errors.New("token endpoint not found in OIDC configuration")
+		errors.New("OIDC configuration has no token endpoint")
 	}
 
 	data := url.Values{}
 	data.Set("client_id", c.clientID)
 	data.Set("grant_type", "refresh_token")
-	data.Set("refresh_token", refreshToken)
+	data.Set("refresh_token", token.RefreshToken)
 
 	req, err := http.NewRequestWithContext(ctx, "POST", config.TokenEndpoint, strings.NewReader(data.Encode()))
 	if err != nil {
@@ -358,5 +368,52 @@ func (c *httpClient) Refresh(ctx context.Context, endpoint, refreshToken string)
 		return nil, errors.Wrap(err, "parsing refresh token response")
 	}
 
-	return &tokenResp, nil
+	return &tokenResp, err
+}
+
+func (t *TokenResponse) Token(endpoint string) *Token {
+	return &Token{
+		Endpoint:     strings.TrimRight(endpoint, "/"),
+		RefreshToken: t.RefreshToken,
+		AccessToken:  t.AccessToken,
+		ExpiresAt:    time.Now().Add(time.Second * time.Duration(t.ExpiresIn)),
+	}
+}
+
+func (t *Token) HasExpired() bool {
+	return time.Now().After(t.ExpiresAt)
+}
+
+func (t *Token) ExpiringIn(d time.Duration) bool {
+	future := time.Now().Add(d)
+	return future.After(t.ExpiresAt)
+}
+
+func StoreToken(store *keyring.Store, token *Token) error {
+	data, err := json.Marshal(token)
+	if err != nil {
+		return errors.Wrap(err, "failed to marshal token")
+	}
+
+	if token.Endpoint == "" {
+		return errors.New("token endpoint cannot be empty when storing the token")
+	}
+
+	key := fmt.Sprintf("%s <%s>", KeyOAuth, token.Endpoint)
+	return store.Set(key, data)
+}
+
+func LoadToken(store *keyring.Store, endpoint string) (*Token, error) {
+	key := fmt.Sprintf("%s <%s>", KeyOAuth, endpoint)
+	var t Token
+	data, err := store.Get(key)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get token from store")
+	}
+
+	if err := json.Unmarshal(data, &t); err != nil {
+		return nil, errors.Wrap(err, "failed to unmarshall token")
+	}
+
+	return &t, nil
 }

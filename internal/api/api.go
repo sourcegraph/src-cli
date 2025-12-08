@@ -18,6 +18,7 @@ import (
 	"github.com/kballard/go-shellquote"
 	"github.com/mattn/go-isatty"
 
+	"github.com/sourcegraph/src-cli/internal/oauthdevice"
 	"github.com/sourcegraph/src-cli/internal/version"
 )
 
@@ -85,6 +86,8 @@ type ClientOpts struct {
 
 	ProxyURL  *url.URL
 	ProxyPath string
+
+	OAuthToken *oauthdevice.Token
 }
 
 func buildTransport(opts ClientOpts, flags *Flags) *http.Transport {
@@ -100,6 +103,13 @@ func buildTransport(opts ClientOpts, flags *Flags) *http.Transport {
 
 	if opts.ProxyURL != nil || opts.ProxyPath != "" {
 		transport = withProxyTransport(transport, opts.ProxyURL, opts.ProxyPath)
+	}
+
+	if opt.AccessToken == "" && opt.OAuthToken != nil {
+		transport = &oauthdevice.Transport{
+			Base: transport,
+			Token: opts.OAuthToken
+		}
 	}
 
 	return transport
