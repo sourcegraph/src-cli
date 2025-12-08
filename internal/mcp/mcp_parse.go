@@ -13,10 +13,10 @@ var mcpToolListJSON []byte
 
 type ToolDef struct {
 	Name         string
-	RawName      string `json:"name"`
-	Description  string `json:"description"`
-	InputSchema  Schema `json:"inputSchema"`
-	OutputSchema Schema `json:"outputSchema"`
+	RawName      string       `json:"name"`
+	Description  string       `json:"description"`
+	InputSchema  SchemaObject `json:"inputSchema"`
+	OutputSchema SchemaObject `json:"outputSchema"`
 }
 
 type RawSchema struct {
