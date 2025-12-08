@@ -11,7 +11,6 @@ import (
 
 	"github.com/sourcegraph/src-cli/internal/api"
 	"github.com/sourcegraph/src-cli/internal/cmderrors"
-	"github.com/sourcegraph/src-cli/internal/keyring"
 	"github.com/sourcegraph/src-cli/internal/oauthdevice"
 )
 
@@ -126,11 +125,6 @@ func loginCmd(ctx context.Context, p loginParams) error {
 	noToken := cfg.AccessToken == ""
 	endpointConflict := endpointArg != cfg.Endpoint
 
-	secretStore, err := keyring.Open()
-	if err != nil {
-		printProblem(fmt.Sprintf("could not open keyring for secret storage: %s", err))
-	}
-
 	cfg.Endpoint = endpointArg
 
 	if p.useDeviceFlow {
@@ -141,7 +135,7 @@ func loginCmd(ctx context.Context, p loginParams) error {
 			return cmderrors.ExitCode1
 		}
 
-		if err := oauthdevice.StoreToken(secretStore, token); err != nil {
+		if err := oauthdevice.StoreToken(token); err != nil {
 			printProblem(fmt.Sprintf("Failed to store token in keyring store: %s", err))
 			return cmderrors.ExitCode1
 		}
