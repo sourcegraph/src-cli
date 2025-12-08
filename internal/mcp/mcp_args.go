@@ -67,6 +67,7 @@ func BuildArgFlagSet(tool *ToolDef) (*flag.FlagSet, map[string]any, error) {
 			fs.Var(strSlice, name, pv.Description)
 			flagVars[name] = strSlice
 		case *SchemaObject:
+			// TODO(burmudar): we can support SchemaObject as part of stdin echo '{ stuff }' | sg mcp commit-search
 			// not supported yet
 		}
 	}
