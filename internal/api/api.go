@@ -99,7 +99,7 @@ func buildTransport(opts ClientOpts, flags *Flags) *http.Transport {
 	}
 
 	if opts.ProxyURL != nil || opts.ProxyPath != "" {
-		transport = NewProxyTransport(transport, opts.ProxyURL, opts.ProxyPath)
+		transport = withProxyTransport(transport, opts.ProxyURL, opts.ProxyPath)
 	}
 
 	return transport
