@@ -1,4 +1,3 @@
-//go:generate ../../scripts/gen-mcp-tool-json.sh mcp_tools.json
 package mcp
 
 import (
@@ -13,10 +12,10 @@ import (
 var _ []byte
 
 type ToolDef struct {
-	Name         string `json:"name"`
-	Description  string `json:"description"`
-	InputSchema  Schema `json:"inputSchema"`
-	OutputSchema Schema `json:"outputSchema"`
+	Name         string       `json:"name"`
+	Description  string       `json:"description"`
+	InputSchema  SchemaObject `json:"inputSchema"`
+	OutputSchema SchemaObject `json:"outputSchema"`
 }
 
 type RawSchema struct {
@@ -29,39 +28,35 @@ type RawSchema struct {
 	Items                json.RawMessage            `json:"items"`
 }
 
-type Schema struct {
-	Schema string `json:"$schema"`
-	SchemaObject
-}
-
 type SchemaValue interface {
-	Type() string
+	ValueType() string
 }
 
 type SchemaObject struct {
-	Kind                 string                 `json:"type"`
+	Type                 string                 `json:"type"`
 	Description          string                 `json:"description"`
+	Schema               string                 `json:"$schema,omitempty"`
 	Required             []string               `json:"required,omitempty"`
 	AdditionalProperties bool                   `json:"additionalProperties"`
 	Properties           map[string]SchemaValue `json:"properties"`
 }
 
-func (s SchemaObject) Type() string { return s.Kind }
+func (s SchemaObject) ValueType() string { return s.Type }
 
 type SchemaArray struct {
-	Kind        string      `json:"type"`
+	Type        string      `json:"type"`
 	Description string      `json:"description"`
 	Items       SchemaValue `json:"items,omitempty"`
 }
 
-func (s SchemaArray) Type() string { return s.Kind }
+func (s SchemaArray) ValueType() string { return s.Type }
 
 type SchemaPrimitive struct {
+	Type        string `json:"type"`
 	Description string `json:"description"`
-	Kind        string `json:"type"`
 }
 
-func (s SchemaPrimitive) Type() string { return s.Kind }
+func (s SchemaPrimitive) ValueType() string { return s.Type }
 
 type decoder struct {
 	errors []error
@@ -100,16 +95,14 @@ func LoadToolDefinitions(data []byte) (map[string]*ToolDef, error) {
 	return tools, nil
 }
 
-func (d *decoder) decodeRootSchema(r RawSchema) Schema {
-	return Schema{
-		Schema: r.SchemaVersion,
-		SchemaObject: SchemaObject{
-			Kind:                 r.Type,
-			Description:          r.Description,
-			Required:             r.Required,
-			AdditionalProperties: r.AdditionalProperties,
-			Properties:           d.decodeProperties(r.Properties),
-		},
+func (d *decoder) decodeRootSchema(r RawSchema) SchemaObject {
+	return SchemaObject{
+		Schema:               r.SchemaVersion,
+		Type:                 r.Type,
+		Description:          r.Description,
+		Required:             r.Required,
+		AdditionalProperties: r.AdditionalProperties,
+		Properties:           d.decodeProperties(r.Properties),
 	}
 }
 
@@ -117,7 +110,7 @@ func (d *decoder) decodeSchema(r *RawSchema) SchemaValue {
 	switch r.Type {
 	case "object":
 		return &SchemaObject{
-			Kind:                 r.Type,
+			Type:                 r.Type,
 			Description:          r.Description,
 			Required:             r.Required,
 			AdditionalProperties: r.AdditionalProperties,
@@ -140,13 +133,13 @@ func (d *decoder) decodeSchema(r *RawSchema) SchemaValue {
 			}
 		}
 		return &SchemaArray{
-			Kind:        r.Type,
+			Type:        r.Type,
 			Description: r.Description,
 			Items:       items,
 		}
 	default:
 		return &SchemaPrimitive{
-			Kind:        r.Type,
+			Type:        r.Type,
 			Description: r.Description,
 		}
 	}
