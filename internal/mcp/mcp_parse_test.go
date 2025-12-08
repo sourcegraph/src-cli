@@ -71,8 +71,8 @@ func TestLoadToolDefinitions(t *testing.T) {
 		t.Fatal("Property 'tags' not found in inputSchema")
 	}
 
-	if tagsProp.Type() != "array" {
-		t.Errorf("Expected tags type 'array', got '%s'", tagsProp.Type())
+	if tagsProp.ValueType() != "array" {
+		t.Errorf("Expected tags type 'array', got '%s'", tagsProp.ValueType())
 	}
 
 	arraySchema, ok := tagsProp.(*SchemaArray)
@@ -85,8 +85,8 @@ func TestLoadToolDefinitions(t *testing.T) {
 	}
 
 	itemSchema := arraySchema.Items
-	if itemSchema.Type() != "object" {
-		t.Errorf("Expected item type 'object', got '%s'", itemSchema.Type())
+	if itemSchema.ValueType() != "object" {
+		t.Errorf("Expected item type 'object', got '%s'", itemSchema.ValueType())
 	}
 
 	objectSchema, ok := itemSchema.(*SchemaObject)
