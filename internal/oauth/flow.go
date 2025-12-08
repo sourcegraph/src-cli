@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sourcegraph/src-cli/internal/keyring"
+	"github.com/sourcegraph/src-cli/internal/secrets"
 
 	"github.com/sourcegraph/sourcegraph/lib/errors"
 )
@@ -389,7 +389,11 @@ func (t *Token) ExpiringIn(d time.Duration) bool {
 	return future.After(t.ExpiresAt)
 }
 
-func StoreToken(store *keyring.Store, token *Token) error {
+func StoreToken(token *Token) error {
+	store, err := secrets.Store()
+	if err != nil {
+		return err
+	}
 	data, err := json.Marshal(token)
 	if err != nil {
 		return errors.Wrap(err, "failed to marshal token")
@@ -399,18 +403,23 @@ func StoreToken(store *keyring.Store, token *Token) error {
 		return errors.New("token endpoint cannot be empty when storing the token")
 	}
 
-	key := fmt.Sprintf("%s <%s>", KeyOAuth, token.Endpoint)
-	return store.Set(key, data)
+	key := fmt.Sprintf("oauth[%s]", token.Endpoint)
+	return store.Put(key, data)
 }
 
-func LoadToken(store *keyring.Store, endpoint string) (*Token, error) {
-	key := fmt.Sprintf("%s <%s>", KeyOAuth, endpoint)
-	var t Token
-	data, err := store.Get(key)
+func LoadToken(endpoint string) (*Token, error) {
+	store, err := secrets.Store()
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to get token from store")
+		return nil, err
 	}
 
+	key := fmt.Sprintf("oauth[%s]", endpoint)
+	data, err := store.Get(key)
+	if err != nil {
+		return nil, err
+	}
+
+	var t Token
 	if err := json.Unmarshal(data, &t); err != nil {
 		return nil, errors.Wrap(err, "failed to unmarshall token")
 	}

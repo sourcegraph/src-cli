@@ -1,5 +1,4 @@
-// Package keyring provides secure credential storage using the system keychain.
-package keyring
+package secrets
 
 import (
 	"github.com/99designs/keyring"
@@ -8,13 +7,13 @@ import (
 
 const serviceName = "sourcegraph-cli"
 
-// Store provides secure credential storage operations.
-type Store struct {
+// keyringStore provides secure credential storage operations.
+type keyringStore struct {
 	ring keyring.Keyring
 }
 
-// Open opens the system keyring for the Sourcegraph CLI.
-func Open() (*Store, error) {
+// open opens the system keyring for the Sourcegraph CLI.
+func openKeyring() (*keyringStore, error) {
 	ring, err := keyring.Open(keyring.Config{
 		ServiceName:              serviceName,
 		KeychainName:             "login", // This is the default name for the keychain where MacOS puts all login passwords
@@ -23,12 +22,12 @@ func Open() (*Store, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "opening keyring")
 	}
-	return &Store{ring: ring}, nil
+	return &keyringStore{ring: ring}, nil
 }
 
 // Set stores a key-value pair in the keyring.
-func (s *Store) Set(key string, data []byte) error {
-	err := s.ring.Set(keyring.Item{
+func (k *keyringStore) Put(key string, data []byte) error {
+	err := k.ring.Set(keyring.Item{
 		Key:   key,
 		Data:  data,
 		Label: key,
@@ -41,11 +40,11 @@ func (s *Store) Set(key string, data []byte) error {
 
 // Get retrieves a value by key from the keyring.
 // Returns nil, nil if the key is not found.
-func (s *Store) Get(key string) ([]byte, error) {
-	item, err := s.ring.Get(key)
+func (k *keyringStore) Get(key string) ([]byte, error) {
+	item, err := k.ring.Get(key)
 	if err != nil {
 		if err == keyring.ErrKeyNotFound {
-			return nil, nil
+			return nil, ErrSecretNotFound
 		}
 		return nil, errors.Wrap(err, "getting item from keyring")
 	}
@@ -53,8 +52,8 @@ func (s *Store) Get(key string) ([]byte, error) {
 }
 
 // Delete removes a key from the keyring.
-func (s *Store) Delete(key string) error {
-	err := s.ring.Remove(key)
+func (k *keyringStore) Delete(key string) error {
+	err := k.ring.Remove(key)
 	if err != nil && err != keyring.ErrKeyNotFound {
 		return errors.Wrap(err, "removing item from keyring")
 	}
