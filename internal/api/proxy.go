@@ -11,11 +11,13 @@ import (
 	"net/url"
 )
 
-func applyProxy(transport *http.Transport, proxyURL *url.URL, proxyPath string) (applied bool) {
-	if proxyURL == nil && proxyPath == "" {
-		return false
-	}
-
+// withProxyTransport modifies the given transport to handle proxying of unix, socks5 and http connections.
+//
+// Note: baseTransport is considered to be a clone created with transport.Clone()
+//
+// - If a the proxyPath is not empty, a unix socket proxy is created.
+// - Otherwise, the proxyURL is used to determine if we should proxy socks5 / http connections
+func withProxyTransport(baseTransport *http.Transport, proxyURL *url.URL, proxyPath string) *http.Transport {
 	handshakeTLS := func(ctx context.Context, conn net.Conn, addr string) (net.Conn, error) {
 		// Extract the hostname (without the port) for TLS SNI
 		host, _, err := net.SplitHostPort(addr)
@@ -26,15 +28,13 @@ func applyProxy(transport *http.Transport, proxyURL *url.URL, proxyPath string) 
 			ServerName: host,
 			// Pull InsecureSkipVerify from the target host transport
 			// so that insecure-skip-verify flag settings are honored for the proxy server
-			InsecureSkipVerify: transport.TLSClientConfig.InsecureSkipVerify,
+			InsecureSkipVerify: baseTransport.TLSClientConfig.InsecureSkipVerify,
 		})
 		if err := tlsConn.HandshakeContext(ctx); err != nil {
 			return nil, err
 		}
 		return tlsConn, nil
 	}
-
-	proxyApplied := false
 
 	if proxyPath != "" {
 		dial := func(ctx context.Context, _, _ string) (net.Conn, error) {
@@ -48,17 +48,15 @@ func applyProxy(transport *http.Transport, proxyURL *url.URL, proxyPath string) 
 			}
 			return handshakeTLS(ctx, conn, addr)
 		}
-		transport.DialContext = dial
-		transport.DialTLSContext = dialTLS
+		baseTransport.DialContext = dial
+		baseTransport.DialTLSContext = dialTLS
 		// clear out any system proxy settings
-		transport.Proxy = nil
-		proxyApplied = true
+		baseTransport.Proxy = nil
 	} else if proxyURL != nil {
 		switch proxyURL.Scheme {
 		case "socks5", "socks5h":
 			// SOCKS proxies work out of the box - no need to manually dial
-			transport.Proxy = http.ProxyURL(proxyURL)
-			proxyApplied = true
+			baseTransport.Proxy = http.ProxyURL(proxyURL)
 		case "http", "https":
 			dial := func(ctx context.Context, network, addr string) (net.Conn, error) {
 				// Dial the proxy
@@ -126,13 +124,12 @@ func applyProxy(transport *http.Transport, proxyURL *url.URL, proxyPath string) 
 				}
 				return handshakeTLS(ctx, conn, addr)
 			}
-			transport.DialContext = dial
-			transport.DialTLSContext = dialTLS
+			baseTransport.DialContext = dial
+			baseTransport.DialTLSContext = dialTLS
 			// clear out any system proxy settings
-			transport.Proxy = nil
-			proxyApplied = true
+			baseTransport.Proxy = nil
 		}
 	}
 
-	return proxyApplied
+	return baseTransport
 }
