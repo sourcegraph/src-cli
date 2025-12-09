@@ -8,9 +8,6 @@ import (
 	"github.com/sourcegraph/sourcegraph/lib/errors"
 )
 
-//go:embed mcp_tools.json
-var mcpToolListJSON []byte
-
 type ToolDef struct {
 	Name         string
 	RawName      string       `json:"name"`
@@ -61,10 +58,6 @@ func (s SchemaPrimitive) ValueType() string { return s.Type }
 
 type decoder struct {
 	errors []error
-}
-
-func LoadDefaultToolDefinitions() (map[string]*ToolDef, error) {
-	return loadToolDefinitions(mcpToolListJSON)
 }
 
 func loadToolDefinitions(data []byte) (map[string]*ToolDef, error) {
