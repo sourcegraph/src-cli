@@ -76,7 +76,7 @@ func mcpMain(args []string) error {
 	if err := flags.Parse(flagArgs); err != nil {
 		return err
 	}
-	mcp.DerefFlagValues(vars)
+	mcp.DerefFlagValues(flags, vars)
 
 	if err := validateToolArgs(tool.InputSchema, args, vars); err != nil {
 		return err

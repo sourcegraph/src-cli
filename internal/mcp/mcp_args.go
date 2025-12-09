@@ -24,33 +24,25 @@ func (s *strSliceFlag) String() string {
 	return strings.Join(s.vals, ",")
 }
 
-func DerefFlagValues(vars map[string]any) {
+func DerefFlagValues(fs *flag.FlagSet, vars map[string]any) {
+	setFlags := make(map[string]bool)
+	fs.Visit(func(f *flag.Flag) {
+		setFlags[f.Name] = true
+	})
+
 	for k, v := range vars {
+		if !setFlags[k] {
+			delete(vars, k)
+			continue
+		}
 		rfl := reflect.ValueOf(v)
 		if rfl.Kind() == reflect.Pointer {
 			vv := rfl.Elem().Interface()
 			if slice, ok := vv.(strSliceFlag); ok {
 				vv = slice.vals
 			}
-			if isNil(vv) {
-				delete(vars, k)
-			} else {
-				vars[k] = vv
-			}
+			vars[k] = vv
 		}
-	}
-}
-
-func isNil(v any) bool {
-	if v == nil {
-		return true
-	}
-	rv := reflect.ValueOf(v)
-	switch rv.Kind() {
-	case reflect.Slice, reflect.Map, reflect.Pointer, reflect.Interface:
-		return rv.IsNil()
-	default:
-		return false
 	}
 }
 
