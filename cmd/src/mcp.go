@@ -1,19 +1,27 @@
 package main
 
 import (
+	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
+	"os"
 	"strings"
 
+	"github.com/sourcegraph/src-cli/internal/api"
 	"github.com/sourcegraph/src-cli/internal/mcp"
+
+	"github.com/sourcegraph/sourcegraph/lib/errors"
 )
 
 func init() {
-	flagSet := flag.NewFlagSet("mcp", flag.ExitOnError)
-	commands = append(commands, &command{
-		flagSet: flagSet,
-		handler: mcpMain,
-	})
+	if os.Getenv("SRC_EXPERIMENT_MCP") == "true" {
+		flagSet := flag.NewFlagSet("mcp", flag.ExitOnError)
+		commands = append(commands, &command{
+			flagSet: flagSet,
+			handler: mcpMain,
+		})
+	}
 }
 func mcpMain(args []string) error {
 	fmt.Println("NOTE: This command is still experimental")
@@ -44,37 +52,73 @@ func mcpMain(args []string) error {
 	if !ok {
 		return fmt.Errorf("tool definition for %q not found - run src mcp list-tools to see a list of available tools", subcmd)
 	}
-	return handleMcpTool(tool, args[1:])
+
+	flagArgs := args[1:] // skip subcommand name
+	if len(args) > 1 && args[1] == "schema" {
+		return printSchemas(tool)
+	}
+
+	flags, vars, err := mcp.BuildArgFlagSet(tool)
+	if err != nil {
+		return err
+	}
+	if err := flags.Parse(flagArgs); err != nil {
+		return err
+	}
+	mcp.DerefFlagValues(vars)
+
+	if err := validateToolArgs(tool.InputSchema, args, vars); err != nil {
+		return err
+	}
+
+	apiClient := cfg.apiClient(nil, flags.Output())
+	return handleMcpTool(context.Background(), apiClient, tool, vars)
 }
 
-func handleMcpTool(tool *mcp.ToolDef, args []string) error {
-	fs, vars, err := mcp.BuildArgFlagSet(tool)
+func printSchemas(tool *mcp.ToolDef) error {
+	input, err := json.MarshalIndent(tool.InputSchema, "", " ")
+	if err != nil {
+		return err
+	}
+	output, err := json.MarshalIndent(tool.OutputSchema, "", " ")
 	if err != nil {
 		return err
 	}
 
-	if err := fs.Parse(args); err != nil {
-		return err
-	}
+	fmt.Printf("Input:\n%v\nOutput:\n%v\n", string(input), string(output))
+	return nil
+}
 
-	inputSchema := tool.InputSchema
-
+func validateToolArgs(inputSchema mcp.SchemaObject, args []string, vars map[string]any) error {
 	for _, reqName := range inputSchema.Required {
 		if vars[reqName] == nil {
-			return fmt.Errorf("no value provided for required flag --%s", reqName)
+			return errors.Newf("no value provided for required flag --%s", reqName)
 		}
 	}
 
 	if len(args) < len(inputSchema.Required) {
-		return fmt.Errorf("not enough arguments provided - the following flags are required:\n%s", strings.Join(inputSchema.Required, "\n"))
+		return errors.Newf("not enough arguments provided - the following flags are required:\n%s", strings.Join(inputSchema.Required, "\n"))
 	}
 
-	mcp.DerefFlagValues(vars)
+	return nil
+}
 
-	fmt.Println("Flags")
-	for name, val := range vars {
-		fmt.Printf("--%s=%v\n", name, val)
+func handleMcpTool(ctx context.Context, client api.Client, tool *mcp.ToolDef, vars map[string]any) error {
+	resp, err := mcp.DoToolRequest(ctx, client, tool, vars)
+	if err != nil {
+		return err
 	}
 
+	result, err := mcp.DecodeToolResponse(resp)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	output, err := json.MarshalIndent(result, "", "  ")
+	if err != nil {
+		return err
+	}
+	fmt.Println(string(output))
 	return nil
 }
