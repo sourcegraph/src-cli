@@ -19,13 +19,19 @@ func FetchToolDefinitions(ctx context.Context, client api.Client) (map[string]*T
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to list tools from mcp endpoint")
 	}
-	defer resp.Body.Close()
-
-	data, err := io.ReadAll(resp.Body)
+	data, err := readSSEResponseData(resp)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to read mcp response data")
+		return nil, errors.Wrap(err, "failed to read list tools SSE response")
 	}
-	return loadToolDefinitions(data)
+
+	var rpcResp struct {
+		Result json.RawMessage `json:"result"`
+	}
+	if err := json.Unmarshal(data, &rpcResp); err != nil {
+		return nil, errors.Wrap(err, "failed to unmarshal JSON-RPC response")
+	}
+
+	return loadToolDefinitions(rpcResp.Result)
 }
 
 func DoToolCall(ctx context.Context, client api.Client, tool string, vars map[string]any) (*http.Response, error) {
