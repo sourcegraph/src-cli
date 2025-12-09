@@ -48,7 +48,6 @@ func mcpMain(args []string) error {
 		fmt.Printf("     src mcp <tool-name> schema\n")
 		return nil
 	}
-
 	tool, ok := tools[subcmd]
 	if !ok {
 		return errors.Newf("tool definition for %q not found - run src mcp list-tools to see a list of available tools", subcmd)
