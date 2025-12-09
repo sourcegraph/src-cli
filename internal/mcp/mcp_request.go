@@ -14,25 +14,44 @@ import (
 
 const McpURLPath = ".api/mcp/v1"
 
-func DoToolRequest(ctx context.Context, client api.Client, tool *ToolDef, vars map[string]any) (*http.Response, error) {
+func FetchToolDefinitions(ctx context.Context, client api.Client) (map[string]*ToolDef, error) {
+	resp, err := doJSONRPC(ctx, client, "tools/list", nil)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to list tools from mcp endpoint")
+	}
+	defer resp.Body.Close()
+
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to read mcp response data")
+	}
+	return loadToolDefinitions(data)
+}
+
+func DoToolCall(ctx context.Context, client api.Client, tool string, vars map[string]any) (*http.Response, error) {
+	params := struct {
+		Name      string         `json:"name"`
+		Arguments map[string]any `json:"arguments"`
+	}{
+		Name:      tool,
+		Arguments: vars,
+	}
+
+	return doJSONRPC(ctx, client, "tools/call", params)
+}
+
+func doJSONRPC(ctx context.Context, client api.Client, method string, params any) (*http.Response, error) {
 	jsonRPC := struct {
 		Version string `json:"jsonrpc"`
 		ID      int    `json:"id"`
 		Method  string `json:"method"`
-		Params  any    `json:"params"`
+		Params  any    `json:"params,omitempty"`
 	}{
 		Version: "2.0",
 		ID:      1,
-		Method:  "tools/call",
-		Params: struct {
-			Name      string         `json:"name"`
-			Arguments map[string]any `json:"arguments"`
-		}{
-			Name:      tool.RawName,
-			Arguments: vars,
-		},
+		Method:  method,
+		Params:  params,
 	}
-
 	buf := bytes.NewBuffer(nil)
 	data, err := json.Marshal(jsonRPC)
 	if err != nil {
