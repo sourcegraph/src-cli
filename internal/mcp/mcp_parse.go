@@ -3,16 +3,17 @@ package mcp
 import (
 	_ "embed"
 	"encoding/json"
-	"fmt"
+	"strings"
 
 	"github.com/sourcegraph/sourcegraph/lib/errors"
 )
 
 //go:embed mcp_tools.json
-var _ []byte
+var mcpToolListJSON []byte
 
 type ToolDef struct {
-	Name         string       `json:"name"`
+	Name         string
+	RawName      string       `json:"name"`
 	Description  string       `json:"description"`
 	InputSchema  SchemaObject `json:"inputSchema"`
 	OutputSchema SchemaObject `json:"outputSchema"`
@@ -62,13 +63,17 @@ type decoder struct {
 	errors []error
 }
 
-func LoadToolDefinitions(data []byte) (map[string]*ToolDef, error) {
+func LoadDefaultToolDefinitions() (map[string]*ToolDef, error) {
+	return loadToolDefinitions(mcpToolListJSON)
+}
+
+func loadToolDefinitions(data []byte) (map[string]*ToolDef, error) {
 	defs := struct {
 		Tools []struct {
 			Name         string    `json:"name"`
 			Description  string    `json:"description"`
-			InputSchema  rawSchema `json:"inputSchema"`
-			OutputSchema rawSchema `json:"outputSchema"`
+			InputSchema  RawSchema `json:"inputSchema"`
+			OutputSchema RawSchema `json:"outputSchema"`
 		} `json:"tools"`
 	}{}
 
@@ -80,12 +85,19 @@ func LoadToolDefinitions(data []byte) (map[string]*ToolDef, error) {
 	decoder := &decoder{}
 
 	for _, t := range defs.Tools {
-		tools[t.Name] = &ToolDef{
-			Name:         t.Name,
+		// normalize the raw mcp tool name to be without the mcp identifiers
+		rawName := t.Name
+		name, _ := strings.CutPrefix(rawName, "sg_")
+		name = strings.ReplaceAll(name, "_", "-")
+
+		tool := &ToolDef{
+			Name:         name,
+			RawName:      rawName,
 			Description:  t.Description,
 			InputSchema:  decoder.decodeRootSchema(t.InputSchema),
 			OutputSchema: decoder.decodeRootSchema(t.OutputSchema),
 		}
+		tools[tool.Name] = tool
 	}
 
 	if len(decoder.errors) > 0 {
@@ -97,10 +109,11 @@ func LoadToolDefinitions(data []byte) (map[string]*ToolDef, error) {
 
 func (d *decoder) decodeRootSchema(r rawSchema) SchemaObject {
 	return SchemaObject{
-		Type:        r.Type,
-		Description: r.Description,
-		Required:    r.Required,
-		Properties:  d.decodeProperties(r.Properties),
+		Schema:               r.SchemaVersion,
+		Type:                 r.Type,
+		Description:          r.Description,
+		Required:             r.Required,
+		Properties:           d.decodeProperties(r.Properties),
 	}
 }
 
@@ -108,10 +121,10 @@ func (d *decoder) decodeSchema(r *rawSchema) SchemaValue {
 	switch r.Type {
 	case "object":
 		return &SchemaObject{
-			Type:        r.Type,
-			Description: r.Description,
-			Required:    r.Required,
-			Properties:  d.decodeProperties(r.Properties),
+			Type:                 r.Type,
+			Description:          r.Description,
+			Required:             r.Required,
+			Properties:           d.decodeProperties(r.Properties),
 		}
 	case "array":
 		var items SchemaValue
@@ -125,7 +138,7 @@ func (d *decoder) decodeSchema(r *rawSchema) SchemaValue {
 				if err := json.Unmarshal(r.Items, &itemRaw); err == nil {
 					items = d.decodeSchema(&itemRaw)
 				} else {
-					d.errors = append(d.errors, errors.Errorf("failed to unmarshal array items: %w", err))
+					d.errors = append(d.errors, errors.Wrap(err, "failed to unmarshal array items"))
 				}
 			}
 		}
@@ -147,7 +160,7 @@ func (d *decoder) decodeProperties(props map[string]json.RawMessage) map[string]
 	for name, raw := range props {
 		var r rawSchema
 		if err := json.Unmarshal(raw, &r); err != nil {
-			d.errors = append(d.errors, fmt.Errorf("failed to parse property %q: %w", name, err))
+			d.errors = append(d.errors, errors.Wrapf(err, "failed to parse property %q: %w", name))
 			continue
 		}
 		res[name] = d.decodeSchema(&r)
