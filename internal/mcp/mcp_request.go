@@ -15,11 +15,6 @@ import (
 
 const McpURLPath = ".api/mcp/v1"
 
-type jsonRPCError struct {
-	Code    int    `json:"code"`
-	Message string `json:"message"`
-}
-
 func FetchToolDefinitions(ctx context.Context, client api.Client) (map[string]*ToolDef, error) {
 	resp, err := doJSONRPC(ctx, client, "tools/list", nil)
 	if err != nil {
@@ -34,7 +29,10 @@ func FetchToolDefinitions(ctx context.Context, client api.Client) (map[string]*T
 
 	var rpcResp struct {
 		Result json.RawMessage `json:"result"`
-		Error  *jsonRPCError   `json:"error"`
+		Error  *struct {
+			Code    int    `json:"code"`
+			Message string `json:"message"`
+		} `json:"error,omitempty"`
 	}
 	if err := json.Unmarshal(data, &rpcResp); err != nil {
 		return nil, errors.Wrap(err, "failed to unmarshal JSON-RPC response")
@@ -114,7 +112,10 @@ func DecodeToolResponse(resp *http.Response) (map[string]json.RawMessage, error)
 			Content           []json.RawMessage          `json:"content"`
 			StructuredContent map[string]json.RawMessage `json:"structuredContent"`
 		} `json:"result"`
-		Error *jsonRPCError `json:"error"`
+		Error *struct {
+			Code    int    `json:"code"`
+			Message string `json:"message"`
+		} `json:"error,omitempty"`
 	}{}
 	if err := json.Unmarshal(data, &jsonRPCResp); err != nil {
 		return nil, errors.Wrapf(err, "failed to unmarshal MCP JSON-RPC response")
