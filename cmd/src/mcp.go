@@ -22,7 +22,6 @@ func init() {
 	})
 }
 func mcpMain(args []string) error {
-	fmt.Println("NOTE: This command is still experimental")
 	apiClient := cfg.apiClient(nil, mcpFlagSet.Output())
 
 	ctx := context.Background()
