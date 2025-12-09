@@ -63,7 +63,7 @@ type decoder struct {
 	errors []error
 }
 
-func LoadToolDefinitions() (map[string]*ToolDef, error) {
+func LoadDefaultToolDefinitions() (map[string]*ToolDef, error) {
 	return loadToolDefinitions(mcpToolListJSON)
 }
 
