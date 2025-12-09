@@ -13,16 +13,20 @@ import (
 	"github.com/sourcegraph/sourcegraph/lib/errors"
 )
 
+var mcpFlagSet = flag.NewFlagSet("mcp", flag.ExitOnError)
+
 func init() {
-	flagSet := flag.NewFlagSet("mcp", flag.ExitOnError)
 	commands = append(commands, &command{
-		flagSet: flagSet,
+		flagSet: mcpFlagSet,
 		handler: mcpMain,
 	})
 }
 func mcpMain(args []string) error {
 	fmt.Println("NOTE: This command is still experimental")
-	tools, err := mcp.LoadDefaultToolDefinitions()
+	apiClient := cfg.apiClient(nil, mcpFlagSet.Output())
+
+	ctx := context.Background()
+	tools, err := mcp.FetchToolDefinitions(ctx, apiClient)
 	if err != nil {
 		return err
 	}
@@ -44,10 +48,9 @@ func mcpMain(args []string) error {
 		fmt.Printf("     src mcp <tool-name> schema\n")
 		return nil
 	}
-
 	tool, ok := tools[subcmd]
 	if !ok {
-		return fmt.Errorf("tool definition for %q not found - run src mcp list-tools to see a list of available tools", subcmd)
+		return errors.Newf("tool definition for %q not found - run src mcp list-tools to see a list of available tools", subcmd)
 	}
 
 	flagArgs := args[1:] // skip subcommand name
@@ -68,7 +71,6 @@ func mcpMain(args []string) error {
 		return err
 	}
 
-	apiClient := cfg.apiClient(nil, flags.Output())
 	return handleMcpTool(context.Background(), apiClient, tool, vars)
 }
 
@@ -101,7 +103,7 @@ func validateToolArgs(inputSchema mcp.SchemaObject, args []string, vars map[stri
 }
 
 func handleMcpTool(ctx context.Context, client api.Client, tool *mcp.ToolDef, vars map[string]any) error {
-	resp, err := mcp.DoToolRequest(ctx, client, tool, vars)
+	resp, err := mcp.DoToolCall(ctx, client, tool.RawName, vars)
 	if err != nil {
 		return err
 	}

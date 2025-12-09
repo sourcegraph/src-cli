@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"strings"
 
 	"github.com/sourcegraph/src-cli/internal/api"
 
@@ -14,25 +15,59 @@ import (
 
 const McpURLPath = ".api/mcp/v1"
 
-func DoToolRequest(ctx context.Context, client api.Client, tool *ToolDef, vars map[string]any) (*http.Response, error) {
+func FetchToolDefinitions(ctx context.Context, client api.Client) (map[string]*ToolDef, error) {
+	resp, err := doJSONRPC(ctx, client, "tools/list", nil)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to list tools from mcp endpoint")
+	}
+	defer resp.Body.Close()
+
+	data, err := readSSEResponseData(resp)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to read list tools SSE response")
+	}
+
+	var rpcResp struct {
+		Result json.RawMessage `json:"result"`
+		Error  *struct {
+			Code    int    `json:"code"`
+			Message string `json:"message"`
+		} `json:"error,omitempty"`
+	}
+	if err := json.Unmarshal(data, &rpcResp); err != nil {
+		return nil, errors.Wrap(err, "failed to unmarshal JSON-RPC response")
+	}
+	if rpcResp.Error != nil {
+		return nil, errors.Newf("MCP tools/list failed: %d %s", rpcResp.Error.Code, rpcResp.Error.Message)
+	}
+
+	return loadToolDefinitions(rpcResp.Result)
+}
+
+func DoToolCall(ctx context.Context, client api.Client, tool string, vars map[string]any) (*http.Response, error) {
+	params := struct {
+		Name      string         `json:"name"`
+		Arguments map[string]any `json:"arguments"`
+	}{
+		Name:      tool,
+		Arguments: vars,
+	}
+
+	return doJSONRPC(ctx, client, "tools/call", params)
+}
+
+func doJSONRPC(ctx context.Context, client api.Client, method string, params any) (*http.Response, error) {
 	jsonRPC := struct {
 		Version string `json:"jsonrpc"`
 		ID      int    `json:"id"`
 		Method  string `json:"method"`
-		Params  any    `json:"params"`
+		Params  any    `json:"params,omitempty"`
 	}{
 		Version: "2.0",
 		ID:      1,
-		Method:  "tools/call",
-		Params: struct {
-			Name      string         `json:"name"`
-			Arguments map[string]any `json:"arguments"`
-		}{
-			Name:      tool.RawName,
-			Arguments: vars,
-		},
+		Method:  method,
+		Params:  params,
 	}
-
 	buf := bytes.NewBuffer(nil)
 	data, err := json.Marshal(jsonRPC)
 	if err != nil {
@@ -45,9 +80,21 @@ func DoToolRequest(ctx context.Context, client api.Client, tool *ToolDef, vars m
 		return nil, err
 	}
 	req.Header.Add("Content-Type", "application/json")
-	req.Header.Add("Accept", "*/*")
+	req.Header.Add("Accept", "application/json, text/event-stream")
 
-	return client.Do(req)
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		resp.Body.Close()
+		return nil, errors.Newf("MCP endpoint %s returned %d: %s",
+			McpURLPath, resp.StatusCode, strings.TrimSpace(string(body)))
+	}
+
+	return resp, nil
 }
 
 func DecodeToolResponse(resp *http.Response) (map[string]json.RawMessage, error) {
@@ -61,15 +108,20 @@ func DecodeToolResponse(resp *http.Response) (map[string]json.RawMessage, error)
 	}
 
 	jsonRPCResp := struct {
-		Version string `json:"jsonrpc"`
-		ID      int    `json:"id"`
-		Result  struct {
+		Result struct {
 			Content           []json.RawMessage          `json:"content"`
 			StructuredContent map[string]json.RawMessage `json:"structuredContent"`
 		} `json:"result"`
+		Error *struct {
+			Code    int    `json:"code"`
+			Message string `json:"message"`
+		} `json:"error,omitempty"`
 	}{}
 	if err := json.Unmarshal(data, &jsonRPCResp); err != nil {
 		return nil, errors.Wrapf(err, "failed to unmarshal MCP JSON-RPC response")
+	}
+	if jsonRPCResp.Error != nil {
+		return nil, errors.Newf("MCP tools/call failed: %d %s", jsonRPCResp.Error.Code, jsonRPCResp.Error.Message)
 	}
 
 	return jsonRPCResp.Result.StructuredContent, nil
