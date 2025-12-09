@@ -63,7 +63,7 @@ func TestFlagSetParse(t *testing.T) {
 	if err := flagSet.Parse(args); err != nil {
 		t.Fatalf("flagset parsing failed: %v", err)
 	}
-	DerefFlagValues(vars)
+	DerefFlagValues(flagSet, vars)
 
 	if v, ok := vars["repos"].([]string); ok {
 		if len(v) != 2 {
