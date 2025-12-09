@@ -87,7 +87,7 @@ func loadToolDefinitions(data []byte) (map[string]*ToolDef, error) {
 	for _, t := range defs.Tools {
 		// normalize the raw mcp tool name to be without the mcp identifiers
 		rawName := t.Name
-		name, _ := strings.CutPrefix(rawName, "sg_")
+		name := strings.TrimPrefix(rawName, "sg_")
 		name = strings.ReplaceAll(name, "_", "-")
 
 		tool := &ToolDef{
@@ -140,7 +140,7 @@ func (d *decoder) decodeSchema(r *RawSchema) SchemaValue {
 				if err := json.Unmarshal(r.Items, &itemRaw); err == nil {
 					items = d.decodeSchema(&itemRaw)
 				} else {
-					d.errors = append(d.errors, errors.Errorf("failed to unmarshal array items: %w", err))
+					d.errors = append(d.errors, errors.Wrapf(err, "failed to unmarshal array items"))
 				}
 			}
 		}
@@ -162,7 +162,7 @@ func (d *decoder) decodeProperties(props map[string]json.RawMessage) map[string]
 	for name, raw := range props {
 		var r RawSchema
 		if err := json.Unmarshal(raw, &r); err != nil {
-			d.errors = append(d.errors, errors.Newf("failed to parse property %q: %w", name, err))
+			d.errors = append(d.errors, errors.Wrapf(err, "failed to parse property %q", name))
 			continue
 		}
 		res[name] = d.decodeSchema(&r)
