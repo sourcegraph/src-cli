@@ -4,8 +4,8 @@ import (
 	"flag"
 	"fmt"
 
+	"context"
 	"github.com/sourcegraph/src-cli/internal/api"
-	"golang.org/x/net/context"
 )
 
 func init() {
