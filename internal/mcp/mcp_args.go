@@ -1,6 +1,7 @@
 package mcp
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"reflect"
@@ -16,6 +17,16 @@ type strSliceFlag struct {
 }
 
 func (s *strSliceFlag) Set(v string) error {
+	// The MCP Array properties accept JSON arrays so, if we get a value starting with "["
+	// it's probably a JSON array
+	if strings.HasPrefix(v, "[") {
+		var arr []string
+		if err := json.Unmarshal([]byte(v), &arr); err == nil {
+			s.vals = append(s.vals, arr...)
+			return nil
+		}
+	}
+	// Otherwise treat as a single value
 	s.vals = append(s.vals, v)
 	return nil
 }
