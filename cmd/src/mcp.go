@@ -1,10 +1,16 @@
 package main
 
 import (
+	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
+	"strings"
 
+	"github.com/sourcegraph/src-cli/internal/api"
 	"github.com/sourcegraph/src-cli/internal/mcp"
+
+	"github.com/sourcegraph/sourcegraph/lib/errors"
 )
 
 func init() {
@@ -16,7 +22,7 @@ func init() {
 }
 func mcpMain(args []string) error {
 	fmt.Println("NOTE: This command is still experimental")
-	tools, err := mcp.LoadToolDefinitions()
+	tools, err := mcp.LoadDefaultToolDefinitions()
 	if err != nil {
 		return err
 	}

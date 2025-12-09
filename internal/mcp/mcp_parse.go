@@ -72,8 +72,8 @@ func loadToolDefinitions(data []byte) (map[string]*ToolDef, error) {
 		Tools []struct {
 			Name         string    `json:"name"`
 			Description  string    `json:"description"`
-			InputSchema  RawSchema `json:"inputSchema"`
-			OutputSchema RawSchema `json:"outputSchema"`
+			InputSchema  rawSchema `json:"inputSchema"`
+			OutputSchema rawSchema `json:"outputSchema"`
 		} `json:"tools"`
 	}{}
 
@@ -109,11 +109,10 @@ func loadToolDefinitions(data []byte) (map[string]*ToolDef, error) {
 
 func (d *decoder) decodeRootSchema(r rawSchema) SchemaObject {
 	return SchemaObject{
-		Schema:               r.SchemaVersion,
-		Type:                 r.Type,
-		Description:          r.Description,
-		Required:             r.Required,
-		Properties:           d.decodeProperties(r.Properties),
+		Type:        r.Type,
+		Description: r.Description,
+		Required:    r.Required,
+		Properties:  d.decodeProperties(r.Properties),
 	}
 }
 
@@ -121,10 +120,10 @@ func (d *decoder) decodeSchema(r *rawSchema) SchemaValue {
 	switch r.Type {
 	case "object":
 		return &SchemaObject{
-			Type:                 r.Type,
-			Description:          r.Description,
-			Required:             r.Required,
-			Properties:           d.decodeProperties(r.Properties),
+			Type:        r.Type,
+			Description: r.Description,
+			Required:    r.Required,
+			Properties:  d.decodeProperties(r.Properties),
 		}
 	case "array":
 		var items SchemaValue
