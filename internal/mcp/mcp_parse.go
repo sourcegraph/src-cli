@@ -18,14 +18,12 @@ type ToolDef struct {
 	OutputSchema SchemaObject `json:"outputSchema"`
 }
 
-type RawSchema struct {
-	Type                 string                     `json:"type"`
-	Description          string                     `json:"description"`
-	SchemaVersion        string                     `json:"$schema"`
-	Required             []string                   `json:"required,omitempty"`
-	AdditionalProperties bool                       `json:"additionalProperties"`
-	Properties           map[string]json.RawMessage `json:"properties"`
-	Items                json.RawMessage            `json:"items"`
+type rawSchema struct {
+	Type        string                     `json:"type"`
+	Description string                     `json:"description"`
+	Required    []string                   `json:"required,omitempty"`
+	Properties  map[string]json.RawMessage `json:"properties"`
+	Items       json.RawMessage            `json:"items"`
 }
 
 type SchemaValue interface {
@@ -33,12 +31,14 @@ type SchemaValue interface {
 }
 
 type SchemaObject struct {
-	Type                 string                 `json:"type"`
-	Description          string                 `json:"description"`
-	Schema               string                 `json:"$schema,omitempty"`
-	Required             []string               `json:"required,omitempty"`
-	AdditionalProperties bool                   `json:"additionalProperties"`
-	Properties           map[string]SchemaValue `json:"properties"`
+	Type        string                 `json:"type"`
+	Description string                 `json:"description"`
+	Required    []string               `json:"required,omitempty"`
+	Properties  map[string]SchemaValue `json:"properties"`
+
+	// two fields which we do not use from the schema:
+	// - $schema
+	// - additionalPropterties
 }
 
 func (s SchemaObject) ValueType() string { return s.Type }
@@ -67,8 +67,8 @@ func LoadToolDefinitions(data []byte) (map[string]*ToolDef, error) {
 		Tools []struct {
 			Name         string    `json:"name"`
 			Description  string    `json:"description"`
-			InputSchema  RawSchema `json:"inputSchema"`
-			OutputSchema RawSchema `json:"outputSchema"`
+			InputSchema  rawSchema `json:"inputSchema"`
+			OutputSchema rawSchema `json:"outputSchema"`
 		} `json:"tools"`
 	}{}
 
@@ -95,26 +95,23 @@ func LoadToolDefinitions(data []byte) (map[string]*ToolDef, error) {
 	return tools, nil
 }
 
-func (d *decoder) decodeRootSchema(r RawSchema) SchemaObject {
+func (d *decoder) decodeRootSchema(r rawSchema) SchemaObject {
 	return SchemaObject{
-		Schema:               r.SchemaVersion,
-		Type:                 r.Type,
-		Description:          r.Description,
-		Required:             r.Required,
-		AdditionalProperties: r.AdditionalProperties,
-		Properties:           d.decodeProperties(r.Properties),
+		Type:        r.Type,
+		Description: r.Description,
+		Required:    r.Required,
+		Properties:  d.decodeProperties(r.Properties),
 	}
 }
 
-func (d *decoder) decodeSchema(r *RawSchema) SchemaValue {
+func (d *decoder) decodeSchema(r *rawSchema) SchemaValue {
 	switch r.Type {
 	case "object":
 		return &SchemaObject{
-			Type:                 r.Type,
-			Description:          r.Description,
-			Required:             r.Required,
-			AdditionalProperties: r.AdditionalProperties,
-			Properties:           d.decodeProperties(r.Properties),
+			Type:        r.Type,
+			Description: r.Description,
+			Required:    r.Required,
+			Properties:  d.decodeProperties(r.Properties),
 		}
 	case "array":
 		var items SchemaValue
@@ -124,7 +121,7 @@ func (d *decoder) decodeSchema(r *RawSchema) SchemaValue {
 				// Sometimes items is defined as "items: true", so we handle it here and
 				// consider it "empty" array
 			} else {
-				var itemRaw RawSchema
+				var itemRaw rawSchema
 				if err := json.Unmarshal(r.Items, &itemRaw); err == nil {
 					items = d.decodeSchema(&itemRaw)
 				} else {
@@ -148,7 +145,7 @@ func (d *decoder) decodeSchema(r *RawSchema) SchemaValue {
 func (d *decoder) decodeProperties(props map[string]json.RawMessage) map[string]SchemaValue {
 	res := make(map[string]SchemaValue)
 	for name, raw := range props {
-		var r RawSchema
+		var r rawSchema
 		if err := json.Unmarshal(raw, &r); err != nil {
 			d.errors = append(d.errors, fmt.Errorf("failed to parse property %q: %w", name, err))
 			continue

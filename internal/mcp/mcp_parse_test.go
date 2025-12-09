@@ -56,14 +56,9 @@ func TestLoadToolDefinitions(t *testing.T) {
 	}
 
 	inputSchema := tool.InputSchema
-	outputSchema := tool.OutputSchema
-	schemaVersion := "https://localhost/schema-draft/2025-07"
 
-	if inputSchema.Schema != schemaVersion {
-		t.Errorf("Expected input schema version %q, got %q", schemaVersion, inputSchema.Schema)
-	}
-	if outputSchema.Schema != schemaVersion {
-		t.Errorf("Expected output schema version %q, got %q", schemaVersion, outputSchema.Schema)
+	if len(tool.OutputSchema.Properties) == 0 {
+		t.Fatalf("expected tool.OutputSchema.Properties not be empty")
 	}
 
 	tagsProp, ok := inputSchema.Properties["tags"]
