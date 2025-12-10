@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"iter"
+	"maps"
+	"slices"
 
 	"github.com/sourcegraph/src-cli/internal/api"
 
@@ -71,9 +73,10 @@ func (r *ToolRegistry) CallTool(ctx context.Context, client api.Client, name str
 
 // All returns an iterator that yields the name and Tool definition of all registered tools
 func (r *ToolRegistry) All() iter.Seq2[string, *ToolDef] {
+	keys := slices.Sorted(maps.Keys(r.tools))
 	return func(yield func(string, *ToolDef) bool) {
-		for name, def := range r.tools {
-			if !yield(name, def) {
+		for _, key := range keys {
+			if !yield(key, r.tools[key]) {
 				return
 			}
 		}
