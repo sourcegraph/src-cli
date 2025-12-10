@@ -111,6 +111,7 @@ func DecodeToolResponse(resp *http.Response) (map[string]json.RawMessage, error)
 		Result struct {
 			Content           []json.RawMessage          `json:"content"`
 			StructuredContent map[string]json.RawMessage `json:"structuredContent"`
+			IsError           bool                       `json:"isError"`
 		} `json:"result"`
 		Error *struct {
 			Code    int    `json:"code"`
@@ -122,6 +123,19 @@ func DecodeToolResponse(resp *http.Response) (map[string]json.RawMessage, error)
 	}
 	if jsonRPCResp.Error != nil {
 		return nil, errors.Newf("MCP tools/call failed: %d %s", jsonRPCResp.Error.Code, jsonRPCResp.Error.Message)
+	}
+
+	if jsonRPCResp.Result.IsError {
+		if len(jsonRPCResp.Result.Content) > 0 {
+			var textContent struct {
+				Text string `json:"text"`
+			}
+			if err := json.Unmarshal(jsonRPCResp.Result.Content[0], &textContent); err == nil && textContent.Text != "" {
+				return nil, errors.Newf("MCP tool error: %s", textContent.Text)
+			}
+			return nil, errors.Newf("MCP tool error: %s", string(jsonRPCResp.Result.Content[0]))
+		}
+		return nil, errors.New("MCP tool returned an error")
 	}
 
 	return jsonRPCResp.Result.StructuredContent, nil
