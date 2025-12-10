@@ -13,8 +13,8 @@ import (
 	"github.com/sourcegraph/sourcegraph/lib/errors"
 )
 
-const McpURLPath = ".api/mcp/v1"
-const McpDeepSearchURLPath = ".api/mcp/deepsearch"
+const MCPURLPath = ".api/mcp/v1"
+const MCPDeepSearchURLPath = ".api/mcp/deepsearch"
 
 func fetchToolDefinitions(ctx context.Context, client api.Client, endpoint string) (map[string]*ToolDef, error) {
 	resp, err := doJSONRPC(ctx, client, endpoint, "tools/list", nil)

@@ -25,7 +25,7 @@ func NewToolRegistry() *ToolRegistry {
 
 // LoadTools loads the tool definitions from the Mcp tool endpoints constants McpURLPath and McpDeepSearchURLPath
 func (r *ToolRegistry) LoadTools(ctx context.Context, client api.Client) error {
-	endpoints := []string{McpURLPath, McpDeepSearchURLPath}
+	endpoints := []string{MCPURLPath, MCPDeepSearchURLPath}
 
 	var errs []error
 	for _, endpoint := range endpoints {
