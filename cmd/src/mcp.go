@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/sourcegraph/src-cli/internal/api"
 	"github.com/sourcegraph/src-cli/internal/mcp"
 
 	"github.com/sourcegraph/sourcegraph/lib/errors"
@@ -36,8 +35,8 @@ func mcpMain(args []string) error {
 	apiClient := cfg.apiClient(nil, mcpFlagSet.Output())
 
 	ctx := context.Background()
-	tools, err := mcp.FetchToolDefinitions(ctx, apiClient)
-	if err != nil {
+	registry := mcp.NewToolRegistry()
+	if err := registry.LoadTools(ctx, apiClient); err != nil {
 		return err
 	}
 
@@ -49,7 +48,7 @@ func mcpMain(args []string) error {
 	subcmd := args[0]
 	if subcmd == "list-tools" {
 		fmt.Println("The following tools are available:")
-		for name := range tools {
+		for name := range registry.All() {
 			fmt.Printf("  %s\n", name)
 		}
 		fmt.Println("\nUSAGE:")
@@ -58,7 +57,7 @@ func mcpMain(args []string) error {
 		fmt.Println("  src mcp <tool-name> -h          List the available flags of a tool")
 		return nil
 	}
-	tool, ok := tools[subcmd]
+	tool, ok := registry.Get(subcmd)
 	if !ok {
 		return errors.Newf("tool definition for %q not found - run src mcp list-tools to see a list of available tools", subcmd)
 	}
@@ -81,7 +80,17 @@ func mcpMain(args []string) error {
 		return err
 	}
 
-	return handleMcpTool(context.Background(), apiClient, tool, vars)
+	result, err := registry.CallTool(ctx, apiClient, tool.Name, vars)
+	if err != nil {
+		return err
+	}
+
+	output, err := json.MarshalIndent(result, "", "  ")
+	if err != nil {
+		return err
+	}
+	fmt.Println(string(output))
+	return nil
 }
 
 func printSchemas(tool *mcp.ToolDef) error {
@@ -109,25 +118,5 @@ func validateToolArgs(inputSchema mcp.SchemaObject, args []string, vars map[stri
 		return errors.Newf("not enough arguments provided - the following flags are required:\n%s", strings.Join(inputSchema.Required, "\n"))
 	}
 
-	return nil
-}
-
-func handleMcpTool(ctx context.Context, client api.Client, tool *mcp.ToolDef, vars map[string]any) error {
-	resp, err := mcp.DoToolCall(ctx, client, tool.RawName, vars)
-	if err != nil {
-		return err
-	}
-
-	result, err := mcp.DecodeToolResponse(resp)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	output, err := json.MarshalIndent(result, "", "  ")
-	if err != nil {
-		return err
-	}
-	fmt.Println(string(output))
 	return nil
 }

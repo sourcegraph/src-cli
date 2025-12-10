@@ -13,10 +13,11 @@ import (
 	"github.com/sourcegraph/sourcegraph/lib/errors"
 )
 
-const McpURLPath = ".api/mcp/v1"
+const MCPURLPath = ".api/mcp/v1"
+const MCPDeepSearchURLPath = ".api/mcp/deepsearch"
 
-func FetchToolDefinitions(ctx context.Context, client api.Client) (map[string]*ToolDef, error) {
-	resp, err := doJSONRPC(ctx, client, "tools/list", nil)
+func fetchToolDefinitions(ctx context.Context, client api.Client, endpoint string) (map[string]*ToolDef, error) {
+	resp, err := doJSONRPC(ctx, client, endpoint, "tools/list", nil)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to list tools from mcp endpoint")
 	}
@@ -44,7 +45,7 @@ func FetchToolDefinitions(ctx context.Context, client api.Client) (map[string]*T
 	return loadToolDefinitions(rpcResp.Result)
 }
 
-func DoToolCall(ctx context.Context, client api.Client, tool string, vars map[string]any) (*http.Response, error) {
+func doToolCall(ctx context.Context, client api.Client, endpoint string, tool string, vars map[string]any) (*http.Response, error) {
 	params := struct {
 		Name      string         `json:"name"`
 		Arguments map[string]any `json:"arguments"`
@@ -53,10 +54,10 @@ func DoToolCall(ctx context.Context, client api.Client, tool string, vars map[st
 		Arguments: vars,
 	}
 
-	return doJSONRPC(ctx, client, "tools/call", params)
+	return doJSONRPC(ctx, client, endpoint, "tools/call", params)
 }
 
-func doJSONRPC(ctx context.Context, client api.Client, method string, params any) (*http.Response, error) {
+func doJSONRPC(ctx context.Context, client api.Client, endpoint string, method string, params any) (*http.Response, error) {
 	jsonRPC := struct {
 		Version string `json:"jsonrpc"`
 		ID      int    `json:"id"`
@@ -75,7 +76,7 @@ func doJSONRPC(ctx context.Context, client api.Client, method string, params any
 	}
 	buf.Write(data)
 
-	req, err := client.NewHTTPRequest(ctx, http.MethodPost, McpURLPath, buf)
+	req, err := client.NewHTTPRequest(ctx, http.MethodPost, endpoint, buf)
 	if err != nil {
 		return nil, err
 	}
@@ -91,13 +92,13 @@ func doJSONRPC(ctx context.Context, client api.Client, method string, params any
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
 		resp.Body.Close()
 		return nil, errors.Newf("MCP endpoint %s returned %d: %s",
-			McpURLPath, resp.StatusCode, strings.TrimSpace(string(body)))
+			endpoint, resp.StatusCode, strings.TrimSpace(string(body)))
 	}
 
 	return resp, nil
 }
 
-func DecodeToolResponse(resp *http.Response) (map[string]json.RawMessage, error) {
+func decodeToolResponse(resp *http.Response) (map[string]json.RawMessage, error) {
 	data, err := readSSEResponseData(resp)
 	if err != nil {
 		return nil, err
