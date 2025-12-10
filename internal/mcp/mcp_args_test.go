@@ -1,6 +1,7 @@
 package mcp
 
 import (
+	"slices"
 	"testing"
 )
 
@@ -58,20 +59,22 @@ func TestFlagSetParse(t *testing.T) {
 		t.Fatalf("vars from buildArgFlagSet should not be empty")
 	}
 
-	args := []string{"-repos=A", "-repos=B", "-count=10", "-boolFlag", "-tag=testTag"}
+	args := []string{"-repos=A", "-repos=B", `-repos=["repo1", "repo2"]`, "-count=10", "-boolFlag", "-tag=testTag"}
 
 	if err := flagSet.Parse(args); err != nil {
 		t.Fatalf("flagset parsing failed: %v", err)
 	}
-	DerefFlagValues(vars)
+	DerefFlagValues(flagSet, vars)
 
-	if v, ok := vars["repos"].([]string); ok {
-		if len(v) != 2 {
-			t.Fatalf("expected flag 'repos' values to have length %d but got %d", 2, len(v))
-		}
-	} else {
-		t.Fatalf("expected flag 'repos' to have type of []string but got %T", v)
+	expectedRepos := []string{"A", "B", "repo1", "repo2"}
+	actualRepos, ok := vars["repos"].([]string)
+	if !ok {
+		t.Fatalf("failed to cast repos to []string, got %T", actualRepos)
 	}
+	if !slices.Equal(expectedRepos, actualRepos) {
+		t.Fatalf("expected repos %v, got %v", expectedRepos, vars["repos"])
+	}
+
 	if v, ok := vars["tag"].(string); ok {
 		if v != "testTag" {
 			t.Fatalf("expected flag 'tag' values to have value %q but got %q", "testTag", v)

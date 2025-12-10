@@ -17,10 +17,21 @@ var mcpFlagSet = flag.NewFlagSet("mcp", flag.ExitOnError)
 
 func init() {
 	commands = append(commands, &command{
-		flagSet: mcpFlagSet,
-		handler: mcpMain,
+		flagSet:   mcpFlagSet,
+		handler:   mcpMain,
+		usageFunc: mcpUsage,
 	})
 }
+
+func mcpUsage() {
+	fmt.Println("The 'mcp' command exposes MCP tools as subcommands for agents to use.")
+	fmt.Println("\nUSAGE:")
+	fmt.Println("  src mcp list-tools              List available tools")
+	fmt.Println("  src mcp <tool-name> schema      View the input/output schema of a tool")
+	fmt.Println("  src mcp <tool-name> <flags>     Invoke a tool with the given flags")
+	fmt.Println("  src mcp <tool-name> -h          List the available flags of a tool")
+}
+
 func mcpMain(args []string) error {
 	apiClient := cfg.apiClient(nil, mcpFlagSet.Output())
 
@@ -30,21 +41,21 @@ func mcpMain(args []string) error {
 		return err
 	}
 
+	if len(args) == 0 {
+		mcpUsage()
+		return nil
+	}
+
 	subcmd := args[0]
 	if subcmd == "list-tools" {
 		fmt.Println("The following tools are available:")
 		for name := range tools {
-			fmt.Printf(" • %s\n", name)
+			fmt.Printf("  %s\n", name)
 		}
 		fmt.Println("\nUSAGE:")
-		fmt.Printf(" • Invoke a tool\n")
-		fmt.Printf("     src mcp <tool-name> <flags>\n")
-		fmt.Printf("\n • View the Input / Output Schema of a tool\n")
-		fmt.Printf("     src mcp <tool-name> schema\n")
-		fmt.Printf("\n • List the available flags of a tool\n")
-		fmt.Printf("     src mcp <tool-name> -h\n")
-		fmt.Printf("\n • View the Input / Output Schema of a tool\n")
-		fmt.Printf("     src mcp <tool-name> schema\n")
+		fmt.Println("  src mcp <tool-name> schema      View the input/output schema of a tool")
+		fmt.Println("  src mcp <tool-name> <flags>     Invoke a tool with the given flags")
+		fmt.Println("  src mcp <tool-name> -h          List the available flags of a tool")
 		return nil
 	}
 	tool, ok := tools[subcmd]
@@ -64,7 +75,7 @@ func mcpMain(args []string) error {
 	if err := flags.Parse(flagArgs); err != nil {
 		return err
 	}
-	mcp.DerefFlagValues(vars)
+	mcp.DerefFlagValues(flags, vars)
 
 	if err := validateToolArgs(tool.InputSchema, args, vars); err != nil {
 		return err
