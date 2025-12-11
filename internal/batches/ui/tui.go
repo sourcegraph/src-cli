@@ -63,8 +63,9 @@ func (ui *TUI) ResolvingNamespace() {
 	ui.pending = batchCreatePending(ui.Out, "Resolving namespace")
 }
 
-func (ui *TUI) ResolvingNamespaceSuccess(_namespace string) {
+func (ui *TUI) ResolvingNamespaceSuccess(namespace string) {
 	batchCompletePending(ui.pending, "Resolving namespace")
+	ui.Out.Verbosef("Resolved namespace: %s", namespace)
 }
 
 func (ui *TUI) PreparingContainerImages() {
@@ -80,6 +81,7 @@ func (ui *TUI) PreparingContainerImagesProgress(done, total int) {
 
 func (ui *TUI) PreparingContainerImagesSuccess() {
 	ui.progress.Complete()
+	ui.Out.Verbosef("Container images prepared successfully")
 }
 
 func (ui *TUI) DeterminingWorkspaceCreatorType() {
@@ -104,13 +106,16 @@ func (ui *TUI) DeterminingWorkspaces() {
 func (ui *TUI) DeterminingWorkspacesSuccess(workspacesCount, reposCount int, unsupported batches.UnsupportedRepoSet, ignored batches.IgnoredRepoSet) {
 	batchCompletePending(ui.pending, fmt.Sprintf("Resolved %d workspaces from %d repositories", workspacesCount, reposCount))
 
+	ui.Out.Verbosef("Workspace resolution: %d workspaces across %d repositories", workspacesCount, reposCount)
 	if len(unsupported) != 0 {
+		ui.Out.Verbosef("Unsupported repositories: %d", len(unsupported))
 		block := ui.Out.Block(output.Line(" ", output.StyleWarning, "Some repositories are hosted on unsupported code hosts and will be skipped. Use the -allow-unsupported flag to avoid skipping them."))
 		for repo := range unsupported {
 			block.Write(repo.Name)
 		}
 		block.Close()
 	} else if len(ignored) != 0 {
+		ui.Out.Verbosef("Ignored repositories (have .batchignore): %d", len(ignored))
 		block := ui.Out.Block(output.Line(" ", output.StyleWarning, "The repositories listed below contain .batchignore files and will be skipped. Use the -force-override-ignore flag to avoid skipping them."))
 		for repo := range ignored {
 			block.Write(repo.Name)
@@ -163,6 +168,7 @@ func (ui *TUI) CheckingCacheSuccess(cachedSpecsFound int, uncachedTasks int) {
 	default:
 		batchCompletePending(ui.pending, fmt.Sprintf("%s; %d tasks need to be executed", specsFoundMessage, uncachedTasks))
 	}
+	ui.Out.Verbosef("Cache check: %d cached specs found, %d tasks to execute", cachedSpecsFound, uncachedTasks)
 }
 
 func (ui *TUI) ExecutingTasks(verbose bool, parallelism int) executor.TaskExecutionUI {
