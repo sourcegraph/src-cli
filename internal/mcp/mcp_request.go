@@ -18,13 +18,13 @@ const MCPURLPath = ".api/mcp/v1"
 func fetchToolDefinitions(ctx context.Context, client api.Client, endpoint string) (map[string]*ToolDef, error) {
 	resp, err := doJSONRPC(ctx, client, endpoint, "tools/list", nil)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to list tools from mcp endpoint")
+		return nil, errors.Wrapf(err, "JSON-RPC tools/list request failed to %q", MCPURLPath)
 	}
 	defer resp.Body.Close()
 
 	data, err := readSSEResponseData(resp)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to read list tools SSE response")
+		return nil, errors.Wrap(err, "failed to read tools/list SSE response")
 	}
 
 	var rpcResp struct {
@@ -53,7 +53,11 @@ func doToolCall(ctx context.Context, client api.Client, endpoint string, tool st
 		Arguments: vars,
 	}
 
-	return doJSONRPC(ctx, client, endpoint, "tools/call", params)
+	resp, err := doJSONRPC(ctx, client, endpoint, "tools/call", params)
+	if err != nil {
+		return nil, errors.Wrapf(err, "JSON-RPC tools/call request failed to %q", MCPURLPath)
+	}
+	return resp, err
 }
 
 func doJSONRPC(ctx context.Context, client api.Client, endpoint string, method string, params any) (*http.Response, error) {
@@ -122,18 +126,19 @@ func decodeToolResponse(resp *http.Response) (map[string]json.RawMessage, error)
 		return nil, errors.Wrapf(err, "failed to unmarshal MCP JSON-RPC response")
 	}
 	if jsonRPCResp.Error != nil {
-		return nil, errors.Newf("MCP tools/call failed: %d %s", jsonRPCResp.Error.Code, jsonRPCResp.Error.Message)
+		return nil, errors.Newf("MCP JSON-RPC error: %d %s", jsonRPCResp.Error.Code, jsonRPCResp.Error.Message)
 	}
 
 	if jsonRPCResp.Result.IsError {
-		if len(jsonRPCResp.Result.Content) > 0 {
+		content := jsonRPCResp.Result.Content[0]
+		if len(content) > 0 {
 			var textContent struct {
 				Text string `json:"text"`
 			}
-			if err := json.Unmarshal(jsonRPCResp.Result.Content[0], &textContent); err == nil && textContent.Text != "" {
+			if err := json.Unmarshal(content, &textContent); err == nil && textContent.Text != "" {
 				return nil, errors.Newf("MCP tool error: %s", textContent.Text)
 			}
-			return nil, errors.Newf("MCP tool error: %s", string(jsonRPCResp.Result.Content[0]))
+			return nil, errors.Newf("MCP tool error: %s", string(content))
 		}
 		return nil, errors.New("MCP tool returned an error")
 	}
