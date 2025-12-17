@@ -85,7 +85,7 @@ func mcpMain(args []string) error {
 		return err
 	}
 
-	output, err := json.MarshalIndent(result, "", "  ")
+	output, err := json.Marshal(result)
 	if err != nil {
 		return err
 	}
@@ -94,11 +94,11 @@ func mcpMain(args []string) error {
 }
 
 func printSchemas(tool *mcp.ToolDef) error {
-	input, err := json.MarshalIndent(tool.InputSchema, "", " ")
+	input, err := json.Marshal(tool.InputSchema)
 	if err != nil {
 		return err
 	}
-	output, err := json.MarshalIndent(tool.OutputSchema, "", " ")
+	output, err := json.Marshal(tool.OutputSchema)
 	if err != nil {
 		return err
 	}
