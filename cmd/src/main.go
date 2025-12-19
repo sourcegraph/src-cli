@@ -50,6 +50,7 @@ The commands are:
 
 	api             interacts with the Sourcegraph GraphQL API
 	batch           manages batch changes
+	blueprint       manages blueprints
 	code-intel      manages code intelligence data
 	config          manages global, org, and user settings
 	extensions,ext  manages extensions (experimental)
