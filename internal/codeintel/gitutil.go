@@ -44,7 +44,6 @@ func InferCommit() (string, error) {
 }
 
 // InferMergeBase returns the merge-base between HEAD and origin/HEAD.
-// This finds the closest commit that exists on the remote.
 func InferMergeBase() (string, error) {
 	return runGitCommand("merge-base", "HEAD", "origin/HEAD")
 }
