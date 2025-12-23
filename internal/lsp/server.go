@@ -15,6 +15,7 @@ import (
 
 	"github.com/sourcegraph/src-cli/internal/api"
 	"github.com/sourcegraph/src-cli/internal/codeintel"
+	"github.com/sourcegraph/src-cli/internal/version"
 )
 
 const serverName = "src-lsp"
@@ -71,7 +72,8 @@ func (s *Server) handleInitialize(_ *glsp.Context, _ *protocol.InitializeParams)
 			HoverProvider:      true,
 		},
 		ServerInfo: &protocol.InitializeResultServerInfo{
-			Name: serverName,
+			Name:    serverName,
+			Version: &version.BuildTag,
 		},
 	}, nil
 }
