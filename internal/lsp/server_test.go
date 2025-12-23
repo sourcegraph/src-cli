@@ -98,11 +98,11 @@ func TestHandleTextDocumentDocumentHighlight(t *testing.T) {
 	require.NoError(t, err)
 
 	tests := []struct {
-		name          string
-		path          string
-		response      string
-		wantCount     int
-		wantNil       bool
+		name      string
+		path      string
+		response  string
+		wantCount int
+		wantNil   bool
 	}{
 		{
 			name: "filters to same file only",

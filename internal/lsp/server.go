@@ -46,12 +46,12 @@ func NewServer(apiClient api.Client) (*Server, error) {
 
 func (s *Server) Run() error {
 	handler := protocol.Handler{
-		Initialize:             s.handleInitialize,
-		Initialized:            s.handleInitialized,
-		Shutdown:               s.handleShutdown,
-		SetTrace:               s.handleSetTrace,
-		TextDocumentDidOpen:    s.handleTextDocumentDidOpen,
-		TextDocumentDidClose:   s.handleTextDocumentDidClose,
+		Initialize:                    s.handleInitialize,
+		Initialized:                   s.handleInitialized,
+		Shutdown:                      s.handleShutdown,
+		SetTrace:                      s.handleSetTrace,
+		TextDocumentDidOpen:           s.handleTextDocumentDidOpen,
+		TextDocumentDidClose:          s.handleTextDocumentDidClose,
 		TextDocumentDefinition:        s.handleTextDocumentDefinition,
 		TextDocumentReferences:        s.handleTextDocumentReferences,
 		TextDocumentHover:             s.handleTextDocumentHover,
