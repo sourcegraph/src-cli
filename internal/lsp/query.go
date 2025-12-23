@@ -179,3 +179,82 @@ func (s *Server) queryDefinitions(ctx context.Context, path string, line, charac
 
 	return result.Repository.Commit.Blob.LSIF.Definitions.Nodes, nil
 }
+
+const referencesQuery = `
+query References($repository: String!, $commit: String!, $path: String!, $line: Int!, $character: Int!) {
+	repository(name: $repository) {
+		commit(rev: $commit) {
+			blob(path: $path) {
+				lsif {
+					references(line: $line, character: $character, first: 100) {
+						nodes {
+							resource {
+								path
+								repository {
+									name
+								}
+								commit {
+									oid
+								}
+							}
+							range {
+								start {
+									line
+									character
+								}
+								end {
+									line
+									character
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+}
+`
+
+type referencesResponse struct {
+	Repository *struct {
+		Commit *struct {
+			Blob *struct {
+				LSIF *struct {
+					References *struct {
+						Nodes []LocationNode `json:"nodes"`
+					} `json:"references"`
+				} `json:"lsif"`
+			} `json:"blob"`
+		} `json:"commit"`
+	} `json:"repository"`
+}
+
+func (s *Server) queryReferences(ctx context.Context, path string, line, character int) ([]LocationNode, error) {
+	vars := map[string]any{
+		"repository": s.repoName,
+		"commit":     s.commit,
+		"path":       path,
+		"line":       line,
+		"character":  character,
+	}
+
+	var result referencesResponse
+	ok, err := s.apiClient.NewRequest(referencesQuery, vars).Do(ctx, &result)
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
+		return nil, nil
+	}
+
+	if result.Repository == nil ||
+		result.Repository.Commit == nil ||
+		result.Repository.Commit.Blob == nil ||
+		result.Repository.Commit.Blob.LSIF == nil ||
+		result.Repository.Commit.Blob.LSIF.References == nil {
+		return nil, nil
+	}
+
+	return result.Repository.Commit.Blob.LSIF.References.Nodes, nil
+}

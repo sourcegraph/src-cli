@@ -52,6 +52,7 @@ func (s *Server) Run() error {
 		TextDocumentDidOpen:    s.handleTextDocumentDidOpen,
 		TextDocumentDidClose:   s.handleTextDocumentDidClose,
 		TextDocumentDefinition: s.handleTextDocumentDefinition,
+		TextDocumentReferences: s.handleTextDocumentReferences,
 		TextDocumentHover:      s.handleTextDocumentHover,
 	}
 
@@ -65,7 +66,8 @@ func (s *Server) handleInitialize(_ *glsp.Context, _ *protocol.InitializeParams)
 			TextDocumentSync: &protocol.TextDocumentSyncOptions{
 				OpenClose: &protocol.True,
 			},
-			DefinitionProvider: true,
+			DefinitionProvider:  true,
+			ReferencesProvider: true,
 			HoverProvider:      true,
 		},
 		ServerInfo: &protocol.InitializeResultServerInfo{
@@ -103,6 +105,56 @@ func (s *Server) handleTextDocumentDefinition(_ *glsp.Context, params *protocol.
 	}
 
 	nodes, err := s.queryDefinitions(context.Background(), path, int(params.Position.Line), int(params.Position.Character))
+	if err != nil {
+		return nil, err
+	}
+	if len(nodes) == 0 {
+		return nil, nil
+	}
+
+	gitRoot, err := getGitRoot()
+	if err != nil {
+		return nil, err
+	}
+
+	var locations []protocol.Location
+	for _, node := range nodes {
+		if node.Resource.Repository.Name != s.repoName {
+			continue
+		}
+
+		absPath := filepath.Join(gitRoot, node.Resource.Path)
+		uri := "file://" + absPath
+
+		locations = append(locations, protocol.Location{
+			URI: uri,
+			Range: protocol.Range{
+				Start: protocol.Position{
+					Line:      protocol.UInteger(node.Range.Start.Line),
+					Character: protocol.UInteger(node.Range.Start.Character),
+				},
+				End: protocol.Position{
+					Line:      protocol.UInteger(node.Range.End.Line),
+					Character: protocol.UInteger(node.Range.End.Character),
+				},
+			},
+		})
+	}
+
+	if len(locations) == 0 {
+		return nil, nil
+	}
+
+	return locations, nil
+}
+
+func (s *Server) handleTextDocumentReferences(_ *glsp.Context, params *protocol.ReferenceParams) ([]protocol.Location, error) {
+	path, err := s.uriToRepoPath(params.TextDocument.URI)
+	if err != nil {
+		return nil, err
+	}
+
+	nodes, err := s.queryReferences(context.Background(), path, int(params.Position.Line), int(params.Position.Character))
 	if err != nil {
 		return nil, err
 	}
