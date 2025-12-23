@@ -16,9 +16,15 @@ import (
 // pathToFileURI converts a file path to a proper file:// URI that works on all platforms.
 // On Windows, this properly handles drive letters (e.g., C:\path -> file:///C:/path).
 func pathToFileURI(path string) string {
+	// Convert to forward slashes
+	path = filepath.ToSlash(path)
+	// On Windows, absolute paths like "C:/path" need a leading slash for proper file URIs
+	if len(path) >= 2 && path[1] == ':' {
+		path = "/" + path
+	}
 	u := url.URL{
 		Scheme: "file",
-		Path:   filepath.ToSlash(path),
+		Path:   path,
 	}
 	return u.String()
 }
