@@ -98,7 +98,8 @@ func TestQueryHover(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mockClient := &mock.Client{}
 			mockRequest := &mock.Request{Response: tt.response}
-			mockRequest.On("Do", context.Background(), &hoverResponse{}).Return(true, nil)
+			mockRequest.On("Do", context.Background(), &hoverResponse{}).
+				Return(true, nil)
 			mockClient.On("NewRequest", hoverQuery, map[string]any{
 				"repository": "github.com/test/repo",
 				"commit":     "abc123",
@@ -231,7 +232,8 @@ func TestQueryDefinitions(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mockClient := &mock.Client{}
 			mockRequest := &mock.Request{Response: tt.response}
-			mockRequest.On("Do", context.Background(), &definitionsResponse{}).Return(true, nil)
+			mockRequest.On("Do", context.Background(), &definitionsResponse{}).
+				Return(true, nil)
 			mockClient.On("NewRequest", definitionsQuery, map[string]any{
 				"repository": "github.com/test/repo",
 				"commit":     "abc123",
@@ -329,7 +331,8 @@ func TestQueryReferences(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mockClient := &mock.Client{}
 			mockRequest := &mock.Request{Response: tt.response}
-			mockRequest.On("Do", context.Background(), &referencesResponse{}).Return(true, nil)
+			mockRequest.On("Do", context.Background(), &referencesResponse{}).
+				Return(true, nil)
 			mockClient.On("NewRequest", referencesQuery, map[string]any{
 				"repository": "github.com/test/repo",
 				"commit":     "abc123",

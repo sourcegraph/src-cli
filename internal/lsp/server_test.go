@@ -3,13 +3,13 @@ package lsp
 import (
 	"context"
 	"net/url"
-	"os"
 	"path/filepath"
 	"testing"
 
 	protocol "github.com/tliron/glsp/protocol_3_16"
 
 	"github.com/sourcegraph/src-cli/internal/api/mock"
+	"github.com/sourcegraph/src-cli/internal/codeintel"
 	"github.com/stretchr/testify/require"
 )
 
@@ -30,7 +30,7 @@ func pathToFileURI(path string) string {
 }
 
 func TestUriToRepoPath(t *testing.T) {
-	gitRoot, err := getGitRoot()
+	gitRoot, err := codeintel.GitRoot()
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -57,7 +57,7 @@ func TestUriToRepoPath(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := &Server{}
+			s := &Server{gitRoot: gitRoot}
 			got, err := s.uriToRepoPath(tt.uri)
 			require.NoError(t, err)
 			require.Equal(t, tt.wantPath, got)
@@ -80,7 +80,7 @@ func TestUriToRepoPathErrors(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := &Server{}
+			s := &Server{gitRoot: "/tmp"}
 			_, err := s.uriToRepoPath(tt.uri)
 			require.Error(t, err)
 			require.Contains(t, err.Error(), tt.wantErr)
@@ -88,30 +88,8 @@ func TestUriToRepoPathErrors(t *testing.T) {
 	}
 }
 
-func TestGetGitRoot(t *testing.T) {
-	root, err := getGitRoot()
-	require.NoError(t, err)
-	require.NotEmpty(t, root)
-
-	info, err := os.Stat(filepath.Join(root, ".git"))
-	require.NoError(t, err)
-	require.True(t, info.IsDir())
-}
-
-func TestRunGitCommand(t *testing.T) {
-	output, err := runGitCommand("rev-parse", "--is-inside-work-tree")
-	require.NoError(t, err)
-	require.Equal(t, "true", output)
-}
-
-func TestRunGitCommandError(t *testing.T) {
-	_, err := runGitCommand("invalid-command-that-does-not-exist")
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "git command failed")
-}
-
 func TestHandleTextDocumentDocumentHighlight(t *testing.T) {
-	gitRoot, err := getGitRoot()
+	gitRoot, err := codeintel.GitRoot()
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -281,6 +259,7 @@ func TestHandleTextDocumentDocumentHighlight(t *testing.T) {
 				apiClient: mockClient,
 				repoName:  "github.com/test/repo",
 				commit:    "abc123",
+				gitRoot:   gitRoot,
 			}
 
 			uri := pathToFileURI(filepath.Join(gitRoot, tt.path))

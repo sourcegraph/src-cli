@@ -2,8 +2,39 @@ package lsp
 
 import "context"
 
+type Position struct {
+	Line      int `json:"line"`
+	Character int `json:"character"`
+}
+
+type RangeResult struct {
+	Start Position `json:"start"`
+	End   Position `json:"end"`
+}
+
+type LocationNode struct {
+	Resource struct {
+		Path       string `json:"path"`
+		Repository struct {
+			Name string `json:"name"`
+		} `json:"repository"`
+		Commit struct {
+			OID string `json:"oid"`
+		} `json:"commit"`
+	} `json:"resource"`
+	Range RangeResult `json:"range"`
+}
+
+// Hover
+
 const hoverQuery = `
-query Hover($repository: String!, $commit: String!, $path: String!, $line: Int!, $character: Int!) {
+query Hover(
+	$repository: String!
+	$commit: String!
+	$path: String!
+	$line: Int!
+	$character: Int!
+) {
 	repository(name: $repository) {
 		commit(rev: $commit) {
 			blob(path: $path) {
@@ -37,16 +68,6 @@ type HoverResult struct {
 	Range *RangeResult `json:"range"`
 }
 
-type RangeResult struct {
-	Start Position `json:"start"`
-	End   Position `json:"end"`
-}
-
-type Position struct {
-	Line      int `json:"line"`
-	Character int `json:"character"`
-}
-
 type hoverResponse struct {
 	Repository *struct {
 		Commit *struct {
@@ -59,7 +80,9 @@ type hoverResponse struct {
 	} `json:"repository"`
 }
 
-func (s *Server) queryHover(ctx context.Context, path string, line, character int) (*HoverResult, error) {
+func (s *Server) queryHover(
+	ctx context.Context, path string, line, character int,
+) (*HoverResult, error) {
 	vars := map[string]any{
 		"repository": s.repoName,
 		"commit":     s.commit,
@@ -88,8 +111,16 @@ func (s *Server) queryHover(ctx context.Context, path string, line, character in
 	return result.Repository.Commit.Blob.LSIF.Hover, nil
 }
 
+// Definitions
+
 const definitionsQuery = `
-query Definitions($repository: String!, $commit: String!, $path: String!, $line: Int!, $character: Int!) {
+query Definitions(
+	$repository: String!
+	$commit: String!
+	$path: String!
+	$line: Int!
+	$character: Int!
+) {
 	repository(name: $repository) {
 		commit(rev: $commit) {
 			blob(path: $path) {
@@ -124,19 +155,6 @@ query Definitions($repository: String!, $commit: String!, $path: String!, $line:
 }
 `
 
-type LocationNode struct {
-	Resource struct {
-		Path       string `json:"path"`
-		Repository struct {
-			Name string `json:"name"`
-		} `json:"repository"`
-		Commit struct {
-			OID string `json:"oid"`
-		} `json:"commit"`
-	} `json:"resource"`
-	Range RangeResult `json:"range"`
-}
-
 type definitionsResponse struct {
 	Repository *struct {
 		Commit *struct {
@@ -151,7 +169,9 @@ type definitionsResponse struct {
 	} `json:"repository"`
 }
 
-func (s *Server) queryDefinitions(ctx context.Context, path string, line, character int) ([]LocationNode, error) {
+func (s *Server) queryDefinitions(
+	ctx context.Context, path string, line, character int,
+) ([]LocationNode, error) {
 	vars := map[string]any{
 		"repository": s.repoName,
 		"commit":     s.commit,
@@ -180,8 +200,16 @@ func (s *Server) queryDefinitions(ctx context.Context, path string, line, charac
 	return result.Repository.Commit.Blob.LSIF.Definitions.Nodes, nil
 }
 
+// References
+
 const referencesQuery = `
-query References($repository: String!, $commit: String!, $path: String!, $line: Int!, $character: Int!) {
+query References(
+	$repository: String!
+	$commit: String!
+	$path: String!
+	$line: Int!
+	$character: Int!
+) {
 	repository(name: $repository) {
 		commit(rev: $commit) {
 			blob(path: $path) {
@@ -230,7 +258,9 @@ type referencesResponse struct {
 	} `json:"repository"`
 }
 
-func (s *Server) queryReferences(ctx context.Context, path string, line, character int) ([]LocationNode, error) {
+func (s *Server) queryReferences(
+	ctx context.Context, path string, line, character int,
+) ([]LocationNode, error) {
 	vars := map[string]any{
 		"repository": s.repoName,
 		"commit":     s.commit,

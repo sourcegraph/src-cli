@@ -3,9 +3,7 @@ package lsp
 import (
 	"context"
 	"net/url"
-	"os/exec"
 	"path/filepath"
-	"strings"
 
 	"github.com/tliron/glsp"
 	protocol "github.com/tliron/glsp/protocol_3_16"
@@ -18,12 +16,13 @@ import (
 	"github.com/sourcegraph/src-cli/internal/version"
 )
 
-const serverName = "src-lsp"
+const serverName = "Sourcegraph LSP"
 
 type Server struct {
 	apiClient api.Client
 	repoName  string
 	commit    string
+	gitRoot   string
 }
 
 func NewServer(apiClient api.Client) (*Server, error) {
@@ -37,10 +36,16 @@ func NewServer(apiClient api.Client) (*Server, error) {
 		return nil, errors.Wrap(err, "failed to infer merge-base commit")
 	}
 
+	gitRoot, err := codeintel.GitRoot()
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get git root")
+	}
+
 	return &Server{
 		apiClient: apiClient,
 		repoName:  repoName,
 		commit:    commit,
+		gitRoot:   gitRoot,
 	}, nil
 }
 
@@ -62,7 +67,9 @@ func (s *Server) Run() error {
 	return srv.RunStdio()
 }
 
-func (s *Server) handleInitialize(_ *glsp.Context, _ *protocol.InitializeParams) (any, error) {
+func (s *Server) handleInitialize(
+	_ *glsp.Context, _ *protocol.InitializeParams,
+) (any, error) {
 	return protocol.InitializeResult{
 		Capabilities: protocol.ServerCapabilities{
 			TextDocumentSync: &protocol.TextDocumentSyncOptions{
@@ -80,7 +87,9 @@ func (s *Server) handleInitialize(_ *glsp.Context, _ *protocol.InitializeParams)
 	}, nil
 }
 
-func (s *Server) handleInitialized(_ *glsp.Context, _ *protocol.InitializedParams) error {
+func (s *Server) handleInitialized(
+	_ *glsp.Context, _ *protocol.InitializedParams,
+) error {
 	return nil
 }
 
@@ -89,26 +98,38 @@ func (s *Server) handleShutdown(_ *glsp.Context) error {
 	return nil
 }
 
-func (s *Server) handleSetTrace(_ *glsp.Context, params *protocol.SetTraceParams) error {
+func (s *Server) handleSetTrace(
+	_ *glsp.Context, params *protocol.SetTraceParams,
+) error {
 	protocol.SetTraceValue(params.Value)
 	return nil
 }
 
-func (s *Server) handleTextDocumentDidOpen(_ *glsp.Context, _ *protocol.DidOpenTextDocumentParams) error {
+func (s *Server) handleTextDocumentDidOpen(
+	_ *glsp.Context, _ *protocol.DidOpenTextDocumentParams,
+) error {
 	return nil
 }
 
-func (s *Server) handleTextDocumentDidClose(_ *glsp.Context, _ *protocol.DidCloseTextDocumentParams) error {
+func (s *Server) handleTextDocumentDidClose(
+	_ *glsp.Context, _ *protocol.DidCloseTextDocumentParams,
+) error {
 	return nil
 }
 
-func (s *Server) handleTextDocumentDefinition(_ *glsp.Context, params *protocol.DefinitionParams) (any, error) {
+func (s *Server) handleTextDocumentDefinition(
+	_ *glsp.Context, params *protocol.DefinitionParams,
+) (any, error) {
 	path, err := s.uriToRepoPath(params.TextDocument.URI)
 	if err != nil {
 		return nil, err
 	}
 
-	nodes, err := s.queryDefinitions(context.Background(), path, int(params.Position.Line), int(params.Position.Character))
+	nodes, err := s.queryDefinitions(
+		context.Background(),
+		path,
+		int(params.Position.Line),
+		int(params.Position.Character))
 	if err != nil {
 		return nil, err
 	}
@@ -116,35 +137,7 @@ func (s *Server) handleTextDocumentDefinition(_ *glsp.Context, params *protocol.
 		return nil, nil
 	}
 
-	gitRoot, err := getGitRoot()
-	if err != nil {
-		return nil, err
-	}
-
-	var locations []protocol.Location
-	for _, node := range nodes {
-		if node.Resource.Repository.Name != s.repoName {
-			continue
-		}
-
-		absPath := filepath.Join(gitRoot, node.Resource.Path)
-		uri := "file://" + absPath
-
-		locations = append(locations, protocol.Location{
-			URI: uri,
-			Range: protocol.Range{
-				Start: protocol.Position{
-					Line:      protocol.UInteger(node.Range.Start.Line),
-					Character: protocol.UInteger(node.Range.Start.Character),
-				},
-				End: protocol.Position{
-					Line:      protocol.UInteger(node.Range.End.Line),
-					Character: protocol.UInteger(node.Range.End.Character),
-				},
-			},
-		})
-	}
-
+	locations := s.nodesToLocations(nodes)
 	if len(locations) == 0 {
 		return nil, nil
 	}
@@ -152,13 +145,19 @@ func (s *Server) handleTextDocumentDefinition(_ *glsp.Context, params *protocol.
 	return locations, nil
 }
 
-func (s *Server) handleTextDocumentReferences(_ *glsp.Context, params *protocol.ReferenceParams) ([]protocol.Location, error) {
+func (s *Server) handleTextDocumentReferences(
+	_ *glsp.Context, params *protocol.ReferenceParams,
+) ([]protocol.Location, error) {
 	path, err := s.uriToRepoPath(params.TextDocument.URI)
 	if err != nil {
 		return nil, err
 	}
 
-	nodes, err := s.queryReferences(context.Background(), path, int(params.Position.Line), int(params.Position.Character))
+	nodes, err := s.queryReferences(
+		context.Background(),
+		path,
+		int(params.Position.Line),
+		int(params.Position.Character))
 	if err != nil {
 		return nil, err
 	}
@@ -166,35 +165,7 @@ func (s *Server) handleTextDocumentReferences(_ *glsp.Context, params *protocol.
 		return nil, nil
 	}
 
-	gitRoot, err := getGitRoot()
-	if err != nil {
-		return nil, err
-	}
-
-	var locations []protocol.Location
-	for _, node := range nodes {
-		if node.Resource.Repository.Name != s.repoName {
-			continue
-		}
-
-		absPath := filepath.Join(gitRoot, node.Resource.Path)
-		uri := "file://" + absPath
-
-		locations = append(locations, protocol.Location{
-			URI: uri,
-			Range: protocol.Range{
-				Start: protocol.Position{
-					Line:      protocol.UInteger(node.Range.Start.Line),
-					Character: protocol.UInteger(node.Range.Start.Character),
-				},
-				End: protocol.Position{
-					Line:      protocol.UInteger(node.Range.End.Line),
-					Character: protocol.UInteger(node.Range.End.Character),
-				},
-			},
-		})
-	}
-
+	locations := s.nodesToLocations(nodes)
 	if len(locations) == 0 {
 		return nil, nil
 	}
@@ -202,13 +173,19 @@ func (s *Server) handleTextDocumentReferences(_ *glsp.Context, params *protocol.
 	return locations, nil
 }
 
-func (s *Server) handleTextDocumentHover(_ *glsp.Context, params *protocol.HoverParams) (*protocol.Hover, error) {
+func (s *Server) handleTextDocumentHover(
+	_ *glsp.Context, params *protocol.HoverParams,
+) (*protocol.Hover, error) {
 	path, err := s.uriToRepoPath(params.TextDocument.URI)
 	if err != nil {
 		return nil, err
 	}
 
-	result, err := s.queryHover(context.Background(), path, int(params.Position.Line), int(params.Position.Character))
+	result, err := s.queryHover(
+		context.Background(),
+		path,
+		int(params.Position.Line),
+		int(params.Position.Character))
 	if err != nil {
 		return nil, err
 	}
@@ -239,13 +216,19 @@ func (s *Server) handleTextDocumentHover(_ *glsp.Context, params *protocol.Hover
 	return hover, nil
 }
 
-func (s *Server) handleTextDocumentDocumentHighlight(_ *glsp.Context, params *protocol.DocumentHighlightParams) ([]protocol.DocumentHighlight, error) {
+func (s *Server) handleTextDocumentDocumentHighlight(
+	_ *glsp.Context, params *protocol.DocumentHighlightParams,
+) ([]protocol.DocumentHighlight, error) {
 	path, err := s.uriToRepoPath(params.TextDocument.URI)
 	if err != nil {
 		return nil, err
 	}
 
-	nodes, err := s.queryReferences(context.Background(), path, int(params.Position.Line), int(params.Position.Character))
+	nodes, err := s.queryReferences(
+		context.Background(),
+		path,
+		int(params.Position.Line),
+		int(params.Position.Character))
 	if err != nil {
 		return nil, err
 	}
@@ -283,10 +266,41 @@ func (s *Server) handleTextDocumentDocumentHighlight(_ *glsp.Context, params *pr
 	return highlights, nil
 }
 
+func (s *Server) nodesToLocations(nodes []LocationNode) []protocol.Location {
+	var locations []protocol.Location
+	for _, node := range nodes {
+		if node.Resource.Repository.Name != s.repoName {
+			continue
+		}
+
+		absPath := filepath.Join(s.gitRoot, node.Resource.Path)
+		uri := "file://" + absPath
+
+		locations = append(locations, protocol.Location{
+			URI: uri,
+			Range: protocol.Range{
+				Start: protocol.Position{
+					Line:      protocol.UInteger(node.Range.Start.Line),
+					Character: protocol.UInteger(node.Range.Start.Character),
+				},
+				End: protocol.Position{
+					Line:      protocol.UInteger(node.Range.End.Line),
+					Character: protocol.UInteger(node.Range.End.Character),
+				},
+			},
+		})
+	}
+	return locations
+}
+
 func (s *Server) uriToRepoPath(uri string) (string, error) {
 	parsed, err := url.Parse(uri)
 	if err != nil {
 		return "", errors.Wrap(err, "failed to parse URI")
+	}
+
+	if parsed.Scheme != "file" {
+		return "", errors.Newf("unsupported URI scheme %q", parsed.Scheme)
 	}
 
 	absPath := parsed.Path
@@ -298,33 +312,11 @@ func (s *Server) uriToRepoPath(uri string) (string, error) {
 	// Convert forward slashes to the native path separator
 	absPath = filepath.FromSlash(absPath)
 
-	gitRoot, err := getGitRoot()
-	if err != nil {
-		return "", errors.Wrap(err, "failed to get git root")
-	}
-
-	relPath, err := filepath.Rel(gitRoot, absPath)
+	relPath, err := filepath.Rel(s.gitRoot, absPath)
 	if err != nil {
 		return "", errors.Wrap(err, "failed to compute relative path")
 	}
 
 	// Ensure we always return forward slashes for consistency
 	return filepath.ToSlash(relPath), nil
-}
-
-func getGitRoot() (string, error) {
-	output, err := runGitCommand("rev-parse", "--show-toplevel")
-	if err != nil {
-		return "", err
-	}
-	return output, nil
-}
-
-func runGitCommand(args ...string) (string, error) {
-	cmd := exec.Command("git", args...)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return "", errors.Wrapf(err, "git command failed: %s", output)
-	}
-	return strings.TrimSpace(string(output)), nil
 }
