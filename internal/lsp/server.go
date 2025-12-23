@@ -66,7 +66,7 @@ func (s *Server) handleInitialize(_ *glsp.Context, _ *protocol.InitializeParams)
 			TextDocumentSync: &protocol.TextDocumentSyncOptions{
 				OpenClose: &protocol.True,
 			},
-			DefinitionProvider:  true,
+			DefinitionProvider: true,
 			ReferencesProvider: true,
 			HoverProvider:      true,
 		},
