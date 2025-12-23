@@ -290,6 +290,13 @@ func (s *Server) uriToRepoPath(uri string) (string, error) {
 	}
 
 	absPath := parsed.Path
+	// On Windows, file URIs like file:///C:/path produce a path like "/C:/path".
+	// We need to strip the leading slash to get a valid Windows path.
+	if len(absPath) >= 3 && absPath[0] == '/' && absPath[2] == ':' {
+		absPath = absPath[1:]
+	}
+	// Convert forward slashes to the native path separator
+	absPath = filepath.FromSlash(absPath)
 
 	gitRoot, err := getGitRoot()
 	if err != nil {
@@ -301,7 +308,8 @@ func (s *Server) uriToRepoPath(uri string) (string, error) {
 		return "", errors.Wrap(err, "failed to compute relative path")
 	}
 
-	return relPath, nil
+	// Ensure we always return forward slashes for consistency
+	return filepath.ToSlash(relPath), nil
 }
 
 func getGitRoot() (string, error) {

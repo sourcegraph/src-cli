@@ -2,6 +2,7 @@ package lsp
 
 import (
 	"context"
+	"net/url"
 	"os"
 	"path/filepath"
 	"testing"
@@ -11,6 +12,16 @@ import (
 	"github.com/sourcegraph/src-cli/internal/api/mock"
 	"github.com/stretchr/testify/require"
 )
+
+// pathToFileURI converts a file path to a proper file:// URI that works on all platforms.
+// On Windows, this properly handles drive letters (e.g., C:\path -> file:///C:/path).
+func pathToFileURI(path string) string {
+	u := url.URL{
+		Scheme: "file",
+		Path:   filepath.ToSlash(path),
+	}
+	return u.String()
+}
 
 func TestUriToRepoPath(t *testing.T) {
 	gitRoot, err := getGitRoot()
@@ -23,17 +34,17 @@ func TestUriToRepoPath(t *testing.T) {
 	}{
 		{
 			name:     "simple file URI",
-			uri:      "file://" + filepath.Join(gitRoot, "cmd/src/main.go"),
+			uri:      pathToFileURI(filepath.Join(gitRoot, "cmd/src/main.go")),
 			wantPath: "cmd/src/main.go",
 		},
 		{
 			name:     "nested path",
-			uri:      "file://" + filepath.Join(gitRoot, "internal/lsp/server.go"),
+			uri:      pathToFileURI(filepath.Join(gitRoot, "internal/lsp/server.go")),
 			wantPath: "internal/lsp/server.go",
 		},
 		{
 			name:     "root file",
-			uri:      "file://" + filepath.Join(gitRoot, "go.mod"),
+			uri:      pathToFileURI(filepath.Join(gitRoot, "go.mod")),
 			wantPath: "go.mod",
 		},
 	}
@@ -266,7 +277,7 @@ func TestHandleTextDocumentDocumentHighlight(t *testing.T) {
 				commit:    "abc123",
 			}
 
-			uri := "file://" + filepath.Join(gitRoot, tt.path)
+			uri := pathToFileURI(filepath.Join(gitRoot, tt.path))
 			params := &protocol.DocumentHighlightParams{
 				TextDocumentPositionParams: protocol.TextDocumentPositionParams{
 					TextDocument: protocol.TextDocumentIdentifier{URI: uri},
