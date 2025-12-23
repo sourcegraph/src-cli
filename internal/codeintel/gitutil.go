@@ -43,6 +43,16 @@ func InferCommit() (string, error) {
 	return runGitCommand("rev-parse", "HEAD")
 }
 
+// InferMergeBase returns the merge-base between HEAD and origin/HEAD.
+func InferMergeBase() (string, error) {
+	return runGitCommand("merge-base", "HEAD", "origin/HEAD")
+}
+
+// GitRoot returns the absolute path to the root of the git repository.
+func GitRoot() (string, error) {
+	return runGitCommand("rev-parse", "--show-toplevel")
+}
+
 // InferRoot gets the path relative to the root of the git clone enclosing the given file path.
 func InferRoot(file string) (string, error) {
 	topLevel, err := runGitCommand("rev-parse", "--show-toplevel")
