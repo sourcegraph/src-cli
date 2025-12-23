@@ -87,3 +87,95 @@ func (s *Server) queryHover(ctx context.Context, path string, line, character in
 
 	return result.Repository.Commit.Blob.LSIF.Hover, nil
 }
+
+const definitionsQuery = `
+query Definitions($repository: String!, $commit: String!, $path: String!, $line: Int!, $character: Int!) {
+	repository(name: $repository) {
+		commit(rev: $commit) {
+			blob(path: $path) {
+				lsif {
+					definitions(line: $line, character: $character) {
+						nodes {
+							resource {
+								path
+								repository {
+									name
+								}
+								commit {
+									oid
+								}
+							}
+							range {
+								start {
+									line
+									character
+								}
+								end {
+									line
+									character
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+}
+`
+
+type LocationNode struct {
+	Resource struct {
+		Path       string `json:"path"`
+		Repository struct {
+			Name string `json:"name"`
+		} `json:"repository"`
+		Commit struct {
+			OID string `json:"oid"`
+		} `json:"commit"`
+	} `json:"resource"`
+	Range RangeResult `json:"range"`
+}
+
+type definitionsResponse struct {
+	Repository *struct {
+		Commit *struct {
+			Blob *struct {
+				LSIF *struct {
+					Definitions *struct {
+						Nodes []LocationNode `json:"nodes"`
+					} `json:"definitions"`
+				} `json:"lsif"`
+			} `json:"blob"`
+		} `json:"commit"`
+	} `json:"repository"`
+}
+
+func (s *Server) queryDefinitions(ctx context.Context, path string, line, character int) ([]LocationNode, error) {
+	vars := map[string]any{
+		"repository": s.repoName,
+		"commit":     s.commit,
+		"path":       path,
+		"line":       line,
+		"character":  character,
+	}
+
+	var result definitionsResponse
+	ok, err := s.apiClient.NewRequest(definitionsQuery, vars).Do(ctx, &result)
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
+		return nil, nil
+	}
+
+	if result.Repository == nil ||
+		result.Repository.Commit == nil ||
+		result.Repository.Commit.Blob == nil ||
+		result.Repository.Commit.Blob.LSIF == nil ||
+		result.Repository.Commit.Blob.LSIF.Definitions == nil {
+		return nil, nil
+	}
+
+	return result.Repository.Commit.Blob.LSIF.Definitions.Nodes, nil
+}

@@ -43,6 +43,12 @@ func InferCommit() (string, error) {
 	return runGitCommand("rev-parse", "HEAD")
 }
 
+// InferMergeBase returns the merge-base between HEAD and origin/HEAD.
+// This finds the closest commit that exists on the remote.
+func InferMergeBase() (string, error) {
+	return runGitCommand("merge-base", "HEAD", "origin/HEAD")
+}
+
 // InferRoot gets the path relative to the root of the git clone enclosing the given file path.
 func InferRoot(file string) (string, error) {
 	topLevel, err := runGitCommand("rev-parse", "--show-toplevel")

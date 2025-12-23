@@ -31,9 +31,9 @@ func NewServer(apiClient api.Client) (*Server, error) {
 		return nil, errors.Wrap(err, "failed to infer repository name")
 	}
 
-	commit, err := codeintel.InferCommit()
+	commit, err := codeintel.InferMergeBase()
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to infer commit")
+		return nil, errors.Wrap(err, "failed to infer merge-base commit")
 	}
 
 	return &Server{
@@ -45,13 +45,14 @@ func NewServer(apiClient api.Client) (*Server, error) {
 
 func (s *Server) Run() error {
 	handler := protocol.Handler{
-		Initialize:         s.handleInitialize,
-		Initialized:        s.handleInitialized,
-		Shutdown:           s.handleShutdown,
-		SetTrace:           s.handleSetTrace,
-		TextDocumentDidOpen:  s.handleTextDocumentDidOpen,
-		TextDocumentDidClose: s.handleTextDocumentDidClose,
-		TextDocumentHover:    s.handleTextDocumentHover,
+		Initialize:             s.handleInitialize,
+		Initialized:            s.handleInitialized,
+		Shutdown:               s.handleShutdown,
+		SetTrace:               s.handleSetTrace,
+		TextDocumentDidOpen:    s.handleTextDocumentDidOpen,
+		TextDocumentDidClose:   s.handleTextDocumentDidClose,
+		TextDocumentDefinition: s.handleTextDocumentDefinition,
+		TextDocumentHover:      s.handleTextDocumentHover,
 	}
 
 	srv := server.NewServer(&handler, serverName, false)
@@ -64,7 +65,8 @@ func (s *Server) handleInitialize(_ *glsp.Context, _ *protocol.InitializeParams)
 			TextDocumentSync: &protocol.TextDocumentSyncOptions{
 				OpenClose: &protocol.True,
 			},
-			HoverProvider: true,
+			DefinitionProvider: true,
+			HoverProvider:      true,
 		},
 		ServerInfo: &protocol.InitializeResultServerInfo{
 			Name: serverName,
@@ -92,6 +94,56 @@ func (s *Server) handleTextDocumentDidOpen(_ *glsp.Context, _ *protocol.DidOpenT
 
 func (s *Server) handleTextDocumentDidClose(_ *glsp.Context, _ *protocol.DidCloseTextDocumentParams) error {
 	return nil
+}
+
+func (s *Server) handleTextDocumentDefinition(_ *glsp.Context, params *protocol.DefinitionParams) (any, error) {
+	path, err := s.uriToRepoPath(params.TextDocument.URI)
+	if err != nil {
+		return nil, err
+	}
+
+	nodes, err := s.queryDefinitions(context.Background(), path, int(params.Position.Line), int(params.Position.Character))
+	if err != nil {
+		return nil, err
+	}
+	if len(nodes) == 0 {
+		return nil, nil
+	}
+
+	gitRoot, err := getGitRoot()
+	if err != nil {
+		return nil, err
+	}
+
+	var locations []protocol.Location
+	for _, node := range nodes {
+		if node.Resource.Repository.Name != s.repoName {
+			continue
+		}
+
+		absPath := filepath.Join(gitRoot, node.Resource.Path)
+		uri := "file://" + absPath
+
+		locations = append(locations, protocol.Location{
+			URI: uri,
+			Range: protocol.Range{
+				Start: protocol.Position{
+					Line:      protocol.UInteger(node.Range.Start.Line),
+					Character: protocol.UInteger(node.Range.Start.Character),
+				},
+				End: protocol.Position{
+					Line:      protocol.UInteger(node.Range.End.Line),
+					Character: protocol.UInteger(node.Range.End.Character),
+				},
+			},
+		})
+	}
+
+	if len(locations) == 0 {
+		return nil, nil
+	}
+
+	return locations, nil
 }
 
 func (s *Server) handleTextDocumentHover(_ *glsp.Context, params *protocol.HoverParams) (*protocol.Hover, error) {
