@@ -52,9 +52,10 @@ func (s *Server) Run() error {
 		SetTrace:               s.handleSetTrace,
 		TextDocumentDidOpen:    s.handleTextDocumentDidOpen,
 		TextDocumentDidClose:   s.handleTextDocumentDidClose,
-		TextDocumentDefinition: s.handleTextDocumentDefinition,
-		TextDocumentReferences: s.handleTextDocumentReferences,
-		TextDocumentHover:      s.handleTextDocumentHover,
+		TextDocumentDefinition:        s.handleTextDocumentDefinition,
+		TextDocumentReferences:        s.handleTextDocumentReferences,
+		TextDocumentHover:             s.handleTextDocumentHover,
+		TextDocumentDocumentHighlight: s.handleTextDocumentDocumentHighlight,
 	}
 
 	srv := server.NewServer(&handler, serverName, false)
@@ -67,9 +68,10 @@ func (s *Server) handleInitialize(_ *glsp.Context, _ *protocol.InitializeParams)
 			TextDocumentSync: &protocol.TextDocumentSyncOptions{
 				OpenClose: &protocol.True,
 			},
-			DefinitionProvider: true,
-			ReferencesProvider: true,
-			HoverProvider:      true,
+			DefinitionProvider:        true,
+			ReferencesProvider:        true,
+			HoverProvider:             true,
+			DocumentHighlightProvider: true,
 		},
 		ServerInfo: &protocol.InitializeResultServerInfo{
 			Name:    serverName,
@@ -235,6 +237,50 @@ func (s *Server) handleTextDocumentHover(_ *glsp.Context, params *protocol.Hover
 	}
 
 	return hover, nil
+}
+
+func (s *Server) handleTextDocumentDocumentHighlight(_ *glsp.Context, params *protocol.DocumentHighlightParams) ([]protocol.DocumentHighlight, error) {
+	path, err := s.uriToRepoPath(params.TextDocument.URI)
+	if err != nil {
+		return nil, err
+	}
+
+	nodes, err := s.queryReferences(context.Background(), path, int(params.Position.Line), int(params.Position.Character))
+	if err != nil {
+		return nil, err
+	}
+	if len(nodes) == 0 {
+		return nil, nil
+	}
+
+	var highlights []protocol.DocumentHighlight
+	for _, node := range nodes {
+		if node.Resource.Repository.Name != s.repoName {
+			continue
+		}
+		if node.Resource.Path != path {
+			continue
+		}
+
+		highlights = append(highlights, protocol.DocumentHighlight{
+			Range: protocol.Range{
+				Start: protocol.Position{
+					Line:      protocol.UInteger(node.Range.Start.Line),
+					Character: protocol.UInteger(node.Range.Start.Character),
+				},
+				End: protocol.Position{
+					Line:      protocol.UInteger(node.Range.End.Line),
+					Character: protocol.UInteger(node.Range.End.Character),
+				},
+			},
+		})
+	}
+
+	if len(highlights) == 0 {
+		return nil, nil
+	}
+
+	return highlights, nil
 }
 
 func (s *Server) uriToRepoPath(uri string) (string, error) {

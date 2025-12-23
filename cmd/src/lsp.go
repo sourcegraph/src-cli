@@ -25,6 +25,7 @@ Supported LSP methods:
   - textDocument/definition
   - textDocument/references
   - textDocument/hover
+  - textDocument/documentHighlight
 
 Example Neovim configuration (0.11+):
 
