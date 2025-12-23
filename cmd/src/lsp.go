@@ -22,15 +22,18 @@ Prerequisites:
   - SRC_ENDPOINT and SRC_ACCESS_TOKEN environment variables must be set
 
 Supported LSP methods:
+  - textDocument/definition
+  - textDocument/references
   - textDocument/hover
 
-Example Neovim configuration:
+Example Neovim configuration (0.11+):
 
-  vim.lsp.start({
-    name = 'src-lsp',
-    cmd = {'src', 'lsp'},
-    root_dir = vim.fn.getcwd(),
-  })
+  vim.lsp.config['src-lsp'] = {
+    cmd = { 'src', 'lsp' },
+    root_markers = { '.git' },
+    filetypes = { 'go', 'typescript', 'python' },
+  }
+  vim.lsp.enable('src-lsp')
 `
 
 	flagSet := flag.NewFlagSet("lsp", flag.ExitOnError)
