@@ -93,5 +93,7 @@ func BuildArgFlagSet(tool *ToolDef) (*flag.FlagSet, map[string]any, error) {
 		}
 	}
 
+	flagVars["json"] = fs.String("json", "", "provide all arguments as an json object")
+
 	return fs, flagVars, nil
 }
