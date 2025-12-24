@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"maps"
 	"strings"
 
 	"github.com/sourcegraph/src-cli/internal/mcp"
@@ -75,6 +76,17 @@ func mcpMain(args []string) error {
 		return err
 	}
 	mcp.DerefFlagValues(flags, vars)
+
+	if val, ok := vars["json"]; ok {
+		if jsonVal, ok := val.(string); ok && len(jsonVal) > 0 {
+			m := make(map[string]any)
+			if err := json.Unmarshal([]byte(jsonVal), &m); err != nil {
+				return err
+			}
+			maps.Copy(vars, m)
+		}
+		delete(vars, "json")
+	}
 
 	if err := validateToolArgs(tool.InputSchema, args, vars); err != nil {
 		return err
