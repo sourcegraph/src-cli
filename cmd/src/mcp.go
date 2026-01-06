@@ -83,14 +83,17 @@ func mcpMain(args []string) error {
 	}
 	mcp.DerefFlagValues(flags, vars)
 
+	// arguments provided via a JSON object take precedence over explicit values provided from flags
 	if val, ok := vars["json"]; ok {
 		if jsonVal, ok := val.(string); ok && len(jsonVal) > 0 {
 			m := make(map[string]any)
 			if err := json.Unmarshal([]byte(jsonVal), &m); err != nil {
 				return err
 			}
+			// copy overrides existing keys
 			maps.Copy(vars, m)
 		}
+		// we delete "json" from vars, otherwise it will be sent as a argument to the tool call
 		delete(vars, "json")
 	}
 
