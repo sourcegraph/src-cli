@@ -30,6 +30,12 @@ func mcpUsage() {
 	fmt.Println("  src mcp <tool-name> schema      View the input/output schema of a tool")
 	fmt.Println("  src mcp <tool-name> <flags>     Invoke a tool with the given flags")
 	fmt.Println("  src mcp <tool-name> -h          List the available flags of a tool")
+	fmt.Println("\nCOMMON FLAGS:")
+	fmt.Println("  --json '{...}'                  Provide all tool arguments as a JSON object (recommended for agents)")
+	fmt.Println("\nNOTE:")
+	fmt.Println("  When both --json and explicit flags are provided, values from --json take precedence.")
+	fmt.Println("\nEXAMPLE:")
+	fmt.Println("  src mcp <tool-name> --json '{\"arg1\": \"value1\", \"arg2\": \"value2\"}'")
 }
 
 func mcpMain(args []string) error {
