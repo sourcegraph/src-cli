@@ -15,6 +15,9 @@ type StatusBar struct {
 	initialized bool
 	startedAt   time.Time
 	finishedAt  time.Time
+
+	// logs holds verbose output lines to display below this status bar
+	logs []string
 }
 
 // Completef sets the StatusBar to completed and updates its text.
@@ -66,3 +69,13 @@ func NewStatusBarWithLabel(label string) *StatusBar {
 }
 
 func NewStatusBar() *StatusBar { return &StatusBar{} }
+
+// AppendLog adds a log line to be displayed below this status bar.
+func (sb *StatusBar) AppendLog(line string) {
+	sb.logs = append(sb.logs, line)
+}
+
+// Logs returns the log lines for this status bar.
+func (sb *StatusBar) Logs() []string {
+	return sb.logs
+}

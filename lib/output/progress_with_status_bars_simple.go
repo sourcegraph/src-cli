@@ -1,6 +1,7 @@
 package output
 
 import (
+	"fmt"
 	"time"
 )
 
@@ -102,5 +103,34 @@ func writeStatusBars(o *Output, bars []*StatusBar) {
 		}
 	} else if len(bars) == 1 {
 		writeStatusBar(o, bars[0])
+	}
+}
+
+func (p *progressWithStatusBarsSimple) WriteBelow(s string) {
+	p.Output.Write(s)
+}
+
+func (p *progressWithStatusBarsSimple) WriteBelowf(format string, args ...any) {
+	p.Output.Writef(format, args...)
+}
+
+func (p *progressWithStatusBarsSimple) VerboseBelow(s string) {
+	p.Output.Verbose(s)
+}
+
+func (p *progressWithStatusBarsSimple) VerboseBelowf(format string, args ...any) {
+	p.Output.Verbosef(format, args...)
+}
+
+func (p *progressWithStatusBarsSimple) StatusBarLogf(i int, format string, args ...any) {
+	if p.statusBars[i] != nil {
+		p.statusBars[i].AppendLog(fmt.Sprintf(format, args...))
+		p.Output.Writef("  "+format, args...)
+	}
+}
+
+func (p *progressWithStatusBarsSimple) StatusBarVerboseLogf(i int, format string, args ...any) {
+	if p.Output.verbose {
+		p.StatusBarLogf(i, format, args...)
 	}
 }
