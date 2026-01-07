@@ -115,16 +115,20 @@ func mcpMain(args []string) error {
 }
 
 func printSchemas(tool *mcp.ToolDef) error {
-	input, err := json.Marshal(tool.InputSchema)
+	var schema = struct {
+		Name   string `json:"tool"`
+		Input  any    `json:"inputSchema"`
+		Output any    `json:"outputSchema"`
+	}{
+		Name:   tool.Name,
+		Input:  tool.InputSchema,
+		Output: tool.OutputSchema,
+	}
+	jsonVal, err := json.Marshal(schema)
 	if err != nil {
 		return err
 	}
-	output, err := json.Marshal(tool.OutputSchema)
-	if err != nil {
-		return err
-	}
-
-	fmt.Printf("Input:\n%v\nOutput:\n%v\n", string(input), string(output))
+	fmt.Println(string(jsonVal))
 	return nil
 }
 
