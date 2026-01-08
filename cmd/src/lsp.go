@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/sourcegraph/src-cli/internal/api"
 	"github.com/sourcegraph/src-cli/internal/lsp"
 )
 
@@ -38,10 +39,12 @@ Example Neovim configuration (0.11+):
 `
 
 	flagSet := flag.NewFlagSet("lsp", flag.ExitOnError)
+	apiFlags := api.NewFlags(flagSet)
+
 	usageFunc := func() {
+		fmt.Println(usage)
 		fmt.Fprintf(flag.CommandLine.Output(), "Usage of 'src %s':\n", flagSet.Name())
 		flagSet.PrintDefaults()
-		fmt.Println(usage)
 	}
 
 	handler := func(args []string) error {
@@ -49,7 +52,7 @@ Example Neovim configuration (0.11+):
 			return err
 		}
 
-		client := cfg.apiClient(nil, io.Discard)
+		client := cfg.apiClient(apiFlags, io.Discard)
 
 		srv, err := lsp.NewServer(client)
 		if err != nil {
