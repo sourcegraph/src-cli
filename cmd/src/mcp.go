@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"maps"
 	"strings"
 
 	"github.com/sourcegraph/src-cli/internal/mcp"
@@ -29,6 +30,12 @@ func mcpUsage() {
 	fmt.Println("  src mcp <tool-name> schema      View the input/output schema of a tool")
 	fmt.Println("  src mcp <tool-name> <flags>     Invoke a tool with the given flags")
 	fmt.Println("  src mcp <tool-name> -h          List the available flags of a tool")
+	fmt.Println("\nCOMMON FLAGS:")
+	fmt.Println("  --json '{...}'                  Provide all tool arguments as a JSON object (recommended for agents)")
+	fmt.Println("\nNOTE:")
+	fmt.Println("  When both --json and explicit flags are provided, values from --json take precedence.")
+	fmt.Println("\nEXAMPLE:")
+	fmt.Println("  src mcp <tool-name> --json '{\"arg1\": \"value1\", \"arg2\": \"value2\"}'")
 }
 
 func mcpMain(args []string) error {
@@ -76,6 +83,20 @@ func mcpMain(args []string) error {
 	}
 	mcp.DerefFlagValues(flags, vars)
 
+	// arguments provided via a JSON object take precedence over explicit values provided from flags
+	if val, ok := vars["json"]; ok {
+		if jsonVal, ok := val.(string); ok && len(jsonVal) > 0 {
+			m := make(map[string]any)
+			if err := json.Unmarshal([]byte(jsonVal), &m); err != nil {
+				return err
+			}
+			// copy overrides existing keys
+			maps.Copy(vars, m)
+		}
+		// we delete "json" from vars, otherwise it will be sent as a argument to the tool call
+		delete(vars, "json")
+	}
+
 	if err := validateToolArgs(tool.InputSchema, args, vars); err != nil {
 		return err
 	}
@@ -94,16 +115,20 @@ func mcpMain(args []string) error {
 }
 
 func printSchemas(tool *mcp.ToolDef) error {
-	input, err := json.Marshal(tool.InputSchema)
+	var schema = struct {
+		Name   string `json:"tool"`
+		Input  any    `json:"inputSchema"`
+		Output any    `json:"outputSchema"`
+	}{
+		Name:   tool.Name,
+		Input:  tool.InputSchema,
+		Output: tool.OutputSchema,
+	}
+	jsonVal, err := json.Marshal(schema)
 	if err != nil {
 		return err
 	}
-	output, err := json.Marshal(tool.OutputSchema)
-	if err != nil {
-		return err
-	}
-
-	fmt.Printf("Input:\n%v\nOutput:\n%v\n", string(input), string(output))
+	fmt.Println(string(jsonVal))
 	return nil
 }
 
