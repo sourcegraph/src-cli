@@ -174,6 +174,10 @@ func (c *client) createHTTPRequest(ctx context.Context, method, p string, body i
 	if *c.opts.Flags.trace {
 		req.Header.Set("X-Sourcegraph-Should-Trace", "true")
 	}
+
+	// Set before additional headers, in case of an override.
+	req.Header.Set("Content-Type", "application/json")
+
 	for k, v := range c.opts.AdditionalHeaders {
 		req.Header.Set(k, v)
 	}
@@ -321,6 +325,10 @@ func (r *request) curlCmd() (string, error) {
 	s := "curl \\\n"
 	if r.client.opts.AccessToken != "" {
 		s += fmt.Sprintf("   %s \\\n", shellquote.Join("-H", "Authorization: token "+r.client.opts.AccessToken))
+	}
+	// Preserve overrides if Content-Type is set
+	if r.client.opts.AdditionalHeaders["Content-Type"] == "" {
+		r.client.opts.AdditionalHeaders["Content-Type"] = "application/json"
 	}
 	for k, v := range r.client.opts.AdditionalHeaders {
 		s += fmt.Sprintf("   %s \\\n", shellquote.Join("-H", k+": "+v))
