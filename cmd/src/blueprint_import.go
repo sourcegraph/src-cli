@@ -169,7 +169,7 @@ func runBlueprintImportAll(ctx context.Context, opts blueprintImportOpts, rootDi
 		return nil
 	}
 
-	fmt.Fprintf(opts.out, "Found %d blueprint(s) in repository\n\n", len(found))
+	fmt.Fprintf(opts.out, "Found %d blueprint(s) in repository\n", len(found))
 
 	exec := blueprint.NewExecutor(blueprint.ExecutorOpts{
 		Client:          opts.client,
