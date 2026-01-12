@@ -13,7 +13,20 @@ import (
 	"github.com/sourcegraph/sourcegraph/lib/errors"
 )
 
-const MCPURLPath = ".api/mcp/v1"
+const (
+	MCPURLPath       = ".api/mcp"
+	MCPURLPathLegacy = ".api/mcp/v1"
+)
+
+func resolveMCPEndpoint(ctx context.Context, client api.Client) (string, error) {
+	for _, endpoint := range []string{MCPURLPath, MCPURLPathLegacy} {
+		_, err := doJSONRPC(ctx, client, endpoint, "tools/list", nil)
+		if err == nil {
+			return endpoint, nil
+		}
+	}
+	return "", errors.Newf("MCP endpoint not available: tried %s and %s", MCPURLPath, MCPURLPathLegacy)
+}
 
 func fetchToolDefinitions(ctx context.Context, client api.Client, endpoint string) (map[string]*ToolDef, error) {
 	resp, err := doJSONRPC(ctx, client, endpoint, "tools/list", nil)

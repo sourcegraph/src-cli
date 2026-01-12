@@ -12,7 +12,8 @@ import (
 
 // ToolRegistry keeps track of tools and the endpoints they originated from
 type ToolRegistry struct {
-	tools map[string]*ToolDef
+	tools    map[string]*ToolDef
+	endpoint string
 }
 
 func NewToolRegistry() *ToolRegistry {
@@ -21,9 +22,16 @@ func NewToolRegistry() *ToolRegistry {
 	}
 }
 
-// LoadTools loads the tool definitions from the Mcp tool endpoints constants McpURLPath
+// LoadTools loads the tool definitions from the MCP endpoint.
+// It tries the new endpoint first (.api/mcp), then falls back to legacy (.api/mcp/v1).
 func (r *ToolRegistry) LoadTools(ctx context.Context, client api.Client) error {
-	tools, err := fetchToolDefinitions(ctx, client, MCPURLPath)
+	endpoint, err := resolveMCPEndpoint(ctx, client)
+	if err != nil {
+		return err
+	}
+	r.endpoint = endpoint
+
+	tools, err := fetchToolDefinitions(ctx, client, endpoint)
 	if err != nil {
 		return err
 	}
@@ -40,7 +48,7 @@ func (r *ToolRegistry) Get(name string) (*ToolDef, bool) {
 // CallTool calls the given tool with the given arguments. It constructs the Tool request and decodes the Tool response
 func (r *ToolRegistry) CallTool(ctx context.Context, client api.Client, name string, args map[string]any) (map[string]json.RawMessage, error) {
 	tool := r.tools[name]
-	resp, err := doToolCall(ctx, client, MCPURLPath, tool.RawName, args)
+	resp, err := doToolCall(ctx, client, r.endpoint, tool.RawName, args)
 	if err != nil {
 		return nil, err
 	}
