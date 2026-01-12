@@ -165,7 +165,7 @@ func runBlueprintImportAll(ctx context.Context, opts blueprintImportOpts, rootDi
 	}
 
 	if len(found) == 0 {
-		fmt.Fprintf(opts.out, "No blueprints found in repository\n")
+		fmt.Fprintf(opts.out, "No blueprints found in %s\n", rootDir)
 		return nil
 	}
 
