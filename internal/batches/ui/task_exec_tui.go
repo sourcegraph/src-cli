@@ -236,6 +236,7 @@ func (ui *taskExecTUI) StepsExecutionUI(task *executor.Task) executor.StepsExecu
 	}
 
 	return &stepsExecTUI{
+		out:  ui.out,
 		task: task,
 		updateStatusBar: func(message string) {
 			ts.currentlyExecuting = message
@@ -427,41 +428,68 @@ func diffStatDiagram(stat diff.Stat) string {
 }
 
 type stepsExecTUI struct {
+	out             *output.Output
 	task            *executor.Task
 	updateStatusBar func(string)
 }
 
 func (ui stepsExecTUI) ArchiveDownloadStarted() {
 	ui.updateStatusBar("Downloading archive")
+	ui.out.Verbosef("[%s] Downloading repository archive...", ui.task.Repository.Name)
 }
-func (ui stepsExecTUI) ArchiveDownloadFinished(err error) {}
+
+func (ui stepsExecTUI) ArchiveDownloadFinished(err error) {
+	if err != nil {
+		ui.out.Verbosef("[%s] Archive download failed: %v", ui.task.Repository.Name, err)
+	} else {
+		ui.out.Verbosef("[%s] Archive download completed", ui.task.Repository.Name)
+	}
+}
+
 func (ui stepsExecTUI) WorkspaceInitializationStarted() {
 	ui.updateStatusBar("Initializing workspace")
+	ui.out.Verbosef("[%s] Initializing workspace...", ui.task.Repository.Name)
 }
-func (ui stepsExecTUI) WorkspaceInitializationFinished() {}
+
+func (ui stepsExecTUI) WorkspaceInitializationFinished() {
+	ui.out.Verbosef("[%s] Workspace initialization completed", ui.task.Repository.Name)
+}
+
 func (ui stepsExecTUI) SkippingStepsUpto(startStep int) {
 	switch startStep {
 	case 1:
 		ui.updateStatusBar("Skipping step 1. Found cached result.")
+		ui.out.Verbosef("[%s] Skipping step 1 (cached result found)", ui.task.Repository.Name)
 	default:
 		ui.updateStatusBar(fmt.Sprintf("Skipping steps 1 to %d. Found cached results.", startStep))
+		ui.out.Verbosef("[%s] Skipping steps 1 to %d (cached results found)", ui.task.Repository.Name, startStep)
 	}
 }
 
 func (ui stepsExecTUI) StepSkipped(step int) {
 	ui.updateStatusBar(fmt.Sprintf("Skipping step %d", step))
+	ui.out.Verbosef("[%s] Step %d skipped", ui.task.Repository.Name, step)
 }
+
 func (ui stepsExecTUI) StepPreparingStart(step int) {
 	ui.updateStatusBar(fmt.Sprintf("Preparing step %d", step))
+	ui.out.Verbosef("[%s] Preparing step %d...", ui.task.Repository.Name, step)
 }
+
 func (ui stepsExecTUI) StepPreparingSuccess(step int) {
-	// noop right now
+	ui.out.Verbosef("[%s] Step %d preparation completed", ui.task.Repository.Name, step)
 }
+
 func (ui stepsExecTUI) StepPreparingFailed(step int, err error) {
-	// noop right now
+	ui.out.Verbosef("[%s] Step %d preparation failed: %v", ui.task.Repository.Name, step, err)
 }
-func (ui stepsExecTUI) StepStarted(step int, runScript string, _ map[string]string) {
+
+func (ui stepsExecTUI) StepStarted(step int, runScript string, env map[string]string) {
 	ui.updateStatusBar(runScript)
+	ui.out.Verbosef("[%s] Step %d started: %s", ui.task.Repository.Name, step, truncateScript(runScript, 100))
+	if len(env) > 0 {
+		ui.out.Verbosef("[%s] Step %d environment variables: %d set", ui.task.Repository.Name, step, len(env))
+	}
 }
 
 func (ui stepsExecTUI) StepOutputWriter(ctx context.Context, task *executor.Task, step int) executor.StepOutputWriter {
@@ -469,8 +497,33 @@ func (ui stepsExecTUI) StepOutputWriter(ctx context.Context, task *executor.Task
 }
 
 func (ui stepsExecTUI) StepFinished(idx int, diff []byte, changes git.Changes, outputs map[string]any) {
-	// noop right now
+	ui.out.Verbosef("[%s] Step %d finished successfully", ui.task.Repository.Name, idx)
+	if len(diff) > 0 {
+		ui.out.Verbosef("[%s] Step %d produced %d bytes of diff", ui.task.Repository.Name, idx, len(diff))
+	}
+	if len(changes.Modified)+len(changes.Added)+len(changes.Deleted)+len(changes.Renamed) > 0 {
+		ui.out.Verbosef("[%s] Step %d changes: %d modified, %d added, %d deleted, %d renamed",
+			ui.task.Repository.Name, idx,
+			len(changes.Modified), len(changes.Added), len(changes.Deleted), len(changes.Renamed))
+	}
+	if len(outputs) > 0 {
+		ui.out.Verbosef("[%s] Step %d outputs: %d variables set", ui.task.Repository.Name, idx, len(outputs))
+	}
 }
+
 func (ui stepsExecTUI) StepFailed(idx int, err error, exitCode int) {
-	// noop right now
+	ui.out.Verbosef("[%s] Step %d failed (exit code %d): %v", ui.task.Repository.Name, idx, exitCode, err)
+}
+
+// truncateScript truncates a script string for display purposes
+func truncateScript(script string, maxLen int) string {
+	lines := strings.Split(script, "\n")
+	firstLine := lines[0]
+	if len(firstLine) > maxLen {
+		return firstLine[:maxLen] + "..."
+	}
+	if len(lines) > 1 {
+		return firstLine + " ..."
+	}
+	return firstLine
 }
