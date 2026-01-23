@@ -21,15 +21,10 @@ jobs:
         run: echo "go-version=$(grep 'golang' mise.toml | cut -d'"' -f2)" >> $GITHUB_OUTPUT
         shell: bash
       - name: Set up Go
-        uses: actions/setup-go@v6
+        uses: sourcegraph/actions/go-setup@main
         with:
           go-version: ${{ steps.mise.outputs.go-version }}
-      - name: (Windows) Enable pulling Go modules from private sourcegraph/sourcegraph
-        if: runner.os == 'Windows'
-        run: git config --global url."https://$env:PRIVATE_TOKEN@github.com/sourcegraph/".insteadOf "https://github.com/sourcegraph/"
-      - name: (Default) Enable pulling Go modules from private sourcegraph/sourcegraph
-        if: runner.os != 'Windows'
-        run: git config --global url."https://${PRIVATE_TOKEN}@github.com/sourcegraph/".insteadOf "https://github.com/sourcegraph/"
+          private-token: ${{ secrets.PRIVATE_SG_ACCESS_TOKEN }}
       - run: |
           go test -race -v ./...
           go test -v ./...
