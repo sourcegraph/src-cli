@@ -11,7 +11,7 @@ import (
 
 	"github.com/sourcegraph/src-cli/internal/api"
 	"github.com/sourcegraph/src-cli/internal/cmderrors"
-	"github.com/sourcegraph/src-cli/internal/oauthdevice"
+	"github.com/sourcegraph/src-cli/internal/oauth"
 )
 
 func init() {
@@ -33,12 +33,12 @@ Examples:
 
   Use OAuth device flow to authenticate:
 
-    $ src login --device-flow https://sourcegraph.com
+    $ src login --oauth https://sourcegraph.com
 
 
   Override the default client id used during device flow when authenticating:
 
-    $ src login --device-flow https://sourcegraph.com --client-id sgo_my_own_client_id
+    $ src login --oauth https://sourcegraph.com --client-id sgo_my_own_client_id
 `
 
 	flagSet := flag.NewFlagSet("login", flag.ExitOnError)
@@ -49,8 +49,8 @@ Examples:
 
 	var (
 		apiFlags      = api.NewFlags(flagSet)
-		useDeviceFlow = flagSet.Bool("device-flow", false, "Use OAuth device flow to obtain an access token interactively")
-		OAuthClientID = flagSet.String("client-id", oauthdevice.DefaultClientID, "Client ID to use with OAuth device flow. Will use the predefined src cli client ID if not specified.")
+		useOAuth      = flagSet.Bool("oauth", false, "Use OAuth device flow to obtain an access token interactively")
+		OAuthClientID = flagSet.String("client-id", oauth.DefaultClientID, "Client ID to use with OAuth device flow. Will use the predefined src cli client ID if not specified.")
 	)
 
 	handler := func(args []string) error {
@@ -76,9 +76,9 @@ Examples:
 			client:           client,
 			endpoint:         endpoint,
 			out:              os.Stdout,
-			useDeviceFlow:    *useDeviceFlow,
+			useOAuth:         *useOAuth,
 			apiFlags:         apiFlags,
-			deviceFlowClient: oauthdevice.NewClient(*OAuthClientID),
+			deviceFlowClient: oauth.NewClient(*OAuthClientID),
 		})
 	}
 
@@ -94,9 +94,9 @@ type loginParams struct {
 	client           api.Client
 	endpoint         string
 	out              io.Writer
-	useDeviceFlow    bool
+	useOAuth         bool
 	apiFlags         *api.Flags
-	deviceFlowClient oauthdevice.Client
+	deviceFlowClient oauth.Client
 }
 
 func loginCmd(ctx context.Context, p loginParams) error {
@@ -125,10 +125,10 @@ func loginCmd(ctx context.Context, p loginParams) error {
 	noToken := cfg.AccessToken == ""
 	endpointConflict := endpointArg != cfg.Endpoint
 
-	if p.useDeviceFlow {
-		token, err := runDeviceFlow(ctx, endpointArg, out, p.deviceFlowClient)
+	if p.useOAuth {
+		token, err := runOAuthDeviceFlow(ctx, endpointArg, out, p.deviceFlowClient)
 		if err != nil {
-			printProblem(fmt.Sprintf("Device flow authentication failed: %s", err))
+			printProblem(fmt.Sprintf("OAuth Device flow authentication failed: %s", err))
 			fmt.Fprintln(out, createAccessTokenMessage)
 			return cmderrors.ExitCode1
 		}
@@ -173,7 +173,7 @@ func loginCmd(ctx context.Context, p loginParams) error {
 	fmt.Fprintln(out)
 	fmt.Fprintf(out, "✔️  Authenticated as %s on %s\n", result.CurrentUser.Username, endpointArg)
 
-	if p.useDeviceFlow {
+	if p.useOAuth {
 		fmt.Fprintln(out)
 		fmt.Fprintf(out, "To use this access token, set the following environment variables in your terminal:\n\n")
 		fmt.Fprintf(out, "   export SRC_ENDPOINT=%s\n", endpointArg)
@@ -184,7 +184,7 @@ func loginCmd(ctx context.Context, p loginParams) error {
 	return nil
 }
 
-func runDeviceFlow(ctx context.Context, endpoint string, out io.Writer, client oauthdevice.Client) (string, error) {
+func runOAuthDeviceFlow(ctx context.Context, endpoint string, out io.Writer, client oauth.Client) (string, error) {
 	authResp, err := client.Start(ctx, endpoint, nil)
 	if err != nil {
 		return "", err
