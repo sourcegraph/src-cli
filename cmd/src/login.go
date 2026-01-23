@@ -132,7 +132,7 @@ func loginCmd(ctx context.Context, p loginParams) error {
 			return cmderrors.ExitCode1
 		}
 
-		if err := oauth.StoreToken(token); err != nil {
+		if err := oauth.StoreToken(ctx, token); err != nil {
 			printProblem(fmt.Sprintf("Failed to store token in keyring store: %s", err))
 			return cmderrors.ExitCode1
 		}
