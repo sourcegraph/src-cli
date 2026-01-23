@@ -25,9 +25,6 @@ const (
 	// wellKnownPath is the path on the sourcegraph server where clients can discover OAuth configuration
 	wellKnownPath = "/.well-known/openid-configuration"
 
-	// Key used to store the token in the store
-	KeyOAuth = "Sourcegraph CLI key storage"
-
 	GrantTypeDeviceCode string = "urn:ietf:params:oauth:grant-type:device_code"
 
 	ScopeOpenID        string = "openid"
@@ -35,6 +32,10 @@ const (
 	ScopeEmail         string = "email"
 	ScopeOfflineAccess string = "offline_access"
 	ScopeUserAll       string = "user:all"
+
+	// storeKeyFmt is the format of the key name that will be used to store a value
+	// typically the last element is the endpoint the value is for ie. src:oauth:https://sourcegraph.sourcegraph.com
+	storeKeyFmt string = "src:oauth:%s"
 )
 
 var defaultScopes = []string{ScopeEmail, ScopeOfflineAccess, ScopeOpenID, ScopeProfile, ScopeUserAll}
@@ -389,8 +390,12 @@ func (t *Token) ExpiringIn(d time.Duration) bool {
 	return future.After(t.ExpiresAt)
 }
 
-func StoreToken(token *Token) error {
-	store, err := secrets.Store()
+func oauthKey(endpoint string) string {
+	return fmt.Sprintf(storeKeyFmt, endpoint)
+}
+
+func StoreToken(ctx context.Context, token *Token) error {
+	store, err := secrets.Open(ctx)
 	if err != nil {
 		return err
 	}
@@ -403,17 +408,16 @@ func StoreToken(token *Token) error {
 		return errors.New("token endpoint cannot be empty when storing the token")
 	}
 
-	key := fmt.Sprintf("oauth[%s]", token.Endpoint)
-	return store.Put(key, data)
+	return store.Put(oauthKey(token.Endpoint), data)
 }
 
-func LoadToken(endpoint string) (*Token, error) {
-	store, err := secrets.Store()
+func LoadToken(ctx context.Context, endpoint string) (*Token, error) {
+	store, err := secrets.Open(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	key := fmt.Sprintf("oauth[%s]", endpoint)
+	key := oauthKey(endpoint)
 	data, err := store.Get(key)
 	if err != nil {
 		return nil, err

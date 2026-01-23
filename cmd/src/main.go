@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"flag"
 	"io"
@@ -135,7 +136,7 @@ func (c *config) apiClient(flags *api.Flags, out io.Writer) api.Client {
 
 	// Only use OAuth if we do not have SRC_ACCESS_TOKEN set
 	if c.AccessToken == "" {
-		if t, err := oauthdevice.LoadToken(c.Endpoint); err == nil {
+		if t, err := oauthdevice.LoadToken(context.Background(), c.Endpoint); err == nil {
 			opts.OAuthToken = t
 		}
 	}

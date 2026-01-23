@@ -1,61 +1,86 @@
 package secrets
 
 import (
-	"github.com/99designs/keyring"
+	"context"
+
 	"github.com/sourcegraph/sourcegraph/lib/errors"
+	"github.com/zalando/go-keyring"
 )
 
-const serviceName = "sourcegraph-cli"
+var ErrSecretNotFound = errors.New("secret not found")
 
-// keyringStore provides secure credential storage operations.
+// Store provides secure credential storage operations.
+type Store interface {
+	Get(key string) ([]byte, error)
+	Put(key string, data []byte) error
+	Delete(key string) error
+}
+
 type keyringStore struct {
-	ring keyring.Keyring
+	ctx         context.Context
+	serviceName string
 }
 
-// open opens the system keyring for the Sourcegraph CLI.
-func openKeyring() (*keyringStore, error) {
-	ring, err := keyring.Open(keyring.Config{
-		ServiceName:              serviceName,
-		KeychainName:             "login", // This is the default name for the keychain where MacOS puts all login passwords
-		KeychainTrustApplication: true,    // the keychain can trust src-cli!
-	})
-	if err != nil {
-		return nil, errors.Wrap(err, "opening keyring")
+// Open opens the system keyring for the Sourcegraph CLI.
+func Open(ctx context.Context) (Store, error) {
+	return &keyringStore{ctx: ctx, serviceName: "Sourcegraph CLI"}, nil
+}
+
+// withContext runs fn in a goroutine and returns its result, or ctx.Err() if the context is cancelled first.
+func withContext[T any](ctx context.Context, fn func() (T, error)) (T, error) {
+	type result struct {
+		val T
+		err error
 	}
-	return &keyringStore{ring: ring}, nil
+	ch := make(chan result, 1)
+	go func() {
+		val, err := fn()
+		ch <- result{val, err}
+	}()
+
+	select {
+	case <-ctx.Done():
+		var zero T
+		return zero, ctx.Err()
+	case r := <-ch:
+		return r.val, r.err
+	}
 }
 
-// Set stores a key-value pair in the keyring.
+// Put stores a key-value pair in the keyring.
 func (k *keyringStore) Put(key string, data []byte) error {
-	err := k.ring.Set(keyring.Item{
-		Key:   key,
-		Data:  data,
-		Label: key,
+	_, err := withContext(k.ctx, func() (struct{}, error) {
+		err := keyring.Set(k.serviceName, key, string(data))
+		if err != nil {
+			return struct{}{}, errors.Wrap(err, "storing item in keyring")
+		}
+		return struct{}{}, nil
 	})
-	if err != nil {
-		return errors.Wrap(err, "storing item in keyring")
-	}
-	return nil
+	return err
 }
 
 // Get retrieves a value by key from the keyring.
-// Returns nil, nil if the key is not found.
 func (k *keyringStore) Get(key string) ([]byte, error) {
-	item, err := k.ring.Get(key)
-	if err != nil {
-		if err == keyring.ErrKeyNotFound {
-			return nil, ErrSecretNotFound
+	return withContext(k.ctx, func() ([]byte, error) {
+		secret, err := keyring.Get(k.serviceName, key)
+		if err != nil {
+			if err == keyring.ErrNotFound {
+				return nil, ErrSecretNotFound
+			}
+			return nil, errors.Wrap(err, "getting item from keyring")
 		}
-		return nil, errors.Wrap(err, "getting item from keyring")
-	}
-	return item.Data, nil
+		return []byte(secret), nil
+	})
 }
 
 // Delete removes a key from the keyring.
 func (k *keyringStore) Delete(key string) error {
-	err := k.ring.Remove(key)
-	if err != nil && err != keyring.ErrKeyNotFound {
-		return errors.Wrap(err, "removing item from keyring")
-	}
-	return nil
+	_, err := withContext(k.ctx, func() (struct{}, error) {
+		err := keyring.Delete(k.serviceName, key)
+		if err != nil && err != keyring.ErrNotFound {
+			return struct{}{}, errors.Wrap(err, "removing item from keyring")
+		}
+		return struct{}{}, nil
+	})
+	return err
 }
