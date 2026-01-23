@@ -1,6 +1,6 @@
-// Package oauthdevice implements the OAuth 2.0 Device Authorization Grant (RFC 8628)
+// Package oauthimplements the OAuth 2.0 Device Authorization Grant (RFC 8628)
 // for authenticating with Sourcegraph instances.
-package oauthdevice
+package oauth
 
 import (
 	"context"
