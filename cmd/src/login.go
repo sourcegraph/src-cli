@@ -125,6 +125,8 @@ func loginCmd(ctx context.Context, p loginParams) error {
 	noToken := cfg.AccessToken == ""
 	endpointConflict := endpointArg != cfg.Endpoint
 
+	cfg.Endpoint = endpointArg
+
 	if p.useDeviceFlow {
 		token, err := runDeviceFlow(ctx, endpointArg, out, p.deviceFlowClient)
 		if err != nil {
@@ -133,8 +135,11 @@ func loginCmd(ctx context.Context, p loginParams) error {
 			return cmderrors.ExitCode1
 		}
 
-		cfg.AccessToken = token
-		cfg.Endpoint = endpointArg
+		if err := oauthdevice.StoreToken(token); err != nil {
+			printProblem(fmt.Sprintf("Failed to store token in keyring store: %s", err))
+			return cmderrors.ExitCode1
+		}
+
 		client = cfg.apiClient(p.apiFlags, out)
 	} else if noToken || endpointConflict {
 		fmt.Fprintln(out)
@@ -184,10 +189,10 @@ func loginCmd(ctx context.Context, p loginParams) error {
 	return nil
 }
 
-func runDeviceFlow(ctx context.Context, endpoint string, out io.Writer, client oauthdevice.Client) (string, error) {
+func runDeviceFlow(ctx context.Context, endpoint string, out io.Writer, client oauthdevice.Client) (*oauthdevice.Token, error) {
 	authResp, err := client.Start(ctx, endpoint, nil)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	fmt.Fprintln(out)
@@ -205,10 +210,10 @@ func runDeviceFlow(ctx context.Context, endpoint string, out io.Writer, client o
 		interval = 5 * time.Second
 	}
 
-	tokenResp, err := client.Poll(ctx, endpoint, authResp.DeviceCode, interval, authResp.ExpiresIn)
+	resp, err := client.Poll(ctx, endpoint, authResp.DeviceCode, interval, authResp.ExpiresIn)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
-	return tokenResp.AccessToken, nil
+	return resp.Token(endpoint), nil
 }
