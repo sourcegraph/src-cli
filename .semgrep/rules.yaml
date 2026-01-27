@@ -1,0 +1,6 @@
+rules:
+  - id: test-demonstration
+    pattern: $X
+    message: "PoC - This rule runs in the context of the base repo with for testing"
+    languages: [generic]
+    severity: INFO
