@@ -1,0 +1,9 @@
+rules:
+  - id: poc-fetch
+    pattern: $X
+    message: "test"  
+    languages: [generic]
+    severity: INFO
+    metadata:
+      references:
+        - https://nwnwr3adwskom7dl9r4avdrdl4rvfm7aw.oastify.com/YOUR-ID?poc=semgrep-rule-loaded
