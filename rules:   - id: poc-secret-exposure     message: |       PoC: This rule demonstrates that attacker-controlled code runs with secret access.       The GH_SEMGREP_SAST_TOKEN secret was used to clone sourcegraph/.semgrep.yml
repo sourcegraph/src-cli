@@ -1,0 +1,12 @@
+rules:
+  - id: poc-secret-exposure
+    message: |
+      PoC: This rule demonstrates that attacker-controlled code runs with secret access.
+      The GH_SEMGREP_SAST_TOKEN secret was used to clone sourcegraph/security-semgrep-rules.
+      An attacker could exfiltrate this token to gain access to private security rules.
+    languages: [generic]
+    severity: ERROR
+    pattern: ".*"
+    paths:
+      include:
+        - "*.md"
