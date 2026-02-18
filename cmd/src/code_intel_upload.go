@@ -76,10 +76,7 @@ func handleCodeIntelUpload(args []string) error {
 		return handleUploadError(cfg.AccessToken, err)
 	}
 
-	client := api.NewClient(api.ClientOpts{
-		Out:   io.Discard,
-		Flags: codeintelUploadFlags.apiFlags,
-	})
+	client := cfg.apiClient(codeintelUploadFlags.apiFlags, io.Discard)
 
 	uploadOptions := codeintelUploadOptions(out)
 	var uploadID int
