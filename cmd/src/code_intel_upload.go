@@ -18,8 +18,6 @@ import (
 	"github.com/sourcegraph/sourcegraph/lib/codeintel/upload"
 	"github.com/sourcegraph/sourcegraph/lib/errors"
 	"github.com/sourcegraph/sourcegraph/lib/output"
-
-	"github.com/sourcegraph/src-cli/internal/api"
 )
 
 func init() {
