@@ -420,6 +420,10 @@ func performRequest(ctx context.Context, req *http.Request, httpClient upload.Cl
 func decodeUploadPayload(resp *http.Response, body []byte, target *int) (bool, error) {
 	if resp.StatusCode >= 300 {
 		if resp.StatusCode == http.StatusUnauthorized {
+			detail := string(bytes.TrimSpace(body))
+			if detail != "" && !bytes.HasPrefix(bytes.TrimSpace(body), []byte{'<'}) {
+				return false, errors.Wrap(ErrUnauthorized, detail)
+			}
 			return false, ErrUnauthorized
 		}
 
