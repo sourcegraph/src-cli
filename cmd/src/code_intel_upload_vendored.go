@@ -339,8 +339,20 @@ type uploadRequestOptions struct {
 	Done             bool      // Whether the request is a multipart finalize
 }
 
-// ErrUnauthorized occurs when the upload endpoint returns a 401 response.
-var ErrUnauthorized = errors.New("unauthorized upload")
+// ErrUnexpectedStatusCode is returned for HTTP error responses from the upload
+// endpoint. It carries the status code and response body so callers can inspect
+// them without parsing the error string.
+type ErrUnexpectedStatusCode struct {
+	Code int
+	Body string
+}
+
+func (e *ErrUnexpectedStatusCode) Error() string {
+	if e.Body != "" {
+		return fmt.Sprintf("unexpected status code: %d (%s)", e.Code, e.Body)
+	}
+	return fmt.Sprintf("unexpected status code: %d", e.Code)
+}
 
 // performUploadRequest performs an HTTP POST to the upload endpoint. The query string of the request
 // is constructed from the given request options and the body of the request is the unmodified reader.
@@ -419,17 +431,13 @@ func performRequest(ctx context.Context, req *http.Request, httpClient upload.Cl
 // returns a boolean flag indicating if the function can be retried on failure (error-dependent).
 func decodeUploadPayload(resp *http.Response, body []byte, target *int) (bool, error) {
 	if resp.StatusCode >= 300 {
-		if resp.StatusCode == http.StatusUnauthorized {
-			return false, ErrUnauthorized
-		}
-
-		suffix := ""
-		if !bytes.HasPrefix(bytes.TrimSpace(body), []byte{'<'}) {
-			suffix = fmt.Sprintf(" (%s)", bytes.TrimSpace(body))
+		detail := ""
+		if trimmed := bytes.TrimSpace(body); len(trimmed) > 0 && trimmed[0] != '<' {
+			detail = string(trimmed)
 		}
 
 		// Do not retry client errors
-		return resp.StatusCode >= 500, errors.Errorf("unexpected status code: %d%s", resp.StatusCode, suffix)
+		return resp.StatusCode >= 500, &ErrUnexpectedStatusCode{Code: resp.StatusCode, Body: detail}
 	}
 
 	if target == nil {
