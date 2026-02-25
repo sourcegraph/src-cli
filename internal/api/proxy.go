@@ -21,6 +21,19 @@ func (c *connWithBufferedReader) Read(p []byte) (int, error) {
 	return c.r.Read(p)
 }
 
+// proxyDialAddr returns proxyURL.Host with a default port appended if one is
+// not already present (443 for https, 80 for http).
+func proxyDialAddr(proxyURL *url.URL) string {
+	addr := proxyURL.Host
+	if _, _, err := net.SplitHostPort(addr); err != nil {
+		if proxyURL.Scheme == "https" {
+			return net.JoinHostPort(addr, "443")
+		}
+		return net.JoinHostPort(addr, "80")
+	}
+	return addr
+}
+
 // withProxyTransport modifies the given transport to handle proxying of unix, socks5 and http connections.
 //
 // Note: baseTransport is considered to be a clone created with transport.Clone()
@@ -74,9 +87,38 @@ func withProxyTransport(baseTransport *http.Transport, proxyURL *url.URL, proxyP
 			baseTransport.Proxy = http.ProxyURL(proxyURL)
 		case "http", "https":
 			dial := func(ctx context.Context, network, addr string) (net.Conn, error) {
-				// Dial the proxy
-				d := net.Dialer{}
-				conn, err := d.DialContext(ctx, "tcp", proxyURL.Host)
+				// Dial the proxy. For https:// proxies, we TLS-connect to the
+				// proxy itself and force ALPN to HTTP/1.1 to prevent Go from
+				// negotiating HTTP/2 for the CONNECT tunnel. Many proxy servers
+				// don't support HTTP/2 CONNECT, and Go's default Transport.Proxy
+				// would negotiate h2 via ALPN when TLS-connecting to an https://
+				// proxy, causing "bogus greeting" errors. For http:// proxies,
+				// CONNECT is always HTTP/1.1 over plain TCP so this isn't needed.
+				// The target connection (e.g. to sourcegraph.com) still negotiates
+				// HTTP/2 normally through the established tunnel.
+				proxyAddr := proxyDialAddr(proxyURL)
+
+				var conn net.Conn
+				var err error
+				if proxyURL.Scheme == "https" {
+					raw, dialErr := (&net.Dialer{}).DialContext(ctx, "tcp", proxyAddr)
+					if dialErr != nil {
+						return nil, dialErr
+					}
+					cfg := baseTransport.TLSClientConfig.Clone()
+					cfg.NextProtos = []string{"http/1.1"}
+					if cfg.ServerName == "" {
+						cfg.ServerName = proxyURL.Hostname()
+					}
+					tlsConn := tls.Client(raw, cfg)
+					if err := tlsConn.HandshakeContext(ctx); err != nil {
+						raw.Close()
+						return nil, err
+					}
+					conn = tlsConn
+				} else {
+					conn, err = (&net.Dialer{}).DialContext(ctx, "tcp", proxyAddr)
+				}
 				if err != nil {
 					return nil, err
 				}
