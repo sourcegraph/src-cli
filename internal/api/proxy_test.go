@@ -368,7 +368,7 @@ func TestWithProxyTransport_ProxyRejectsConnect(t *testing.T) {
 }
 
 
-func TestProxyHostPort(t *testing.T) {
+func TestProxyDialAddr(t *testing.T) {
 	tests := []struct {
 		name string
 		url  string
