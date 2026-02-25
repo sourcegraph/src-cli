@@ -33,12 +33,17 @@ func withProxyTransport(baseTransport *http.Transport, proxyURL *url.URL, proxyP
 		if err != nil {
 			return nil, err
 		}
-		tlsConn := tls.Client(conn, &tls.Config{
-			ServerName: host,
-			// Pull InsecureSkipVerify from the target host transport
-			// so that insecure-skip-verify flag settings are honored for the proxy server
-			InsecureSkipVerify: baseTransport.TLSClientConfig.InsecureSkipVerify,
-		})
+		cfg := baseTransport.TLSClientConfig.Clone()
+		if cfg.ServerName == "" {
+			cfg.ServerName = host
+		}
+		// Preserve HTTP/2 negotiation to the origin when ForceAttemptHTTP2
+		// is enabled. Without this, the manual TLS handshake would not
+		// advertise h2 via ALPN, silently forcing HTTP/1.1.
+		if baseTransport.ForceAttemptHTTP2 && len(cfg.NextProtos) == 0 {
+			cfg.NextProtos = []string{"h2", "http/1.1"}
+		}
+		tlsConn := tls.Client(conn, cfg)
 		if err := tlsConn.HandshakeContext(ctx); err != nil {
 			return nil, err
 		}
