@@ -24,8 +24,8 @@ func (c *connWithBufferedReader) Read(p []byte) (int, error) {
 //
 // Note: baseTransport is considered to be a clone created with transport.Clone()
 //
-// - If a the proxyPath is not empty, a unix socket proxy is created.
-// - Otherwise, the proxyURL is used to determine if we should proxy socks5 / http connections
+// - If proxyPath is not empty, a unix socket proxy is created.
+// - Otherwise, proxyURL is used to determine if we should proxy socks5 / http connections
 func withProxyTransport(baseTransport *http.Transport, proxyURL *url.URL, proxyPath string) *http.Transport {
 	handshakeTLS := func(ctx context.Context, conn net.Conn, addr string) (net.Conn, error) {
 		// Extract the hostname (without the port) for TLS SNI
