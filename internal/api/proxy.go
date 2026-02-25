@@ -66,39 +66,18 @@ func withProxyTransport(baseTransport *http.Transport, proxyURL *url.URL, proxyP
 					return nil, err
 				}
 
-				// this is the whole point of manually dialing the HTTP(S) proxy:
-				// being able to force HTTP/1.
-				// When relying on Transport.Proxy, the protocol is always HTTP/2,
-				// but many proxy servers don't support HTTP/2.
-				// We don't want to disable HTTP/2 in general because we want to use it when
-				// connecting to the Sourcegraph API, using HTTP/1 for the proxy connection only.
-				protocol := "HTTP/1.1"
-
-				// CONNECT is the HTTP method used to set up a tunneling connection with a proxy
-				method := "CONNECT"
-
-				// Manually writing out the HTTP commands because it's not complicated,
-				// and http.Request has some janky behavior:
-				//   - ignores the Proto field and hard-codes the protocol to HTTP/1.1
-				//   - ignores the Host Header (Header.Set("Host", host)) and uses URL.Host instead.
-				//   - When the Host field is set, overrides the URL field
-				connectReq := fmt.Sprintf("%s %s %s\r\n", method, addr, protocol)
-
-				// A Host header is required per RFC 2616, section 14.23
-				connectReq += fmt.Sprintf("Host: %s\r\n", addr)
-
-				// use authentication if proxy credentials are present
+				connectReq := &http.Request{
+					Method: "CONNECT",
+					URL:    &url.URL{Opaque: addr},
+					Host:   addr,
+					Header: make(http.Header),
+				}
 				if proxyURL.User != nil {
 					password, _ := proxyURL.User.Password()
 					auth := base64.StdEncoding.EncodeToString([]byte(proxyURL.User.Username() + ":" + password))
-					connectReq += fmt.Sprintf("Proxy-Authorization: Basic %s\r\n", auth)
+					connectReq.Header.Set("Proxy-Authorization", "Basic "+auth)
 				}
-
-				// finish up with an extra carriage return + newline, as per RFC 7230, section 3
-				connectReq += "\r\n"
-
-				// Send the CONNECT request to the proxy to establish the tunnel
-				if _, err := conn.Write([]byte(connectReq)); err != nil {
+				if err := connectReq.Write(conn); err != nil {
 					conn.Close()
 					return nil, err
 				}
