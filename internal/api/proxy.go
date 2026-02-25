@@ -11,6 +11,15 @@ import (
 	"net/url"
 )
 
+type connWithBufferedReader struct {
+	net.Conn
+	r *bufio.Reader
+}
+
+func (c *connWithBufferedReader) Read(p []byte) (int, error) {
+	return c.r.Read(p)
+}
+
 // withProxyTransport modifies the given transport to handle proxying of unix, socks5 and http connections.
 //
 // Note: baseTransport is considered to be a clone created with transport.Clone()
@@ -82,18 +91,22 @@ func withProxyTransport(baseTransport *http.Transport, proxyURL *url.URL, proxyP
 					return nil, err
 				}
 
-				// Read and check the response from the proxy
-				resp, err := http.ReadResponse(bufio.NewReader(conn), nil)
+				br := bufio.NewReader(conn)
+				resp, err := http.ReadResponse(br, nil)
 				if err != nil {
 					conn.Close()
 					return nil, err
 				}
 				if resp.StatusCode != http.StatusOK {
+					// For non-200, it's safe/appropriate to close the body (it’s a real response body here).
+					// Try to read a bit (4k bytes) to include in the error message.
+					b, _ := io.ReadAll(io.LimitReader(resp.Body, 4<<10))
+					resp.Body.Close()
 					conn.Close()
-					return nil, fmt.Errorf("failed to connect to proxy %v: %v", proxyURL, resp.Status)
+					return nil, fmt.Errorf("failed to connect to proxy %s: %s: %q", proxyURL.Redacted(), resp.Status, b)
 				}
-				resp.Body.Close()
-				return conn, nil
+				// 200 CONNECT: do NOT resp.Body.Close(); it would interfere with the tunnel.
+				return &connWithBufferedReader{Conn: conn, r: br}, nil
 			}
 			dialTLS := func(ctx context.Context, network, addr string) (net.Conn, error) {
 				// Dial the underlying connection through the proxy
