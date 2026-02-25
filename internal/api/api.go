@@ -105,6 +105,23 @@ func buildTransport(opts ClientOpts, flags *Flags) *http.Transport {
 	return transport
 }
 
+// envProxyURL resolves the proxy URL
+// from standard HTTP_PROXY/HTTPS_PROXY/NO_PROXY
+// environment variables for the given endpoint.
+// Returns nil if the endpoint is not a valid URL,
+// no proxy is configured, or the endpoint is excluded.
+func envProxyURL(endpoint string) *url.URL {
+	u, err := url.Parse(endpoint)
+	if err != nil || u.Scheme == "" || u.Host == "" {
+		return nil
+	}
+	proxyURL, err := http.ProxyFromEnvironment(&http.Request{URL: u})
+	if err != nil || proxyURL == nil {
+		return nil
+	}
+	return proxyURL
+}
+
 // NewClient creates a new API client.
 func NewClient(opts ClientOpts) Client {
 	if opts.Out == nil {
