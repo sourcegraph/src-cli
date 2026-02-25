@@ -90,33 +90,37 @@ type ClientOpts struct {
 }
 
 func buildTransport(opts ClientOpts, flags *Flags) http.RoundTripper {
-	var transport http.RoundTripper
-	{
-		tp := http.DefaultTransport.(*http.Transport).Clone()
+	transport := http.DefaultTransport.(*http.Transport).Clone()
 
-		if flags.insecureSkipVerify != nil && *flags.insecureSkipVerify {
-			tp.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
-		}
-
-		if tp.TLSClientConfig == nil {
-			tp.TLSClientConfig = &tls.Config{}
-		}
-
-		if opts.ProxyURL != nil || opts.ProxyPath != "" {
-			tp = withProxyTransport(tp, opts.ProxyURL, opts.ProxyPath)
-		}
-
-		transport = tp
+	if flags.insecureSkipVerify != nil && *flags.insecureSkipVerify {
+		transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 	}
 
+	if transport.TLSClientConfig == nil {
+		transport.TLSClientConfig = &tls.Config{}
+	}
+
+	if opts.ProxyURL != nil || opts.ProxyPath != "" {
+		// Explicit SRC_PROXY configuration takes precedence.
+		transport = withProxyTransport(transport, opts.ProxyURL, opts.ProxyPath)
+	} else if proxyURL := envProxyURL(opts.EndpointURL.String()); proxyURL != nil && proxyURL.Scheme == "https" {
+		// For HTTPS proxies discovered via standard env vars, use our custom
+		// dialer to force HTTP/1.1 for the CONNECT tunnel. Many proxy servers
+		// don't support HTTP/2 CONNECT, which Go may negotiate via ALPN when
+		// TLS-connecting to an https:// proxy.
+		transport = withProxyTransport(transport, proxyURL, "")
+	}
+	// For http:// and socks5:// proxies from standard env vars, the cloned
+	// transport's default Proxy handles them correctly without intervention.
+
+	var rt http.RoundTripper = transport
 	if opts.AccessToken == "" && opts.OAuthToken != nil {
-		transport = &oauth.Transport{
+		rt = &oauth.Transport{
 			Base:  transport,
 			Token: opts.OAuthToken,
 		}
 	}
-
-	return transport
+	return rt
 }
 
 // envProxyURL resolves the proxy URL
