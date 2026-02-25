@@ -96,23 +96,10 @@ type ClientOpts struct {
 var ErrCIAccessTokenRequired = errors.New("SRC_ACCESS_TOKEN must be set when CI=true")
 
 func buildTransport(opts ClientOpts, flags *Flags) http.RoundTripper {
-	var transport http.RoundTripper
-	{
-		tp := http.DefaultTransport.(*http.Transport).Clone()
+	transport := http.DefaultTransport.(*http.Transport).Clone()
 
-		if flags.insecureSkipVerify != nil && *flags.insecureSkipVerify {
-			tp.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
-		}
-
-		if tp.TLSClientConfig == nil {
-			tp.TLSClientConfig = &tls.Config{}
-		}
-
-		if opts.ProxyURL != nil || opts.ProxyPath != "" {
-			tp = withProxyTransport(tp, opts.ProxyURL, opts.ProxyPath)
-		}
-
-		transport = tp
+	if flags.insecureSkipVerify != nil && *flags.insecureSkipVerify {
+		transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 	}
 
 	// not we do not fail here if requireAccessToken is true, because that would
@@ -121,8 +108,7 @@ func buildTransport(opts ClientOpts, flags *Flags) http.RoundTripper {
 	if opts.AccessToken == "" && opts.OAuthToken != nil {
 		transport = oauth.NewTransport(transport, opts.OAuthToken)
 	}
-
-	return transport
+	return rt
 }
 
 // envProxyURL resolves the proxy URL
