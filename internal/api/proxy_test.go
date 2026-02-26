@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
@@ -18,7 +19,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-	"context"
 )
 
 // waitForServerReady polls the server until it's ready to accept connections
