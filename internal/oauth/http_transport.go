@@ -58,3 +58,8 @@ func maybeRefresh(ctx context.Context, token *Token) (*Token, error) {
 	next.ClientID = token.ClientID
 	return next, nil
 }
+
+func IsOAuthTransport(trp http.RoundTripper) bool {
+	_, ok := trp.(*Transport)
+	return ok
+}
