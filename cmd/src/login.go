@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
+	"runtime"
 	"strings"
 	"time"
 
@@ -170,9 +172,7 @@ func loginCmd(ctx context.Context, p loginParams) error {
 
 	if p.useOAuth {
 		fmt.Fprintln(out)
-		fmt.Fprintf(out, "To use this access token, set the following environment variables in your terminal:\n\n")
-		fmt.Fprintf(out, "   export SRC_ENDPOINT=%s\n", endpointArg)
-		fmt.Fprintf(out, "   export SRC_ACCESS_TOKEN=%s\n", cfg.AccessToken)
+		fmt.Fprintf(out, "Authenticated with OAuth credentials")
 	}
 
 	fmt.Fprintln(out)
@@ -185,12 +185,16 @@ func runOAuthDeviceFlow(ctx context.Context, endpoint string, out io.Writer, cli
 		return "", err
 	}
 
-	fmt.Fprintln(out)
-	fmt.Fprintf(out, "To authenticate, visit %s and enter the code: %s\n", authResp.VerificationURI, authResp.UserCode)
-	if authResp.VerificationURIComplete != "" {
-		fmt.Fprintln(out)
-		fmt.Fprintf(out, "Alternatively, you can open: %s\n", authResp.VerificationURIComplete)
+	authURL := authResp.VerificationURIComplete
+	msg := fmt.Sprintf("If your browser did not open automatically, visit %s.", authURL)
+	if authURL == "" {
+		authURL = authResp.VerificationURI
+		msg = fmt.Sprintf("If your browser did not open automatically, visit %s and enter the user code %s", authURL, authResp.DeviceCode)
 	}
+	_ = openInBrowser(authURL)
+	fmt.Fprintln(out)
+	fmt.Fprint(out, msg)
+
 	fmt.Fprintln(out)
 	fmt.Fprint(out, "Waiting for authorization...")
 	defer fmt.Fprintf(out, "DONE\n\n")
@@ -206,4 +210,22 @@ func runOAuthDeviceFlow(ctx context.Context, endpoint string, out io.Writer, cli
 	}
 
 	return tokenResp.AccessToken, nil
+}
+
+func openInBrowser(url string) error {
+	if url == "" {
+		return nil
+	}
+
+	var cmd *exec.Cmd
+	switch runtime.GOOS {
+	case "darwin":
+		cmd = exec.Command("open", url)
+	case "windows":
+		// "start" is a cmd.exe built-in; the empty string is the window title.
+		cmd = exec.Command("cmd", "/c", "start", "", url)
+	default:
+		cmd = exec.Command("xdg-open", url)
+	}
+	return cmd.Run()
 }
