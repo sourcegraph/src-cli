@@ -74,7 +74,6 @@ Examples:
 			endpoint:         endpoint,
 			out:              os.Stdout,
 			useOAuth:         *useOAuth,
-			oauthClientID:    *OAuthClientID,
 			apiFlags:         apiFlags,
 			deviceFlowClient: oauth.NewClient(oauth.DefaultClientID),
 		})
@@ -93,7 +92,6 @@ type loginParams struct {
 	endpoint         string
 	out              io.Writer
 	useOAuth         bool
-	oauthClientID    string
 	apiFlags         *api.Flags
 	deviceFlowClient oauth.Client
 }
@@ -127,7 +125,7 @@ func loginCmd(ctx context.Context, p loginParams) error {
 	cfg.Endpoint = endpointArg
 
 	if p.useOAuth {
-		token, err := runOAuthDeviceFlow(ctx, endpointArg, p.oauthClientID, out, p.deviceFlowClient)
+		token, err := runOAuthDeviceFlow(ctx, endpointArg, out, p.deviceFlowClient)
 		if err != nil {
 			printProblem(fmt.Sprintf("OAuth Device flow authentication failed: %s", err))
 			fmt.Fprintln(out, createAccessTokenMessage)
@@ -194,7 +192,7 @@ func loginCmd(ctx context.Context, p loginParams) error {
 	return nil
 }
 
-func runOAuthDeviceFlow(ctx context.Context, endpoint, clientID string, out io.Writer, client oauth.Client) (*oauth.Token, error) {
+func runOAuthDeviceFlow(ctx context.Context, endpoint string, out io.Writer, client oauth.Client) (*oauth.Token, error) {
 	authResp, err := client.Start(ctx, endpoint, nil)
 	if err != nil {
 		return nil, err
@@ -225,7 +223,7 @@ func runOAuthDeviceFlow(ctx context.Context, endpoint, clientID string, out io.W
 	}
 
 	token := resp.Token(endpoint)
-	token.ClientID = clientID
+	token.ClientID = client.ClientID()
 	return token, nil
 }
 
