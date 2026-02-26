@@ -18,7 +18,40 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"context"
 )
+
+// waitForServerReady polls the server until it's ready to accept connections
+func waitForServerReady(t *testing.T, addr string, useTLS bool, timeout time.Duration) {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	for {
+		select {
+		case <-ctx.Done():
+			t.Fatalf("server at %s did not become ready within %v", addr, timeout)
+		default:
+		}
+
+		var conn net.Conn
+		var err error
+
+		if useTLS {
+			conn, err = tls.Dial("tcp", addr, &tls.Config{InsecureSkipVerify: true})
+		} else {
+			conn, err = net.Dial("tcp", addr)
+		}
+
+		if err == nil {
+			conn.Close()
+			return // Server is ready
+		}
+
+		time.Sleep(1 * time.Millisecond)
+	}
+}
 
 // startCONNECTProxy starts an HTTP or HTTPS CONNECT proxy on a random port.
 // It returns the proxy URL and a channel that receives the protocol observed by
@@ -76,12 +109,13 @@ func startCONNECTProxy(t *testing.T, useTLS bool) (proxyURL *url.URL, obsCh <-ch
 		cert := generateTestCert(t, "127.0.0.1")
 		srv.TLSConfig = &tls.Config{Certificates: []tls.Certificate{cert}}
 		go srv.ServeTLS(ln, "", "")
-		// Give the TLS server a moment to start up to avoid race conditions
-		time.Sleep(10 * time.Millisecond)
 	} else {
 		go srv.Serve(ln)
 	}
 	t.Cleanup(func() { srv.Close() })
+
+	// Wait for the server to be ready
+	waitForServerReady(t, ln.Addr().String(), useTLS, 5*time.Second)
 
 	scheme := "http"
 	if useTLS {
@@ -146,12 +180,13 @@ func startCONNECTProxyWithAuth(t *testing.T, useTLS bool, wantUser, wantPass str
 		cert := generateTestCert(t, "127.0.0.1")
 		srv.TLSConfig = &tls.Config{Certificates: []tls.Certificate{cert}}
 		go srv.ServeTLS(ln, "", "")
-		// Give the TLS server a moment to start up to avoid race conditions
-		time.Sleep(10 * time.Millisecond)
 	} else {
 		go srv.Serve(ln)
 	}
 	t.Cleanup(func() { srv.Close() })
+
+	// Wait for the server to be ready
+	waitForServerReady(t, ln.Addr().String(), useTLS, 5*time.Second)
 
 	scheme := "http"
 	if useTLS {
