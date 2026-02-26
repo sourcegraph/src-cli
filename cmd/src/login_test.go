@@ -18,7 +18,7 @@ func TestLogin(t *testing.T) {
 		t.Helper()
 
 		var out bytes.Buffer
-		err = loginCmd(context.Background(), cfg, cfg.apiClient(nil, io.Discard), endpointArg, &out)
+		err = loginCmd(context.Background(), loginParams{cfg: cfg, client: cfg.apiClient(nil, io.Discard), endpoint: endpointArg, out: &out})
 		return strings.TrimSpace(out.String()), err
 	}
 
