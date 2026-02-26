@@ -68,6 +68,7 @@ type Client interface {
 	Discover(ctx context.Context, endpoint string) (*OIDCConfiguration, error)
 	Start(ctx context.Context, endpoint string, scopes []string) (*DeviceAuthResponse, error)
 	Poll(ctx context.Context, endpoint, deviceCode string, interval time.Duration, expiresIn int) (*TokenResponse, error)
+	Refresh(ctx context.Context, endpoint, refreshToken string) (*TokenResponse, error)
 }
 
 type httpClient struct {
@@ -145,7 +146,7 @@ func (c *httpClient) Discover(ctx context.Context, endpoint string) (*OIDCConfig
 func (c *httpClient) Start(ctx context.Context, endpoint string, scopes []string) (*DeviceAuthResponse, error) {
 	endpoint = strings.TrimRight(endpoint, "/")
 
-	// Discover OIDC configuration
+	// Discover OIDC configuration - caches on first call
 	config, err := c.Discover(ctx, endpoint)
 	if err != nil {
 		return nil, errors.Wrap(err, "OIDC discovery failed")
@@ -208,7 +209,7 @@ func (c *httpClient) Start(ctx context.Context, endpoint string, scopes []string
 func (c *httpClient) Poll(ctx context.Context, endpoint, deviceCode string, interval time.Duration, expiresIn int) (*TokenResponse, error) {
 	endpoint = strings.TrimRight(endpoint, "/")
 
-	// Discover OIDC configuration (should be cached from Start)
+	// Discover OIDC configuration - caches on first call
 	config, err := c.Discover(ctx, endpoint)
 	if err != nil {
 		return nil, errors.Wrap(err, "OIDC discovery failed")
@@ -303,6 +304,58 @@ func (c *httpClient) pollOnce(ctx context.Context, tokenEndpoint, deviceCode str
 	var tokenResp TokenResponse
 	if err := json.Unmarshal(body, &tokenResp); err != nil {
 		return nil, errors.Wrap(err, "parsing token response")
+	}
+
+	return &tokenResp, nil
+}
+
+// Refresh exchanges a refresh token for a new access token.
+func (c *httpClient) Refresh(ctx context.Context, endpoint, refreshToken string) (*TokenResponse, error) {
+	endpoint = strings.TrimRight(endpoint, "/")
+
+	config, err := c.Discover(ctx, endpoint)
+	if err != nil {
+		return nil, errors.Wrap(err, "OIDC discovery failed")
+	}
+
+	if config.TokenEndpoint == "" {
+		return nil, errors.New("token endpoint not found in OIDC configuration")
+	}
+
+	data := url.Values{}
+	data.Set("client_id", c.clientID)
+	data.Set("grant_type", "refresh_token")
+	data.Set("refresh_token", refreshToken)
+
+	req, err := http.NewRequestWithContext(ctx, "POST", config.TokenEndpoint, strings.NewReader(data.Encode()))
+	if err != nil {
+		return nil, errors.Wrap(err, "creating refresh token request")
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return nil, errors.Wrap(err, "refresh token request failed")
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, errors.Wrap(err, "reading refresh token response")
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		var errResp ErrorResponse
+		if err := json.Unmarshal(body, &errResp); err == nil && errResp.Error != "" {
+			return nil, errors.Newf("refresh token failed: %s: %s", errResp.Error, errResp.ErrorDescription)
+		}
+		return nil, errors.Newf("refresh token failed with status %d: %s", resp.StatusCode, string(body))
+	}
+
+	var tokenResp TokenResponse
+	if err := json.Unmarshal(body, &tokenResp); err != nil {
+		return nil, errors.Wrap(err, "parsing refresh token response")
 	}
 
 	return &tokenResp, nil
