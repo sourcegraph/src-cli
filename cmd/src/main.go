@@ -138,6 +138,9 @@ func (c *config) apiClient(flags *api.Flags, out io.Writer) api.Client {
 	if c.AccessToken == "" {
 		if t, err := oauthdevice.LoadToken(context.Background(), c.Endpoint); err == nil {
 			opts.OAuthToken = t
+		} else {
+			// TODO(burmudar): should return an error instead
+			panic("No access token set and no OAuth token found either - unable to create api client: " + err.Error())
 		}
 	}
 

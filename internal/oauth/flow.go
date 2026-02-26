@@ -3,6 +3,7 @@
 package oauth
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -67,6 +68,7 @@ type TokenResponse struct {
 
 type Token struct {
 	Endpoint     string    `json:"endpoint"`
+	ClientID     string    `json:"client_id,omitempty"`
 	AccessToken  string    `json:"access_token"`
 	RefreshToken string    `json:"refresh_token,omitempty"`
 	ExpiresAt    time.Time `json:"expires_at"`
@@ -92,17 +94,14 @@ type httpClient struct {
 }
 
 func NewClient(clientID string) Client {
-	return &httpClient{
-		clientID: clientID,
-		client: &http.Client{
-			Timeout: 30 * time.Second,
-		},
-		configCache: make(map[string]*OIDCConfiguration),
-	}
+	return NewClientWithHTTPClient(clientID, &http.Client{
+		Timeout: 30 * time.Second,
+	})
 }
 
-func NewClientWithHTTPClient(c *http.Client) Client {
+func NewClientWithHTTPClient(clientID string, c *http.Client) Client {
 	return &httpClient{
+		clientID:    cmp.Or(clientID, DefaultClientID),
 		client:      c,
 		configCache: make(map[string]*OIDCConfiguration),
 	}
@@ -170,7 +169,7 @@ func (c *httpClient) Start(ctx context.Context, endpoint string, scopes []string
 	}
 
 	data := url.Values{}
-	data.Set("client_id", DefaultClientID)
+	data.Set("client_id", c.clientID)
 	if len(scopes) > 0 {
 		data.Set("scope", strings.Join(scopes, " "))
 	} else {
@@ -284,7 +283,7 @@ func (e *PollError) Error() string {
 
 func (c *httpClient) pollOnce(ctx context.Context, tokenEndpoint, deviceCode string) (*TokenResponse, error) {
 	data := url.Values{}
-	data.Set("client_id", DefaultClientID)
+	data.Set("client_id", c.clientID)
 	data.Set("device_code", deviceCode)
 	data.Set("grant_type", GrantTypeDeviceCode)
 
@@ -326,11 +325,11 @@ func (c *httpClient) pollOnce(ctx context.Context, tokenEndpoint, deviceCode str
 func (c *httpClient) Refresh(ctx context.Context, token *Token) (*TokenResponse, error) {
 	config, err := c.Discover(ctx, token.Endpoint)
 	if err != nil {
-		errors.Wrap(err, "failed to discover OIDC configuration")
+		return nil, errors.Wrap(err, "failed to discover OIDC configuration")
 	}
 
 	if config.TokenEndpoint == "" {
-		errors.New("OIDC configuration has no token endpoint")
+		return nil, errors.New("OIDC configuration has no token endpoint")
 	}
 
 	data := url.Values{}
