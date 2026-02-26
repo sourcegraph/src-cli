@@ -76,6 +76,8 @@ func startCONNECTProxy(t *testing.T, useTLS bool) (proxyURL *url.URL, obsCh <-ch
 		cert := generateTestCert(t, "127.0.0.1")
 		srv.TLSConfig = &tls.Config{Certificates: []tls.Certificate{cert}}
 		go srv.ServeTLS(ln, "", "")
+		// Give the TLS server a moment to start up to avoid race conditions
+		time.Sleep(10 * time.Millisecond)
 	} else {
 		go srv.Serve(ln)
 	}
@@ -144,6 +146,8 @@ func startCONNECTProxyWithAuth(t *testing.T, useTLS bool, wantUser, wantPass str
 		cert := generateTestCert(t, "127.0.0.1")
 		srv.TLSConfig = &tls.Config{Certificates: []tls.Certificate{cert}}
 		go srv.ServeTLS(ln, "", "")
+		// Give the TLS server a moment to start up to avoid race conditions
+		time.Sleep(10 * time.Millisecond)
 	} else {
 		go srv.Serve(ln)
 	}
