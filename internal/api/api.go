@@ -183,6 +183,7 @@ func (c *client) createHTTPRequest(ctx context.Context, method, p string, body i
 	} else {
 		req.Header.Set("User-Agent", "src-cli/"+version.BuildTag)
 	}
+
 	if c.opts.AccessToken != "" {
 		req.Header.Set("Authorization", "token "+c.opts.AccessToken)
 	}
@@ -264,10 +265,20 @@ func (r *request) do(ctx context.Context, result any) (bool, error) {
 	// confirm the status code. You can test this easily with e.g. an invalid
 	// endpoint like -endpoint=https://google.com
 	if resp.StatusCode != http.StatusOK {
-		if resp.StatusCode == http.StatusUnauthorized && isatty.IsCygwinTerminal(os.Stdout.Fd()) {
-			fmt.Println("You may need to specify or update your access token to use this endpoint.")
-			fmt.Println("See https://github.com/sourcegraph/src-cli#readme")
-			fmt.Println("")
+		if resp.StatusCode == http.StatusUnauthorized {
+			if oauth.IsOAuthTransport(r.client.httpClient.Transport) {
+				fmt.Println("The OAuth token is invalid. Please check that the Sourcegraph CLI client is still authorized.")
+				fmt.Println("")
+				fmt.Println("To re-authorize, run: src login")
+				fmt.Println("")
+				fmt.Println("Learn more at https://github.com/sourcegraph/src-cli#readme")
+				fmt.Println("")
+			}
+			if isatty.IsCygwinTerminal(os.Stdout.Fd()) {
+				fmt.Println("You may need to specify or update your access token to use this endpoint.")
+				fmt.Println("See https://github.com/sourcegraph/src-cli#readme")
+				fmt.Println("")
+			}
 		}
 		body, err := io.ReadAll(resp.Body)
 		if err != nil {
