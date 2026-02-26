@@ -74,6 +74,7 @@ Examples:
 			endpoint:         endpoint,
 			out:              os.Stdout,
 			useOAuth:         *useOAuth,
+			oauthClientID:    *OAuthClientID,
 			apiFlags:         apiFlags,
 			deviceFlowClient: oauth.NewClient(oauth.DefaultClientID),
 		})
@@ -92,6 +93,7 @@ type loginParams struct {
 	endpoint         string
 	out              io.Writer
 	useOAuth         bool
+	oauthClientID    string
 	apiFlags         *api.Flags
 	deviceFlowClient oauth.Client
 }
@@ -125,7 +127,7 @@ func loginCmd(ctx context.Context, p loginParams) error {
 	cfg.Endpoint = endpointArg
 
 	if p.useOAuth {
-		token, err := runOAuthDeviceFlow(ctx, endpointArg, out, p.deviceFlowClient)
+		token, err := runOAuthDeviceFlow(ctx, endpointArg, p.oauthClientID, out, p.deviceFlowClient)
 		if err != nil {
 			printProblem(fmt.Sprintf("OAuth Device flow authentication failed: %s", err))
 			fmt.Fprintln(out, createAccessTokenMessage)
@@ -133,11 +135,19 @@ func loginCmd(ctx context.Context, p loginParams) error {
 		}
 
 		if err := oauth.StoreToken(ctx, token); err != nil {
-			printProblem(fmt.Sprintf("Failed to store token in keyring store: %s", err))
-			return cmderrors.ExitCode1
+			fmt.Fprintln(out)
+			fmt.Fprintf(out, "⚠️  Warning: Failed to store token in keyring store: %q. Continuing with this session only.\n", err)
 		}
 
-		client = cfg.apiClient(p.apiFlags, out)
+		client = api.NewClient(api.ClientOpts{
+			Endpoint:          cfg.Endpoint,
+			AdditionalHeaders: cfg.AdditionalHeaders,
+			Flags:             p.apiFlags,
+			Out:               out,
+			ProxyURL:          cfg.ProxyURL,
+			ProxyPath:         cfg.ProxyPath,
+			OAuthToken:        token,
+		})
 	} else if noToken || endpointConflict {
 		fmt.Fprintln(out)
 		switch {
@@ -184,7 +194,7 @@ func loginCmd(ctx context.Context, p loginParams) error {
 	return nil
 }
 
-func runOAuthDeviceFlow(ctx context.Context, endpoint string, out io.Writer, client oauth.Client) (*oauth.Token, error) {
+func runOAuthDeviceFlow(ctx context.Context, endpoint, clientID string, out io.Writer, client oauth.Client) (*oauth.Token, error) {
 	authResp, err := client.Start(ctx, endpoint, nil)
 	if err != nil {
 		return nil, err
@@ -214,7 +224,9 @@ func runOAuthDeviceFlow(ctx context.Context, endpoint string, out io.Writer, cli
 		return nil, err
 	}
 
-	return resp.Token(endpoint), nil
+	token := resp.Token(endpoint)
+	token.ClientID = clientID
+	return token, nil
 }
 
 func openInBrowser(url string) error {

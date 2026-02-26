@@ -555,3 +555,19 @@ func TestRefresh_Success(t *testing.T) {
 		t.Errorf("RefreshToken = %q, want %q", resp.RefreshToken, "new-refresh-token")
 	}
 }
+
+func TestRefresh_DiscoverFailure(t *testing.T) {
+	client := NewClient(DefaultClientID)
+	token := &Token{
+		Endpoint:     "http://127.0.0.1:1",
+		RefreshToken: "test-refresh-token",
+	}
+
+	_, err := client.Refresh(context.Background(), token)
+	if err == nil {
+		t.Fatal("Refresh() expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "failed to discover OIDC configuration") {
+		t.Errorf("error = %q, want discovery failure context", err.Error())
+	}
+}
