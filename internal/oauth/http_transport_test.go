@@ -2,11 +2,12 @@ package oauth
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	"github.com/sourcegraph/sourcegraph/lib/errors"
 )
 
 type roundTripperFunc func(*http.Request) (*http.Response, error)
