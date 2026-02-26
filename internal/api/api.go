@@ -18,7 +18,7 @@ import (
 	"github.com/kballard/go-shellquote"
 	"github.com/mattn/go-isatty"
 
-	"github.com/sourcegraph/src-cli/internal/oauthdevice"
+	"github.com/sourcegraph/src-cli/internal/oauth"
 	"github.com/sourcegraph/src-cli/internal/version"
 )
 
@@ -87,7 +87,7 @@ type ClientOpts struct {
 	ProxyURL  *url.URL
 	ProxyPath string
 
-	OAuthToken *oauthdevice.Token
+	OAuthToken *oauth.Token
 }
 
 func buildTransport(opts ClientOpts, flags *Flags) http.RoundTripper {
@@ -111,7 +111,7 @@ func buildTransport(opts ClientOpts, flags *Flags) http.RoundTripper {
 	}
 
 	if opts.AccessToken == "" && opts.OAuthToken != nil {
-		transport = &oauthdevice.Transport{
+		transport = &oauth.Transport{
 			Base:  transport,
 			Token: opts.OAuthToken,
 		}

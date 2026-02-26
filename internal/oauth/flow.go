@@ -80,6 +80,7 @@ type ErrorResponse struct {
 }
 
 type Client interface {
+	ClientID() string
 	Discover(ctx context.Context, endpoint string) (*OIDCConfiguration, error)
 	Start(ctx context.Context, endpoint string, scopes []string) (*DeviceAuthResponse, error)
 	Poll(ctx context.Context, endpoint, deviceCode string, interval time.Duration, expiresIn int) (*TokenResponse, error)
@@ -105,6 +106,10 @@ func NewClientWithHTTPClient(clientID string, c *http.Client) Client {
 		client:      c,
 		configCache: make(map[string]*OIDCConfiguration),
 	}
+}
+
+func (c *httpClient) ClientID() string {
+	return c.clientID
 }
 
 // Discover fetches the openid-configuration which contains all the routes a client should
