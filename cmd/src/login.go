@@ -112,7 +112,9 @@ func loginCmd(ctx context.Context, p loginParams) error {
    export SRC_ACCESS_TOKEN=(your access token)
 
    To verify that it's working, run the login command again.
-`, endpointArg, endpointArg)
+
+   Alternatively, you can try logging in using OAuth by running: src login --oauth %s
+`, endpointArg, endpointArg, endpointArg)
 
 	if cfg.ConfigFilePath != "" {
 		fmt.Fprintln(out)
@@ -121,19 +123,7 @@ func loginCmd(ctx context.Context, p loginParams) error {
 
 	noToken := cfg.AccessToken == ""
 	endpointConflict := endpointArg != cfg.Endpoint
-
-	if p.useOAuth {
-		token, err := runOAuthDeviceFlow(ctx, endpointArg, out, p.deviceFlowClient)
-		if err != nil {
-			printProblem(fmt.Sprintf("OAuth Device flow authentication failed: %s", err))
-			fmt.Fprintln(out, createAccessTokenMessage)
-			return cmderrors.ExitCode1
-		}
-
-		cfg.AccessToken = token
-		cfg.Endpoint = endpointArg
-		client = cfg.apiClient(p.apiFlags, out)
-	} else if noToken || endpointConflict {
+	if !p.useOAuth && (noToken || endpointConflict) {
 		fmt.Fprintln(out)
 		switch {
 		case noToken:
@@ -143,6 +133,30 @@ func loginCmd(ctx context.Context, p loginParams) error {
 		}
 		fmt.Fprintln(out, createAccessTokenMessage)
 		return cmderrors.ExitCode1
+	}
+
+	if p.useOAuth {
+		token, err := runOAuthDeviceFlow(ctx, endpointArg, out, p.deviceFlowClient)
+		if err != nil {
+			printProblem(fmt.Sprintf("OAuth Device flow authentication failed: %s", err))
+			fmt.Fprintln(out, createAccessTokenMessage)
+			return cmderrors.ExitCode1
+		}
+
+		if err := oauth.StoreToken(ctx, token); err != nil {
+			fmt.Fprintln(out)
+			fmt.Fprintf(out, "⚠️  Warning: Failed to store token in keyring store: %q. Continuing with this session only.\n", err)
+		}
+
+		client = api.NewClient(api.ClientOpts{
+			Endpoint:          cfg.Endpoint,
+			AdditionalHeaders: cfg.AdditionalHeaders,
+			Flags:             p.apiFlags,
+			Out:               out,
+			ProxyURL:          cfg.ProxyURL,
+			ProxyPath:         cfg.ProxyPath,
+			OAuthToken:        token,
+		})
 	}
 
 	// See if the user is already authenticated.
@@ -179,10 +193,10 @@ func loginCmd(ctx context.Context, p loginParams) error {
 	return nil
 }
 
-func runOAuthDeviceFlow(ctx context.Context, endpoint string, out io.Writer, client oauth.Client) (string, error) {
+func runOAuthDeviceFlow(ctx context.Context, endpoint string, out io.Writer, client oauth.Client) (*oauth.Token, error) {
 	authResp, err := client.Start(ctx, endpoint, nil)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	authURL := authResp.VerificationURIComplete
@@ -204,12 +218,14 @@ func runOAuthDeviceFlow(ctx context.Context, endpoint string, out io.Writer, cli
 		interval = 5 * time.Second
 	}
 
-	tokenResp, err := client.Poll(ctx, endpoint, authResp.DeviceCode, interval, authResp.ExpiresIn)
+	resp, err := client.Poll(ctx, endpoint, authResp.DeviceCode, interval, authResp.ExpiresIn)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
-	return tokenResp.AccessToken, nil
+	token := resp.Token(endpoint)
+	token.ClientID = client.ClientID()
+	return token, nil
 }
 
 func openInBrowser(url string) error {

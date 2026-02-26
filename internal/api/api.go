@@ -18,6 +18,7 @@ import (
 	"github.com/kballard/go-shellquote"
 	"github.com/mattn/go-isatty"
 
+	"github.com/sourcegraph/src-cli/internal/oauth"
 	"github.com/sourcegraph/src-cli/internal/version"
 )
 
@@ -85,21 +86,35 @@ type ClientOpts struct {
 
 	ProxyURL  *url.URL
 	ProxyPath string
+
+	OAuthToken *oauth.Token
 }
 
-func buildTransport(opts ClientOpts, flags *Flags) *http.Transport {
-	transport := http.DefaultTransport.(*http.Transport).Clone()
+func buildTransport(opts ClientOpts, flags *Flags) http.RoundTripper {
+	var transport http.RoundTripper
+	{
+		tp := http.DefaultTransport.(*http.Transport).Clone()
 
-	if flags.insecureSkipVerify != nil && *flags.insecureSkipVerify {
-		transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+		if flags.insecureSkipVerify != nil && *flags.insecureSkipVerify {
+			tp.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+		}
+
+		if tp.TLSClientConfig == nil {
+			tp.TLSClientConfig = &tls.Config{}
+		}
+
+		if opts.ProxyURL != nil || opts.ProxyPath != "" {
+			tp = withProxyTransport(tp, opts.ProxyURL, opts.ProxyPath)
+		}
+
+		transport = tp
 	}
 
-	if transport.TLSClientConfig == nil {
-		transport.TLSClientConfig = &tls.Config{}
-	}
-
-	if opts.ProxyURL != nil || opts.ProxyPath != "" {
-		transport = withProxyTransport(transport, opts.ProxyURL, opts.ProxyPath)
+	if opts.AccessToken == "" && opts.OAuthToken != nil {
+		transport = &oauth.Transport{
+			Base:  transport,
+			Token: opts.OAuthToken,
+		}
 	}
 
 	return transport
@@ -168,6 +183,7 @@ func (c *client) createHTTPRequest(ctx context.Context, method, p string, body i
 	} else {
 		req.Header.Set("User-Agent", "src-cli/"+version.BuildTag)
 	}
+
 	if c.opts.AccessToken != "" {
 		req.Header.Set("Authorization", "token "+c.opts.AccessToken)
 	}
@@ -249,10 +265,20 @@ func (r *request) do(ctx context.Context, result any) (bool, error) {
 	// confirm the status code. You can test this easily with e.g. an invalid
 	// endpoint like -endpoint=https://google.com
 	if resp.StatusCode != http.StatusOK {
-		if resp.StatusCode == http.StatusUnauthorized && isatty.IsCygwinTerminal(os.Stdout.Fd()) {
-			fmt.Println("You may need to specify or update your access token to use this endpoint.")
-			fmt.Println("See https://github.com/sourcegraph/src-cli#readme")
-			fmt.Println("")
+		if resp.StatusCode == http.StatusUnauthorized {
+			if oauth.IsOAuthTransport(r.client.httpClient.Transport) {
+				fmt.Println("The OAuth token is invalid. Please check that the Sourcegraph CLI client is still authorized.")
+				fmt.Println("")
+				fmt.Printf("To re-authorize, run: src login --oauth %s\n", r.client.opts.Endpoint)
+				fmt.Println("")
+				fmt.Println("Learn more at https://github.com/sourcegraph/src-cli#readme")
+				fmt.Println("")
+			}
+			if isatty.IsCygwinTerminal(os.Stdout.Fd()) {
+				fmt.Println("You may need to specify or update your access token to use this endpoint.")
+				fmt.Println("See https://github.com/sourcegraph/src-cli#readme")
+				fmt.Println("")
+			}
 		}
 		body, err := io.ReadAll(resp.Body)
 		if err != nil {
