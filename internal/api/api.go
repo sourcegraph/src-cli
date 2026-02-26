@@ -269,7 +269,7 @@ func (r *request) do(ctx context.Context, result any) (bool, error) {
 			if oauth.IsOAuthTransport(r.client.httpClient.Transport) {
 				fmt.Println("The OAuth token is invalid. Please check that the Sourcegraph CLI client is still authorized.")
 				fmt.Println("")
-				fmt.Println("To re-authorize, run: src login")
+				fmt.Printf("To re-authorize, run: src login --oauth %s\n", r.client.opts.Endpoint)
 				fmt.Println("")
 				fmt.Println("Learn more at https://github.com/sourcegraph/src-cli#readme")
 				fmt.Println("")
