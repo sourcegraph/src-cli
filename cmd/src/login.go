@@ -112,7 +112,9 @@ func loginCmd(ctx context.Context, p loginParams) error {
    export SRC_ACCESS_TOKEN=(your access token)
 
    To verify that it's working, run the login command again.
-`, endpointArg, endpointArg)
+
+   Alternatively, you can try logging in using OAuth by running: src login --oauth %s
+`, endpointArg, endpointArg, endpointArg)
 
 	if cfg.ConfigFilePath != "" {
 		fmt.Fprintln(out)
@@ -121,8 +123,17 @@ func loginCmd(ctx context.Context, p loginParams) error {
 
 	noToken := cfg.AccessToken == ""
 	endpointConflict := endpointArg != cfg.Endpoint
-
-	cfg.Endpoint = endpointArg
+	if !p.useOAuth && (noToken || endpointConflict) {
+		fmt.Fprintln(out)
+		switch {
+		case noToken:
+			printProblem("No access token is configured.")
+		case endpointConflict:
+			printProblem(fmt.Sprintf("The configured endpoint is %s, not %s.", cfg.Endpoint, endpointArg))
+		}
+		fmt.Fprintln(out, createAccessTokenMessage)
+		return cmderrors.ExitCode1
+	}
 
 	if p.useOAuth {
 		token, err := runOAuthDeviceFlow(ctx, endpointArg, out, p.deviceFlowClient)
@@ -146,16 +157,6 @@ func loginCmd(ctx context.Context, p loginParams) error {
 			ProxyPath:         cfg.ProxyPath,
 			OAuthToken:        token,
 		})
-	} else if noToken || endpointConflict {
-		fmt.Fprintln(out)
-		switch {
-		case noToken:
-			printProblem("No access token is configured.")
-		case endpointConflict:
-			printProblem(fmt.Sprintf("The configured endpoint is %s, not %s.", cfg.Endpoint, endpointArg))
-		}
-		fmt.Fprintln(out, createAccessTokenMessage)
-		return cmderrors.ExitCode1
 	}
 
 	// See if the user is already authenticated.
