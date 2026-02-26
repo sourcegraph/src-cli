@@ -660,7 +660,7 @@ func (e stepFailedErr) Error() string {
 		return lines[0] + fmt.Sprintf("\n\t(... and %d more lines)", len(lines)-1)
 	}
 
-	out.WriteString(fmt.Sprintf("run: %s\ncontainer: %s\n", fmtRun(e.Run), e.Container))
+	fmt.Fprintf(&out, "run: %s\ncontainer: %s\n", fmtRun(e.Run), e.Container)
 
 	printOutput := func(output string) {
 		for line := range strings.SplitSeq(output, "\n") {
@@ -682,9 +682,9 @@ func (e stepFailedErr) Error() string {
 	}
 
 	if e.ExitCode != -1 {
-		out.WriteString(fmt.Sprintf("\nCommand failed with exit code %d.", e.ExitCode))
+		fmt.Fprintf(&out, "\nCommand failed with exit code %d.", e.ExitCode)
 	} else {
-		out.WriteString(fmt.Sprintf("\nCommand failed: %s", e.Err))
+		fmt.Fprintf(&out, "\nCommand failed: %s", e.Err)
 	}
 
 	return out.String()

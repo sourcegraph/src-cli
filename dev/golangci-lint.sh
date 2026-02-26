@@ -6,7 +6,7 @@ pushd "$(dirname "${BASH_SOURCE[0]}")/.." >/dev/null
 
 mkdir -p dev/.bin
 
-version="2.6.1"
+version="2.10.1"
 suffix="${version}-$(go env GOOS)-$(go env GOARCH)"
 target="$PWD/dev/.bin/golangci-lint-${suffix}"
 url="https://github.com/golangci/golangci-lint/releases/download/v${version}/golangci-lint-${suffix}.tar.gz"
