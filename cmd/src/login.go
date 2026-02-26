@@ -38,7 +38,7 @@ Examples:
 
   Override the default client id used during device flow when authenticating:
 
-    $ src login --oauth https://sourcegraph.com --client-id sgo_my_own_client_id
+    $ src login --oauth https://sourcegraph.com
 `
 
 	flagSet := flag.NewFlagSet("login", flag.ExitOnError)
@@ -48,9 +48,8 @@ Examples:
 	}
 
 	var (
-		apiFlags      = api.NewFlags(flagSet)
-		useOAuth      = flagSet.Bool("oauth", false, "Use OAuth device flow to obtain an access token interactively")
-		OAuthClientID = flagSet.String("client-id", oauth.DefaultClientID, "Client ID to use with OAuth device flow. Will use the predefined src cli client ID if not specified.")
+		apiFlags = api.NewFlags(flagSet)
+		useOAuth = flagSet.Bool("oauth", false, "Use OAuth device flow to obtain an access token interactively")
 	)
 
 	handler := func(args []string) error {
@@ -65,10 +64,6 @@ Examples:
 			return cmderrors.Usage("expected exactly one argument: the Sourcegraph URL, or SRC_ENDPOINT to be set")
 		}
 
-		if *OAuthClientID == "" {
-			return cmderrors.Usage("no value specified for client-id")
-		}
-
 		client := cfg.apiClient(apiFlags, io.Discard)
 
 		return loginCmd(context.Background(), loginParams{
@@ -78,7 +73,7 @@ Examples:
 			out:              os.Stdout,
 			useOAuth:         *useOAuth,
 			apiFlags:         apiFlags,
-			deviceFlowClient: oauth.NewClient(*OAuthClientID),
+			deviceFlowClient: oauth.NewClient(oauth.DefaultClientID),
 		})
 	}
 
