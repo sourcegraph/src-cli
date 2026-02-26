@@ -429,7 +429,7 @@ func LoadToken(ctx context.Context, endpoint string) (*Token, error) {
 
 	var t Token
 	if err := json.Unmarshal(data, &t); err != nil {
-		return nil, errors.Wrap(err, "failed to unmarshall token")
+		return nil, errors.Wrap(err, "failed to unmarshal token")
 	}
 
 	return &t, nil
