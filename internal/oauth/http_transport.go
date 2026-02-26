@@ -1,4 +1,4 @@
-package oauthdevice
+package oauth
 
 import (
 	"context"
