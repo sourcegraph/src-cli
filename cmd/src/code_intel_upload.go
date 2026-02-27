@@ -71,7 +71,7 @@ func handleCodeIntelUpload(args []string) error {
 		}
 	}
 	if err != nil {
-		return handleUploadError(cfg.AccessToken, err)
+		return err
 	}
 
 	client := cfg.apiClient(codeintelUploadFlags.apiFlags, io.Discard)
@@ -212,17 +212,22 @@ func (e errorWithHint) Error() string {
 	return fmt.Sprintf("%s\n\n%s\n", e.err, e.hint)
 }
 
-// handleUploadError writes the given error to the given output. If the
-// given output object is nil then the error will be written to standard out.
-//
-// This method returns the error that should be passed back up to the runner.
+// handleUploadError attaches actionable hints to upload errors and returns
+// the enriched error. Only called for actual upload failures (not flag validation).
 func handleUploadError(accessToken string, err error) error {
-	if errors.Is(err, upload.ErrUnauthorized) {
-		err = attachHintsForAuthorizationError(accessToken, err)
+	if httpErr := findAuthError(err); httpErr != nil {
+		isUnauthorized := httpErr.Code == 401
+		isForbidden := httpErr.Code == 403
+
+		displayErr := errors.Newf("upload failed: %s", uploadFailureReason(httpErr))
+
+		err = errorWithHint{
+			err:  displayErr,
+			hint: uploadHints(accessToken, isUnauthorized, isForbidden),
+		}
 	}
 
 	if codeintelUploadFlags.ignoreUploadFailures {
-		// Report but don't return the error
 		fmt.Println(err.Error())
 		return nil
 	}
@@ -230,76 +235,112 @@ func handleUploadError(accessToken string, err error) error {
 	return err
 }
 
-func attachHintsForAuthorizationError(accessToken string, originalError error) error {
-	var actionableHints []string
-
-	likelyTokenError := accessToken == ""
-	if _, parseErr := accesstoken.ParsePersonalAccessToken(accessToken); accessToken != "" && parseErr != nil {
-		likelyTokenError = true
-		actionableHints = append(actionableHints,
-			"However, the provided access token does not match expected format; was it truncated?",
-			"Typically the access token looks like sgp_<40 hex chars> or sgp_<instance-id>_<40 hex chars>.")
-	}
-
-	if likelyTokenError {
-		return errorWithHint{err: originalError, hint: strings.Join(mergeStringSlices(
-			[]string{"A Sourcegraph access token must be provided via SRC_ACCESS_TOKEN for uploading SCIP data."},
-			actionableHints,
-			[]string{"For more details, see https://sourcegraph.com/docs/cli/how-tos/creating_an_access_token."},
-		), "\n")}
-	}
-
-	needsGitHubToken := strings.HasPrefix(codeintelUploadFlags.repo, "github.com")
-	needsGitLabToken := strings.HasPrefix(codeintelUploadFlags.repo, "gitlab.com")
-
-	if needsGitHubToken {
-		if codeintelUploadFlags.gitHubToken != "" {
-			actionableHints = append(actionableHints,
-				fmt.Sprintf("The supplied -github-token does not indicate that you have collaborator access to %s.", codeintelUploadFlags.repo),
-				"Please check the value of the supplied token and its permissions on the code host and try again.",
-			)
-		} else {
-			actionableHints = append(actionableHints,
-				fmt.Sprintf("Please retry your request with a -github-token=XXX with collaborator access to %s.", codeintelUploadFlags.repo),
-				"This token will be used to check with the code host that the uploading user has write access to the target repository.",
-			)
+// findAuthError searches the error chain (including multi-errors from retries)
+// for a 401 or 403 ErrUnexpectedStatusCode. Returns nil if none is found.
+func findAuthError(err error) *ErrUnexpectedStatusCode {
+	// Check if it's a multi-error and scan all children.
+	if multi, ok := err.(errors.MultiError); ok {
+		for _, e := range multi.Errors() {
+			if found := findAuthError(e); found != nil {
+				return found
+			}
 		}
-	} else if needsGitLabToken {
-		if codeintelUploadFlags.gitLabToken != "" {
-			actionableHints = append(actionableHints,
-				fmt.Sprintf("The supplied -gitlab-token does not indicate that you have write access to %s.", codeintelUploadFlags.repo),
-				"Please check the value of the supplied token and its permissions on the code host and try again.",
-			)
-		} else {
-			actionableHints = append(actionableHints,
-				fmt.Sprintf("Please retry your request with a -gitlab-token=XXX with write access to %s.", codeintelUploadFlags.repo),
-				"This token will be used to check with the code host that the uploading user has write access to the target repository.",
-			)
-		}
-	} else {
-		actionableHints = append(actionableHints,
-			"Verification is supported for the following code hosts: github.com, gitlab.com.",
-			"Please request support for additional code host verification at https://github.com/sourcegraph/sourcegraph/issues/4967.",
-		)
+		return nil
 	}
 
-	return errorWithHint{err: originalError, hint: strings.Join(mergeStringSlices(
-		[]string{"This Sourcegraph instance has enforced auth for SCIP uploads."},
-		actionableHints,
-		[]string{"For more details, see https://docs.sourcegraph.com/cli/references/code-intel/upload."},
-	), "\n")}
+	var httpErr *ErrUnexpectedStatusCode
+	if errors.As(err, &httpErr) && (httpErr.Code == 401 || httpErr.Code == 403) {
+		return httpErr
+	}
+	return nil
+}
+
+// uploadHints builds hint paragraphs for the Sourcegraph access token,
+// code host tokens, and a docs link.
+func uploadHints(accessToken string, isUnauthorized, isForbidden bool) string {
+	var causes []string
+
+	if h := sourcegraphAccessTokenHint(accessToken, isUnauthorized, isForbidden); h != "" {
+		causes = append(causes, "- "+h)
+	}
+
+	for _, h := range codeHostTokenHints(isUnauthorized) {
+		causes = append(causes, "- "+h)
+	}
+
+	var parts []string
+	parts = append(parts, "Possible causes:\n"+strings.Join(causes, "\n"))
+	parts = append(parts, "For more details on uploading SCIP indexes, see https://sourcegraph.com/docs/cli/references/code-intel/upload.")
+
+	return strings.Join(parts, "\n\n")
+}
+
+// sourcegraphAccessTokenHint returns a hint about the Sourcegraph access token
+// based on the error type and token state.
+func sourcegraphAccessTokenHint(accessToken string, isUnauthorized, isForbidden bool) string {
+	if isUnauthorized {
+		if accessToken == "" {
+			return "No Sourcegraph access token was provided. Set the SRC_ACCESS_TOKEN environment variable to a valid token."
+		}
+		if _, parseErr := accesstoken.ParsePersonalAccessToken(accessToken); parseErr != nil {
+			return "The provided Sourcegraph access token does not match the expected format (sgp_<40 hex chars> or sgp_<instance-id>_<40 hex chars>). Was it copied incorrectly or truncated?"
+		}
+		return "The Sourcegraph access token may be invalid, expired, or you may be connecting to the wrong Sourcegraph instance."
+	}
+	if isForbidden {
+		return "You may not have sufficient permissions on this Sourcegraph instance."
+	}
+	return ""
+}
+
+// codeHostTokenHints returns hints about GitHub or GitLab tokens.
+func codeHostTokenHints(isUnauthorized bool) []string {
+	if codeintelUploadFlags.gitHubToken != "" || strings.HasPrefix(codeintelUploadFlags.repo, "github.com") {
+		return []string{gitHubTokenHint(isUnauthorized)}
+	}
+	if codeintelUploadFlags.gitLabToken != "" || strings.HasPrefix(codeintelUploadFlags.repo, "gitlab.com") {
+		return []string{gitLabTokenHint(isUnauthorized)}
+	}
+	return []string{"Code host verification is supported for github.com and gitlab.com repositories."}
+}
+
+// gitHubTokenHint returns a hint about the GitHub token.
+// Only called when gitHubToken is set or repo starts with "github.com".
+func gitHubTokenHint(isUnauthorized bool) string {
+	if codeintelUploadFlags.gitHubToken == "" {
+		return fmt.Sprintf("No -github-token was provided. If this Sourcegraph instance enforces code host authentication, retry with -github-token=<token> for a token with access to %s.", codeintelUploadFlags.repo)
+	}
+	if isUnauthorized {
+		return "The supplied -github-token may be invalid."
+	}
+	return "The supplied -github-token may lack the required permissions."
+}
+
+// gitLabTokenHint returns a hint about the GitLab token.
+// Only called when gitLabToken is set or repo starts with "gitlab.com".
+func gitLabTokenHint(isUnauthorized bool) string {
+	if codeintelUploadFlags.gitLabToken == "" {
+		return fmt.Sprintf("No -gitlab-token was provided. If this Sourcegraph instance enforces code host authentication, retry with -gitlab-token=<token> for a token with access to %s.", codeintelUploadFlags.repo)
+	}
+	if isUnauthorized {
+		return "The supplied -gitlab-token may be invalid."
+	}
+	return "The supplied -gitlab-token may lack the required permissions."
+}
+
+// uploadFailureReason returns the server's response body if available, or a
+// generic reason derived from the HTTP status code.
+func uploadFailureReason(httpErr *ErrUnexpectedStatusCode) string {
+	if httpErr.Body != "" {
+		return httpErr.Body
+	}
+	if httpErr.Code == 401 {
+		return "unauthorized"
+	}
+	return "forbidden"
 }
 
 // emergencyOutput creates a default Output object writing to standard out.
 func emergencyOutput() *output.Output {
 	return output.NewOutput(os.Stdout, output.OutputOpts{})
-}
-
-func mergeStringSlices(ss ...[]string) []string {
-	var combined []string
-	for _, s := range ss {
-		combined = append(combined, s...)
-	}
-
-	return combined
 }
