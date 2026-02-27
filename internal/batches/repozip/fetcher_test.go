@@ -5,6 +5,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path"
 	"path/filepath"
@@ -44,7 +45,8 @@ func TestArchive_Ensure(t *testing.T) {
 		defer ts.Close()
 
 		var clientBuffer bytes.Buffer
-		client := api.NewClient(api.ClientOpts{Endpoint: ts.URL, Out: &clientBuffer})
+		u, _ := url.ParseRequestURI(ts.URL)
+		client := api.NewClient(api.ClientOpts{EndpointURL: u, Out: &clientBuffer})
 
 		rf := &archiveRegistry{
 			client:     client,
@@ -89,7 +91,8 @@ func TestArchive_Ensure(t *testing.T) {
 		defer ts.Close()
 
 		var clientBuffer bytes.Buffer
-		client := api.NewClient(api.ClientOpts{Endpoint: ts.URL, Out: &clientBuffer})
+		u, _ := url.ParseRequestURI(ts.URL)
+		client := api.NewClient(api.ClientOpts{EndpointURL: u, Out: &clientBuffer})
 
 		rf := &archiveRegistry{
 			client:     client,
@@ -153,7 +156,8 @@ func TestArchive_Ensure(t *testing.T) {
 		defer ts.Close()
 
 		var clientBuffer bytes.Buffer
-		client := api.NewClient(api.ClientOpts{Endpoint: ts.URL, Out: &clientBuffer})
+		u, _ := url.ParseRequestURI(ts.URL)
+		client := api.NewClient(api.ClientOpts{EndpointURL: u, Out: &clientBuffer})
 
 		rf := &archiveRegistry{
 			client:     client,
@@ -193,7 +197,8 @@ func TestArchive_Ensure(t *testing.T) {
 		defer ts.Close()
 
 		var clientBuffer bytes.Buffer
-		client := api.NewClient(api.ClientOpts{Endpoint: ts.URL, Out: &clientBuffer})
+		u, _ := url.ParseRequestURI(ts.URL)
+		client := api.NewClient(api.ClientOpts{EndpointURL: u, Out: &clientBuffer})
 
 		rf := &archiveRegistry{
 			client:     client,
@@ -262,7 +267,8 @@ func TestArchive_Ensure(t *testing.T) {
 		defer ts.Close()
 
 		var clientBuffer bytes.Buffer
-		client := api.NewClient(api.ClientOpts{Endpoint: ts.URL, Out: &clientBuffer})
+		u, _ := url.ParseRequestURI(ts.URL)
+		client := api.NewClient(api.ClientOpts{EndpointURL: u, Out: &clientBuffer})
 
 		rf := &archiveRegistry{
 			client:     client,

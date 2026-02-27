@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -406,7 +407,8 @@ func TestExecutor_Integration(t *testing.T) {
 
 			// Setup an api.Client that points to this test server
 			var clientBuffer bytes.Buffer
-			client := api.NewClient(api.ClientOpts{Endpoint: ts.URL, Out: &clientBuffer})
+			u, _ := url.ParseRequestURI(ts.URL)
+			client := api.NewClient(api.ClientOpts{EndpointURL: u, Out: &clientBuffer})
 
 			// Temp dir for log files and downloaded archives
 			testTempDir := t.TempDir()
@@ -827,7 +829,8 @@ func testExecuteTasks(t *testing.T, tasks []*Task, archives ...mock.RepoArchive)
 	t.Cleanup(ts.Close)
 
 	var clientBuffer bytes.Buffer
-	client := api.NewClient(api.ClientOpts{Endpoint: ts.URL, Out: &clientBuffer})
+	u, _ := url.ParseRequestURI(ts.URL)
+	client := api.NewClient(api.ClientOpts{EndpointURL: u, Out: &clientBuffer})
 
 	// Prepare images
 	//

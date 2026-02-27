@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"testing"
 
@@ -126,8 +127,10 @@ func TestSearchStream(t *testing.T) {
 	s := testServer(t, http.HandlerFunc(mockStreamHandler))
 	defer s.Close()
 
+	u, _ := url.ParseRequestURI(s.URL)
 	cfg = &config{
-		Endpoint: s.URL,
+		Endpoint:    s.URL,
+		EndpointURL: u,
 	}
 	defer func() { cfg = nil }()
 

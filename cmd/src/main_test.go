@@ -42,7 +42,11 @@ func TestReadConfig(t *testing.T) {
 		{
 			name: "defaults",
 			want: &config{
-				Endpoint:          "https://sourcegraph.com",
+				Endpoint: "https://sourcegraph.com",
+				EndpointURL: &url.URL{
+					Scheme: "https",
+					Host:   "sourcegraph.com",
+				},
 				AdditionalHeaders: map[string]string{},
 			},
 		},
@@ -54,7 +58,11 @@ func TestReadConfig(t *testing.T) {
 				Proxy:       "https://proxy.com:8080",
 			},
 			want: &config{
-				Endpoint:          "https://example.com",
+				Endpoint: "https://example.com",
+				EndpointURL: &url.URL{
+					Scheme: "https",
+					Host:   "example.com",
+				},
 				AccessToken:       "deadbeef",
 				AdditionalHeaders: map[string]string{},
 				Proxy:             "https://proxy.com:8080",
@@ -95,6 +103,10 @@ func TestReadConfig(t *testing.T) {
 			envProxy: "socks5://other.proxy.com:9999",
 			want: &config{
 				Endpoint:    "https://example.com",
+				EndpointURL: &url.URL{
+					Scheme: "https",
+					Host:   "example.com",
+				},
 				AccessToken: "deadbeef",
 				Proxy:       "socks5://other.proxy.com:9999",
 				ProxyPath:   "",
@@ -117,6 +129,10 @@ func TestReadConfig(t *testing.T) {
 			envProxy:    "socks5://other.proxy.com:9999",
 			want: &config{
 				Endpoint:    "https://override.com",
+				EndpointURL: &url.URL{
+					Scheme: "https",
+					Host:   "override.com",
+				},
 				AccessToken: "abc",
 				Proxy:       "socks5://other.proxy.com:9999",
 				ProxyPath:   "",
@@ -132,6 +148,10 @@ func TestReadConfig(t *testing.T) {
 			envToken: "abc",
 			want: &config{
 				Endpoint:          "https://sourcegraph.com",
+				EndpointURL: &url.URL{
+					Scheme: "https",
+					Host:   "sourcegraph.com",
+				},
 				AccessToken:       "abc",
 				AdditionalHeaders: map[string]string{},
 			},
@@ -141,6 +161,10 @@ func TestReadConfig(t *testing.T) {
 			envEndpoint: "https://example.com",
 			want: &config{
 				Endpoint:          "https://example.com",
+				EndpointURL: &url.URL{
+					Scheme: "https",
+					Host:   "example.com",
+				},
 				AccessToken:       "",
 				AdditionalHeaders: map[string]string{},
 			},
@@ -150,6 +174,10 @@ func TestReadConfig(t *testing.T) {
 			envProxy: "https://proxy.com:8080",
 			want: &config{
 				Endpoint:    "https://sourcegraph.com",
+				EndpointURL: &url.URL{
+					Scheme: "https",
+					Host:   "sourcegraph.com",
+				},
 				AccessToken: "",
 				Proxy:       "https://proxy.com:8080",
 				ProxyPath:   "",
@@ -167,6 +195,10 @@ func TestReadConfig(t *testing.T) {
 			envProxy:    "https://proxy.com:8080",
 			want: &config{
 				Endpoint:    "https://example.com",
+				EndpointURL: &url.URL{
+					Scheme: "https",
+					Host:   "example.com",
+				},
 				AccessToken: "abc",
 				Proxy:       "https://proxy.com:8080",
 				ProxyPath:   "",
@@ -182,6 +214,10 @@ func TestReadConfig(t *testing.T) {
 			envProxy: "unix://" + socketPath,
 			want: &config{
 				Endpoint:          "https://sourcegraph.com",
+				EndpointURL: &url.URL{
+					Scheme: "https",
+					Host:   "sourcegraph.com",
+				},
 				Proxy:             "unix://" + socketPath,
 				ProxyPath:         socketPath,
 				ProxyURL:          nil,
@@ -193,6 +229,10 @@ func TestReadConfig(t *testing.T) {
 			envProxy: socketPath,
 			want: &config{
 				Endpoint:          "https://sourcegraph.com",
+				EndpointURL: &url.URL{
+					Scheme: "https",
+					Host:   "sourcegraph.com",
+				},
 				Proxy:             socketPath,
 				ProxyPath:         socketPath,
 				ProxyURL:          nil,
@@ -204,6 +244,10 @@ func TestReadConfig(t *testing.T) {
 			envProxy: "socks://localhost:1080",
 			want: &config{
 				Endpoint:  "https://sourcegraph.com",
+				EndpointURL: &url.URL{
+					Scheme: "https",
+					Host:   "sourcegraph.com",
+				},
 				Proxy:     "socks://localhost:1080",
 				ProxyPath: "",
 				ProxyURL: &url.URL{
@@ -218,6 +262,10 @@ func TestReadConfig(t *testing.T) {
 			envProxy: "socks5h://localhost:1080",
 			want: &config{
 				Endpoint:  "https://sourcegraph.com",
+				EndpointURL: &url.URL{
+					Scheme: "https",
+					Host:   "sourcegraph.com",
+				},
 				Proxy:     "socks5h://localhost:1080",
 				ProxyPath: "",
 				ProxyURL: &url.URL{
@@ -237,6 +285,10 @@ func TestReadConfig(t *testing.T) {
 			},
 			want: &config{
 				Endpoint:          "https://override.com",
+				EndpointURL: &url.URL{
+					Scheme: "https",
+					Host:   "override.com",
+				},
 				AccessToken:       "deadbeef",
 				AdditionalHeaders: map[string]string{},
 			},
@@ -248,6 +300,10 @@ func TestReadConfig(t *testing.T) {
 			envToken:     "abc",
 			want: &config{
 				Endpoint:          "https://override.com",
+				EndpointURL: &url.URL{
+					Scheme: "https",
+					Host:   "override.com",
+				},
 				AccessToken:       "abc",
 				AdditionalHeaders: map[string]string{},
 			},
@@ -260,6 +316,10 @@ func TestReadConfig(t *testing.T) {
 			envFooHeader: "bar",
 			want: &config{
 				Endpoint:          "https://override.com",
+				EndpointURL: &url.URL{
+					Scheme: "https",
+					Host:   "override.com",
+				},
 				AccessToken:       "abc",
 				AdditionalHeaders: map[string]string{"foo": "bar"},
 			},
@@ -272,6 +332,10 @@ func TestReadConfig(t *testing.T) {
 			envHeaders:   "foo:bar\nfoo-bar:bar-baz",
 			want: &config{
 				Endpoint:          "https://override.com",
+				EndpointURL: &url.URL{
+					Scheme: "https",
+					Host:   "override.com",
+				},
 				AccessToken:       "abc",
 				AdditionalHeaders: map[string]string{"foo-bar": "bar-baz", "foo": "bar"},
 			},

@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 
@@ -63,7 +64,8 @@ func TestLogin(t *testing.T) {
 		defer s.Close()
 
 		endpoint := s.URL
-		out, err := check(t, &config{Endpoint: endpoint, AccessToken: "x"}, endpoint)
+		u, _ := url.ParseRequestURI(endpoint)
+		out, err := check(t, &config{Endpoint: endpoint, EndpointURL: u, AccessToken: "x"}, endpoint)
 		if err != cmderrors.ExitCode1 {
 			t.Fatal(err)
 		}
@@ -82,7 +84,8 @@ func TestLogin(t *testing.T) {
 		defer s.Close()
 
 		endpoint := s.URL
-		out, err := check(t, &config{Endpoint: endpoint, AccessToken: "x"}, endpoint)
+		u, _ := url.ParseRequestURI(endpoint)
+		out, err := check(t, &config{Endpoint: endpoint, EndpointURL: u, AccessToken: "x"}, endpoint)
 		if err != nil {
 			t.Fatal(err)
 		}
