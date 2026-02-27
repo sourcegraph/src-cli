@@ -100,17 +100,16 @@ func buildTransport(opts ClientOpts, flags *Flags) http.RoundTripper {
 		transport.TLSClientConfig = &tls.Config{}
 	}
 
-	if opts.ProxyURL != nil || opts.ProxyPath != "" {
-		// Explicit SRC_PROXY configuration takes precedence.
+	if opts.ProxyPath != "" || (opts.ProxyURL != nil && opts.ProxyURL.Scheme == "https") {
+		// Use our custom dialer for:
+		// - unix socket proxies
+		// - TLS=enabled proxies, to force HTTP/1.1 for the CONNECT tunnel.
+		//   Many TLS-enabled proxy servers don't support HTTP/2 CONNECT,
+		//   which Go may negotiate via ALPN, resulting in connection errors.
 		transport = withProxyTransport(transport, opts.ProxyURL, opts.ProxyPath)
-	} else if proxyURL := envProxyURL(opts.EndpointURL.String()); proxyURL != nil && proxyURL.Scheme == "https" {
-		// For HTTPS proxies discovered via standard env vars, use our custom
-		// dialer to force HTTP/1.1 for the CONNECT tunnel. Many proxy servers
-		// don't support HTTP/2 CONNECT, which Go may negotiate via ALPN when
-		// TLS-connecting to an https:// proxy.
-		transport = withProxyTransport(transport, proxyURL, "")
 	}
-	// For http:// and socks5:// proxies from standard env vars, the cloned
+
+	// For http:// and socks5:// proxies, the cloned
 	// transport's default Proxy handles them correctly without intervention.
 
 	var rt http.RoundTripper = transport
@@ -121,23 +120,6 @@ func buildTransport(opts ClientOpts, flags *Flags) http.RoundTripper {
 		}
 	}
 	return rt
-}
-
-// envProxyURL resolves the proxy URL
-// from standard HTTP_PROXY/HTTPS_PROXY/NO_PROXY
-// environment variables for the given endpoint.
-// Returns nil if the endpoint is not a valid URL,
-// no proxy is configured, or the endpoint is excluded.
-func envProxyURL(endpoint string) *url.URL {
-	u, err := url.Parse(endpoint)
-	if err != nil || u.Scheme == "" || u.Host == "" {
-		return nil
-	}
-	proxyURL, err := http.ProxyFromEnvironment(&http.Request{URL: u})
-	if err != nil || proxyURL == nil {
-		return nil
-	}
-	return proxyURL
 }
 
 // NewClient creates a new API client.
