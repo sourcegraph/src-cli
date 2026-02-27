@@ -24,14 +24,14 @@ func (c *connWithBufferedReader) Read(p []byte) (int, error) {
 // proxyDialAddr returns proxyURL.Host with a default port appended if one is
 // not already present (443 for https, 80 for http).
 func proxyDialAddr(proxyURL *url.URL) string {
-	addr := proxyURL.Host
-	if _, _, err := net.SplitHostPort(addr); err != nil {
-		if proxyURL.Scheme == "https" {
-			return net.JoinHostPort(addr, "443")
-		}
-		return net.JoinHostPort(addr, "80")
+	// net.SplitHostPort returns an error when the input doesn't contain a port
+	if _, _, err := net.SplitHostPort(proxyURL.Host); err == nil {
+		return proxyURL.Host
 	}
-	return addr
+	if proxyURL.Scheme == "https" {
+		return net.JoinHostPort(proxyURL.Hostname(), "443")
+	}
+	return net.JoinHostPort(proxyURL.Hostname(), "80")
 }
 
 // withProxyTransport modifies the given transport to handle proxying of unix, socks5 and http connections.
