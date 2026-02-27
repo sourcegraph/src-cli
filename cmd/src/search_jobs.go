@@ -254,11 +254,11 @@ func init() {
 	usage := `'src search-jobs' is a tool that manages search jobs on a Sourcegraph instance.
 
 	Usage:
-	
+
 		src search-jobs command [command options]
-	
+
 	The commands are:
-	
+
 		cancel     cancels a search job by ID
 		create     creates a search job
 		delete     deletes a search job by ID
@@ -267,11 +267,11 @@ func init() {
 		logs       fetches logs for a search job by ID
 		restart    restarts a search job by ID
 		results    fetches results for a search job by ID
-	
+
 	Common options for all commands:
 		-c          Select columns to display (e.g., -c id,query,state,username)
 		-json       Output results in JSON format
-	
+
 	Use "src search-jobs [command] -h" for more information about a command.
 	`
 
