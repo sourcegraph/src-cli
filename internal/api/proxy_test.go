@@ -416,10 +416,19 @@ func TestProxyDialAddr(t *testing.T) {
 		{"https without port", "https://proxy.example.com", "proxy.example.com:443"},
 		{"http with port", "http://proxy.example.com:8080", "proxy.example.com:8080"},
 		{"http without port", "http://proxy.example.com", "proxy.example.com:80"},
+		{"ipv4 with port", "http://192.168.1.100:3128", "192.168.1.100:3128"},
+		{"ipv4 without port https", "https://10.0.0.1", "10.0.0.1:443"},
+		{"ipv4 without port http", "http://172.16.0.5", "172.16.0.5:80"},
+		{"ipv6 with port", "http://[::1]:8080", "[::1]:8080"},
+		{"ipv6 without port https", "https://[2001:db8::1]", "[2001:db8::1]:443"},
+		{"ipv6 without port http", "http://[fe80::1]", "[fe80::1]:80"},
+		{"localhost with port", "http://localhost:9090", "localhost:9090"},
+		{"localhost without port https", "https://localhost", "localhost:443"},
+		{"localhost without port http", "http://localhost", "localhost:80"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			u, err := url.Parse(tt.url)
+			u, err := url.ParseRequestURI(tt.url)
 			if err != nil {
 				t.Fatalf("parse URL: %v", err)
 			}
