@@ -3,9 +3,11 @@ package main
 import (
 	"encoding/json"
 	"flag"
+	"fmt"
 	"io"
 	"log"
 	"net"
+	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -107,6 +109,20 @@ func normalizeDashHelp(args []string) []string {
 	return args
 }
 
+func parseEndpoint(endpoint string) (*url.URL, error) {
+	u, err := url.ParseRequestURI(strings.TrimSuffix(endpoint, "/"))
+	if err != nil {
+		return nil, err
+	}
+	if !(u.Scheme == "http" || u.Scheme == "https") {
+		return nil, errors.Newf("Invalid scheme %s. Require http or https", u.Scheme)
+	}
+	if u.Host == "" {
+		return nil, errors.Newf("Empty host")
+	}
+	return u, nil
+}
+
 var cfg *config
 
 // config represents the config format.
@@ -118,12 +134,13 @@ type config struct {
 	ProxyURL          *url.URL
 	ProxyPath         string
 	ConfigFilePath    string
+	EndpointURL       *url.URL
 }
 
 // apiClient returns an api.Client built from the configuration.
 func (c *config) apiClient(flags *api.Flags, out io.Writer) api.Client {
 	return api.NewClient(api.ClientOpts{
-		Endpoint:          c.Endpoint,
+		EndpointURL:       c.EndpointURL,
 		AccessToken:       c.AccessToken,
 		AdditionalHeaders: c.AdditionalHeaders,
 		Flags:             flags,
@@ -133,7 +150,8 @@ func (c *config) apiClient(flags *api.Flags, out io.Writer) api.Client {
 	})
 }
 
-// readConfig reads the config file from the given path.
+// readConfig reads the config from the standard config file, the (deprecated) user-specified config file,
+// the environment variables, and the (deprecated) command-line flags.
 func readConfig() (*config, error) {
 	cfgFile := *configPath
 	userSpecified := *configPath != ""
@@ -189,9 +207,21 @@ func readConfig() (*config, error) {
 		cfg.Proxy = envProxy
 	}
 
+	// Lastly, apply endpoint flag if set
+	if endpoint != nil && *endpoint != "" {
+		cfg.Endpoint = *endpoint
+	}
+
+	if endpointURL, err := parseEndpoint(cfg.Endpoint); err != nil {
+		return nil, errors.Newf("invalid endpoint: %s", cfg.Endpoint)
+	} else {
+		cfg.EndpointURL = endpointURL
+		cfg.Endpoint = endpointURL.String()
+	}
+
 	if cfg.Proxy != "" {
 
-		parseEndpoint := func(endpoint string) (scheme string, address string) {
+		parseProxyEndpoint := func(endpoint string) (scheme string, address string) {
 			parts := strings.SplitN(endpoint, "://", 2)
 			if len(parts) == 2 {
 				return parts[0], parts[1]
@@ -205,7 +235,7 @@ func readConfig() (*config, error) {
 			return slices.Contains(urlSchemes, scheme)
 		}
 
-		scheme, address := parseEndpoint(cfg.Proxy)
+		scheme, address := parseProxyEndpoint(cfg.Proxy)
 
 		if isURLScheme(scheme) {
 			endpoint := cfg.Proxy
@@ -227,11 +257,19 @@ func readConfig() (*config, error) {
 				return nil, errors.Newf("Invalid proxy configuration: %w", err)
 			}
 			if !isValidUDS {
-				return nil, errors.Newf("invalid proxy socket: %s", path)
+				return nil, errors.Newf("Invalid proxy socket: %s", path)
 			}
 			cfg.ProxyPath = path
 		} else {
-			return nil, errors.Newf("invalid proxy endpoint: %s", cfg.Proxy)
+			return nil, errors.Newf("Invalid proxy endpoint: %s", cfg.Proxy)
+		}
+	} else {
+		// no SRC_PROXY; check for the standard proxy env variables HTTP_PROXY, HTTPS_PROXY, and NO_PROXY
+		if u, err := http.ProxyFromEnvironment(&http.Request{URL: cfg.EndpointURL}); err != nil {
+			// when there's an error, the value for the env variable is not a legit URL
+			return nil, fmt.Errorf("Invalid HTTP_PROXY or HTTPS_PROXY value: %w", err)
+		} else {
+			cfg.ProxyURL = u
 		}
 	}
 
@@ -242,18 +280,7 @@ func readConfig() (*config, error) {
 		return nil, errConfigAuthorizationConflict
 	}
 
-	// Lastly, apply endpoint flag if set
-	if endpoint != nil && *endpoint != "" {
-		cfg.Endpoint = *endpoint
-	}
-
-	cfg.Endpoint = cleanEndpoint(cfg.Endpoint)
-
 	return &cfg, nil
-}
-
-func cleanEndpoint(urlStr string) string {
-	return strings.TrimSuffix(urlStr, "/")
 }
 
 // isValidUnixSocket checks if the given path is a valid Unix socket.

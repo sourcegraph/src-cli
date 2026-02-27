@@ -12,7 +12,7 @@ import (
 )
 
 // fetchJobLogs retrieves logs for a search job from its log URL
-func fetchJobLogs(jobID string, logURL string) (io.ReadCloser, error) {
+func fetchJobLogs(client api.Client, jobID string, logURL string) (io.ReadCloser, error) {
 	if logURL == "" {
 		return nil, fmt.Errorf("no logs URL found for search job %s", jobID)
 	}
@@ -24,7 +24,7 @@ func fetchJobLogs(jobID string, logURL string) (io.ReadCloser, error) {
 
 	req.Header.Add("Authorization", "token "+cfg.AccessToken)
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -88,7 +88,7 @@ func init() {
 			return fmt.Errorf("no job found with ID %s", jobID)
 		}
 
-		logsData, err := fetchJobLogs(jobID, job.LogURL)
+		logsData, err := fetchJobLogs(client, jobID, job.LogURL)
 		if err != nil {
 			return err
 		}

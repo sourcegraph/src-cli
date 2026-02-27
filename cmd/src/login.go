@@ -65,7 +65,7 @@ Examples:
 }
 
 func loginCmd(ctx context.Context, cfg *config, client api.Client, endpointArg string, out io.Writer) error {
-	endpointArg = cleanEndpoint(endpointArg)
+	endpointArg = strings.TrimSuffix(endpointArg, "/")
 
 	printProblem := func(problem string) {
 		fmt.Fprintf(out, "❌ Problem: %s\n", problem)

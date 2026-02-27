@@ -6,17 +6,40 @@ import (
 	"crypto/tls"
 	"encoding/base64"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/url"
 )
 
+type connWithBufferedReader struct {
+	net.Conn
+	r *bufio.Reader
+}
+
+func (c *connWithBufferedReader) Read(p []byte) (int, error) {
+	return c.r.Read(p)
+}
+
+// proxyDialAddr returns proxyURL.Host with a default port appended if one is
+// not already present (443 for https, 80 for http).
+func proxyDialAddr(proxyURL *url.URL) string {
+	// net.SplitHostPort returns an error when the input doesn't contain a port
+	if _, _, err := net.SplitHostPort(proxyURL.Host); err == nil {
+		return proxyURL.Host
+	}
+	if proxyURL.Scheme == "https" {
+		return net.JoinHostPort(proxyURL.Hostname(), "443")
+	}
+	return net.JoinHostPort(proxyURL.Hostname(), "80")
+}
+
 // withProxyTransport modifies the given transport to handle proxying of unix, socks5 and http connections.
 //
 // Note: baseTransport is considered to be a clone created with transport.Clone()
 //
-// - If a the proxyPath is not empty, a unix socket proxy is created.
-// - Otherwise, the proxyURL is used to determine if we should proxy socks5 / http connections
+// - If proxyPath is not empty, a unix socket proxy is created.
+// - Otherwise, proxyURL is used to determine if we should proxy socks5 / http connections
 func withProxyTransport(baseTransport *http.Transport, proxyURL *url.URL, proxyPath string) *http.Transport {
 	handshakeTLS := func(ctx context.Context, conn net.Conn, addr string) (net.Conn, error) {
 		// Extract the hostname (without the port) for TLS SNI
@@ -24,12 +47,17 @@ func withProxyTransport(baseTransport *http.Transport, proxyURL *url.URL, proxyP
 		if err != nil {
 			return nil, err
 		}
-		tlsConn := tls.Client(conn, &tls.Config{
-			ServerName: host,
-			// Pull InsecureSkipVerify from the target host transport
-			// so that insecure-skip-verify flag settings are honored for the proxy server
-			InsecureSkipVerify: baseTransport.TLSClientConfig.InsecureSkipVerify,
-		})
+		cfg := baseTransport.TLSClientConfig.Clone()
+		if cfg.ServerName == "" {
+			cfg.ServerName = host
+		}
+		// Preserve HTTP/2 negotiation to the origin when ForceAttemptHTTP2
+		// is enabled. Without this, the manual TLS handshake would not
+		// advertise h2 via ALPN, silently forcing HTTP/1.1.
+		if baseTransport.ForceAttemptHTTP2 && len(cfg.NextProtos) == 0 {
+			cfg.NextProtos = []string{"h2", "http/1.1"}
+		}
+		tlsConn := tls.Client(conn, cfg)
 		if err := tlsConn.HandshakeContext(ctx); err != nil {
 			return nil, err
 		}
@@ -59,62 +87,74 @@ func withProxyTransport(baseTransport *http.Transport, proxyURL *url.URL, proxyP
 			baseTransport.Proxy = http.ProxyURL(proxyURL)
 		case "http", "https":
 			dial := func(ctx context.Context, network, addr string) (net.Conn, error) {
-				// Dial the proxy
-				d := net.Dialer{}
-				conn, err := d.DialContext(ctx, "tcp", proxyURL.Host)
+				// Dial the proxy. For https:// proxies, we TLS-connect to the
+				// proxy itself and force ALPN to HTTP/1.1 to prevent Go from
+				// negotiating HTTP/2 for the CONNECT tunnel. Many proxy servers
+				// don't support HTTP/2 CONNECT, and Go's default Transport.Proxy
+				// would negotiate h2 via ALPN when TLS-connecting to an https://
+				// proxy, causing "bogus greeting" errors. For http:// proxies,
+				// CONNECT is always HTTP/1.1 over plain TCP so this isn't needed.
+				// The target connection (e.g. to sourcegraph.com) still negotiates
+				// HTTP/2 normally through the established tunnel.
+				proxyAddr := proxyDialAddr(proxyURL)
+
+				var conn net.Conn
+				var err error
+				if proxyURL.Scheme == "https" {
+					raw, dialErr := (&net.Dialer{}).DialContext(ctx, "tcp", proxyAddr)
+					if dialErr != nil {
+						return nil, dialErr
+					}
+					cfg := baseTransport.TLSClientConfig.Clone()
+					cfg.NextProtos = []string{"http/1.1"}
+					if cfg.ServerName == "" {
+						cfg.ServerName = proxyURL.Hostname()
+					}
+					tlsConn := tls.Client(raw, cfg)
+					if err := tlsConn.HandshakeContext(ctx); err != nil {
+						raw.Close()
+						return nil, err
+					}
+					conn = tlsConn
+				} else {
+					conn, err = (&net.Dialer{}).DialContext(ctx, "tcp", proxyAddr)
+				}
 				if err != nil {
 					return nil, err
 				}
 
-				// this is the whole point of manually dialing the HTTP(S) proxy:
-				// being able to force HTTP/1.
-				// When relying on Transport.Proxy, the protocol is always HTTP/2,
-				// but many proxy servers don't support HTTP/2.
-				// We don't want to disable HTTP/2 in general because we want to use it when
-				// connecting to the Sourcegraph API, using HTTP/1 for the proxy connection only.
-				protocol := "HTTP/1.1"
-
-				// CONNECT is the HTTP method used to set up a tunneling connection with a proxy
-				method := "CONNECT"
-
-				// Manually writing out the HTTP commands because it's not complicated,
-				// and http.Request has some janky behavior:
-				//   - ignores the Proto field and hard-codes the protocol to HTTP/1.1
-				//   - ignores the Host Header (Header.Set("Host", host)) and uses URL.Host instead.
-				//   - When the Host field is set, overrides the URL field
-				connectReq := fmt.Sprintf("%s %s %s\r\n", method, addr, protocol)
-
-				// A Host header is required per RFC 2616, section 14.23
-				connectReq += fmt.Sprintf("Host: %s\r\n", addr)
-
-				// use authentication if proxy credentials are present
+				connectReq := &http.Request{
+					Method: "CONNECT",
+					URL:    &url.URL{Opaque: addr},
+					Host:   addr,
+					Header: make(http.Header),
+				}
 				if proxyURL.User != nil {
 					password, _ := proxyURL.User.Password()
 					auth := base64.StdEncoding.EncodeToString([]byte(proxyURL.User.Username() + ":" + password))
-					connectReq += fmt.Sprintf("Proxy-Authorization: Basic %s\r\n", auth)
+					connectReq.Header.Set("Proxy-Authorization", "Basic "+auth)
 				}
-
-				// finish up with an extra carriage return + newline, as per RFC 7230, section 3
-				connectReq += "\r\n"
-
-				// Send the CONNECT request to the proxy to establish the tunnel
-				if _, err := conn.Write([]byte(connectReq)); err != nil {
+				if err := connectReq.Write(conn); err != nil {
 					conn.Close()
 					return nil, err
 				}
 
-				// Read and check the response from the proxy
-				resp, err := http.ReadResponse(bufio.NewReader(conn), nil)
+				br := bufio.NewReader(conn)
+				resp, err := http.ReadResponse(br, nil)
 				if err != nil {
 					conn.Close()
 					return nil, err
 				}
 				if resp.StatusCode != http.StatusOK {
+					// For non-200, it's safe/appropriate to close the body (it’s a real response body here).
+					// Try to read a bit (4k bytes) to include in the error message.
+					b, _ := io.ReadAll(io.LimitReader(resp.Body, 4<<10))
+					resp.Body.Close()
 					conn.Close()
-					return nil, fmt.Errorf("failed to connect to proxy %v: %v", proxyURL, resp.Status)
+					return nil, fmt.Errorf("failed to connect to proxy %s: %s: %q", proxyURL.Redacted(), resp.Status, b)
 				}
-				resp.Body.Close()
-				return conn, nil
+				// 200 CONNECT: do NOT resp.Body.Close(); it would interfere with the tunnel.
+				return &connWithBufferedReader{Conn: conn, r: br}, nil
 			}
 			dialTLS := func(ctx context.Context, network, addr string) (net.Conn, error) {
 				// Dial the underlying connection through the proxy

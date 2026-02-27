@@ -71,7 +71,7 @@ type request struct {
 
 // ClientOpts encapsulates the options given to NewClient.
 type ClientOpts struct {
-	Endpoint          string
+	EndpointURL       *url.URL
 	AccessToken       string
 	AdditionalHeaders map[string]string
 
@@ -98,10 +98,17 @@ func buildTransport(opts ClientOpts, flags *Flags) *http.Transport {
 		transport.TLSClientConfig = &tls.Config{}
 	}
 
-	if opts.ProxyURL != nil || opts.ProxyPath != "" {
+	if opts.ProxyPath != "" || (opts.ProxyURL != nil && opts.ProxyURL.Scheme == "https") {
+		// Use our custom dialer for:
+		// - unix socket proxies
+		// - TLS=enabled proxies, to force HTTP/1.1 for the CONNECT tunnel.
+		//   Many TLS-enabled proxy servers don't support HTTP/2 CONNECT,
+		//   which Go may negotiate via ALPN, resulting in connection errors.
 		transport = withProxyTransport(transport, opts.ProxyURL, opts.ProxyPath)
 	}
 
+	// For http:// and socks5:// proxies, the cloned
+	// transport's default Proxy handles them correctly without intervention.
 	return transport
 }
 
@@ -124,7 +131,7 @@ func NewClient(opts ClientOpts) Client {
 
 	return &client{
 		opts: ClientOpts{
-			Endpoint:          opts.Endpoint,
+			EndpointURL:       opts.EndpointURL,
 			AccessToken:       opts.AccessToken,
 			AdditionalHeaders: opts.AdditionalHeaders,
 			Flags:             flags,
@@ -159,7 +166,7 @@ func (c *client) NewHTTPRequest(ctx context.Context, method, p string, body io.R
 }
 
 func (c *client) createHTTPRequest(ctx context.Context, method, p string, body io.Reader) (*http.Request, error) {
-	req, err := http.NewRequestWithContext(ctx, method, strings.TrimRight(c.opts.Endpoint, "/")+"/"+p, body)
+	req, err := http.NewRequestWithContext(ctx, method, strings.TrimRight(c.opts.EndpointURL.String(), "/")+"/"+p, body)
 	if err != nil {
 		return nil, err
 	}
@@ -334,6 +341,6 @@ func (r *request) curlCmd() (string, error) {
 		s += fmt.Sprintf("   %s \\\n", shellquote.Join("-H", k+": "+v))
 	}
 	s += fmt.Sprintf("   %s \\\n", shellquote.Join("-d", string(data)))
-	s += fmt.Sprintf("   %s", shellquote.Join(r.client.opts.Endpoint+"/.api/graphql"))
+	s += fmt.Sprintf("   %s", shellquote.Join(r.client.opts.EndpointURL.String()+"/.api/graphql"))
 	return s, nil
 }
