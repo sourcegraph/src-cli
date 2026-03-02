@@ -252,6 +252,7 @@ func (c *Client) GraphQL(token, query string, variables map[string]any, target a
 	if err != nil {
 		return err
 	}
+	req.Header.Set("Content-Type", "application/json")
 	if token != "" {
 		req.Header.Set("Authorization", fmt.Sprintf("token %s", token))
 	} else {
