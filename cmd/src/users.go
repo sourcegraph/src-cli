@@ -72,8 +72,8 @@ type User struct {
 	Organizations struct {
 		Nodes []Org
 	}
-	Emails          []UserEmail
-	URL             string
+	Emails []UserEmail
+	URL    string
 }
 
 type UserEmail struct {
