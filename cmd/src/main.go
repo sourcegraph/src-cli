@@ -52,6 +52,7 @@ The commands are:
 	batch           manages batch changes
 	code-intel      manages code intelligence data
 	config          manages global, org, and user settings
+	deep-search     runs Deep Search conversations
 	extensions,ext  manages extensions (experimental)
 	extsvc          manages external services
 	gateway         interacts with Cody Gateway
