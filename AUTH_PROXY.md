@@ -1,4 +1,4 @@
-# Authenticating requests behind a proxy
+#unittest~ #smoketest # Authenticating requests behind a proxy
 
 If your instance is behind an authenticating proxy that requires additional headers, they can be supplied via environment variables as follows:
 
