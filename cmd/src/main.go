@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"net"
+	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -302,6 +303,14 @@ func readConfig() (*config, error) {
 		} else {
 			return nil, errors.Newf("invalid proxy endpoint: %s", proxyStr)
 		}
+	} else {
+		// no SRC_PROXY; check for the standard proxy env variables HTTP_PROXY, HTTPS_PROXY, and NO_PROXY
+		if u, err := http.ProxyFromEnvironment(&http.Request{URL: cfg.endpointURL}); err != nil {
+			// when there's an error, the value for the env variable is not a legit URL
+			return nil, errors.Newf("invalid HTTP_PROXY or HTTPS_PROXY value: %w", err)
+		} else {
+			cfg.proxyURL = u
+		}
 	}
 
 	cfg.additionalHeaders = parseAdditionalHeaders()
@@ -342,7 +351,7 @@ func isValidUnixSocket(path string) (bool, error) {
 		if os.IsNotExist(err) {
 			return false, nil
 		}
-		return false, errors.Newf("not a UNIX Domain Socket: %v: %w", path, err)
+		return false, errors.Newf("not a UNIX domain socket: %v: %w", path, err)
 	}
 	defer conn.Close()
 
