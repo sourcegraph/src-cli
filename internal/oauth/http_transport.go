@@ -12,9 +12,12 @@ var _ http.Transport
 var _ http.RoundTripper = (*Transport)(nil)
 
 type Transport struct {
-	Base  http.RoundTripper
+	Base http.RoundTripper
+	//Token is a OAuth token (which has a refresh token) that should be used during roundtrip to automatically
+	//refresh the OAuth access token once the current one has expired or is soon to expire
 	Token *Token
 
+	//mu is a mutex that should be acquired whenever token used
 	mu sync.Mutex
 }
 
@@ -29,14 +32,23 @@ func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 	if err := t.refreshToken(ctx); err != nil {
 		return nil, err
 	}
+	token := t.getToken()
 
 	req2 := req.Clone(req.Context())
-	req2.Header.Set("Authorization", "Bearer "+t.Token.AccessToken)
+	req2.Header.Set("Authorization", "Bearer "+token.AccessToken)
 
 	if t.Base != nil {
 		return t.Base.RoundTrip(req2)
 	}
 	return http.DefaultTransport.RoundTrip(req2)
+}
+
+// getToken returns a value copy of token and is guarded by a mutex
+func (t *Transport) getToken() Token {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	return *t.Token
 }
 
 // refreshToken checks if the token has expired or expiring soon and refreshes it. Once the token is
