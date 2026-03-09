@@ -5,12 +5,13 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/base64"
-	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"net/url"
 	"sync"
+
+	"github.com/sourcegraph/sourcegraph/lib/errors"
 )
 
 type connWithBufferedReader struct {
@@ -156,7 +157,7 @@ func withProxyTransport(baseTransport *http.Transport, proxyURL *url.URL, proxyP
 					b, _ := io.ReadAll(io.LimitReader(resp.Body, 4<<10))
 					resp.Body.Close()
 					conn.Close()
-					return nil, fmt.Errorf("failed to connect to proxy %s: %s: %q", proxyURL.Redacted(), resp.Status, b)
+					return nil, errors.Newf("failed to connect to proxy %s: %s: %q", proxyURL.Redacted(), resp.Status, b)
 				}
 				// 200 CONNECT: do NOT resp.Body.Close(); it would interfere with the tunnel.
 				return &connWithBufferedReader{Conn: conn, r: br}, nil
