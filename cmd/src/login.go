@@ -6,10 +6,14 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
+	"runtime"
 	"strings"
+	"time"
 
 	"github.com/sourcegraph/src-cli/internal/api"
 	"github.com/sourcegraph/src-cli/internal/cmderrors"
+	"github.com/sourcegraph/src-cli/internal/oauth"
 )
 
 func init() {
@@ -17,7 +21,7 @@ func init() {
 
 Usage:
 
-    src login SOURCEGRAPH_URL
+    src login [flags] SOURCEGRAPH_URL
 
 Examples:
 
@@ -28,6 +32,15 @@ Examples:
   Authenticate to Sourcegraph.com:
 
     $ src login https://sourcegraph.com
+
+  Use OAuth device flow to authenticate:
+
+    $ src login --oauth https://sourcegraph.com
+
+
+  Override the default client id used during device flow when authenticating:
+
+    $ src login --oauth https://sourcegraph.com
 `
 
 	flagSet := flag.NewFlagSet("login", flag.ExitOnError)
@@ -38,6 +51,7 @@ Examples:
 
 	var (
 		apiFlags = api.NewFlags(flagSet)
+		useOAuth = flagSet.Bool("oauth", false, "Use OAuth device flow to obtain an access token interactively")
 	)
 
 	handler := func(args []string) error {
@@ -54,7 +68,15 @@ Examples:
 
 		client := cfg.apiClient(apiFlags, io.Discard)
 
-		return loginCmd(context.Background(), cfg, client, endpoint, os.Stdout)
+		return loginCmd(context.Background(), loginParams{
+			cfg:              cfg,
+			client:           client,
+			endpoint:         endpoint,
+			out:              os.Stdout,
+			useOAuth:         *useOAuth,
+			apiFlags:         apiFlags,
+			deviceFlowClient: oauth.NewClient(oauth.DefaultClientID),
+		})
 	}
 
 	commands = append(commands, &command{
@@ -64,8 +86,21 @@ Examples:
 	})
 }
 
-func loginCmd(ctx context.Context, cfg *config, client api.Client, endpointArg string, out io.Writer) error {
-	endpointArg = cleanEndpoint(endpointArg)
+type loginParams struct {
+	cfg              *config
+	client           api.Client
+	endpoint         string
+	out              io.Writer
+	useOAuth         bool
+	apiFlags         *api.Flags
+	deviceFlowClient oauth.Client
+}
+
+func loginCmd(ctx context.Context, p loginParams) error {
+	endpointArg := cleanEndpoint(p.endpoint)
+	cfg := p.cfg
+	client := p.client
+	out := p.out
 
 	printProblem := func(problem string) {
 		fmt.Fprintf(out, "❌ Problem: %s\n", problem)
@@ -77,7 +112,9 @@ func loginCmd(ctx context.Context, cfg *config, client api.Client, endpointArg s
    export SRC_ACCESS_TOKEN=(your access token)
 
    To verify that it's working, run the login command again.
-`, endpointArg, endpointArg)
+
+   Alternatively, you can try logging in using OAuth by running: src login --oauth %s
+`, endpointArg, endpointArg, endpointArg)
 
 	if cfg.ConfigFilePath != "" {
 		fmt.Fprintln(out)
@@ -86,7 +123,7 @@ func loginCmd(ctx context.Context, cfg *config, client api.Client, endpointArg s
 
 	noToken := cfg.AccessToken == ""
 	endpointConflict := endpointArg != cfg.Endpoint
-	if noToken || endpointConflict {
+	if !p.useOAuth && (noToken || endpointConflict) {
 		fmt.Fprintln(out)
 		switch {
 		case noToken:
@@ -96,6 +133,30 @@ func loginCmd(ctx context.Context, cfg *config, client api.Client, endpointArg s
 		}
 		fmt.Fprintln(out, createAccessTokenMessage)
 		return cmderrors.ExitCode1
+	}
+
+	if p.useOAuth {
+		token, err := runOAuthDeviceFlow(ctx, endpointArg, out, p.deviceFlowClient)
+		if err != nil {
+			printProblem(fmt.Sprintf("OAuth Device flow authentication failed: %s", err))
+			fmt.Fprintln(out, createAccessTokenMessage)
+			return cmderrors.ExitCode1
+		}
+
+		if err := oauth.StoreToken(ctx, token); err != nil {
+			fmt.Fprintln(out)
+			fmt.Fprintf(out, "⚠️  Warning: Failed to store token in keyring store: %q. Continuing with this session only.\n", err)
+		}
+
+		client = api.NewClient(api.ClientOpts{
+			Endpoint:          cfg.Endpoint,
+			AdditionalHeaders: cfg.AdditionalHeaders,
+			Flags:             p.apiFlags,
+			Out:               out,
+			ProxyURL:          cfg.ProxyURL,
+			ProxyPath:         cfg.ProxyPath,
+			OAuthToken:        token,
+		})
 	}
 
 	// See if the user is already authenticated.
@@ -122,6 +183,65 @@ func loginCmd(ctx context.Context, cfg *config, client api.Client, endpointArg s
 	}
 	fmt.Fprintln(out)
 	fmt.Fprintf(out, "✔️  Authenticated as %s on %s\n", result.CurrentUser.Username, endpointArg)
+
+	if p.useOAuth {
+		fmt.Fprintln(out)
+		fmt.Fprintf(out, "Authenticated with OAuth credentials")
+	}
+
 	fmt.Fprintln(out)
 	return nil
+}
+
+func runOAuthDeviceFlow(ctx context.Context, endpoint string, out io.Writer, client oauth.Client) (*oauth.Token, error) {
+	authResp, err := client.Start(ctx, endpoint, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	authURL := authResp.VerificationURIComplete
+	msg := fmt.Sprintf("If your browser did not open automatically, visit %s.", authURL)
+	if authURL == "" {
+		authURL = authResp.VerificationURI
+		msg = fmt.Sprintf("If your browser did not open automatically, visit %s and enter the user code %s", authURL, authResp.DeviceCode)
+	}
+	_ = openInBrowser(authURL)
+	fmt.Fprintln(out)
+	fmt.Fprint(out, msg)
+
+	fmt.Fprintln(out)
+	fmt.Fprint(out, "Waiting for authorization...")
+	defer fmt.Fprintf(out, "DONE\n\n")
+
+	interval := time.Duration(authResp.Interval) * time.Second
+	if interval <= 0 {
+		interval = 5 * time.Second
+	}
+
+	resp, err := client.Poll(ctx, endpoint, authResp.DeviceCode, interval, authResp.ExpiresIn)
+	if err != nil {
+		return nil, err
+	}
+
+	token := resp.Token(endpoint)
+	token.ClientID = client.ClientID()
+	return token, nil
+}
+
+func openInBrowser(url string) error {
+	if url == "" {
+		return nil
+	}
+
+	var cmd *exec.Cmd
+	switch runtime.GOOS {
+	case "darwin":
+		cmd = exec.Command("open", url)
+	case "windows":
+		// "start" is a cmd.exe built-in; the empty string is the window title.
+		cmd = exec.Command("cmd", "/c", "start", "", url)
+	default:
+		cmd = exec.Command("xdg-open", url)
+	}
+	return cmd.Run()
 }
