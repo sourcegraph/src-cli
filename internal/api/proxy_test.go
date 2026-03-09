@@ -166,7 +166,10 @@ func TestWithProxyTransport_HTTPProxy(t *testing.T) {
 		t.Fatalf("GET through http proxy: %v", err)
 	}
 	defer resp.Body.Close()
-	body, _ := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("read body: %v", err)
+	}
 
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("expected 200, got %d", resp.StatusCode)
@@ -198,7 +201,10 @@ func TestWithProxyTransport_HTTPSProxy(t *testing.T) {
 		t.Fatalf("GET through https proxy: %v", err)
 	}
 	defer resp.Body.Close()
-	body, _ := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("read body: %v", err)
+	}
 
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("expected 200, got %d", resp.StatusCode)
@@ -231,7 +237,9 @@ func TestWithProxyTransport_ProxyAuth(t *testing.T) {
 			t.Fatalf("GET through authenticated http proxy: %v", err)
 		}
 		defer resp.Body.Close()
-		io.ReadAll(resp.Body)
+		if _, err := io.ReadAll(resp.Body); err != nil {
+			t.Fatalf("read body: %v", err)
+		}
 
 		if resp.StatusCode != http.StatusOK {
 			t.Errorf("expected 200, got %d", resp.StatusCode)
@@ -249,7 +257,9 @@ func TestWithProxyTransport_ProxyAuth(t *testing.T) {
 			t.Fatalf("GET through authenticated https proxy: %v", err)
 		}
 		defer resp.Body.Close()
-		io.ReadAll(resp.Body)
+		if _, err := io.ReadAll(resp.Body); err != nil {
+			t.Fatalf("read body: %v", err)
+		}
 
 		if resp.StatusCode != http.StatusOK {
 			t.Errorf("expected 200, got %d", resp.StatusCode)
@@ -272,10 +282,12 @@ func TestWithProxyTransport_HTTPSProxy_HTTP2ToOrigin(t *testing.T) {
 		t.Fatalf("GET through https proxy: %v", err)
 	}
 	defer resp.Body.Close()
-	io.ReadAll(resp.Body)
+	if _, err := io.ReadAll(resp.Body); err != nil {
+		t.Fatalf("read body: %v", err)
+	}
 
-	if resp.Proto != "HTTP/2.0" {
-		t.Errorf("expected HTTP/2.0 to origin, got %s", resp.Proto)
+	if resp.ProtoMajor != 2 {
+		t.Errorf("expected HTTP/2 to origin, got %s", resp.Proto)
 	}
 }
 
