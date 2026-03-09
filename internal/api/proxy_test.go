@@ -1,17 +1,10 @@
 package api
 
 import (
-	"context"
-	"crypto/ecdsa"
-	"crypto/elliptic"
-	"crypto/rand"
 	"crypto/tls"
-	"crypto/x509"
-	"crypto/x509/pkix"
 	"encoding/base64"
 	"fmt"
 	"io"
-	"math/big"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -21,38 +14,6 @@ import (
 	"time"
 )
 
-// waitForServerReady polls the server until it's ready to accept connections
-func waitForServerReady(t *testing.T, addr string, useTLS bool, timeout time.Duration) {
-	t.Helper()
-
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-
-	for {
-		select {
-		case <-ctx.Done():
-			t.Fatalf("server at %s did not become ready within %v", addr, timeout)
-		default:
-		}
-
-		var conn net.Conn
-		var err error
-
-		if useTLS {
-			conn, err = tls.Dial("tcp", addr, &tls.Config{InsecureSkipVerify: true})
-		} else {
-			conn, err = net.Dial("tcp", addr)
-		}
-
-		if err == nil {
-			conn.Close()
-			return // Server is ready
-		}
-
-		time.Sleep(1 * time.Millisecond)
-	}
-}
-
 // startCONNECTProxy starts an HTTP or HTTPS CONNECT proxy on a random port.
 // It returns the proxy URL and a channel that receives the protocol observed by
 // the proxy handler for each CONNECT request.
@@ -61,7 +22,7 @@ func startCONNECTProxy(t *testing.T, useTLS bool) (proxyURL *url.URL, obsCh <-ch
 
 	ch := make(chan string, 10)
 
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		select {
 		case ch <- r.Proto:
 		default:
@@ -96,32 +57,16 @@ func startCONNECTProxy(t *testing.T, useTLS bool) (proxyURL *url.URL, obsCh <-ch
 		go func() { io.Copy(destConn, clientConn); done <- struct{}{} }()
 		go func() { io.Copy(clientConn, destConn); done <- struct{}{} }()
 		<-done
-	})
-
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatalf("proxy listen: %v", err)
-	}
-
-	srv := &http.Server{Handler: handler}
+	}))
 
 	if useTLS {
-		cert := generateTestCert(t, "127.0.0.1")
-		srv.TLSConfig = &tls.Config{Certificates: []tls.Certificate{cert}}
-		go srv.ServeTLS(ln, "", "")
+		srv.StartTLS()
 	} else {
-		go srv.Serve(ln)
+		srv.Start()
 	}
-	t.Cleanup(func() { srv.Close() })
+	t.Cleanup(srv.Close)
 
-	// Wait for the server to be ready
-	waitForServerReady(t, ln.Addr().String(), useTLS, 5*time.Second)
-
-	scheme := "http"
-	if useTLS {
-		scheme = "https"
-	}
-	pURL, _ := url.Parse(fmt.Sprintf("%s://%s", scheme, ln.Addr().String()))
+	pURL, _ := url.Parse(srv.URL)
 	return pURL, ch
 }
 
@@ -130,7 +75,7 @@ func startCONNECTProxy(t *testing.T, useTLS bool) (proxyURL *url.URL, obsCh <-ch
 func startCONNECTProxyWithAuth(t *testing.T, useTLS bool, wantUser, wantPass string) (proxyURL *url.URL) {
 	t.Helper()
 
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodConnect {
 			http.Error(w, "expected CONNECT", http.StatusMethodNotAllowed)
 			return
@@ -167,59 +112,18 @@ func startCONNECTProxyWithAuth(t *testing.T, useTLS bool, wantUser, wantPass str
 		go func() { io.Copy(destConn, clientConn); done <- struct{}{} }()
 		go func() { io.Copy(clientConn, destConn); done <- struct{}{} }()
 		<-done
-	})
-
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatalf("proxy listen: %v", err)
-	}
-
-	srv := &http.Server{Handler: handler}
+	}))
 
 	if useTLS {
-		cert := generateTestCert(t, "127.0.0.1")
-		srv.TLSConfig = &tls.Config{Certificates: []tls.Certificate{cert}}
-		go srv.ServeTLS(ln, "", "")
+		srv.StartTLS()
 	} else {
-		go srv.Serve(ln)
+		srv.Start()
 	}
-	t.Cleanup(func() { srv.Close() })
+	t.Cleanup(srv.Close)
 
-	// Wait for the server to be ready
-	waitForServerReady(t, ln.Addr().String(), useTLS, 5*time.Second)
-
-	scheme := "http"
-	if useTLS {
-		scheme = "https"
-	}
-	pURL, _ := url.Parse(fmt.Sprintf("%s://%s@%s", scheme, url.UserPassword(wantUser, wantPass).String(), ln.Addr().String()))
+	pURL, _ := url.Parse(srv.URL)
+	pURL.User = url.UserPassword(wantUser, wantPass)
 	return pURL
-}
-
-func generateTestCert(t *testing.T, host string) tls.Certificate {
-	t.Helper()
-
-	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	if err != nil {
-		t.Fatalf("generate key: %v", err)
-	}
-	template := &x509.Certificate{
-		SerialNumber: big.NewInt(1),
-		Subject:      pkix.Name{CommonName: host},
-		NotBefore:    time.Now(),
-		NotAfter:     time.Now().Add(1 * time.Hour),
-		KeyUsage:     x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment,
-		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
-		IPAddresses:  []net.IP{net.ParseIP(host)},
-	}
-	certDER, err := x509.CreateCertificate(rand.Reader, template, template, &key.PublicKey, key)
-	if err != nil {
-		t.Fatalf("create cert: %v", err)
-	}
-	return tls.Certificate{
-		Certificate: [][]byte{certDER},
-		PrivateKey:  key,
-	}
 }
 
 // newTestTransport creates a base transport suitable for proxy tests.
@@ -368,39 +272,31 @@ func TestWithProxyTransport_ProxyRejectsConnect(t *testing.T) {
 		name       string
 		statusCode int
 		body       string
-		wantStatus string
+		wantErr    string
 	}{
-		{"407 proxy auth required", http.StatusProxyAuthRequired, "proxy auth required", "407 Proxy Authentication Required"},
-		{"403 forbidden", http.StatusForbidden, "access denied by policy", "403 Forbidden"},
-		{"502 bad gateway", http.StatusBadGateway, "upstream unreachable", "502 Bad Gateway"},
+		{"407 proxy auth required", http.StatusProxyAuthRequired, "proxy auth required", "Proxy Authentication Required"},
+		{"403 forbidden", http.StatusForbidden, "access denied by policy", "Forbidden"},
+		{"502 bad gateway", http.StatusBadGateway, "upstream unreachable", "Bad Gateway"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Start a proxy that always rejects CONNECT with the given status.
-			ln, err := net.Listen("tcp", "127.0.0.1:0")
-			if err != nil {
-				t.Fatalf("listen: %v", err)
-			}
-			srv := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				http.Error(w, tt.body, tt.statusCode)
-			})}
-			go srv.Serve(ln)
-			t.Cleanup(func() { srv.Close() })
+			}))
+			t.Cleanup(srv.Close)
 
-			proxyURL, _ := url.Parse(fmt.Sprintf("http://%s", ln.Addr().String()))
+			proxyURL, _ := url.Parse(srv.URL)
 			transport := withProxyTransport(newTestTransport(), proxyURL, "")
 			client := &http.Client{Transport: transport, Timeout: 10 * time.Second}
 
-			_, err = client.Get("https://example.com")
+			_, err := client.Get("https://example.com")
 			if err == nil {
 				t.Fatal("expected error, got nil")
 			}
-			if !strings.Contains(err.Error(), tt.wantStatus) {
-				t.Errorf("error should contain status %q, got: %v", tt.wantStatus, err)
-			}
-			if !strings.Contains(err.Error(), tt.body) {
-				t.Errorf("error should contain body %q, got: %v", tt.body, err)
+			if !strings.Contains(err.Error(), tt.wantErr) {
+				t.Errorf("error should contain %q, got: %v", tt.wantErr, err)
 			}
 		})
 	}
