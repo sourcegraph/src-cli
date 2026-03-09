@@ -63,6 +63,7 @@ func withProxyTransport(baseTransport *http.Transport, proxyURL *url.URL, proxyP
 		}
 		tlsConn := tls.Client(conn, cfg)
 		if err := tlsConn.HandshakeContext(ctx); err != nil {
+			tlsConn.Close()
 			return nil, err
 		}
 		return tlsConn, nil
