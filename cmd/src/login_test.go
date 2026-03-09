@@ -18,13 +18,17 @@ func TestLogin(t *testing.T) {
 	check := func(t *testing.T, cfg *config, endpointArg string) (output string, err error) {
 		t.Helper()
 
+		restoreStoredOAuthLoader(t, func(context.Context, string) (*oauth.Token, error) {
+			return nil, fmt.Errorf("not found")
+		})
+
 		var out bytes.Buffer
 		err = loginCmd(context.Background(), loginParams{
-			cfg:              cfg,
-			client:           cfg.apiClient(nil, io.Discard),
-			endpoint:         endpointArg,
-			out:              &out,
-			deviceFlowClient: oauth.NewClient(oauth.DefaultClientID),
+			cfg:         cfg,
+			client:      cfg.apiClient(nil, io.Discard),
+			endpoint:    endpointArg,
+			out:         &out,
+			oauthClient: oauth.NewClient(oauth.DefaultClientID),
 		})
 		return strings.TrimSpace(out.String()), err
 	}
@@ -63,7 +67,6 @@ func TestLogin(t *testing.T) {
 	})
 
 	t.Run("invalid access token", func(t *testing.T) {
-		// Dummy HTTP server to return HTTP 401/403.
 		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "", http.StatusUnauthorized)
 		}))
@@ -82,7 +85,6 @@ func TestLogin(t *testing.T) {
 	})
 
 	t.Run("valid", func(t *testing.T) {
-		// Dummy HTTP server to return JSON response with currentUser.
 		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			fmt.Fprintln(w, `{"data":{"currentUser":{"username":"alice"}}}`)
 		}))
@@ -93,10 +95,86 @@ func TestLogin(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		wantOut := "✔️  Authenticated as alice on $ENDPOINT"
+		wantOut := "✔︎ Authenticated as alice on $ENDPOINT"
 		wantOut = strings.ReplaceAll(wantOut, "$ENDPOINT", endpoint)
 		if out != wantOut {
 			t.Errorf("got output %q, want %q", out, wantOut)
 		}
+	})
+}
+
+func TestSelectLoginFlow(t *testing.T) {
+	restoreStoredOAuthLoader(t, func(context.Context, string) (*oauth.Token, error) {
+		return nil, fmt.Errorf("not found")
+	})
+
+	t.Run("uses oauth flow when oauth flag is set", func(t *testing.T) {
+		params := loginParams{
+			cfg:      &config{Endpoint: "https://example.com"},
+			endpoint: "https://example.com",
+			useOAuth: true,
+		}
+
+		if got, _ := selectLoginFlow(context.Background(), params); got != loginFlowOAuth {
+			t.Fatalf("flow = %v, want %v", got, loginFlowOAuth)
+		}
+	})
+
+	t.Run("uses missing auth flow when auth is unavailable", func(t *testing.T) {
+		params := loginParams{
+			cfg:      &config{Endpoint: "https://example.com"},
+			endpoint: "https://sourcegraph.example.com",
+		}
+
+		if got, _ := selectLoginFlow(context.Background(), params); got != loginFlowMissingAuth {
+			t.Fatalf("flow = %v, want %v", got, loginFlowMissingAuth)
+		}
+	})
+
+	t.Run("uses endpoint conflict flow when auth exists for a different endpoint", func(t *testing.T) {
+		params := loginParams{
+			cfg:      &config{Endpoint: "https://example.com", AccessToken: "x"},
+			endpoint: "https://sourcegraph.example.com",
+		}
+
+		if got, _ := selectLoginFlow(context.Background(), params); got != loginFlowEndpointConflict {
+			t.Fatalf("flow = %v, want %v", got, loginFlowEndpointConflict)
+		}
+	})
+
+	t.Run("uses validation flow when auth exists for the selected endpoint", func(t *testing.T) {
+		params := loginParams{
+			cfg:      &config{Endpoint: "https://example.com", AccessToken: "x"},
+			endpoint: "https://example.com",
+		}
+
+		if got, _ := selectLoginFlow(context.Background(), params); got != loginFlowValidate {
+			t.Fatalf("flow = %v, want %v", got, loginFlowValidate)
+		}
+	})
+
+	t.Run("treats stored oauth as effective auth", func(t *testing.T) {
+		restoreStoredOAuthLoader(t, func(context.Context, string) (*oauth.Token, error) {
+			return &oauth.Token{AccessToken: "oauth-token"}, nil
+		})
+
+		params := loginParams{
+			cfg:      &config{Endpoint: "https://example.com"},
+			endpoint: "https://example.com",
+		}
+
+		if got, _ := selectLoginFlow(context.Background(), params); got != loginFlowValidate {
+			t.Fatalf("flow = %v, want %v", got, loginFlowValidate)
+		}
+	})
+}
+
+func restoreStoredOAuthLoader(t *testing.T, loader func(context.Context, string) (*oauth.Token, error)) {
+	t.Helper()
+
+	prev := loadStoredOAuthToken
+	loadStoredOAuthToken = loader
+	t.Cleanup(func() {
+		loadStoredOAuthToken = prev
 	})
 }
