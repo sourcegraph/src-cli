@@ -82,10 +82,10 @@ func withProxyTransport(baseTransport *http.Transport, proxyURL *url.URL, proxyP
 		baseTransport.Proxy = nil
 	} else if proxyURL != nil {
 		switch proxyURL.Scheme {
-		case "socks5", "socks5h":
-			// SOCKS proxies work out of the box - no need to manually dial
+		case "http", "socks5", "socks5h":
+			// HTTP and SOCKS proxies work out of the box - no need to manually dial
 			baseTransport.Proxy = http.ProxyURL(proxyURL)
-		case "http", "https":
+		case "https":
 			dial := func(ctx context.Context, network, addr string) (net.Conn, error) {
 				// Dial the proxy. For https:// proxies, we TLS-connect to the
 				// proxy itself and force ALPN to HTTP/1.1 to prevent Go from
@@ -166,7 +166,7 @@ func withProxyTransport(baseTransport *http.Transport, proxyURL *url.URL, proxyP
 			}
 			baseTransport.DialContext = dial
 			baseTransport.DialTLSContext = dialTLS
-			// clear out any system proxy settings
+			// clear out the system proxy because we're defining our own dialers
 			baseTransport.Proxy = nil
 		}
 	}
