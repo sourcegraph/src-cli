@@ -14,10 +14,10 @@ import (
 	"time"
 )
 
-// startCONNECTProxy starts an HTTP or HTTPS CONNECT proxy on a random port.
+// startProxy starts an HTTP or HTTPS CONNECT proxy on a random port.
 // It returns the proxy URL and a channel that receives the protocol observed by
 // the proxy handler for each CONNECT request.
-func startCONNECTProxy(t *testing.T, useTLS bool) (proxyURL *url.URL, obsCh <-chan string) {
+func startProxy(t *testing.T, useTLS bool) (proxyURL *url.URL, obsCh <-chan string) {
 	t.Helper()
 
 	ch := make(chan string, 10)
@@ -57,6 +57,10 @@ func startCONNECTProxy(t *testing.T, useTLS bool) (proxyURL *url.URL, obsCh <-ch
 		go func() { io.Copy(destConn, clientConn); done <- struct{}{} }()
 		go func() { io.Copy(clientConn, destConn); done <- struct{}{} }()
 		<-done
+		// Close both sides so the remaining goroutine unblocks.
+		clientConn.Close()
+		destConn.Close()
+		<-done
 	}))
 
 	if useTLS {
@@ -70,9 +74,9 @@ func startCONNECTProxy(t *testing.T, useTLS bool) (proxyURL *url.URL, obsCh <-ch
 	return pURL, ch
 }
 
-// startCONNECTProxyWithAuth is like startCONNECTProxy but requires
+// startProxyWithAuth is like startProxy but requires
 // Proxy-Authorization with the given username and password.
-func startCONNECTProxyWithAuth(t *testing.T, useTLS bool, wantUser, wantPass string) (proxyURL *url.URL) {
+func startProxyWithAuth(t *testing.T, useTLS bool, wantUser, wantPass string) (proxyURL *url.URL) {
 	t.Helper()
 
 	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -112,6 +116,9 @@ func startCONNECTProxyWithAuth(t *testing.T, useTLS bool, wantUser, wantPass str
 		go func() { io.Copy(destConn, clientConn); done <- struct{}{} }()
 		go func() { io.Copy(clientConn, destConn); done <- struct{}{} }()
 		<-done
+		clientConn.Close()
+		destConn.Close()
+		<-done
 	}))
 
 	if useTLS {
@@ -148,9 +155,10 @@ func startTargetServer(t *testing.T) *httptest.Server {
 
 func TestWithProxyTransport_HTTPProxy(t *testing.T) {
 	target := startTargetServer(t)
-	proxyURL, obsCh := startCONNECTProxy(t, false)
+	proxyURL, obsCh := startProxy(t, false)
 
 	transport := withProxyTransport(newTestTransport(), proxyURL, "")
+	t.Cleanup(transport.CloseIdleConnections)
 	client := &http.Client{Transport: transport, Timeout: 10 * time.Second}
 
 	resp, err := client.Get(target.URL)
@@ -179,9 +187,10 @@ func TestWithProxyTransport_HTTPProxy(t *testing.T) {
 
 func TestWithProxyTransport_HTTPSProxy(t *testing.T) {
 	target := startTargetServer(t)
-	proxyURL, obsCh := startCONNECTProxy(t, true)
+	proxyURL, obsCh := startProxy(t, true)
 
 	transport := withProxyTransport(newTestTransport(), proxyURL, "")
+	t.Cleanup(transport.CloseIdleConnections)
 	client := &http.Client{Transport: transport, Timeout: 10 * time.Second}
 
 	resp, err := client.Get(target.URL)
@@ -212,8 +221,9 @@ func TestWithProxyTransport_ProxyAuth(t *testing.T) {
 	target := startTargetServer(t)
 
 	t.Run("http proxy with auth", func(t *testing.T) {
-		proxyURL := startCONNECTProxyWithAuth(t, false, "user", "pass")
+		proxyURL := startProxyWithAuth(t, false, "user", "pass")
 		transport := withProxyTransport(newTestTransport(), proxyURL, "")
+		t.Cleanup(transport.CloseIdleConnections)
 		client := &http.Client{Transport: transport, Timeout: 10 * time.Second}
 
 		resp, err := client.Get(target.URL)
@@ -229,8 +239,9 @@ func TestWithProxyTransport_ProxyAuth(t *testing.T) {
 	})
 
 	t.Run("https proxy with auth", func(t *testing.T) {
-		proxyURL := startCONNECTProxyWithAuth(t, true, "user", "s3cret")
+		proxyURL := startProxyWithAuth(t, true, "user", "s3cret")
 		transport := withProxyTransport(newTestTransport(), proxyURL, "")
+		t.Cleanup(transport.CloseIdleConnections)
 		client := &http.Client{Transport: transport, Timeout: 10 * time.Second}
 
 		resp, err := client.Get(target.URL)
@@ -250,9 +261,10 @@ func TestWithProxyTransport_HTTPSProxy_HTTP2ToOrigin(t *testing.T) {
 	// Verify that when tunneling through an HTTPS proxy, the connection to
 	// the origin target still negotiates HTTP/2 (not downgraded to HTTP/1.1).
 	target := startTargetServer(t)
-	proxyURL, _ := startCONNECTProxy(t, true)
+	proxyURL, _ := startProxy(t, true)
 
 	transport := withProxyTransport(newTestTransport(), proxyURL, "")
+	t.Cleanup(transport.CloseIdleConnections)
 	client := &http.Client{Transport: transport, Timeout: 10 * time.Second}
 
 	resp, err := client.Get(target.URL)
@@ -289,6 +301,7 @@ func TestWithProxyTransport_ProxyRejectsConnect(t *testing.T) {
 
 			proxyURL, _ := url.Parse(srv.URL)
 			transport := withProxyTransport(newTestTransport(), proxyURL, "")
+			t.Cleanup(transport.CloseIdleConnections)
 			client := &http.Client{Transport: transport, Timeout: 10 * time.Second}
 
 			_, err := client.Get("https://example.com")
