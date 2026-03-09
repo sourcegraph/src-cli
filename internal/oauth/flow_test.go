@@ -267,9 +267,9 @@ func TestStart_NoDeviceEndpoint(t *testing.T) {
 func TestPoll_Success(t *testing.T) {
 	wantToken := TokenResponse{
 		AccessToken: "test-access-token",
-		TokenType:   "Bearer",
 		ExpiresIn:   3600,
 		Scope:       "read write",
+		TokenType:   "Bearer",
 	}
 
 	server := newTestServer(t, testServerOptions{
@@ -313,6 +313,7 @@ func TestPoll_Success(t *testing.T) {
 	if resp.TokenType != wantToken.TokenType {
 		t.Errorf("TokenType = %q, want %q", resp.TokenType, wantToken.TokenType)
 	}
+
 }
 
 func TestPoll_AuthorizationPending(t *testing.T) {
@@ -505,5 +506,68 @@ func TestPoll_ContextCancellation(t *testing.T) {
 
 	if err != context.Canceled && !strings.Contains(err.Error(), "context canceled") {
 		t.Errorf("error = %v, want context.Canceled or wrapped context canceled error", err)
+	}
+}
+
+func TestRefresh_Success(t *testing.T) {
+	server := newTestServer(t, testServerOptions{
+		handlers: map[string]http.HandlerFunc{
+			testTokenPath: func(w http.ResponseWriter, r *http.Request) {
+				if err := r.ParseForm(); err != nil {
+					http.Error(w, "bad request", http.StatusBadRequest)
+					return
+				}
+				if got := r.FormValue("grant_type"); got != "refresh_token" {
+					t.Errorf("grant_type = %q, want %q", got, "refresh_token")
+				}
+				if got := r.FormValue("refresh_token"); got != "test-refresh-token" {
+					t.Errorf("refresh_token = %q, want %q", got, "test-refresh-token")
+				}
+
+				w.Header().Set("Content-Type", "application/json")
+				json.NewEncoder(w).Encode(TokenResponse{
+					AccessToken:  "new-access-token",
+					RefreshToken: "new-refresh-token",
+					ExpiresIn:    3600,
+					TokenType:    "Bearer",
+				})
+			},
+		},
+	})
+	defer server.Close()
+
+	client := NewClient(DefaultClientID)
+	token := &Token{
+		Endpoint:     server.URL,
+		AccessToken:  "new-access-token",
+		RefreshToken: "test-refresh-token",
+		ExpiresAt:    time.Now().Add(time.Second * time.Duration(3600)),
+	}
+	resp, err := client.Refresh(context.Background(), token)
+	if err != nil {
+		t.Fatalf("Refresh() error = %v", err)
+	}
+
+	if resp.AccessToken != "new-access-token" {
+		t.Errorf("AccessToken = %q, want %q", resp.AccessToken, "new-access-token")
+	}
+	if resp.RefreshToken != "new-refresh-token" {
+		t.Errorf("RefreshToken = %q, want %q", resp.RefreshToken, "new-refresh-token")
+	}
+}
+
+func TestRefresh_DiscoverFailure(t *testing.T) {
+	client := NewClient(DefaultClientID)
+	token := &Token{
+		Endpoint:     "http://127.0.0.1:1",
+		RefreshToken: "test-refresh-token",
+	}
+
+	_, err := client.Refresh(context.Background(), token)
+	if err == nil {
+		t.Fatal("Refresh() expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "failed to discover OIDC configuration") {
+		t.Errorf("error = %q, want discovery failure context", err.Error())
 	}
 }
