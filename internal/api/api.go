@@ -100,12 +100,12 @@ func buildTransport(opts ClientOpts, flags *Flags) http.RoundTripper {
 		transport.TLSClientConfig = &tls.Config{}
 	}
 
-	if opts.ProxyPath != "" || (opts.ProxyURL != nil && opts.ProxyURL.Scheme == "https") {
-		// Use our custom dialer for:
-		// - unix socket proxies
-		// - TLS=enabled proxies, to force HTTP/1.1 for the CONNECT tunnel.
-		//   Many TLS-enabled proxy servers don't support HTTP/2 CONNECT,
-		//   which Go may negotiate via ALPN, resulting in connection errors.
+	if opts.ProxyPath != "" || opts.ProxyURL != nil {
+		// Use our custom dialer for proxied connections.
+		// A custom dialer is not always needed - the connection libraries will handle HTTP(S)_PROXY-defined proxies
+		// (Go supports http, https, socks5, and socks5h proxies via HTTP(S)_PROXY),
+		// but we're also supporting proxies defined via SRC_PROXY, which can include UDS proxies,
+		// and connecting to TLS-enabled proxies adds an additional wrinkle when using HTTP/2.
 		transport = withProxyTransport(transport, opts.ProxyURL, opts.ProxyPath)
 	}
 
