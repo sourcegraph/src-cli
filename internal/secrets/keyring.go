@@ -9,20 +9,13 @@ import (
 
 var ErrSecretNotFound = errors.New("secret not found")
 
-// Store provides secure credential storage operations.
-type Store interface {
-	Get(key string) ([]byte, error)
-	Put(key string, data []byte) error
-	Delete(key string) error
-}
-
 type keyringStore struct {
 	ctx         context.Context
 	serviceName string
 }
 
 // Open opens the system keyring for the Sourcegraph CLI.
-func Open(ctx context.Context) (Store, error) {
+func Open(ctx context.Context) (*keyringStore, error) {
 	return &keyringStore{ctx: ctx, serviceName: "Sourcegraph CLI"}, nil
 }
 
@@ -71,16 +64,4 @@ func (k *keyringStore) Get(key string) ([]byte, error) {
 		}
 		return []byte(secret), nil
 	})
-}
-
-// Delete removes a key from the keyring.
-func (k *keyringStore) Delete(key string) error {
-	_, err := withContext(k.ctx, func() (struct{}, error) {
-		err := keyring.Delete(k.serviceName, key)
-		if err != nil && err != keyring.ErrNotFound {
-			return struct{}{}, errors.Wrap(err, "removing item from keyring")
-		}
-		return struct{}{}, nil
-	})
-	return err
 }
