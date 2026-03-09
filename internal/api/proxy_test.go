@@ -350,9 +350,11 @@ func TestWithProxyTransport_ProxyRejectsConnect(t *testing.T) {
 		{"502 bad gateway", http.StatusBadGateway, "upstream unreachable", "Bad Gateway"},
 	}
 
+	// Use a local target so we never depend on external DNS.
+	target := startTargetServer(t)
+
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Start a proxy that always rejects CONNECT with the given status.
+		t.Run("http proxy/"+tt.name, func(t *testing.T) {
 			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				http.Error(w, tt.body, tt.statusCode)
 			}))
@@ -363,12 +365,38 @@ func TestWithProxyTransport_ProxyRejectsConnect(t *testing.T) {
 			t.Cleanup(transport.CloseIdleConnections)
 			client := &http.Client{Transport: transport, Timeout: 10 * time.Second}
 
-			_, err := client.Get("https://example.com")
+			_, err := client.Get(target.URL)
 			if err == nil {
 				t.Fatal("expected error, got nil")
 			}
 			if !strings.Contains(err.Error(), tt.wantErr) {
 				t.Errorf("error should contain %q, got: %v", tt.wantErr, err)
+			}
+		})
+
+		t.Run("https proxy/"+tt.name, func(t *testing.T) {
+			// The HTTPS proxy path uses a custom dialer with its own error
+			// formatting that includes the status, body, and redacted proxy URL.
+			srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				http.Error(w, tt.body, tt.statusCode)
+			}))
+			srv.StartTLS()
+			t.Cleanup(srv.Close)
+
+			proxyURL, _ := url.Parse(srv.URL)
+			transport := withProxyTransport(newTestTransport(), proxyURL, "")
+			t.Cleanup(transport.CloseIdleConnections)
+			client := &http.Client{Transport: transport, Timeout: 10 * time.Second}
+
+			_, err := client.Get(target.URL)
+			if err == nil {
+				t.Fatal("expected error, got nil")
+			}
+			if !strings.Contains(err.Error(), fmt.Sprintf("%d", tt.statusCode)) {
+				t.Errorf("error should contain status code %d, got: %v", tt.statusCode, err)
+			}
+			if !strings.Contains(err.Error(), tt.body) {
+				t.Errorf("error should contain body %q, got: %v", tt.body, err)
 			}
 		})
 	}
