@@ -34,9 +34,7 @@ const (
 	ScopeOfflineAccess string = "offline_access"
 	ScopeUserAll       string = "user:all"
 
-	// storeKeyFmt is the format of the key name that will be used to store a value
-	// typically the last element is the endpoint the value is for ie. src:oauth:https://sourcegraph.sourcegraph.com
-	storeKeyFmt string = "src:oauth:%s"
+	oauthKey string = "src:oauth"
 )
 
 var defaultScopes = []string{ScopeEmail, ScopeOfflineAccess, ScopeOpenID, ScopeProfile, ScopeUserAll}
@@ -394,12 +392,12 @@ func (t *Token) ExpiringIn(d time.Duration) bool {
 	return future.After(t.ExpiresAt)
 }
 
-func oauthKey(endpoint string) string {
-	return fmt.Sprintf(storeKeyFmt, endpoint)
-}
-
 func StoreToken(ctx context.Context, token *Token) error {
-	store, err := secrets.Open(ctx)
+	if token.Endpoint == "" {
+		return errors.New("token endpoint cannot be empty when storing the token")
+	}
+
+	store, err := secrets.Open(ctx, token.Endpoint)
 	if err != nil {
 		return err
 	}
@@ -408,21 +406,16 @@ func StoreToken(ctx context.Context, token *Token) error {
 		return errors.Wrap(err, "failed to marshal token")
 	}
 
-	if token.Endpoint == "" {
-		return errors.New("token endpoint cannot be empty when storing the token")
-	}
-
-	return store.Put(oauthKey(token.Endpoint), data)
+	return store.Put(oauthKey, data)
 }
 
 func LoadToken(ctx context.Context, endpoint string) (*Token, error) {
-	store, err := secrets.Open(ctx)
+	store, err := secrets.Open(ctx, endpoint)
 	if err != nil {
 		return nil, err
 	}
 
-	key := oauthKey(endpoint)
-	data, err := store.Get(key)
+	data, err := store.Get(oauthKey)
 	if err != nil {
 		return nil, err
 	}

@@ -2,6 +2,7 @@ package secrets
 
 import (
 	"context"
+	"strings"
 
 	"github.com/sourcegraph/sourcegraph/lib/errors"
 	"github.com/zalando/go-keyring"
@@ -9,14 +10,23 @@ import (
 
 var ErrSecretNotFound = errors.New("secret not found")
 
+const serviceNamePrefix = "Sourcegraph CLI"
+
 type keyringStore struct {
 	ctx         context.Context
 	serviceName string
 }
 
 // Open opens the system keyring for the Sourcegraph CLI.
-func Open(ctx context.Context) (*keyringStore, error) {
-	return &keyringStore{ctx: ctx, serviceName: "Sourcegraph CLI"}, nil
+func Open(ctx context.Context, endpoint string) (*keyringStore, error) {
+	endpoint = strings.TrimRight(strings.TrimSpace(endpoint), "/")
+	if endpoint == "" {
+		return nil, errors.New("endpoint cannot be empty")
+	}
+
+	serviceName := serviceNamePrefix + " <" + endpoint + ">"
+
+	return &keyringStore{ctx: ctx, serviceName: serviceName}, nil
 }
 
 // withContext runs fn in a goroutine and returns its result, or ctx.Err() if the context is cancelled first.
