@@ -3,6 +3,7 @@
 package oauth
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -12,6 +13,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/sourcegraph/src-cli/internal/secrets"
 
 	"github.com/sourcegraph/sourcegraph/lib/errors"
 )
@@ -30,6 +33,8 @@ const (
 	ScopeEmail         string = "email"
 	ScopeOfflineAccess string = "offline_access"
 	ScopeUserAll       string = "user:all"
+
+	oauthKey string = "src:oauth"
 )
 
 var defaultScopes = []string{ScopeEmail, ScopeOfflineAccess, ScopeOpenID, ScopeProfile, ScopeUserAll}
@@ -54,9 +59,17 @@ type DeviceAuthResponse struct {
 type TokenResponse struct {
 	AccessToken  string `json:"access_token"`
 	RefreshToken string `json:"refresh_token,omitempty"`
-	TokenType    string `json:"token_type"`
 	ExpiresIn    int    `json:"expires_in,omitempty"`
+	TokenType    string `json:"token_type"`
 	Scope        string `json:"scope,omitempty"`
+}
+
+type Token struct {
+	Endpoint     string    `json:"endpoint"`
+	ClientID     string    `json:"client_id,omitempty"`
+	AccessToken  string    `json:"access_token"`
+	RefreshToken string    `json:"refresh_token,omitempty"`
+	ExpiresAt    time.Time `json:"expires_at"`
 }
 
 type ErrorResponse struct {
@@ -65,10 +78,11 @@ type ErrorResponse struct {
 }
 
 type Client interface {
+	ClientID() string
 	Discover(ctx context.Context, endpoint string) (*OIDCConfiguration, error)
 	Start(ctx context.Context, endpoint string, scopes []string) (*DeviceAuthResponse, error)
 	Poll(ctx context.Context, endpoint, deviceCode string, interval time.Duration, expiresIn int) (*TokenResponse, error)
-	Refresh(ctx context.Context, endpoint, refreshToken string) (*TokenResponse, error)
+	Refresh(ctx context.Context, token *Token) (*TokenResponse, error)
 }
 
 type httpClient struct {
@@ -79,20 +93,21 @@ type httpClient struct {
 }
 
 func NewClient(clientID string) Client {
+	return NewClientWithHTTPClient(clientID, &http.Client{
+		Timeout: 30 * time.Second,
+	})
+}
+
+func NewClientWithHTTPClient(clientID string, c *http.Client) Client {
 	return &httpClient{
-		clientID: clientID,
-		client: &http.Client{
-			Timeout: 30 * time.Second,
-		},
+		clientID:    cmp.Or(clientID, DefaultClientID),
+		client:      c,
 		configCache: make(map[string]*OIDCConfiguration),
 	}
 }
 
-func NewClientWithHTTPClient(c *http.Client) Client {
-	return &httpClient{
-		client:      c,
-		configCache: make(map[string]*OIDCConfiguration),
-	}
+func (c *httpClient) ClientID() string {
+	return c.clientID
 }
 
 // Discover fetches the openid-configuration which contains all the routes a client should
@@ -157,7 +172,7 @@ func (c *httpClient) Start(ctx context.Context, endpoint string, scopes []string
 	}
 
 	data := url.Values{}
-	data.Set("client_id", DefaultClientID)
+	data.Set("client_id", c.clientID)
 	if len(scopes) > 0 {
 		data.Set("scope", strings.Join(scopes, " "))
 	} else {
@@ -271,7 +286,7 @@ func (e *PollError) Error() string {
 
 func (c *httpClient) pollOnce(ctx context.Context, tokenEndpoint, deviceCode string) (*TokenResponse, error) {
 	data := url.Values{}
-	data.Set("client_id", DefaultClientID)
+	data.Set("client_id", c.clientID)
 	data.Set("device_code", deviceCode)
 	data.Set("grant_type", GrantTypeDeviceCode)
 
@@ -310,22 +325,20 @@ func (c *httpClient) pollOnce(ctx context.Context, tokenEndpoint, deviceCode str
 }
 
 // Refresh exchanges a refresh token for a new access token.
-func (c *httpClient) Refresh(ctx context.Context, endpoint, refreshToken string) (*TokenResponse, error) {
-	endpoint = strings.TrimRight(endpoint, "/")
-
-	config, err := c.Discover(ctx, endpoint)
+func (c *httpClient) Refresh(ctx context.Context, token *Token) (*TokenResponse, error) {
+	config, err := c.Discover(ctx, token.Endpoint)
 	if err != nil {
-		return nil, errors.Wrap(err, "OIDC discovery failed")
+		return nil, errors.Wrap(err, "failed to discover OIDC configuration")
 	}
 
 	if config.TokenEndpoint == "" {
-		return nil, errors.New("token endpoint not found in OIDC configuration")
+		return nil, errors.New("OIDC configuration has no token endpoint")
 	}
 
 	data := url.Values{}
 	data.Set("client_id", c.clientID)
 	data.Set("grant_type", "refresh_token")
-	data.Set("refresh_token", refreshToken)
+	data.Set("refresh_token", token.RefreshToken)
 
 	req, err := http.NewRequestWithContext(ctx, "POST", config.TokenEndpoint, strings.NewReader(data.Encode()))
 	if err != nil {
@@ -358,5 +371,59 @@ func (c *httpClient) Refresh(ctx context.Context, endpoint, refreshToken string)
 		return nil, errors.Wrap(err, "parsing refresh token response")
 	}
 
-	return &tokenResp, nil
+	return &tokenResp, err
+}
+
+func (t *TokenResponse) Token(endpoint string) *Token {
+	return &Token{
+		Endpoint:     strings.TrimRight(endpoint, "/"),
+		RefreshToken: t.RefreshToken,
+		AccessToken:  t.AccessToken,
+		ExpiresAt:    time.Now().Add(time.Second * time.Duration(t.ExpiresIn)),
+	}
+}
+
+func (t *Token) HasExpired() bool {
+	return time.Now().After(t.ExpiresAt)
+}
+
+func (t *Token) ExpiringIn(d time.Duration) bool {
+	future := time.Now().Add(d)
+	return future.After(t.ExpiresAt)
+}
+
+func StoreToken(ctx context.Context, token *Token) error {
+	if token.Endpoint == "" {
+		return errors.New("token endpoint cannot be empty when storing the token")
+	}
+
+	store, err := secrets.Open(ctx, token.Endpoint)
+	if err != nil {
+		return err
+	}
+	data, err := json.Marshal(token)
+	if err != nil {
+		return errors.Wrap(err, "failed to marshal token")
+	}
+
+	return store.Put(oauthKey, data)
+}
+
+func LoadToken(ctx context.Context, endpoint string) (*Token, error) {
+	store, err := secrets.Open(ctx, endpoint)
+	if err != nil {
+		return nil, err
+	}
+
+	data, err := store.Get(oauthKey)
+	if err != nil {
+		return nil, err
+	}
+
+	var t Token
+	if err := json.Unmarshal(data, &t); err != nil {
+		return nil, errors.Wrap(err, "failed to unmarshal token")
+	}
+
+	return &t, nil
 }
