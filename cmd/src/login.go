@@ -103,8 +103,6 @@ const (
 	loginFlowValidate
 )
 
-var loadStoredOAuthToken = oauth.LoadToken
-
 func loginCmd(ctx context.Context, p loginParams) error {
 	if p.cfg.ConfigFilePath != "" {
 		fmt.Fprintln(p.out)
@@ -115,34 +113,25 @@ func loginCmd(ctx context.Context, p loginParams) error {
 	return flow(ctx, p)
 }
 
-// selectLoginFlow decides what login flow to run based on flags and config.
-func selectLoginFlow(ctx context.Context, p loginParams) (loginFlowKind, loginFlow) {
+// selectLoginFlow decides what login flow to run based on configigured AuthMode.
+func selectLoginFlow(_ context.Context, p loginParams) (loginFlowKind, loginFlow) {
 	endpointArg := cleanEndpoint(p.endpoint)
 
 	if p.useOAuth {
 		return loginFlowOAuth, runOAuthLogin
 	}
-	if !hasEffectiveAuth(ctx, p.cfg, endpointArg) {
+
+	switch p.cfg.AuthMode() {
+	case AuthModeOAuth:
+		return loginFlowOAuth, runOAuthLogin
+	case AuthModeAccessToken:
+		if endpointArg != p.cfg.Endpoint {
+			return loginFlowEndpointConflict, runEndpointConflictLogin
+		}
+		return loginFlowValidate, runValidatedLogin
+	default:
 		return loginFlowMissingAuth, runMissingAuthLogin
 	}
-	if endpointArg != p.cfg.Endpoint {
-		return loginFlowEndpointConflict, runEndpointConflictLogin
-	}
-	return loginFlowValidate, runValidatedLogin
-}
-
-// hasEffectiveAuth determines whether we have auth credentials to continue. It first checks for a resolved Access Token in
-// config, then it checks for a stored OAuth token.
-func hasEffectiveAuth(ctx context.Context, cfg *config, resolvedEndpoint string) bool {
-	if cfg.AccessToken != "" {
-		return true
-	}
-
-	if _, err := loadStoredOAuthToken(ctx, resolvedEndpoint); err == nil {
-		return true
-	}
-
-	return false
 }
 
 func printLoginProblem(out io.Writer, problem string) {
