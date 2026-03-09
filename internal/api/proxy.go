@@ -10,14 +10,18 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"sync"
 )
 
 type connWithBufferedReader struct {
 	net.Conn
-	r *bufio.Reader
+	r  *bufio.Reader
+	mu sync.Mutex
 }
 
 func (c *connWithBufferedReader) Read(p []byte) (int, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	return c.r.Read(p)
 }
 
