@@ -30,6 +30,7 @@ func TestReadConfig(t *testing.T) {
 	tests := []struct {
 		name         string
 		fileContents *config
+		envCI        string
 		envToken     string
 		envFooHeader string
 		envHeaders   string
@@ -283,6 +284,24 @@ func TestReadConfig(t *testing.T) {
 			envHeaders:  "Authorization:Bearer",
 			wantErr:     errConfigAuthorizationConflict.Error(),
 		},
+		{
+			name:    "CI requires access token",
+			envCI:   "1",
+			wantErr: errCIAccessTokenRequired.Error(),
+		},
+		{
+			name:  "CI allows access token from config file",
+			envCI: "1",
+			fileContents: &config{
+				Endpoint:    "https://example.com/",
+				AccessToken: "deadbeef",
+			},
+			want: &config{
+				Endpoint:          "https://example.com",
+				AccessToken:       "deadbeef",
+				AdditionalHeaders: map[string]string{},
+			},
+		},
 	}
 
 	for _, test := range tests {
@@ -297,6 +316,7 @@ func TestReadConfig(t *testing.T) {
 			setEnv("SRC_ACCESS_TOKEN", test.envToken)
 			setEnv("SRC_ENDPOINT", test.envEndpoint)
 			setEnv("SRC_PROXY", test.envProxy)
+			setEnv("CI", test.envCI)
 
 			tmpDir := t.TempDir()
 			testHomeDir = tmpDir
@@ -344,4 +364,18 @@ func TestReadConfig(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestConfigAuthMode(t *testing.T) {
+	t.Run("oauth when access token is empty", func(t *testing.T) {
+		if got := (&config{}).AuthMode(); got != AuthModeOAuth {
+			t.Fatalf("AuthMode() = %v, want %v", got, AuthModeOAuth)
+		}
+	})
+
+	t.Run("access token when configured", func(t *testing.T) {
+		if got := (&config{AccessToken: "token"}).AuthMode(); got != AuthModeAccessToken {
+			t.Fatalf("AuthMode() = %v, want %v", got, AuthModeAccessToken)
+		}
+	})
 }
