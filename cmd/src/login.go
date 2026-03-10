@@ -105,7 +105,7 @@ func loginCmd(ctx context.Context, p loginParams) error {
 	return flow(ctx, p)
 }
 
-// selectLoginFlow decides what login flow to run based on configigured AuthMode.
+// selectLoginFlow decides what login flow to run based on configured AuthMode.
 func selectLoginFlow(_ context.Context, p loginParams) (loginFlowKind, loginFlow) {
 	endpointArg := cleanEndpoint(p.endpoint)
 

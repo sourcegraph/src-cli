@@ -98,10 +98,52 @@ func TestLogin(t *testing.T) {
 			t.Errorf("got output %q, want %q", out, wantOut)
 		}
 	})
+
+	t.Run("reuses stored oauth token before device flow", func(t *testing.T) {
+		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			fmt.Fprintln(w, `{"data":{"currentUser":{"username":"alice"}}}`)
+		}))
+		defer s.Close()
+
+		restoreStoredOAuthLoader(t, func(context.Context, string) (*oauth.Token, error) {
+			return &oauth.Token{
+				Endpoint:    s.URL,
+				ClientID:    oauth.DefaultClientID,
+				AccessToken: "oauth-token",
+				ExpiresAt:   time.Now().Add(time.Hour),
+			}, nil
+		})
+
+		startCalled := false
+		var out bytes.Buffer
+		err := loginCmd(context.Background(), loginParams{
+			cfg:      &config{Endpoint: s.URL},
+			client:   (&config{Endpoint: s.URL}).apiClient(nil, io.Discard),
+			endpoint: s.URL,
+			out:      &out,
+			oauthClient: fakeOAuthClient{
+				startErr:    fmt.Errorf("unexpected call to Start"),
+				startCalled: &startCalled,
+			},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if startCalled {
+			t.Fatal("expected stored oauth token to avoid device flow")
+		}
+		gotOut := strings.TrimSpace(out.String())
+		wantOut := "✔︎ Authenticated as alice on $ENDPOINT\n\n\n✔︎ Authenticated with OAuth credentials"
+		wantOut = strings.ReplaceAll(wantOut, "$ENDPOINT", s.URL)
+		if gotOut != wantOut {
+			t.Errorf("got output %q, want %q", gotOut, wantOut)
+		}
+	})
 }
 
 type fakeOAuthClient struct {
-	startErr error
+	startErr    error
+	startCalled *bool
 }
 
 func (f fakeOAuthClient) ClientID() string {
@@ -113,6 +155,9 @@ func (f fakeOAuthClient) Discover(context.Context, string) (*oauth.OIDCConfigura
 }
 
 func (f fakeOAuthClient) Start(context.Context, string, []string) (*oauth.DeviceAuthResponse, error) {
+	if f.startCalled != nil {
+		*f.startCalled = true
+	}
 	return nil, f.startErr
 }
 
@@ -156,5 +201,15 @@ func TestSelectLoginFlow(t *testing.T) {
 		if got, _ := selectLoginFlow(context.Background(), params); got != loginFlowValidate {
 			t.Fatalf("flow = %v, want %v", got, loginFlowValidate)
 		}
+	})
+}
+
+func restoreStoredOAuthLoader(t *testing.T, loader func(context.Context, string) (*oauth.Token, error)) {
+	t.Helper()
+
+	prev := loadStoredOAuthToken
+	loadStoredOAuthToken = loader
+	t.Cleanup(func() {
+		loadStoredOAuthToken = prev
 	})
 }
