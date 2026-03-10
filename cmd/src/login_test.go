@@ -176,7 +176,7 @@ func TestSelectLoginFlow(t *testing.T) {
 			endpoint: "https://sourcegraph.example.com",
 		}
 
-		if got, _ := selectLoginFlow(context.Background(), params); got != loginFlowOAuth {
+		if got, _ := selectLoginFlow(params); got != loginFlowOAuth {
 			t.Fatalf("flow = %v, want %v", got, loginFlowOAuth)
 		}
 	})
@@ -187,7 +187,7 @@ func TestSelectLoginFlow(t *testing.T) {
 			endpoint: "https://sourcegraph.example.com",
 		}
 
-		if got, _ := selectLoginFlow(context.Background(), params); got != loginFlowEndpointConflict {
+		if got, _ := selectLoginFlow(params); got != loginFlowEndpointConflict {
 			t.Fatalf("flow = %v, want %v", got, loginFlowEndpointConflict)
 		}
 	})
@@ -198,7 +198,7 @@ func TestSelectLoginFlow(t *testing.T) {
 			endpoint: "https://example.com",
 		}
 
-		if got, _ := selectLoginFlow(context.Background(), params); got != loginFlowValidate {
+		if got, _ := selectLoginFlow(params); got != loginFlowValidate {
 			t.Fatalf("flow = %v, want %v", got, loginFlowValidate)
 		}
 	})

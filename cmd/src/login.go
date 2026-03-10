@@ -101,12 +101,12 @@ func loginCmd(ctx context.Context, p loginParams) error {
 		fmt.Fprintf(p.out, "⚠️  Warning: Configuring src with a JSON file is deprecated. Please migrate to using the env vars SRC_ENDPOINT, SRC_ACCESS_TOKEN, and SRC_PROXY instead, and then remove %s. See https://github.com/sourcegraph/src-cli#readme for more information.\n", p.cfg.ConfigFilePath)
 	}
 
-	_, flow := selectLoginFlow(ctx, p)
+	_, flow := selectLoginFlow(p)
 	return flow(ctx, p)
 }
 
 // selectLoginFlow decides what login flow to run based on configured AuthMode.
-func selectLoginFlow(_ context.Context, p loginParams) (loginFlowKind, loginFlow) {
+func selectLoginFlow(p loginParams) (loginFlowKind, loginFlow) {
 	endpointArg := cleanEndpoint(p.endpoint)
 
 	switch p.cfg.AuthMode() {
