@@ -47,14 +47,16 @@ func startProxy(t *testing.T, useTLS bool) (proxyURL *url.URL, obsCh <-chan stri
 		}
 
 		w.WriteHeader(http.StatusOK)
-		clientConn, _, err := hijacker.Hijack()
+		clientConn, bufrw, err := hijacker.Hijack()
 		if err != nil {
 			return
 		}
 		defer clientConn.Close()
 
 		done := make(chan struct{}, 2)
-		go func() { io.Copy(destConn, clientConn); done <- struct{}{} }()
+		// Read from bufrw (not clientConn) so any bytes already buffered
+		// by the server's bufio.Reader are forwarded to the destination.
+		go func() { io.Copy(destConn, bufrw); done <- struct{}{} }()
 		go func() { io.Copy(clientConn, destConn); done <- struct{}{} }()
 		<-done
 		// Close both sides so the remaining goroutine unblocks.
@@ -106,14 +108,14 @@ func startProxyWithAuth(t *testing.T, useTLS bool, wantUser, wantPass string) (p
 		}
 
 		w.WriteHeader(http.StatusOK)
-		clientConn, _, err := hijacker.Hijack()
+		clientConn, bufrw, err := hijacker.Hijack()
 		if err != nil {
 			return
 		}
 		defer clientConn.Close()
 
 		done := make(chan struct{}, 2)
-		go func() { io.Copy(destConn, clientConn); done <- struct{}{} }()
+		go func() { io.Copy(destConn, bufrw); done <- struct{}{} }()
 		go func() { io.Copy(clientConn, destConn); done <- struct{}{} }()
 		<-done
 		clientConn.Close()
@@ -247,25 +249,14 @@ func TestWithProxyTransport_ProxyAuth(t *testing.T) {
 	})
 
 	t.Run("https proxy with auth", func(t *testing.T) {
-		// Under the race detector on resource-constrained CI hosts
-		// the TLS handshake to the proxy can sporadically fail with
-		// "first record does not look like a TLS handshake" / EOF.
-		// Retry with a fresh proxy + transport to tolerate this.
-		var resp *http.Response
-		var lastErr error
-		for attempt := range 3 {
-			proxyURL := startProxyWithAuth(t, true, "user", "s3cret")
-			transport := withProxyTransport(newTestTransport(), proxyURL, "")
-			client := &http.Client{Transport: transport, Timeout: 10 * time.Second}
-			resp, lastErr = client.Get(target.URL)
-			transport.CloseIdleConnections()
-			if lastErr == nil {
-				break
-			}
-			t.Logf("attempt %d: %v", attempt+1, lastErr)
-		}
-		if lastErr != nil {
-			t.Fatalf("GET through authenticated https proxy (after retries): %v", lastErr)
+		proxyURL := startProxyWithAuth(t, true, "user", "s3cret")
+		transport := withProxyTransport(newTestTransport(), proxyURL, "")
+		t.Cleanup(transport.CloseIdleConnections)
+		client := &http.Client{Transport: transport, Timeout: 10 * time.Second}
+
+		resp, err := client.Get(target.URL)
+		if err != nil {
+			t.Fatalf("GET through authenticated https proxy: %v", err)
 		}
 		defer resp.Body.Close()
 		if _, err := io.ReadAll(resp.Body); err != nil {
