@@ -247,14 +247,25 @@ func TestWithProxyTransport_ProxyAuth(t *testing.T) {
 	})
 
 	t.Run("https proxy with auth", func(t *testing.T) {
-		proxyURL := startProxyWithAuth(t, true, "user", "s3cret")
-		transport := withProxyTransport(newTestTransport(), proxyURL, "")
-		t.Cleanup(transport.CloseIdleConnections)
-		client := &http.Client{Transport: transport, Timeout: 10 * time.Second}
-
-		resp, err := client.Get(target.URL)
-		if err != nil {
-			t.Fatalf("GET through authenticated https proxy: %v", err)
+		// Under the race detector on resource-constrained CI hosts
+		// the TLS handshake to the proxy can sporadically fail with
+		// "first record does not look like a TLS handshake" / EOF.
+		// Retry with a fresh proxy + transport to tolerate this.
+		var resp *http.Response
+		var lastErr error
+		for attempt := range 3 {
+			proxyURL := startProxyWithAuth(t, true, "user", "s3cret")
+			transport := withProxyTransport(newTestTransport(), proxyURL, "")
+			client := &http.Client{Transport: transport, Timeout: 10 * time.Second}
+			resp, lastErr = client.Get(target.URL)
+			transport.CloseIdleConnections()
+			if lastErr == nil {
+				break
+			}
+			t.Logf("attempt %d: %v", attempt+1, lastErr)
+		}
+		if lastErr != nil {
+			t.Fatalf("GET through authenticated https proxy (after retries): %v", lastErr)
 		}
 		defer resp.Body.Close()
 		if _, err := io.ReadAll(resp.Body); err != nil {
