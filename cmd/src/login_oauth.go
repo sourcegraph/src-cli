@@ -13,6 +13,8 @@ import (
 	"github.com/sourcegraph/src-cli/internal/oauth"
 )
 
+var loadStoredOAuthToken = oauth.LoadToken
+
 func runOAuthLogin(ctx context.Context, p loginParams) error {
 	endpointArg := cleanEndpoint(p.endpoint)
 	client, err := oauthLoginClient(ctx, p, endpointArg)
@@ -32,7 +34,15 @@ func runOAuthLogin(ctx context.Context, p loginParams) error {
 	return nil
 }
 
+// oauthLoginClient returns a api.Client with the OAuth token set. It will check secret storage for a token
+// and use it if one is present.
+// If no token is found, it will start a OAuth Device flow to get a token and storage in secret storage.
 func oauthLoginClient(ctx context.Context, p loginParams, endpoint string) (api.Client, error) {
+	// if we have a stored token, used it. Otherwise run the device flow
+	if token, err := loadStoredOAuthToken(ctx, endpoint); err == nil {
+		return newOAuthAPIClient(p, endpoint, token), nil
+	}
+
 	token, err := runOAuthDeviceFlow(ctx, endpoint, p.out, p.oauthClient)
 	if err != nil {
 		return nil, err
@@ -43,15 +53,19 @@ func oauthLoginClient(ctx context.Context, p loginParams, endpoint string) (api.
 		fmt.Fprintf(p.out, "⚠️  Warning: Failed to store token in keyring store: %q. Continuing with this session only.\n", err)
 	}
 
+	return newOAuthAPIClient(p, endpoint, token), nil
+}
+
+func newOAuthAPIClient(p loginParams, endpoint string, token *oauth.Token) api.Client {
 	return api.NewClient(api.ClientOpts{
-		Endpoint:          p.cfg.Endpoint,
+		Endpoint:          endpoint,
 		AdditionalHeaders: p.cfg.AdditionalHeaders,
 		Flags:             p.apiFlags,
 		Out:               p.out,
 		ProxyURL:          p.cfg.ProxyURL,
 		ProxyPath:         p.cfg.ProxyPath,
 		OAuthToken:        token,
-	}), nil
+	})
 }
 
 func runOAuthDeviceFlow(ctx context.Context, endpoint string, out io.Writer, client oauth.Client) (*oauth.Token, error) {
