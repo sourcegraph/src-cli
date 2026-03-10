@@ -44,7 +44,7 @@ func oauthLoginClient(ctx context.Context, p loginParams, endpoint string) (api.
 	}
 
 	return api.NewClient(api.ClientOpts{
-		Endpoint:          p.cfg.Endpoint,
+		Endpoint:          endpoint,
 		AdditionalHeaders: p.cfg.AdditionalHeaders,
 		Flags:             p.apiFlags,
 		Out:               p.out,

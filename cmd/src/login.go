@@ -29,14 +29,9 @@ Examples:
 
     $ src login https://sourcegraph.com
 
-  Use OAuth device flow to authenticate:
+  If no access token is configured, 'src login' uses OAuth device flow automatically:
 
-    $ src login --oauth https://sourcegraph.com
-
-
-  Override the default client id used during device flow when authenticating:
-
-    $ src login --oauth https://sourcegraph.com
+    $ src login https://sourcegraph.com
 `
 
 	flagSet := flag.NewFlagSet("login", flag.ExitOnError)
@@ -47,7 +42,6 @@ Examples:
 
 	var (
 		apiFlags = api.NewFlags(flagSet)
-		useOAuth = flagSet.Bool("oauth", false, "Use OAuth device flow to obtain an access token interactively")
 	)
 
 	handler := func(args []string) error {
@@ -69,7 +63,6 @@ Examples:
 			client:      client,
 			endpoint:    endpoint,
 			out:         os.Stdout,
-			useOAuth:    *useOAuth,
 			apiFlags:    apiFlags,
 			oauthClient: oauth.NewClient(oauth.DefaultClientID),
 		})
@@ -87,7 +80,6 @@ type loginParams struct {
 	client      api.Client
 	endpoint    string
 	out         io.Writer
-	useOAuth    bool
 	apiFlags    *api.Flags
 	oauthClient oauth.Client
 }
@@ -117,10 +109,6 @@ func loginCmd(ctx context.Context, p loginParams) error {
 func selectLoginFlow(_ context.Context, p loginParams) (loginFlowKind, loginFlow) {
 	endpointArg := cleanEndpoint(p.endpoint)
 
-	if p.useOAuth {
-		return loginFlowOAuth, runOAuthLogin
-	}
-
 	switch p.cfg.AuthMode() {
 	case AuthModeOAuth:
 		return loginFlowOAuth, runOAuthLogin
@@ -146,6 +134,6 @@ func loginAccessTokenMessage(endpoint string) string {
 
    To verify that it's working, run the login command again.
 
-   Alternatively, you can try logging in using OAuth by running: src login --oauth %s
+   Alternatively, you can try logging in interactively by running: src login %s
 `, endpoint, endpoint, endpoint)
 }

@@ -74,7 +74,7 @@ func TestLogin(t *testing.T) {
 		if err != cmderrors.ExitCode1 {
 			t.Fatal(err)
 		}
-		wantOut := "❌ Problem: Invalid access token.\n\n🛠  To fix: Create an access token by going to $ENDPOINT/user/settings/tokens, then set the following environment variables in your terminal:\n\n   export SRC_ENDPOINT=$ENDPOINT\n   export SRC_ACCESS_TOKEN=(your access token)\n\n   To verify that it's working, run the login command again.\n\n   Alternatively, you can try logging in using OAuth by running: src login --oauth $ENDPOINT\n\n   (If you need to supply custom HTTP request headers, see information about SRC_HEADER_* and SRC_HEADERS env vars at https://github.com/sourcegraph/src-cli/blob/main/AUTH_PROXY.md)"
+		wantOut := "❌ Problem: Invalid access token.\n\n🛠  To fix: Create an access token by going to $ENDPOINT/user/settings/tokens, then set the following environment variables in your terminal:\n\n   export SRC_ENDPOINT=$ENDPOINT\n   export SRC_ACCESS_TOKEN=(your access token)\n\n   To verify that it's working, run the login command again.\n\n   Alternatively, you can try logging in interactively by running: src login $ENDPOINT\n\n   (If you need to supply custom HTTP request headers, see information about SRC_HEADER_* and SRC_HEADERS env vars at https://github.com/sourcegraph/src-cli/blob/main/AUTH_PROXY.md)"
 		wantOut = strings.ReplaceAll(wantOut, "$ENDPOINT", endpoint)
 		if out != wantOut {
 			t.Errorf("got output %q, want %q", out, wantOut)
@@ -125,18 +125,6 @@ func (f fakeOAuthClient) Refresh(context.Context, *oauth.Token) (*oauth.TokenRes
 }
 
 func TestSelectLoginFlow(t *testing.T) {
-	t.Run("uses oauth flow when oauth flag is set", func(t *testing.T) {
-		params := loginParams{
-			cfg:      &config{Endpoint: "https://example.com"},
-			endpoint: "https://example.com",
-			useOAuth: true,
-		}
-
-		if got, _ := selectLoginFlow(context.Background(), params); got != loginFlowOAuth {
-			t.Fatalf("flow = %v, want %v", got, loginFlowOAuth)
-		}
-	})
-
 	t.Run("uses oauth flow when no access token is configured", func(t *testing.T) {
 		params := loginParams{
 			cfg:      &config{Endpoint: "https://example.com"},
