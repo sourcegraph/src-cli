@@ -204,6 +204,32 @@ func TestSelectLoginFlow(t *testing.T) {
 	})
 }
 
+func TestValidateBrowserURL(t *testing.T) {
+	tests := []struct {
+		name    string
+		url     string
+		wantErr bool
+	}{
+		{name: "valid https", url: "https://example.com/device?code=ABC", wantErr: false},
+		{name: "valid http", url: "http://localhost:3080/auth", wantErr: false},
+		{name: "command injection ampersand", url: "https://example.com & calc.exe", wantErr: true},
+		{name: "command injection pipe", url: "https://x | powershell -enc ZABp", wantErr: true},
+		{name: "file scheme", url: "file:///etc/passwd", wantErr: true},
+		{name: "javascript scheme", url: "javascript:alert(1)", wantErr: true},
+		{name: "empty scheme", url: "://no-scheme", wantErr: true},
+		{name: "no host", url: "https://", wantErr: true},
+		{name: "relative path", url: "/just/a/path", wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateBrowserURL(tt.url)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("validateBrowserURL(%q) error = %v, wantErr %v", tt.url, err, tt.wantErr)
+			}
+		})
+	}
+}
+
 func restoreStoredOAuthLoader(t *testing.T, loader func(context.Context, string) (*oauth.Token, error)) {
 	t.Helper()
 
