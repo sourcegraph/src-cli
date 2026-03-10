@@ -134,7 +134,7 @@ func openInBrowser(rawURL string) error {
 	case "darwin":
 		cmd = exec.Command("open", rawURL)
 	case "windows":
-		cmd = exec.Command("rundll32", "url.dll,FileProtocolHandler", rawURL)
+		cmd = exec.Command("rundll32", "url.dll,OpenURL", rawURL)
 	default:
 		cmd = exec.Command("xdg-open", rawURL)
 	}
