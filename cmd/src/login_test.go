@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/sourcegraph/src-cli/internal/cmderrors"
 	"github.com/sourcegraph/src-cli/internal/oauth"
@@ -18,51 +19,47 @@ func TestLogin(t *testing.T) {
 	check := func(t *testing.T, cfg *config, endpointArg string) (output string, err error) {
 		t.Helper()
 
-		restoreStoredOAuthLoader(t, func(context.Context, string) (*oauth.Token, error) {
-			return nil, fmt.Errorf("not found")
-		})
-
 		var out bytes.Buffer
 		err = loginCmd(context.Background(), loginParams{
 			cfg:         cfg,
 			client:      cfg.apiClient(nil, io.Discard),
 			endpoint:    endpointArg,
 			out:         &out,
-			oauthClient: oauth.NewClient(oauth.DefaultClientID),
+			oauthClient: fakeOAuthClient{startErr: fmt.Errorf("oauth unavailable")},
 		})
 		return strings.TrimSpace(out.String()), err
 	}
 
 	t.Run("different endpoint in config vs. arg", func(t *testing.T) {
 		out, err := check(t, &config{Endpoint: "https://example.com"}, "https://sourcegraph.example.com")
-		if err != cmderrors.ExitCode1 {
+		if err == nil {
 			t.Fatal(err)
 		}
-		wantOut := "❌ Problem: No access token is configured.\n\n🛠  To fix: Create an access token by going to https://sourcegraph.example.com/user/settings/tokens, then set the following environment variables in your terminal:\n\n   export SRC_ENDPOINT=https://sourcegraph.example.com\n   export SRC_ACCESS_TOKEN=(your access token)\n\n   To verify that it's working, run the login command again.\n\n   Alternatively, you can try logging in using OAuth by running: src login --oauth https://sourcegraph.example.com"
-		if out != wantOut {
-			t.Errorf("got output %q, want %q", out, wantOut)
+		if !strings.Contains(out, "OAuth Device flow authentication failed:") {
+			t.Errorf("got output %q, want oauth failure output", out)
 		}
 	})
 
-	t.Run("no access token", func(t *testing.T) {
+	t.Run("no access token triggers oauth flow", func(t *testing.T) {
 		out, err := check(t, &config{Endpoint: "https://example.com"}, "https://sourcegraph.example.com")
-		if err != cmderrors.ExitCode1 {
+		if err == nil {
 			t.Fatal(err)
 		}
-		wantOut := "❌ Problem: No access token is configured.\n\n🛠  To fix: Create an access token by going to https://sourcegraph.example.com/user/settings/tokens, then set the following environment variables in your terminal:\n\n   export SRC_ENDPOINT=https://sourcegraph.example.com\n   export SRC_ACCESS_TOKEN=(your access token)\n\n   To verify that it's working, run the login command again.\n\n   Alternatively, you can try logging in using OAuth by running: src login --oauth https://sourcegraph.example.com"
-		if out != wantOut {
-			t.Errorf("got output %q, want %q", out, wantOut)
+		if !strings.Contains(out, "OAuth Device flow authentication failed:") {
+			t.Errorf("got output %q, want oauth failure output", out)
 		}
 	})
 
 	t.Run("warning when using config file", func(t *testing.T) {
 		out, err := check(t, &config{Endpoint: "https://example.com", ConfigFilePath: "f"}, "https://example.com")
-		if err != cmderrors.ExitCode1 {
+		if err == nil {
 			t.Fatal(err)
 		}
-		wantOut := "⚠️  Warning: Configuring src with a JSON file is deprecated. Please migrate to using the env vars SRC_ENDPOINT, SRC_ACCESS_TOKEN, and SRC_PROXY instead, and then remove f. See https://github.com/sourcegraph/src-cli#readme for more information.\n\n❌ Problem: No access token is configured.\n\n🛠  To fix: Create an access token by going to https://example.com/user/settings/tokens, then set the following environment variables in your terminal:\n\n   export SRC_ENDPOINT=https://example.com\n   export SRC_ACCESS_TOKEN=(your access token)\n\n   To verify that it's working, run the login command again.\n\n   Alternatively, you can try logging in using OAuth by running: src login --oauth https://example.com"
-		if out != wantOut {
-			t.Errorf("got output %q, want %q", out, wantOut)
+		if !strings.Contains(out, "Configuring src with a JSON file is deprecated") {
+			t.Errorf("got output %q, want deprecation warning", out)
+		}
+		if !strings.Contains(out, "OAuth Device flow authentication failed:") {
+			t.Errorf("got output %q, want oauth failure output", out)
 		}
 	})
 
@@ -77,7 +74,7 @@ func TestLogin(t *testing.T) {
 		if err != cmderrors.ExitCode1 {
 			t.Fatal(err)
 		}
-		wantOut := "❌ Problem: Invalid access token.\n\n🛠  To fix: Create an access token by going to $ENDPOINT/user/settings/tokens, then set the following environment variables in your terminal:\n\n   export SRC_ENDPOINT=$ENDPOINT\n   export SRC_ACCESS_TOKEN=(your access token)\n\n   To verify that it's working, run the login command again.\n\n   Alternatively, you can try logging in using OAuth by running: src login --oauth $ENDPOINT\n\n   (If you need to supply custom HTTP request headers, see information about SRC_HEADER_* and SRC_HEADERS env vars at https://github.com/sourcegraph/src-cli/blob/main/AUTH_PROXY.md)"
+		wantOut := "❌ Problem: Invalid access token.\n\n🛠  To fix: Create an access token by going to $ENDPOINT/user/settings/tokens, then set the following environment variables in your terminal:\n\n   export SRC_ENDPOINT=$ENDPOINT\n   export SRC_ACCESS_TOKEN=(your access token)\n\n   To verify that it's working, run the login command again.\n\n   Alternatively, you can try logging in interactively by running: src login $ENDPOINT\n\n   (If you need to supply custom HTTP request headers, see information about SRC_HEADER_* and SRC_HEADERS env vars at https://github.com/sourcegraph/src-cli/blob/main/AUTH_PROXY.md)"
 		wantOut = strings.ReplaceAll(wantOut, "$ENDPOINT", endpoint)
 		if out != wantOut {
 			t.Errorf("got output %q, want %q", out, wantOut)
@@ -101,33 +98,86 @@ func TestLogin(t *testing.T) {
 			t.Errorf("got output %q, want %q", out, wantOut)
 		}
 	})
+
+	t.Run("reuses stored oauth token before device flow", func(t *testing.T) {
+		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			fmt.Fprintln(w, `{"data":{"currentUser":{"username":"alice"}}}`)
+		}))
+		defer s.Close()
+
+		restoreStoredOAuthLoader(t, func(context.Context, string) (*oauth.Token, error) {
+			return &oauth.Token{
+				Endpoint:    s.URL,
+				ClientID:    oauth.DefaultClientID,
+				AccessToken: "oauth-token",
+				ExpiresAt:   time.Now().Add(time.Hour),
+			}, nil
+		})
+
+		startCalled := false
+		var out bytes.Buffer
+		err := loginCmd(context.Background(), loginParams{
+			cfg:      &config{Endpoint: s.URL},
+			client:   (&config{Endpoint: s.URL}).apiClient(nil, io.Discard),
+			endpoint: s.URL,
+			out:      &out,
+			oauthClient: fakeOAuthClient{
+				startErr:    fmt.Errorf("unexpected call to Start"),
+				startCalled: &startCalled,
+			},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if startCalled {
+			t.Fatal("expected stored oauth token to avoid device flow")
+		}
+		gotOut := strings.TrimSpace(out.String())
+		wantOut := "✔︎ Authenticated as alice on $ENDPOINT\n\n\n✔︎ Authenticated with OAuth credentials"
+		wantOut = strings.ReplaceAll(wantOut, "$ENDPOINT", s.URL)
+		if gotOut != wantOut {
+			t.Errorf("got output %q, want %q", gotOut, wantOut)
+		}
+	})
+}
+
+type fakeOAuthClient struct {
+	startErr    error
+	startCalled *bool
+}
+
+func (f fakeOAuthClient) ClientID() string {
+	return oauth.DefaultClientID
+}
+
+func (f fakeOAuthClient) Discover(context.Context, string) (*oauth.OIDCConfiguration, error) {
+	return nil, fmt.Errorf("unexpected call to Discover")
+}
+
+func (f fakeOAuthClient) Start(context.Context, string, []string) (*oauth.DeviceAuthResponse, error) {
+	if f.startCalled != nil {
+		*f.startCalled = true
+	}
+	return nil, f.startErr
+}
+
+func (f fakeOAuthClient) Poll(context.Context, string, string, time.Duration, int) (*oauth.TokenResponse, error) {
+	return nil, fmt.Errorf("unexpected call to Poll")
+}
+
+func (f fakeOAuthClient) Refresh(context.Context, *oauth.Token) (*oauth.TokenResponse, error) {
+	return nil, fmt.Errorf("unexpected call to Refresh")
 }
 
 func TestSelectLoginFlow(t *testing.T) {
-	restoreStoredOAuthLoader(t, func(context.Context, string) (*oauth.Token, error) {
-		return nil, fmt.Errorf("not found")
-	})
-
-	t.Run("uses oauth flow when oauth flag is set", func(t *testing.T) {
-		params := loginParams{
-			cfg:      &config{Endpoint: "https://example.com"},
-			endpoint: "https://example.com",
-			useOAuth: true,
-		}
-
-		if got, _ := selectLoginFlow(context.Background(), params); got != loginFlowOAuth {
-			t.Fatalf("flow = %v, want %v", got, loginFlowOAuth)
-		}
-	})
-
-	t.Run("uses missing auth flow when auth is unavailable", func(t *testing.T) {
+	t.Run("uses oauth flow when no access token is configured", func(t *testing.T) {
 		params := loginParams{
 			cfg:      &config{Endpoint: "https://example.com"},
 			endpoint: "https://sourcegraph.example.com",
 		}
 
-		if got, _ := selectLoginFlow(context.Background(), params); got != loginFlowMissingAuth {
-			t.Fatalf("flow = %v, want %v", got, loginFlowMissingAuth)
+		if got, _ := selectLoginFlow(params); got != loginFlowOAuth {
+			t.Fatalf("flow = %v, want %v", got, loginFlowOAuth)
 		}
 	})
 
@@ -137,7 +187,7 @@ func TestSelectLoginFlow(t *testing.T) {
 			endpoint: "https://sourcegraph.example.com",
 		}
 
-		if got, _ := selectLoginFlow(context.Background(), params); got != loginFlowEndpointConflict {
+		if got, _ := selectLoginFlow(params); got != loginFlowEndpointConflict {
 			t.Fatalf("flow = %v, want %v", got, loginFlowEndpointConflict)
 		}
 	})
@@ -148,22 +198,7 @@ func TestSelectLoginFlow(t *testing.T) {
 			endpoint: "https://example.com",
 		}
 
-		if got, _ := selectLoginFlow(context.Background(), params); got != loginFlowValidate {
-			t.Fatalf("flow = %v, want %v", got, loginFlowValidate)
-		}
-	})
-
-	t.Run("treats stored oauth as effective auth", func(t *testing.T) {
-		restoreStoredOAuthLoader(t, func(context.Context, string) (*oauth.Token, error) {
-			return &oauth.Token{AccessToken: "oauth-token"}, nil
-		})
-
-		params := loginParams{
-			cfg:      &config{Endpoint: "https://example.com"},
-			endpoint: "https://example.com",
-		}
-
-		if got, _ := selectLoginFlow(context.Background(), params); got != loginFlowValidate {
+		if got, _ := selectLoginFlow(params); got != loginFlowValidate {
 			t.Fatalf("flow = %v, want %v", got, loginFlowValidate)
 		}
 	})

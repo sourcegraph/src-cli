@@ -82,6 +82,7 @@ var (
 
 	errConfigMerge                 = errors.New("when using a configuration file, zero or all environment variables must be set")
 	errConfigAuthorizationConflict = errors.New("when passing an 'Authorization' additional headers, SRC_ACCESS_TOKEN must never be set")
+	errCIAccessTokenRequired       = errors.New("SRC_ACCESS_TOKEN must be set in CI")
 )
 
 // commands contains all registered subcommands.
@@ -120,6 +121,20 @@ type config struct {
 	ProxyURL          *url.URL
 	ProxyPath         string
 	ConfigFilePath    string
+}
+
+type AuthMode int
+
+const (
+	AuthModeOAuth AuthMode = iota
+	AuthModeAccessToken
+)
+
+func (c *config) AuthMode() AuthMode {
+	if c.AccessToken != "" {
+		return AuthModeAccessToken
+	}
+	return AuthModeOAuth
 }
 
 // apiClient returns an api.Client built from the configuration.
@@ -260,7 +275,16 @@ func readConfig() (*config, error) {
 
 	cfg.Endpoint = cleanEndpoint(cfg.Endpoint)
 
+	if isCI() && cfg.AccessToken == "" {
+		return nil, errCIAccessTokenRequired
+	}
+
 	return &cfg, nil
+}
+
+func isCI() bool {
+	value, ok := os.LookupEnv("CI")
+	return ok && value != ""
 }
 
 func cleanEndpoint(urlStr string) string {
