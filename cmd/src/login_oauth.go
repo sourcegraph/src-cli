@@ -9,6 +9,7 @@ import (
 	"runtime"
 	"time"
 
+	"github.com/sourcegraph/sourcegraph/lib/errors"
 	"github.com/sourcegraph/src-cli/internal/api"
 	"github.com/sourcegraph/src-cli/internal/cmderrors"
 	"github.com/sourcegraph/src-cli/internal/oauth"
@@ -109,13 +110,13 @@ func runOAuthDeviceFlow(ctx context.Context, endpoint string, out io.Writer, cli
 func validateBrowserURL(rawURL string) error {
 	u, err := url.Parse(rawURL)
 	if err != nil {
-		return fmt.Errorf("invalid URL: %w", err)
+		return errors.Wrapf(err, "invalid URL: %s", rawURL)
 	}
 	if u.Scheme != "http" && u.Scheme != "https" {
-		return fmt.Errorf("unsupported URL scheme %q: only http and https are allowed", u.Scheme)
+		return errors.Newf("unsupported URL scheme %q: only http and https are allowed", u.Scheme)
 	}
 	if u.Host == "" {
-		return fmt.Errorf("URL has no host")
+		return errors.New("URL has no host")
 	}
 	return nil
 }
