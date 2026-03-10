@@ -29,10 +29,10 @@ var storeRefreshedTokenFn = StoreToken
 func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 	ctx := req.Context()
 
-	if err := t.refreshToken(ctx); err != nil {
+	token, err := t.getToken(ctx)
+	if err != nil {
 		return nil, err
 	}
-	token := t.getToken()
 
 	req2 := req.Clone(req.Context())
 	req2.Header.Set("Authorization", "Bearer "+token.AccessToken)
@@ -43,25 +43,19 @@ func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 	return http.DefaultTransport.RoundTrip(req2)
 }
 
-// getToken returns a value copy of token and is guarded by a mutex
-func (t *Transport) getToken() Token {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-
-	return *t.Token
-}
-
-// refreshToken checks if the token has expired or expiring soon and refreshes it. Once the token is
-// refreshed, the in-memory token is updated and a best effort is made to store the token.
-// If storing the token fails, no error is returned.
-func (t *Transport) refreshToken(ctx context.Context) error {
+// getToken returns a value copy of the token. If the token has expired or expiring soon it will be refreshed before returning.
+// Once the token is refreshed, the in-memory token is updated and a best effort is made to store the token.
+//
+// If storing the token fails, no error is returned. An error is only returned if refreshing the token
+// fails.
+func (t *Transport) getToken(ctx context.Context) (Token, error) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
 	prevToken := t.Token
 	token, err := maybeRefresh(ctx, t.Token)
 	if err != nil {
-		return err
+		return Token{}, err
 	}
 	t.Token = token
 	if token != prevToken {
@@ -69,7 +63,7 @@ func (t *Transport) refreshToken(ctx context.Context) error {
 		_ = storeRefreshedTokenFn(ctx, token)
 	}
 
-	return nil
+	return *t.Token, nil
 }
 
 // maybeRefresh conditionally refreshes the token. If the token has expired or is expriing in the next 30s
