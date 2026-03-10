@@ -29,14 +29,9 @@ Examples:
 
     $ src login https://sourcegraph.com
 
-  Use OAuth device flow to authenticate:
+  If no access token is configured, 'src login' uses OAuth device flow automatically:
 
-    $ src login --oauth https://sourcegraph.com
-
-
-  Override the default client id used during device flow when authenticating:
-
-    $ src login --oauth https://sourcegraph.com
+    $ src login https://sourcegraph.com
 `
 
 	flagSet := flag.NewFlagSet("login", flag.ExitOnError)
@@ -47,7 +42,6 @@ Examples:
 
 	var (
 		apiFlags = api.NewFlags(flagSet)
-		useOAuth = flagSet.Bool("oauth", false, "Use OAuth device flow to obtain an access token interactively")
 	)
 
 	handler := func(args []string) error {
@@ -69,7 +63,6 @@ Examples:
 			client:      client,
 			endpoint:    endpoint,
 			out:         os.Stdout,
-			useOAuth:    *useOAuth,
 			apiFlags:    apiFlags,
 			oauthClient: oauth.NewClient(oauth.DefaultClientID),
 		})
@@ -87,7 +80,6 @@ type loginParams struct {
 	client      api.Client
 	endpoint    string
 	out         io.Writer
-	useOAuth    bool
 	apiFlags    *api.Flags
 	oauthClient oauth.Client
 }
@@ -103,46 +95,31 @@ const (
 	loginFlowValidate
 )
 
-var loadStoredOAuthToken = oauth.LoadToken
-
 func loginCmd(ctx context.Context, p loginParams) error {
 	if p.cfg.ConfigFilePath != "" {
 		fmt.Fprintln(p.out)
 		fmt.Fprintf(p.out, "⚠️  Warning: Configuring src with a JSON file is deprecated. Please migrate to using the env vars SRC_ENDPOINT, SRC_ACCESS_TOKEN, and SRC_PROXY instead, and then remove %s. See https://github.com/sourcegraph/src-cli#readme for more information.\n", p.cfg.ConfigFilePath)
 	}
 
-	_, flow := selectLoginFlow(ctx, p)
+	_, flow := selectLoginFlow(p)
 	return flow(ctx, p)
 }
 
-// selectLoginFlow decides what login flow to run based on flags and config.
-func selectLoginFlow(ctx context.Context, p loginParams) (loginFlowKind, loginFlow) {
+// selectLoginFlow decides what login flow to run based on configured AuthMode.
+func selectLoginFlow(p loginParams) (loginFlowKind, loginFlow) {
 	endpointArg := cleanEndpoint(p.endpoint)
 
-	if p.useOAuth {
+	switch p.cfg.AuthMode() {
+	case AuthModeOAuth:
 		return loginFlowOAuth, runOAuthLogin
-	}
-	if !hasEffectiveAuth(ctx, p.cfg, endpointArg) {
+	case AuthModeAccessToken:
+		if endpointArg != p.cfg.Endpoint {
+			return loginFlowEndpointConflict, runEndpointConflictLogin
+		}
+		return loginFlowValidate, runValidatedLogin
+	default:
 		return loginFlowMissingAuth, runMissingAuthLogin
 	}
-	if endpointArg != p.cfg.Endpoint {
-		return loginFlowEndpointConflict, runEndpointConflictLogin
-	}
-	return loginFlowValidate, runValidatedLogin
-}
-
-// hasEffectiveAuth determines whether we have auth credentials to continue. It first checks for a resolved Access Token in
-// config, then it checks for a stored OAuth token.
-func hasEffectiveAuth(ctx context.Context, cfg *config, resolvedEndpoint string) bool {
-	if cfg.AccessToken != "" {
-		return true
-	}
-
-	if _, err := loadStoredOAuthToken(ctx, resolvedEndpoint); err == nil {
-		return true
-	}
-
-	return false
 }
 
 func printLoginProblem(out io.Writer, problem string) {
@@ -157,6 +134,6 @@ func loginAccessTokenMessage(endpoint string) string {
 
    To verify that it's working, run the login command again.
 
-   Alternatively, you can try logging in using OAuth by running: src login --oauth %s
+   Alternatively, you can try logging in interactively by running: src login %s
 `, endpoint, endpoint, endpoint)
 }
