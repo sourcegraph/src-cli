@@ -4,10 +4,12 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net/url"
 	"os/exec"
 	"runtime"
 	"time"
 
+	"github.com/sourcegraph/sourcegraph/lib/errors"
 	"github.com/sourcegraph/src-cli/internal/api"
 	"github.com/sourcegraph/src-cli/internal/cmderrors"
 	"github.com/sourcegraph/src-cli/internal/oauth"
@@ -103,20 +105,39 @@ func runOAuthDeviceFlow(ctx context.Context, endpoint string, out io.Writer, cli
 	return token, nil
 }
 
-func openInBrowser(url string) error {
-	if url == "" {
+// validateBrowserURL checks that rawURL is a valid HTTP(S) URL to prevent
+// command injection via malicious URLs returned by an OAuth server.
+func validateBrowserURL(rawURL string) error {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return errors.Wrapf(err, "invalid URL: %s", rawURL)
+	}
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return errors.Newf("unsupported URL scheme %q: only http and https are allowed", u.Scheme)
+	}
+	if u.Host == "" {
+		return errors.New("URL has no host")
+	}
+	return nil
+}
+
+func openInBrowser(rawURL string) error {
+	if rawURL == "" {
 		return nil
+	}
+
+	if err := validateBrowserURL(rawURL); err != nil {
+		return err
 	}
 
 	var cmd *exec.Cmd
 	switch runtime.GOOS {
 	case "darwin":
-		cmd = exec.Command("open", url)
+		cmd = exec.Command("open", rawURL)
 	case "windows":
-		// "start" is a cmd.exe built-in; the empty string is the window title.
-		cmd = exec.Command("cmd", "/c", "start", "", url)
+		cmd = exec.Command("rundll32", "url.dll,OpenURL", rawURL)
 	default:
-		cmd = exec.Command("xdg-open", url)
+		cmd = exec.Command("xdg-open", rawURL)
 	}
 	return cmd.Run()
 }
