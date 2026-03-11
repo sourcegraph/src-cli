@@ -328,7 +328,7 @@ func (c *httpClient) pollOnce(ctx context.Context, tokenEndpoint, deviceCode str
 func (c *httpClient) Refresh(ctx context.Context, token *Token) (*TokenResponse, error) {
 	endpointURL, err := token.EndpointURL()
 	if err != nil {
-		return nil, errors.Wrap(err, "invlaid token endpoint")
+		return nil, errors.Wrap(err, "invalid token endpoint")
 	}
 
 	config, err := c.Discover(ctx, endpointURL)
