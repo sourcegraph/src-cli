@@ -2,34 +2,35 @@ package secrets
 
 import (
 	"context"
+	"net/url"
 	"testing"
 )
 
 func TestOpen(t *testing.T) {
 	tests := []struct {
 		name            string
-		endpoint        string
+		endpoint        *url.URL
 		wantServiceName string
 		wantErr         bool
 	}{
 		{
-			name:            "normalized endpoint",
-			endpoint:        " https://sourcegraph.example.com/ ",
+			name:            "simple endpoint",
+			endpoint:        &url.URL{Scheme: "https", Host: "sourcegraph.example.com"},
 			wantServiceName: "Sourcegraph CLI <https://sourcegraph.example.com>",
 		},
 		{
-			name:            "normalized endpoint with path",
-			endpoint:        " https://sourcegraph.example.com/sourcegraph/ ",
+			name:            "endpoint with path",
+			endpoint:        &url.URL{Scheme: "https", Host: "sourcegraph.example.com", Path: "/sourcegraph"},
 			wantServiceName: "Sourcegraph CLI <https://sourcegraph.example.com/sourcegraph>",
 		},
 		{
-			name:            "normalized endpoint with nested path",
-			endpoint:        "https://sourcegraph.example.com/custom/path///",
+			name:            "endpoint with nested path",
+			endpoint:        &url.URL{Scheme: "https", Host: "sourcegraph.example.com", Path: "/custom/path"},
 			wantServiceName: "Sourcegraph CLI <https://sourcegraph.example.com/custom/path>",
 		},
 		{
 			name:     "empty endpoint",
-			endpoint: " / ",
+			endpoint: &url.URL{Scheme: "", Host: ""},
 			wantErr:  true,
 		},
 	}

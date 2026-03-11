@@ -7,7 +7,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -87,10 +86,7 @@ func handleCodeIntelUpload(args []string) error {
 		return handleUploadError(uploadOptions.SourcegraphInstanceOptions.AccessToken, err)
 	}
 
-	uploadURL, err := makeCodeIntelUploadURL(uploadID)
-	if err != nil {
-		return err
-	}
+	uploadURL := makeCodeIntelUploadURL(uploadID)
 
 	if codeintelUploadFlags.json {
 		serialized, err := json.Marshal(map[string]any{
@@ -132,7 +128,7 @@ func codeintelUploadOptions(out *output.Output) upload.UploadOptions {
 		associatedIndexID = &codeintelUploadFlags.associatedIndexID
 	}
 
-	cfg.AdditionalHeaders["Content-Type"] = "application/x-protobuf+scip"
+	cfg.additionalHeaders["Content-Type"] = "application/x-protobuf+scip"
 
 	logger := upload.NewRequestLogger(
 		os.Stdout,
@@ -153,9 +149,9 @@ func codeintelUploadOptions(out *output.Output) upload.UploadOptions {
 			AssociatedIndexID: associatedIndexID,
 		},
 		SourcegraphInstanceOptions: upload.SourcegraphInstanceOptions{
-			SourcegraphURL:      cfg.Endpoint,
-			AccessToken:         cfg.AccessToken,
-			AdditionalHeaders:   cfg.AdditionalHeaders,
+			SourcegraphURL:      cfg.endpointURL.String(),
+			AccessToken:         cfg.accessToken,
+			AdditionalHeaders:   cfg.additionalHeaders,
 			MaxRetries:          5,
 			RetryInterval:       time.Second,
 			Path:                codeintelUploadFlags.uploadRoute,
@@ -191,16 +187,12 @@ func printInferredArguments(out *output.Output) {
 
 // makeCodeIntelUploadURL constructs a URL to the upload with the given internal identifier.
 // The base of the URL is constructed from the configured Sourcegraph instance.
-func makeCodeIntelUploadURL(uploadID int) (string, error) {
-	url, err := url.Parse(cfg.Endpoint)
-	if err != nil {
-		return "", err
-	}
-
+func makeCodeIntelUploadURL(uploadID int) string {
+	// Careful: copy by dereference makes a shallow copy, so User is not duplicated.
+	url := *cfg.endpointURL
 	graphqlID := base64.URLEncoding.EncodeToString(fmt.Appendf(nil, `SCIPUpload:%d`, uploadID))
 	url.Path = codeintelUploadFlags.repo + "/-/code-intelligence/uploads/" + graphqlID
-	url.User = nil
-	return url.String(), nil
+	return url.String()
 }
 
 type errorWithHint struct {

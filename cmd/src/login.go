@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"net/url"
 	"os"
 
 	"github.com/sourcegraph/src-cli/internal/api"
@@ -48,23 +49,26 @@ Examples:
 		if err := flagSet.Parse(args); err != nil {
 			return err
 		}
-		endpoint := cfg.Endpoint
+
+		var loginEndpointURL *url.URL
 		if flagSet.NArg() >= 1 {
-			endpoint = flagSet.Arg(0)
-		}
-		if endpoint == "" {
-			return cmderrors.Usage("expected exactly one argument: the Sourcegraph URL, or SRC_ENDPOINT to be set")
+			arg := flagSet.Arg(0)
+			u, err := parseEndpoint(arg)
+			if err != nil {
+				return cmderrors.Usage(fmt.Sprintf("invalid endpoint URL: %s", arg))
+			}
+			loginEndpointURL = u
 		}
 
 		client := cfg.apiClient(apiFlags, io.Discard)
 
 		return loginCmd(context.Background(), loginParams{
-			cfg:         cfg,
-			client:      client,
-			endpoint:    endpoint,
-			out:         os.Stdout,
-			apiFlags:    apiFlags,
-			oauthClient: oauth.NewClient(oauth.DefaultClientID),
+			cfg:              cfg,
+			client:           client,
+			out:              os.Stdout,
+			apiFlags:         apiFlags,
+			oauthClient:      oauth.NewClient(oauth.DefaultClientID),
+			loginEndpointURL: loginEndpointURL,
 		})
 	}
 
@@ -76,12 +80,12 @@ Examples:
 }
 
 type loginParams struct {
-	cfg         *config
-	client      api.Client
-	endpoint    string
-	out         io.Writer
-	apiFlags    *api.Flags
-	oauthClient oauth.Client
+	cfg              *config
+	client           api.Client
+	out              io.Writer
+	apiFlags         *api.Flags
+	oauthClient      oauth.Client
+	loginEndpointURL *url.URL
 }
 
 type loginFlow func(context.Context, loginParams) error
@@ -96,9 +100,9 @@ const (
 )
 
 func loginCmd(ctx context.Context, p loginParams) error {
-	if p.cfg.ConfigFilePath != "" {
+	if p.cfg.configFilePath != "" {
 		fmt.Fprintln(p.out)
-		fmt.Fprintf(p.out, "⚠️  Warning: Configuring src with a JSON file is deprecated. Please migrate to using the env vars SRC_ENDPOINT, SRC_ACCESS_TOKEN, and SRC_PROXY instead, and then remove %s. See https://github.com/sourcegraph/src-cli#readme for more information.\n", p.cfg.ConfigFilePath)
+		fmt.Fprintf(p.out, "⚠️  Warning: Configuring src with a JSON file is deprecated. Please migrate to using the env vars SRC_ENDPOINT, SRC_ACCESS_TOKEN, and SRC_PROXY instead, and then remove %s. See https://github.com/sourcegraph/src-cli#readme for more information.\n", p.cfg.configFilePath)
 	}
 
 	_, flow := selectLoginFlow(p)
@@ -107,15 +111,13 @@ func loginCmd(ctx context.Context, p loginParams) error {
 
 // selectLoginFlow decides what login flow to run based on configured AuthMode.
 func selectLoginFlow(p loginParams) (loginFlowKind, loginFlow) {
-	endpointArg := cleanEndpoint(p.endpoint)
-
+	if p.loginEndpointURL != nil && p.loginEndpointURL.String() != p.cfg.endpointURL.String() {
+		return loginFlowEndpointConflict, runEndpointConflictLogin
+	}
 	switch p.cfg.AuthMode() {
 	case AuthModeOAuth:
 		return loginFlowOAuth, runOAuthLogin
 	case AuthModeAccessToken:
-		if endpointArg != p.cfg.Endpoint {
-			return loginFlowEndpointConflict, runEndpointConflictLogin
-		}
 		return loginFlowValidate, runValidatedLogin
 	default:
 		return loginFlowMissingAuth, runMissingAuthLogin
@@ -126,7 +128,7 @@ func printLoginProblem(out io.Writer, problem string) {
 	fmt.Fprintf(out, "❌ Problem: %s\n", problem)
 }
 
-func loginAccessTokenMessage(endpoint string) string {
+func loginAccessTokenMessage(endpointURL *url.URL) string {
 	return fmt.Sprintf("\n"+`🛠  To fix: Create an access token by going to %s/user/settings/tokens, then set the following environment variables in your terminal:
 
    export SRC_ENDPOINT=%s
@@ -135,5 +137,5 @@ func loginAccessTokenMessage(endpoint string) string {
    To verify that it's working, run the login command again.
 
    Alternatively, you can try logging in interactively by running: src login %s
-`, endpoint, endpoint, endpoint)
+`, endpointURL, endpointURL, endpointURL)
 }

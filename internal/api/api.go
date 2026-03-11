@@ -12,7 +12,6 @@ import (
 	"net/url"
 	"os"
 	"runtime"
-	"strings"
 
 	ioaux "github.com/jig/teereadcloser"
 	"github.com/kballard/go-shellquote"
@@ -72,7 +71,7 @@ type request struct {
 
 // ClientOpts encapsulates the options given to NewClient.
 type ClientOpts struct {
-	Endpoint          string
+	EndpointURL       *url.URL
 	AccessToken       string
 	AdditionalHeaders map[string]string
 
@@ -139,7 +138,7 @@ func NewClient(opts ClientOpts) Client {
 
 	return &client{
 		opts: ClientOpts{
-			Endpoint:          opts.Endpoint,
+			EndpointURL:       opts.EndpointURL,
 			AccessToken:       opts.AccessToken,
 			AdditionalHeaders: opts.AdditionalHeaders,
 			Flags:             flags,
@@ -174,7 +173,8 @@ func (c *client) NewHTTPRequest(ctx context.Context, method, p string, body io.R
 }
 
 func (c *client) createHTTPRequest(ctx context.Context, method, p string, body io.Reader) (*http.Request, error) {
-	req, err := http.NewRequestWithContext(ctx, method, strings.TrimRight(c.opts.Endpoint, "/")+"/"+p, body)
+	// Can't use c.opts.EndpointURL.JoinPath(p) here because `p` could contain a query string
+	req, err := http.NewRequestWithContext(ctx, method, c.opts.EndpointURL.String()+"/"+p, body)
 	if err != nil {
 		return nil, err
 	}
@@ -269,7 +269,7 @@ func (r *request) do(ctx context.Context, result any) (bool, error) {
 			if oauth.IsOAuthTransport(r.client.httpClient.Transport) {
 				fmt.Println("The OAuth token is invalid. Please check that the Sourcegraph CLI client is still authorized.")
 				fmt.Println("")
-				fmt.Printf("To re-authorize, run: src login %s\n", r.client.opts.Endpoint)
+				fmt.Printf("To re-authorize, run: src login %s\n", r.client.opts.EndpointURL)
 				fmt.Println("")
 				fmt.Println("Learn more at https://github.com/sourcegraph/src-cli#readme")
 				fmt.Println("")
@@ -360,6 +360,6 @@ func (r *request) curlCmd() (string, error) {
 		s += fmt.Sprintf("   %s \\\n", shellquote.Join("-H", k+": "+v))
 	}
 	s += fmt.Sprintf("   %s \\\n", shellquote.Join("-d", string(data)))
-	s += fmt.Sprintf("   %s", shellquote.Join(r.client.opts.Endpoint+"/.api/graphql"))
+	s += fmt.Sprintf("   %s", shellquote.Join(r.client.opts.EndpointURL.JoinPath(".api/graphql").String()))
 	return s, nil
 }

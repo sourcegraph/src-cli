@@ -22,7 +22,7 @@ func fetchJobResults(jobID string, resultsURL string) (io.ReadCloser, error) {
 		return nil, err
 	}
 
-	req.Header.Add("Authorization", "token "+cfg.AccessToken)
+	req.Header.Add("Authorization", "token "+cfg.accessToken)
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {

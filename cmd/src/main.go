@@ -77,8 +77,8 @@ var (
 	verbose = flag.Bool("v", false, "print verbose output")
 
 	// The following arguments are deprecated which is why they are no longer documented
-	configPath = flag.String("config", "", "")
-	endpoint   = flag.String("endpoint", "", "")
+	configPath   = flag.String("config", "", "")
+	endpointFlag = flag.String("endpoint", "", "")
 
 	errConfigMerge                 = errors.New("when using a configuration file, zero or all environment variables must be set")
 	errConfigAuthorizationConflict = errors.New("when passing an 'Authorization' additional headers, SRC_ACCESS_TOKEN must never be set")
@@ -110,17 +110,42 @@ func normalizeDashHelp(args []string) []string {
 	return args
 }
 
+func parseEndpoint(endpoint string) (*url.URL, error) {
+	u, err := url.ParseRequestURI(strings.TrimSuffix(endpoint, "/"))
+	if err != nil {
+		return nil, err
+	}
+	if !(u.Scheme == "http" || u.Scheme == "https") {
+		return nil, errors.Newf("invalid scheme %s: require http or https", u.Scheme)
+	}
+	if u.Host == "" {
+		return nil, errors.Newf("empty host")
+	}
+	// auth in the URL is not used, and could be explosed in log output.
+	// Explicitly clear it in case it's accidentally set in SRC_ENDPOINT or the config file.
+	u.User = nil
+	return u, nil
+}
+
 var cfg *config
 
-// config represents the config format.
+// config holds the resolved configuration used at runtime.
 type config struct {
+	accessToken       string
+	additionalHeaders map[string]string
+	proxyURL          *url.URL
+	proxyPath         string
+	configFilePath    string
+	endpointURL       *url.URL // always non-nil; defaults to https://sourcegraph.com via readConfig
+}
+
+// configFromFile holds the config as read from the config file,
+// which is validated and parsed into the config struct.
+type configFromFile struct {
 	Endpoint          string            `json:"endpoint"`
 	AccessToken       string            `json:"accessToken"`
 	AdditionalHeaders map[string]string `json:"additionalHeaders"`
 	Proxy             string            `json:"proxy"`
-	ProxyURL          *url.URL
-	ProxyPath         string
-	ConfigFilePath    string
 }
 
 type AuthMode int
@@ -131,7 +156,7 @@ const (
 )
 
 func (c *config) AuthMode() AuthMode {
-	if c.AccessToken != "" {
+	if c.accessToken != "" {
 		return AuthModeAccessToken
 	}
 	return AuthModeOAuth
@@ -140,18 +165,18 @@ func (c *config) AuthMode() AuthMode {
 // apiClient returns an api.Client built from the configuration.
 func (c *config) apiClient(flags *api.Flags, out io.Writer) api.Client {
 	opts := api.ClientOpts{
-		Endpoint:          c.Endpoint,
-		AccessToken:       c.AccessToken,
-		AdditionalHeaders: c.AdditionalHeaders,
+		EndpointURL:       c.endpointURL,
+		AccessToken:       c.accessToken,
+		AdditionalHeaders: c.additionalHeaders,
 		Flags:             flags,
 		Out:               out,
-		ProxyURL:          c.ProxyURL,
-		ProxyPath:         c.ProxyPath,
+		ProxyURL:          c.proxyURL,
+		ProxyPath:         c.proxyPath,
 	}
 
 	// Only use OAuth if we do not have SRC_ACCESS_TOKEN set
-	if c.AccessToken == "" {
-		if t, err := oauth.LoadToken(context.Background(), c.Endpoint); err == nil {
+	if c.accessToken == "" {
+		if t, err := oauth.LoadToken(context.Background(), c.endpointURL); err == nil {
 			opts.OAuthToken = t
 		}
 	}
@@ -177,12 +202,20 @@ func readConfig() (*config, error) {
 	if err != nil && (!os.IsNotExist(err) || userSpecified) {
 		return nil, err
 	}
+
+	var cfgFromFile configFromFile
 	var cfg config
+	var endpointStr string
+	var proxyStr string
 	if err == nil {
-		cfg.ConfigFilePath = cfgPath
-		if err := json.Unmarshal(data, &cfg); err != nil {
+		cfg.configFilePath = cfgPath
+		if err := json.Unmarshal(data, &cfgFromFile); err != nil {
 			return nil, err
 		}
+		endpointStr = cfgFromFile.Endpoint
+		cfg.accessToken = cfgFromFile.AccessToken
+		cfg.additionalHeaders = cfgFromFile.AdditionalHeaders
+		proxyStr = cfgFromFile.Proxy
 	}
 
 	envToken := os.Getenv("SRC_ACCESS_TOKEN")
@@ -203,21 +236,32 @@ func readConfig() (*config, error) {
 
 	// Apply config overrides.
 	if envToken != "" {
-		cfg.AccessToken = envToken
+		cfg.accessToken = envToken
 	}
 	if envEndpoint != "" {
-		cfg.Endpoint = envEndpoint
+		endpointStr = envEndpoint
 	}
-	if cfg.Endpoint == "" {
-		cfg.Endpoint = "https://sourcegraph.com"
+	if endpointStr == "" {
+		endpointStr = "https://sourcegraph.com"
 	}
 	if envProxy != "" {
-		cfg.Proxy = envProxy
+		proxyStr = envProxy
 	}
 
-	if cfg.Proxy != "" {
+	// Lastly, apply endpoint flag if set
+	if endpointFlag != nil && *endpointFlag != "" {
+		endpointStr = *endpointFlag
+	}
 
-		parseEndpoint := func(endpoint string) (scheme string, address string) {
+	if endpointURL, err := parseEndpoint(endpointStr); err != nil {
+		return nil, errors.Newf("invalid endpoint: %s", endpointStr)
+	} else {
+		cfg.endpointURL = endpointURL
+	}
+
+	if proxyStr != "" {
+
+		parseProxyEndpoint := func(endpoint string) (scheme string, address string) {
 			parts := strings.SplitN(endpoint, "://", 2)
 			if len(parts) == 2 {
 				return parts[0], parts[1]
@@ -231,15 +275,15 @@ func readConfig() (*config, error) {
 			return slices.Contains(urlSchemes, scheme)
 		}
 
-		scheme, address := parseEndpoint(cfg.Proxy)
+		scheme, address := parseProxyEndpoint(proxyStr)
 
 		if isURLScheme(scheme) {
-			endpoint := cfg.Proxy
+			endpoint := proxyStr
 			// assume socks means socks5, because that's all we support
 			if scheme == "socks" {
 				endpoint = "socks5://" + address
 			}
-			cfg.ProxyURL, err = url.Parse(endpoint)
+			cfg.proxyURL, err = url.Parse(endpoint)
 			if err != nil {
 				return nil, err
 			}
@@ -250,32 +294,25 @@ func readConfig() (*config, error) {
 			}
 			isValidUDS, err := isValidUnixSocket(path)
 			if err != nil {
-				return nil, errors.Newf("Invalid proxy configuration: %w", err)
+				return nil, errors.Newf("invalid proxy configuration: %w", err)
 			}
 			if !isValidUDS {
 				return nil, errors.Newf("invalid proxy socket: %s", path)
 			}
-			cfg.ProxyPath = path
+			cfg.proxyPath = path
 		} else {
-			return nil, errors.Newf("invalid proxy endpoint: %s", cfg.Proxy)
+			return nil, errors.Newf("invalid proxy endpoint: %s", proxyStr)
 		}
 	}
 
-	cfg.AdditionalHeaders = parseAdditionalHeaders()
+	cfg.additionalHeaders = parseAdditionalHeaders()
 	// Ensure that we're not clashing additonal headers
-	_, hasAuthorizationAdditonalHeader := cfg.AdditionalHeaders["authorization"]
-	if cfg.AccessToken != "" && hasAuthorizationAdditonalHeader {
+	_, hasAuthorizationAdditonalHeader := cfg.additionalHeaders["authorization"]
+	if cfg.accessToken != "" && hasAuthorizationAdditonalHeader {
 		return nil, errConfigAuthorizationConflict
 	}
 
-	// Lastly, apply endpoint flag if set
-	if endpoint != nil && *endpoint != "" {
-		cfg.Endpoint = *endpoint
-	}
-
-	cfg.Endpoint = cleanEndpoint(cfg.Endpoint)
-
-	if isCI() && cfg.AccessToken == "" {
+	if isCI() && cfg.accessToken == "" {
 		return nil, errCIAccessTokenRequired
 	}
 
@@ -285,10 +322,6 @@ func readConfig() (*config, error) {
 func isCI() bool {
 	value, ok := os.LookupEnv("CI")
 	return ok && value != ""
-}
-
-func cleanEndpoint(urlStr string) string {
-	return strings.TrimSuffix(urlStr, "/")
 }
 
 // isValidUnixSocket checks if the given path is a valid Unix socket.
@@ -310,7 +343,7 @@ func isValidUnixSocket(path string) (bool, error) {
 		if os.IsNotExist(err) {
 			return false, nil
 		}
-		return false, errors.Newf("Not a UNIX Domain Socket: %v: %w", path, err)
+		return false, errors.Newf("not a UNIX Domain Socket: %v: %w", path, err)
 	}
 	defer conn.Close()
 

@@ -266,7 +266,7 @@ Other tips:
 		}
 
 		improved := searchResultsImproved{
-			SourcegraphEndpoint: cfg.Endpoint,
+			SourcegraphEndpoint: cfg.endpointURL.String(),
 			Query:               queryString,
 			Site:                result.Site,
 			searchResults:       result.Search.Results,

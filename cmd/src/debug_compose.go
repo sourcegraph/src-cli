@@ -75,7 +75,7 @@ Examples:
 			return errors.Wrap(err, "failed to get containers for subcommand with err")
 		}
 		// Safety check user knows what they are targeting with this debug command
-		log.Printf("This command will archive docker-cli data for %d containers\n SRC_ENDPOINT: %v\n Output filename: %v", len(containers), cfg.Endpoint, base)
+		log.Printf("This command will archive docker-cli data for %d containers\n SRC_ENDPOINT: %v\n Output filename: %v", len(containers), cfg.endpointURL, base)
 		if verified, _ := verify("Do you want to start writing to an archive?"); !verified {
 			return nil
 		}

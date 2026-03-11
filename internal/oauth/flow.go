@@ -72,6 +72,10 @@ type Token struct {
 	ExpiresAt    time.Time `json:"expires_at"`
 }
 
+func (t *Token) EndpointURL() (*url.URL, error) {
+	return url.ParseRequestURI(t.Endpoint)
+}
+
 type ErrorResponse struct {
 	Error            string `json:"error"`
 	ErrorDescription string `json:"error_description,omitempty"`
@@ -79,9 +83,9 @@ type ErrorResponse struct {
 
 type Client interface {
 	ClientID() string
-	Discover(ctx context.Context, endpoint string) (*OIDCConfiguration, error)
-	Start(ctx context.Context, endpoint string, scopes []string) (*DeviceAuthResponse, error)
-	Poll(ctx context.Context, endpoint, deviceCode string, interval time.Duration, expiresIn int) (*TokenResponse, error)
+	Discover(ctx context.Context, endpointURL *url.URL) (*OIDCConfiguration, error)
+	Start(ctx context.Context, endpointURL *url.URL, scopes []string) (*DeviceAuthResponse, error)
+	Poll(ctx context.Context, endpointURL *url.URL, deviceCode string, interval time.Duration, expiresIn int) (*TokenResponse, error)
 	Refresh(ctx context.Context, token *Token) (*TokenResponse, error)
 }
 
@@ -115,14 +119,14 @@ func (c *httpClient) ClientID() string {
 //
 // Before making any requests, the configCache is checked and if there is a cache hit, the
 // cached config is returned.
-func (c *httpClient) Discover(ctx context.Context, endpoint string) (*OIDCConfiguration, error) {
-	endpoint = strings.TrimRight(endpoint, "/")
+func (c *httpClient) Discover(ctx context.Context, endpointURL *url.URL) (*OIDCConfiguration, error) {
+	endpoint := endpointURL.String()
 
 	if config, ok := c.configCache[endpoint]; ok {
 		return config, nil
 	}
 
-	reqURL := endpoint + wellKnownPath
+	reqURL := endpointURL.JoinPath(wellKnownPath).String()
 
 	req, err := http.NewRequestWithContext(ctx, "GET", reqURL, nil)
 	if err != nil {
@@ -158,11 +162,9 @@ func (c *httpClient) Discover(ctx context.Context, endpoint string) (*OIDCConfig
 // Start starts the OAuth device flow with the given endpoint. If no scopes are given the default scopes are used.
 //
 // Default Scopes: "openid" "profile" "email" "offline_access" "user:all"
-func (c *httpClient) Start(ctx context.Context, endpoint string, scopes []string) (*DeviceAuthResponse, error) {
-	endpoint = strings.TrimRight(endpoint, "/")
-
+func (c *httpClient) Start(ctx context.Context, endpointURL *url.URL, scopes []string) (*DeviceAuthResponse, error) {
 	// Discover OIDC configuration - caches on first call
-	config, err := c.Discover(ctx, endpoint)
+	config, err := c.Discover(ctx, endpointURL)
 	if err != nil {
 		return nil, errors.Wrap(err, "OIDC discovery failed")
 	}
@@ -221,11 +223,9 @@ func (c *httpClient) Start(ctx context.Context, endpoint string, scopes []string
 // - Device is authorized, and a token is returned
 // - Device code has expried
 // - User denied authorization
-func (c *httpClient) Poll(ctx context.Context, endpoint, deviceCode string, interval time.Duration, expiresIn int) (*TokenResponse, error) {
-	endpoint = strings.TrimRight(endpoint, "/")
-
+func (c *httpClient) Poll(ctx context.Context, endpointURL *url.URL, deviceCode string, interval time.Duration, expiresIn int) (*TokenResponse, error) {
 	// Discover OIDC configuration - caches on first call
-	config, err := c.Discover(ctx, endpoint)
+	config, err := c.Discover(ctx, endpointURL)
 	if err != nil {
 		return nil, errors.Wrap(err, "OIDC discovery failed")
 	}
@@ -326,7 +326,12 @@ func (c *httpClient) pollOnce(ctx context.Context, tokenEndpoint, deviceCode str
 
 // Refresh exchanges a refresh token for a new access token.
 func (c *httpClient) Refresh(ctx context.Context, token *Token) (*TokenResponse, error) {
-	config, err := c.Discover(ctx, token.Endpoint)
+	endpointURL, err := token.EndpointURL()
+	if err != nil {
+		return nil, errors.Wrap(err, "invlaid token endpoint")
+	}
+
+	config, err := c.Discover(ctx, endpointURL)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to discover OIDC configuration")
 	}
@@ -374,9 +379,9 @@ func (c *httpClient) Refresh(ctx context.Context, token *Token) (*TokenResponse,
 	return &tokenResp, err
 }
 
-func (t *TokenResponse) Token(endpoint string) *Token {
+func (t *TokenResponse) Token(endpointURL *url.URL) *Token {
 	return &Token{
-		Endpoint:     strings.TrimRight(endpoint, "/"),
+		Endpoint:     endpointURL.String(),
 		RefreshToken: t.RefreshToken,
 		AccessToken:  t.AccessToken,
 		ExpiresAt:    time.Now().Add(time.Second * time.Duration(t.ExpiresIn)),
@@ -397,7 +402,12 @@ func StoreToken(ctx context.Context, token *Token) error {
 		return errors.New("token endpoint cannot be empty when storing the token")
 	}
 
-	store, err := secrets.Open(ctx, token.Endpoint)
+	u, err := token.EndpointURL()
+	if err != nil {
+		return errors.Wrap(err, "invalid token endpoint")
+	}
+
+	store, err := secrets.Open(ctx, u)
 	if err != nil {
 		return err
 	}
@@ -409,8 +419,8 @@ func StoreToken(ctx context.Context, token *Token) error {
 	return store.Put(oauthKey, data)
 }
 
-func LoadToken(ctx context.Context, endpoint string) (*Token, error) {
-	store, err := secrets.Open(ctx, endpoint)
+func LoadToken(ctx context.Context, endpointURL *url.URL) (*Token, error) {
+	store, err := secrets.Open(ctx, endpointURL)
 	if err != nil {
 		return nil, err
 	}
