@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"net"
+	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -184,7 +185,8 @@ func (c *config) apiClient(flags *api.Flags, out io.Writer) api.Client {
 	return api.NewClient(opts)
 }
 
-// readConfig reads the config file from the given path.
+// readConfig reads the config from the standard config file, the (deprecated) user-specified config file,
+// the environment variables, and the (deprecated) command-line flags.
 func readConfig() (*config, error) {
 	cfgFile := *configPath
 	userSpecified := *configPath != ""
@@ -297,11 +299,19 @@ func readConfig() (*config, error) {
 				return nil, errors.Newf("invalid proxy configuration: %w", err)
 			}
 			if !isValidUDS {
-				return nil, errors.Newf("invalid proxy socket: %s", path)
+				return nil, errors.Newf("Invalid proxy socket: %s", path)
 			}
 			cfg.proxyPath = path
 		} else {
 			return nil, errors.Newf("invalid proxy endpoint: %s", proxyStr)
+		}
+	} else {
+		// no SRC_PROXY; check for the standard proxy env variables HTTP_PROXY, HTTPS_PROXY, and NO_PROXY
+		if u, err := http.ProxyFromEnvironment(&http.Request{URL: cfg.endpointURL}); err != nil {
+			// when there's an error, the value for the env variable is not a legit URL
+			return nil, errors.Newf("invalid HTTP_PROXY or HTTPS_PROXY value: %w", err)
+		} else {
+			cfg.proxyURL = u
 		}
 	}
 
@@ -343,7 +353,7 @@ func isValidUnixSocket(path string) (bool, error) {
 		if os.IsNotExist(err) {
 			return false, nil
 		}
-		return false, errors.Newf("not a UNIX Domain Socket: %v: %w", path, err)
+		return false, errors.Newf("not a UNIX domain socket: %v: %w", path, err)
 	}
 	defer conn.Close()
 
