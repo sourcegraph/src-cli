@@ -72,7 +72,7 @@ Examples:
 		defer zw.Close()
 
 		// Safety check user knows what they are targeting with this debug command
-		log.Printf("This command will archive docker-cli data for container: %s\n SRC_ENDPOINT: %s\n Output filename: %s", container, cfg.Endpoint, base)
+		log.Printf("This command will archive docker-cli data for container: %s\n SRC_ENDPOINT: %s\n Output filename: %s", container, cfg.endpointURL, base)
 		if verified, _ := verify("Do you want to start writing to an archive?"); !verified {
 			return nil
 		}

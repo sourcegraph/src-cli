@@ -5,11 +5,21 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
 )
+
+func mustParseURL(t *testing.T, raw string) *url.URL {
+	t.Helper()
+	u, err := url.Parse(raw)
+	if err != nil {
+		t.Fatalf("failed to parse URL %q: %v", raw, err)
+	}
+	return u
+}
 
 const (
 	testDeviceAuthPath = "/device/code"
@@ -51,7 +61,7 @@ func TestDiscover_Success(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient(DefaultClientID)
-	config, err := client.Discover(context.Background(), server.URL)
+	config, err := client.Discover(context.Background(), mustParseURL(t, server.URL))
 	if err != nil {
 		t.Fatalf("Discover() error = %v", err)
 	}
@@ -81,13 +91,13 @@ func TestDiscover_Caching(t *testing.T) {
 	client := NewClient(DefaultClientID)
 
 	// Populate the cache
-	_, err := client.Discover(context.Background(), server.URL)
+	_, err := client.Discover(context.Background(), mustParseURL(t, server.URL))
 	if err != nil {
 		t.Fatalf("Discover() error = %v", err)
 	}
 
 	// Second call should use cache
-	_, err = client.Discover(context.Background(), server.URL)
+	_, err = client.Discover(context.Background(), mustParseURL(t, server.URL))
 	if err != nil {
 		t.Fatalf("Discover() error = %v", err)
 	}
@@ -106,7 +116,7 @@ func TestDiscover_Error(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient(DefaultClientID)
-	_, err := client.Discover(context.Background(), server.URL)
+	_, err := client.Discover(context.Background(), mustParseURL(t, server.URL))
 	if err == nil {
 		t.Fatal("Discover() expected error, got nil")
 	}
@@ -153,7 +163,7 @@ func TestStart_Success(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient(DefaultClientID)
-	resp, err := client.Start(context.Background(), server.URL, nil)
+	resp, err := client.Start(context.Background(), mustParseURL(t, server.URL), nil)
 	if err != nil {
 		t.Fatalf("Start() error = %v", err)
 	}
@@ -205,7 +215,7 @@ func TestStart_WithScopes(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient(DefaultClientID)
-	_, err := client.Start(context.Background(), server.URL, []string{"read", "write"})
+	_, err := client.Start(context.Background(), mustParseURL(t, server.URL), []string{"read", "write"})
 	if err != nil {
 		t.Fatalf("Start() error = %v", err)
 	}
@@ -231,7 +241,7 @@ func TestStart_Error(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient(DefaultClientID)
-	_, err := client.Start(context.Background(), server.URL, nil)
+	_, err := client.Start(context.Background(), mustParseURL(t, server.URL), nil)
 	if err == nil {
 		t.Fatal("Start() expected error, got nil")
 	}
@@ -254,7 +264,7 @@ func TestStart_NoDeviceEndpoint(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient(DefaultClientID)
-	_, err := client.Start(context.Background(), server.URL, nil)
+	_, err := client.Start(context.Background(), mustParseURL(t, server.URL), nil)
 	if err == nil {
 		t.Fatal("Start() expected error, got nil")
 	}
@@ -302,7 +312,7 @@ func TestPoll_Success(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient(DefaultClientID).(*httpClient)
-	resp, err := client.Poll(context.Background(), server.URL, "test-device-code", 10*time.Millisecond, 60)
+	resp, err := client.Poll(context.Background(), mustParseURL(t, server.URL), "test-device-code", 10*time.Millisecond, 60)
 	if err != nil {
 		t.Fatalf("Poll() error = %v", err)
 	}
@@ -345,7 +355,7 @@ func TestPoll_AuthorizationPending(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient(DefaultClientID).(*httpClient)
-	resp, err := client.Poll(context.Background(), server.URL, "test-device-code", 10*time.Millisecond, 60)
+	resp, err := client.Poll(context.Background(), mustParseURL(t, server.URL), "test-device-code", 10*time.Millisecond, 60)
 	if err != nil {
 		t.Fatalf("Poll() error = %v", err)
 	}
@@ -387,7 +397,7 @@ func TestPoll_SlowDown(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient(DefaultClientID).(*httpClient)
-	resp, err := client.Poll(context.Background(), server.URL, "test-device-code", 10*time.Millisecond, 60)
+	resp, err := client.Poll(context.Background(), mustParseURL(t, server.URL), "test-device-code", 10*time.Millisecond, 60)
 	if err != nil {
 		t.Fatalf("Poll() error = %v", err)
 	}
@@ -417,7 +427,7 @@ func TestPoll_ExpiredToken(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient(DefaultClientID).(*httpClient)
-	_, err := client.Poll(context.Background(), server.URL, "test-device-code", 10*time.Millisecond, 60)
+	_, err := client.Poll(context.Background(), mustParseURL(t, server.URL), "test-device-code", 10*time.Millisecond, 60)
 	if err == nil {
 		t.Fatal("Poll() expected error, got nil")
 	}
@@ -444,7 +454,7 @@ func TestPoll_AccessDenied(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient(DefaultClientID).(*httpClient)
-	_, err := client.Poll(context.Background(), server.URL, "test-device-code", 10*time.Millisecond, 60)
+	_, err := client.Poll(context.Background(), mustParseURL(t, server.URL), "test-device-code", 10*time.Millisecond, 60)
 	if err == nil {
 		t.Fatal("Poll() expected error, got nil")
 	}
@@ -470,7 +480,7 @@ func TestPoll_Timeout(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient(DefaultClientID).(*httpClient)
-	_, err := client.Poll(context.Background(), server.URL, "test-device-code", 10*time.Millisecond, 0)
+	_, err := client.Poll(context.Background(), mustParseURL(t, server.URL), "test-device-code", 10*time.Millisecond, 0)
 	if err == nil {
 		t.Fatal("Poll() expected error, got nil")
 	}
@@ -499,7 +509,7 @@ func TestPoll_ContextCancellation(t *testing.T) {
 	cancel()
 
 	client := NewClient(DefaultClientID).(*httpClient)
-	_, err := client.Poll(ctx, server.URL, "test-device-code", 10*time.Millisecond, 3600)
+	_, err := client.Poll(ctx, mustParseURL(t, server.URL), "test-device-code", 10*time.Millisecond, 3600)
 	if err == nil {
 		t.Fatal("Poll() expected error, got nil")
 	}

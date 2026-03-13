@@ -225,7 +225,7 @@ type UserToDelete struct {
 // Verify user wants to remove users with table of users and a command prompt for [y/N]
 func confirmUserRemoval(usersToDelete []UserToDelete, daysThreshold int, displayUsers bool) (bool, error) {
 	if displayUsers {
-		fmt.Printf("Users to remove from %s\n", cfg.Endpoint)
+		fmt.Printf("Users to remove from %s\n", cfg.endpointURL)
 		t := table.NewWriter()
 		t.SetOutputMirror(os.Stdout)
 		t.AppendHeader(table.Row{"Username", "Email", "Days Since Last Active"})
@@ -243,7 +243,7 @@ func confirmUserRemoval(usersToDelete []UserToDelete, daysThreshold int, display
 	}
 	input := ""
 	for strings.ToLower(input) != "y" && strings.ToLower(input) != "n" {
-		fmt.Printf("%v users were inactive for more than %v days on %v.\nDo you  wish to proceed with user removal [y/N]: ", len(usersToDelete), daysThreshold, cfg.Endpoint)
+		fmt.Printf("%v users were inactive for more than %v days on %v.\nDo you  wish to proceed with user removal [y/N]: ", len(usersToDelete), daysThreshold, cfg.endpointURL)
 		if _, err := fmt.Scanln(&input); err != nil {
 			return false, err
 		}

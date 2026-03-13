@@ -537,7 +537,7 @@ func executeBatchSpec(ctx context.Context, opts executeBatchSpecOpts) (err error
 	if err != nil {
 		return execUI.CreatingBatchSpecError(lr.MaxUnlicensedChangesets, err)
 	}
-	previewURL := cfg.Endpoint + url
+	previewURL := cfg.endpointURL.JoinPath(url).String()
 	execUI.CreatingBatchSpecSuccess(previewURL)
 
 	hasWorkspaceFiles := false
@@ -567,7 +567,7 @@ func executeBatchSpec(ctx context.Context, opts executeBatchSpecOpts) (err error
 	if err != nil {
 		return err
 	}
-	execUI.ApplyingBatchSpecSuccess(cfg.Endpoint + batch.URL)
+	execUI.ApplyingBatchSpecSuccess(cfg.endpointURL.JoinPath(batch.URL).String())
 
 	return nil
 }

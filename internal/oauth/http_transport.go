@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"sync"
 	"time"
+
+	"github.com/sourcegraph/sourcegraph/lib/errors"
 )
 
 var _ http.Transport
@@ -22,7 +24,7 @@ type Transport struct {
 }
 
 // storeRefreshedTokenFn is the function the transport should use to persist the token - mainly used during
-// tests to swap out the implementation out with a mock
+// tests to swap out the implementation with a mock
 var storeRefreshedTokenFn = StoreToken
 
 // RoundTrip implements http.RoundTripper.
@@ -59,7 +61,8 @@ func (t *Transport) getToken(ctx context.Context) (Token, error) {
 	}
 	t.Token = token
 	if token != prevToken {
-		// try to save the token if we fail let the request continue with in memory token
+		// Try to save the token.
+		// If we fail let the request continue with the in-memory token
 		_ = storeRefreshedTokenFn(ctx, token)
 	}
 
@@ -81,7 +84,12 @@ func maybeRefresh(ctx context.Context, token *Token) (*Token, error) {
 		return nil, err
 	}
 
-	next := resp.Token(token.Endpoint)
+	endpointURL, err := token.EndpointURL()
+	if err != nil {
+		return nil, errors.Wrap(err, "invalid token endpoint")
+	}
+
+	next := resp.Token(endpointURL)
 	next.ClientID = token.ClientID
 	return next, nil
 }

@@ -131,7 +131,7 @@ Examples:
 			Max:                 max,
 			RepoCount:           len(repos),
 			Repos:               repos,
-			SourcegraphEndpoint: cfg.Endpoint,
+			SourcegraphEndpoint: cfg.endpointURL.String(),
 		}); err != nil {
 			return err
 		}

@@ -156,8 +156,8 @@ func parseColumns(columnsFlag string) []string {
 // createSearchJobsClient creates a reusable API client for search jobs commands
 func createSearchJobsClient(out *flag.FlagSet, apiFlags *api.Flags) api.Client {
 	return api.NewClient(api.ClientOpts{
-		Endpoint:    cfg.Endpoint,
-		AccessToken: cfg.AccessToken,
+		EndpointURL: cfg.endpointURL,
+		AccessToken: cfg.accessToken,
 		Out:         out.Output(),
 		Flags:       apiFlags,
 	})

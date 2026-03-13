@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 
 	"github.com/sourcegraph/src-cli/internal/api"
 )
@@ -29,7 +30,7 @@ func TestReadConfig(t *testing.T) {
 
 	tests := []struct {
 		name         string
-		fileContents *config
+		fileContents *configFromFile
 		envCI        string
 		envToken     string
 		envFooHeader string
@@ -43,24 +44,29 @@ func TestReadConfig(t *testing.T) {
 		{
 			name: "defaults",
 			want: &config{
-				Endpoint:          "https://sourcegraph.com",
-				AdditionalHeaders: map[string]string{},
+				endpointURL: &url.URL{
+					Scheme: "https",
+					Host:   "sourcegraph.com",
+				},
+				additionalHeaders: map[string]string{},
 			},
 		},
 		{
 			name: "config file, no overrides, trim slash",
-			fileContents: &config{
+			fileContents: &configFromFile{
 				Endpoint:    "https://example.com/",
 				AccessToken: "deadbeef",
 				Proxy:       "https://proxy.com:8080",
 			},
 			want: &config{
-				Endpoint:          "https://example.com",
-				AccessToken:       "deadbeef",
-				AdditionalHeaders: map[string]string{},
-				Proxy:             "https://proxy.com:8080",
-				ProxyPath:         "",
-				ProxyURL: &url.URL{
+				endpointURL: &url.URL{
+					Scheme: "https",
+					Host:   "example.com",
+				},
+				accessToken:       "deadbeef",
+				additionalHeaders: map[string]string{},
+				proxyPath:         "",
+				proxyURL: &url.URL{
 					Scheme: "https",
 					Host:   "proxy.com:8080",
 				},
@@ -68,7 +74,7 @@ func TestReadConfig(t *testing.T) {
 		},
 		{
 			name: "config file, token override only",
-			fileContents: &config{
+			fileContents: &configFromFile{
 				Endpoint:    "https://example.com/",
 				AccessToken: "deadbeef",
 			},
@@ -78,7 +84,7 @@ func TestReadConfig(t *testing.T) {
 		},
 		{
 			name: "config file, endpoint override only",
-			fileContents: &config{
+			fileContents: &configFromFile{
 				Endpoint:    "https://example.com/",
 				AccessToken: "deadbeef",
 			},
@@ -88,27 +94,29 @@ func TestReadConfig(t *testing.T) {
 		},
 		{
 			name: "config file, proxy override only (allow)",
-			fileContents: &config{
+			fileContents: &configFromFile{
 				Endpoint:    "https://example.com/",
 				AccessToken: "deadbeef",
 				Proxy:       "https://proxy.com:8080",
 			},
 			envProxy: "socks5://other.proxy.com:9999",
 			want: &config{
-				Endpoint:    "https://example.com",
-				AccessToken: "deadbeef",
-				Proxy:       "socks5://other.proxy.com:9999",
-				ProxyPath:   "",
-				ProxyURL: &url.URL{
+				endpointURL: &url.URL{
+					Scheme: "https",
+					Host:   "example.com",
+				},
+				accessToken: "deadbeef",
+				proxyPath:   "",
+				proxyURL: &url.URL{
 					Scheme: "socks5",
 					Host:   "other.proxy.com:9999",
 				},
-				AdditionalHeaders: map[string]string{},
+				additionalHeaders: map[string]string{},
 			},
 		},
 		{
 			name: "config file, all override",
-			fileContents: &config{
+			fileContents: &configFromFile{
 				Endpoint:    "https://example.com/",
 				AccessToken: "deadbeef",
 				Proxy:       "https://proxy.com:8080",
@@ -117,48 +125,58 @@ func TestReadConfig(t *testing.T) {
 			envEndpoint: "https://override.com",
 			envProxy:    "socks5://other.proxy.com:9999",
 			want: &config{
-				Endpoint:    "https://override.com",
-				AccessToken: "abc",
-				Proxy:       "socks5://other.proxy.com:9999",
-				ProxyPath:   "",
-				ProxyURL: &url.URL{
+				endpointURL: &url.URL{
+					Scheme: "https",
+					Host:   "override.com",
+				},
+				accessToken: "abc",
+				proxyPath:   "",
+				proxyURL: &url.URL{
 					Scheme: "socks5",
 					Host:   "other.proxy.com:9999",
 				},
-				AdditionalHeaders: map[string]string{},
+				additionalHeaders: map[string]string{},
 			},
 		},
 		{
 			name:     "no config file, token from environment",
 			envToken: "abc",
 			want: &config{
-				Endpoint:          "https://sourcegraph.com",
-				AccessToken:       "abc",
-				AdditionalHeaders: map[string]string{},
+				endpointURL: &url.URL{
+					Scheme: "https",
+					Host:   "sourcegraph.com",
+				},
+				accessToken:       "abc",
+				additionalHeaders: map[string]string{},
 			},
 		},
 		{
 			name:        "no config file, endpoint from environment",
 			envEndpoint: "https://example.com",
 			want: &config{
-				Endpoint:          "https://example.com",
-				AccessToken:       "",
-				AdditionalHeaders: map[string]string{},
+				endpointURL: &url.URL{
+					Scheme: "https",
+					Host:   "example.com",
+				},
+				accessToken:       "",
+				additionalHeaders: map[string]string{},
 			},
 		},
 		{
 			name:     "no config file, proxy from environment",
 			envProxy: "https://proxy.com:8080",
 			want: &config{
-				Endpoint:    "https://sourcegraph.com",
-				AccessToken: "",
-				Proxy:       "https://proxy.com:8080",
-				ProxyPath:   "",
-				ProxyURL: &url.URL{
+				endpointURL: &url.URL{
+					Scheme: "https",
+					Host:   "sourcegraph.com",
+				},
+				accessToken: "",
+				proxyPath:   "",
+				proxyURL: &url.URL{
 					Scheme: "https",
 					Host:   "proxy.com:8080",
 				},
-				AdditionalHeaders: map[string]string{},
+				additionalHeaders: map[string]string{},
 			},
 		},
 		{
@@ -167,79 +185,92 @@ func TestReadConfig(t *testing.T) {
 			envToken:    "abc",
 			envProxy:    "https://proxy.com:8080",
 			want: &config{
-				Endpoint:    "https://example.com",
-				AccessToken: "abc",
-				Proxy:       "https://proxy.com:8080",
-				ProxyPath:   "",
-				ProxyURL: &url.URL{
+				endpointURL: &url.URL{
+					Scheme: "https",
+					Host:   "example.com",
+				},
+				accessToken: "abc",
+				proxyPath:   "",
+				proxyURL: &url.URL{
 					Scheme: "https",
 					Host:   "proxy.com:8080",
 				},
-				AdditionalHeaders: map[string]string{},
+				additionalHeaders: map[string]string{},
 			},
 		},
 		{
 			name:     "UNIX Domain Socket proxy using scheme and absolute path",
 			envProxy: "unix://" + socketPath,
 			want: &config{
-				Endpoint:          "https://sourcegraph.com",
-				Proxy:             "unix://" + socketPath,
-				ProxyPath:         socketPath,
-				ProxyURL:          nil,
-				AdditionalHeaders: map[string]string{},
+				endpointURL: &url.URL{
+					Scheme: "https",
+					Host:   "sourcegraph.com",
+				},
+				proxyPath:         socketPath,
+				proxyURL:          nil,
+				additionalHeaders: map[string]string{},
 			},
 		},
 		{
 			name:     "UNIX Domain Socket proxy with absolute path",
 			envProxy: socketPath,
 			want: &config{
-				Endpoint:          "https://sourcegraph.com",
-				Proxy:             socketPath,
-				ProxyPath:         socketPath,
-				ProxyURL:          nil,
-				AdditionalHeaders: map[string]string{},
+				endpointURL: &url.URL{
+					Scheme: "https",
+					Host:   "sourcegraph.com",
+				},
+				proxyPath:         socketPath,
+				proxyURL:          nil,
+				additionalHeaders: map[string]string{},
 			},
 		},
 		{
 			name:     "socks --> socks5",
 			envProxy: "socks://localhost:1080",
 			want: &config{
-				Endpoint:  "https://sourcegraph.com",
-				Proxy:     "socks://localhost:1080",
-				ProxyPath: "",
-				ProxyURL: &url.URL{
+				endpointURL: &url.URL{
+					Scheme: "https",
+					Host:   "sourcegraph.com",
+				},
+				proxyPath: "",
+				proxyURL: &url.URL{
 					Scheme: "socks5",
 					Host:   "localhost:1080",
 				},
-				AdditionalHeaders: map[string]string{},
+				additionalHeaders: map[string]string{},
 			},
 		},
 		{
 			name:     "socks5h",
 			envProxy: "socks5h://localhost:1080",
 			want: &config{
-				Endpoint:  "https://sourcegraph.com",
-				Proxy:     "socks5h://localhost:1080",
-				ProxyPath: "",
-				ProxyURL: &url.URL{
+				endpointURL: &url.URL{
+					Scheme: "https",
+					Host:   "sourcegraph.com",
+				},
+				proxyPath: "",
+				proxyURL: &url.URL{
 					Scheme: "socks5h",
 					Host:   "localhost:1080",
 				},
-				AdditionalHeaders: map[string]string{},
+				additionalHeaders: map[string]string{},
 			},
 		},
 		{
 			name:         "endpoint flag should override config",
 			flagEndpoint: "https://override.com/",
-			fileContents: &config{
+			fileContents: &configFromFile{
 				Endpoint:          "https://example.com/",
 				AccessToken:       "deadbeef",
 				AdditionalHeaders: map[string]string{},
 			},
 			want: &config{
-				Endpoint:          "https://override.com",
-				AccessToken:       "deadbeef",
-				AdditionalHeaders: map[string]string{},
+				endpointURL: &url.URL{
+					Scheme: "https",
+					Host:   "override.com",
+				},
+				accessToken:       "deadbeef",
+				additionalHeaders: map[string]string{},
 			},
 		},
 		{
@@ -248,9 +279,12 @@ func TestReadConfig(t *testing.T) {
 			envEndpoint:  "https://example.com",
 			envToken:     "abc",
 			want: &config{
-				Endpoint:          "https://override.com",
-				AccessToken:       "abc",
-				AdditionalHeaders: map[string]string{},
+				endpointURL: &url.URL{
+					Scheme: "https",
+					Host:   "override.com",
+				},
+				accessToken:       "abc",
+				additionalHeaders: map[string]string{},
 			},
 		},
 		{
@@ -260,9 +294,12 @@ func TestReadConfig(t *testing.T) {
 			envToken:     "abc",
 			envFooHeader: "bar",
 			want: &config{
-				Endpoint:          "https://override.com",
-				AccessToken:       "abc",
-				AdditionalHeaders: map[string]string{"foo": "bar"},
+				endpointURL: &url.URL{
+					Scheme: "https",
+					Host:   "override.com",
+				},
+				accessToken:       "abc",
+				additionalHeaders: map[string]string{"foo": "bar"},
 			},
 		},
 		{
@@ -272,9 +309,12 @@ func TestReadConfig(t *testing.T) {
 			envToken:     "abc",
 			envHeaders:   "foo:bar\nfoo-bar:bar-baz",
 			want: &config{
-				Endpoint:          "https://override.com",
-				AccessToken:       "abc",
-				AdditionalHeaders: map[string]string{"foo-bar": "bar-baz", "foo": "bar"},
+				endpointURL: &url.URL{
+					Scheme: "https",
+					Host:   "override.com",
+				},
+				accessToken:       "abc",
+				additionalHeaders: map[string]string{"foo-bar": "bar-baz", "foo": "bar"},
 			},
 		},
 		{
@@ -292,14 +332,14 @@ func TestReadConfig(t *testing.T) {
 		{
 			name:  "CI allows access token from config file",
 			envCI: "1",
-			fileContents: &config{
+			fileContents: &configFromFile{
 				Endpoint:    "https://example.com/",
 				AccessToken: "deadbeef",
 			},
 			want: &config{
-				Endpoint:          "https://example.com",
-				AccessToken:       "deadbeef",
-				AdditionalHeaders: map[string]string{},
+				endpointURL:       &url.URL{Scheme: "https", Host: "example.com"},
+				accessToken:       "deadbeef",
+				additionalHeaders: map[string]string{},
 			},
 		},
 	}
@@ -323,8 +363,8 @@ func TestReadConfig(t *testing.T) {
 
 			if test.flagEndpoint != "" {
 				val := test.flagEndpoint
-				endpoint = &val
-				t.Cleanup(func() { endpoint = nil })
+				endpointFlag = &val
+				t.Cleanup(func() { endpointFlag = nil })
 			}
 
 			if test.fileContents != nil {
@@ -351,8 +391,11 @@ func TestReadConfig(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			config, err := readConfig()
-			if diff := cmp.Diff(test.want, config); diff != "" {
+			got, err := readConfig()
+			if diff := cmp.Diff(test.want, got,
+				cmp.AllowUnexported(config{}),
+				cmpopts.IgnoreFields(config{}, "configFilePath"),
+			); diff != "" {
 				t.Errorf("config: %v", diff)
 			}
 			var errMsg string
@@ -374,7 +417,7 @@ func TestConfigAuthMode(t *testing.T) {
 	})
 
 	t.Run("access token when configured", func(t *testing.T) {
-		if got := (&config{AccessToken: "token"}).AuthMode(); got != AuthModeAccessToken {
+		if got := (&config{accessToken: "token"}).AuthMode(); got != AuthModeAccessToken {
 			t.Fatalf("AuthMode() = %v, want %v", got, AuthModeAccessToken)
 		}
 	})

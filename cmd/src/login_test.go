@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -15,33 +16,43 @@ import (
 	"github.com/sourcegraph/src-cli/internal/oauth"
 )
 
+func mustParseURL(t *testing.T, raw string) *url.URL {
+	t.Helper()
+	u, err := url.Parse(raw)
+	if err != nil {
+		t.Fatalf("failed to parse URL %q: %v", raw, err)
+	}
+	return u
+}
+
 func TestLogin(t *testing.T) {
-	check := func(t *testing.T, cfg *config, endpointArg string) (output string, err error) {
+	check := func(t *testing.T, cfg *config, endpointArgURL *url.URL) (output string, err error) {
 		t.Helper()
 
 		var out bytes.Buffer
 		err = loginCmd(context.Background(), loginParams{
-			cfg:         cfg,
-			client:      cfg.apiClient(nil, io.Discard),
-			endpoint:    endpointArg,
-			out:         &out,
-			oauthClient: fakeOAuthClient{startErr: fmt.Errorf("oauth unavailable")},
+			cfg:              cfg,
+			client:           cfg.apiClient(nil, io.Discard),
+			out:              &out,
+			oauthClient:      fakeOAuthClient{startErr: fmt.Errorf("oauth unavailable")},
+			loginEndpointURL: endpointArgURL,
 		})
 		return strings.TrimSpace(out.String()), err
 	}
 
 	t.Run("different endpoint in config vs. arg", func(t *testing.T) {
-		out, err := check(t, &config{Endpoint: "https://example.com"}, "https://sourcegraph.example.com")
+		out, err := check(t, &config{endpointURL: &url.URL{Scheme: "https", Host: "example.com"}}, &url.URL{Scheme: "https", Host: "sourcegraph.example.com"})
 		if err == nil {
 			t.Fatal(err)
 		}
-		if !strings.Contains(out, "OAuth Device flow authentication failed:") {
-			t.Errorf("got output %q, want oauth failure output", out)
+		if !strings.Contains(out, "The configured endpoint is https://example.com, not https://sourcegraph.example.com.") {
+			t.Errorf("got output %q, want configured endpoint error", out)
 		}
 	})
 
 	t.Run("no access token triggers oauth flow", func(t *testing.T) {
-		out, err := check(t, &config{Endpoint: "https://example.com"}, "https://sourcegraph.example.com")
+		u := &url.URL{Scheme: "https", Host: "example.com"}
+		out, err := check(t, &config{endpointURL: u}, u)
 		if err == nil {
 			t.Fatal(err)
 		}
@@ -51,8 +62,9 @@ func TestLogin(t *testing.T) {
 	})
 
 	t.Run("warning when using config file", func(t *testing.T) {
-		out, err := check(t, &config{Endpoint: "https://example.com", ConfigFilePath: "f"}, "https://example.com")
-		if err == nil {
+		endpoint := &url.URL{Scheme: "https", Host: "example.com"}
+		out, err := check(t, &config{endpointURL: endpoint, configFilePath: "f"}, endpoint)
+		if err != cmderrors.ExitCode1 {
 			t.Fatal(err)
 		}
 		if !strings.Contains(out, "Configuring src with a JSON file is deprecated") {
@@ -69,13 +81,13 @@ func TestLogin(t *testing.T) {
 		}))
 		defer s.Close()
 
-		endpoint := s.URL
-		out, err := check(t, &config{Endpoint: endpoint, AccessToken: "x"}, endpoint)
+		u := mustParseURL(t, s.URL)
+		out, err := check(t, &config{endpointURL: u, accessToken: "x"}, u)
 		if err != cmderrors.ExitCode1 {
 			t.Fatal(err)
 		}
 		wantOut := "❌ Problem: Invalid access token.\n\n🛠  To fix: Create an access token by going to $ENDPOINT/user/settings/tokens, then set the following environment variables in your terminal:\n\n   export SRC_ENDPOINT=$ENDPOINT\n   export SRC_ACCESS_TOKEN=(your access token)\n\n   To verify that it's working, run the login command again.\n\n   Alternatively, you can try logging in interactively by running: src login $ENDPOINT\n\n   (If you need to supply custom HTTP request headers, see information about SRC_HEADER_* and SRC_HEADERS env vars at https://github.com/sourcegraph/src-cli/blob/main/AUTH_PROXY.md)"
-		wantOut = strings.ReplaceAll(wantOut, "$ENDPOINT", endpoint)
+		wantOut = strings.ReplaceAll(wantOut, "$ENDPOINT", s.URL)
 		if out != wantOut {
 			t.Errorf("got output %q, want %q", out, wantOut)
 		}
@@ -87,13 +99,13 @@ func TestLogin(t *testing.T) {
 		}))
 		defer s.Close()
 
-		endpoint := s.URL
-		out, err := check(t, &config{Endpoint: endpoint, AccessToken: "x"}, endpoint)
+		u := mustParseURL(t, s.URL)
+		out, err := check(t, &config{endpointURL: u, accessToken: "x"}, u)
 		if err != nil {
 			t.Fatal(err)
 		}
 		wantOut := "✔︎ Authenticated as alice on $ENDPOINT"
-		wantOut = strings.ReplaceAll(wantOut, "$ENDPOINT", endpoint)
+		wantOut = strings.ReplaceAll(wantOut, "$ENDPOINT", s.URL)
 		if out != wantOut {
 			t.Errorf("got output %q, want %q", out, wantOut)
 		}
@@ -105,7 +117,7 @@ func TestLogin(t *testing.T) {
 		}))
 		defer s.Close()
 
-		restoreStoredOAuthLoader(t, func(context.Context, string) (*oauth.Token, error) {
+		restoreStoredOAuthLoader(t, func(_ context.Context, _ *url.URL) (*oauth.Token, error) {
 			return &oauth.Token{
 				Endpoint:    s.URL,
 				ClientID:    oauth.DefaultClientID,
@@ -114,13 +126,13 @@ func TestLogin(t *testing.T) {
 			}, nil
 		})
 
+		u, _ := url.ParseRequestURI(s.URL)
 		startCalled := false
 		var out bytes.Buffer
 		err := loginCmd(context.Background(), loginParams{
-			cfg:      &config{Endpoint: s.URL},
-			client:   (&config{Endpoint: s.URL}).apiClient(nil, io.Discard),
-			endpoint: s.URL,
-			out:      &out,
+			cfg:    &config{endpointURL: u},
+			client: (&config{endpointURL: u}).apiClient(nil, io.Discard),
+			out:    &out,
 			oauthClient: fakeOAuthClient{
 				startErr:    fmt.Errorf("unexpected call to Start"),
 				startCalled: &startCalled,
@@ -150,18 +162,18 @@ func (f fakeOAuthClient) ClientID() string {
 	return oauth.DefaultClientID
 }
 
-func (f fakeOAuthClient) Discover(context.Context, string) (*oauth.OIDCConfiguration, error) {
+func (f fakeOAuthClient) Discover(context.Context, *url.URL) (*oauth.OIDCConfiguration, error) {
 	return nil, fmt.Errorf("unexpected call to Discover")
 }
 
-func (f fakeOAuthClient) Start(context.Context, string, []string) (*oauth.DeviceAuthResponse, error) {
+func (f fakeOAuthClient) Start(context.Context, *url.URL, []string) (*oauth.DeviceAuthResponse, error) {
 	if f.startCalled != nil {
 		*f.startCalled = true
 	}
 	return nil, f.startErr
 }
 
-func (f fakeOAuthClient) Poll(context.Context, string, string, time.Duration, int) (*oauth.TokenResponse, error) {
+func (f fakeOAuthClient) Poll(context.Context, *url.URL, string, time.Duration, int) (*oauth.TokenResponse, error) {
 	return nil, fmt.Errorf("unexpected call to Poll")
 }
 
@@ -172,8 +184,7 @@ func (f fakeOAuthClient) Refresh(context.Context, *oauth.Token) (*oauth.TokenRes
 func TestSelectLoginFlow(t *testing.T) {
 	t.Run("uses oauth flow when no access token is configured", func(t *testing.T) {
 		params := loginParams{
-			cfg:      &config{Endpoint: "https://example.com"},
-			endpoint: "https://sourcegraph.example.com",
+			cfg: &config{endpointURL: mustParseURL(t, "https://example.com")},
 		}
 
 		if got, _ := selectLoginFlow(params); got != loginFlowOAuth {
@@ -183,8 +194,8 @@ func TestSelectLoginFlow(t *testing.T) {
 
 	t.Run("uses endpoint conflict flow when auth exists for a different endpoint", func(t *testing.T) {
 		params := loginParams{
-			cfg:      &config{Endpoint: "https://example.com", AccessToken: "x"},
-			endpoint: "https://sourcegraph.example.com",
+			cfg:              &config{endpointURL: mustParseURL(t, "https://example.com"), accessToken: "x"},
+			loginEndpointURL: mustParseURL(t, "https://sourcegraph.example.com"),
 		}
 
 		if got, _ := selectLoginFlow(params); got != loginFlowEndpointConflict {
@@ -194,8 +205,7 @@ func TestSelectLoginFlow(t *testing.T) {
 
 	t.Run("uses validation flow when auth exists for the selected endpoint", func(t *testing.T) {
 		params := loginParams{
-			cfg:      &config{Endpoint: "https://example.com", AccessToken: "x"},
-			endpoint: "https://example.com",
+			cfg: &config{endpointURL: mustParseURL(t, "https://example.com"), accessToken: "x"},
 		}
 
 		if got, _ := selectLoginFlow(params); got != loginFlowValidate {
@@ -270,7 +280,7 @@ func TestValidateBrowserURL_WindowsRundll32Escape(t *testing.T) {
 	}
 }
 
-func restoreStoredOAuthLoader(t *testing.T, loader func(context.Context, string) (*oauth.Token, error)) {
+func restoreStoredOAuthLoader(t *testing.T, loader func(context.Context, *url.URL) (*oauth.Token, error)) {
 	t.Helper()
 
 	prev := loadStoredOAuthToken

@@ -5,7 +5,6 @@ import (
 	"flag"
 	"fmt"
 	cliLog "log"
-	"strings"
 	"time"
 
 	"github.com/sourcegraph/sourcegraph/lib/errors"
@@ -155,13 +154,14 @@ Examples:
 		}
 		ui.ExecutingBatchSpecSuccess()
 
-		executionURL := fmt.Sprintf(
-			"%s/%s/batch-changes/%s/executions/%s",
-			strings.TrimSuffix(cfg.Endpoint, "/"),
-			strings.TrimPrefix(namespace.URL, "/"),
-			batchChangeName,
-			batchSpecID,
-		)
+		executionURL := cfg.endpointURL.JoinPath(
+			fmt.Sprintf(
+				"%s/batch-changes/%s/executions/%s",
+				namespace.URL,
+				batchChangeName,
+				batchSpecID,
+			),
+		).String()
 		ui.RemoteSuccess(executionURL)
 
 		return nil

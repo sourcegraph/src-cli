@@ -84,7 +84,7 @@ Examples:
 			return errors.Wrapf(err, "failed to get current-context")
 		}
 		// Safety check user knows what they've targeted with this command
-		log.Printf("Archiving kubectl data for %d pods\n SRC_ENDPOINT: %v\n Context: %s Namespace: %v\n Output filename: %v", len(pods.Items), cfg.Endpoint, kubectx, namespace, base)
+		log.Printf("Archiving kubectl data for %d pods\n SRC_ENDPOINT: %v\n Context: %s Namespace: %v\n Output filename: %v", len(pods.Items), cfg.endpointURL, kubectx, namespace, base)
 		if verified, _ := verify("Do you want to start writing to an archive?"); !verified {
 			return nil
 		}

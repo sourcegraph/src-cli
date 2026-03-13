@@ -18,15 +18,14 @@ import (
 var loadStoredOAuthToken = oauth.LoadToken
 
 func runOAuthLogin(ctx context.Context, p loginParams) error {
-	endpointArg := cleanEndpoint(p.endpoint)
-	client, err := oauthLoginClient(ctx, p, endpointArg)
+	client, err := oauthLoginClient(ctx, p)
 	if err != nil {
 		printLoginProblem(p.out, fmt.Sprintf("OAuth Device flow authentication failed: %s", err))
-		fmt.Fprintln(p.out, loginAccessTokenMessage(endpointArg))
+		fmt.Fprintln(p.out, loginAccessTokenMessage(p.cfg.endpointURL))
 		return cmderrors.ExitCode1
 	}
 
-	if err := validateCurrentUser(ctx, client, p.out, endpointArg); err != nil {
+	if err := validateCurrentUser(ctx, client, p.out, p.cfg.endpointURL); err != nil {
 		return err
 	}
 
@@ -39,13 +38,13 @@ func runOAuthLogin(ctx context.Context, p loginParams) error {
 // oauthLoginClient returns a api.Client with the OAuth token set. It will check secret storage for a token
 // and use it if one is present.
 // If no token is found, it will start a OAuth Device flow to get a token and storage in secret storage.
-func oauthLoginClient(ctx context.Context, p loginParams, endpoint string) (api.Client, error) {
+func oauthLoginClient(ctx context.Context, p loginParams) (api.Client, error) {
 	// if we have a stored token, used it. Otherwise run the device flow
-	if token, err := loadStoredOAuthToken(ctx, endpoint); err == nil {
-		return newOAuthAPIClient(p, endpoint, token), nil
+	if token, err := loadStoredOAuthToken(ctx, p.cfg.endpointURL); err == nil {
+		return newOAuthAPIClient(p, token), nil
 	}
 
-	token, err := runOAuthDeviceFlow(ctx, endpoint, p.out, p.oauthClient)
+	token, err := runOAuthDeviceFlow(ctx, p.cfg.endpointURL, p.out, p.oauthClient)
 	if err != nil {
 		return nil, err
 	}
@@ -55,23 +54,23 @@ func oauthLoginClient(ctx context.Context, p loginParams, endpoint string) (api.
 		fmt.Fprintf(p.out, "⚠️  Warning: Failed to store token in keyring store: %q. Continuing with this session only.\n", err)
 	}
 
-	return newOAuthAPIClient(p, endpoint, token), nil
+	return newOAuthAPIClient(p, token), nil
 }
 
-func newOAuthAPIClient(p loginParams, endpoint string, token *oauth.Token) api.Client {
+func newOAuthAPIClient(p loginParams, token *oauth.Token) api.Client {
 	return api.NewClient(api.ClientOpts{
-		Endpoint:          endpoint,
-		AdditionalHeaders: p.cfg.AdditionalHeaders,
+		EndpointURL:       p.cfg.endpointURL,
+		AdditionalHeaders: p.cfg.additionalHeaders,
 		Flags:             p.apiFlags,
 		Out:               p.out,
-		ProxyURL:          p.cfg.ProxyURL,
-		ProxyPath:         p.cfg.ProxyPath,
+		ProxyURL:          p.cfg.proxyURL,
+		ProxyPath:         p.cfg.proxyPath,
 		OAuthToken:        token,
 	})
 }
 
-func runOAuthDeviceFlow(ctx context.Context, endpoint string, out io.Writer, client oauth.Client) (*oauth.Token, error) {
-	authResp, err := client.Start(ctx, endpoint, nil)
+func runOAuthDeviceFlow(ctx context.Context, endpointURL *url.URL, out io.Writer, client oauth.Client) (*oauth.Token, error) {
+	authResp, err := client.Start(ctx, endpointURL, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -95,12 +94,12 @@ func runOAuthDeviceFlow(ctx context.Context, endpoint string, out io.Writer, cli
 		interval = 5 * time.Second
 	}
 
-	resp, err := client.Poll(ctx, endpoint, authResp.DeviceCode, interval, authResp.ExpiresIn)
+	resp, err := client.Poll(ctx, endpointURL, authResp.DeviceCode, interval, authResp.ExpiresIn)
 	if err != nil {
 		return nil, err
 	}
 
-	token := resp.Token(endpoint)
+	token := resp.Token(endpointURL)
 	token.ClientID = client.ClientID()
 	return token, nil
 }

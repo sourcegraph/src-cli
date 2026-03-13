@@ -2,7 +2,7 @@ package secrets
 
 import (
 	"context"
-	"strings"
+	"net/url"
 
 	"github.com/sourcegraph/sourcegraph/lib/errors"
 	"github.com/zalando/go-keyring"
@@ -18,8 +18,8 @@ type keyringStore struct {
 }
 
 // Open opens the system keyring for the Sourcegraph CLI.
-func Open(ctx context.Context, endpoint string) (*keyringStore, error) {
-	endpoint = strings.TrimRight(strings.TrimSpace(endpoint), "/")
+func Open(ctx context.Context, endpointURL *url.URL) (*keyringStore, error) {
+	endpoint := endpointURL.String()
 	if endpoint == "" {
 		return nil, errors.New("endpoint cannot be empty")
 	}

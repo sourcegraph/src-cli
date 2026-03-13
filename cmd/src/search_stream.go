@@ -160,7 +160,7 @@ func textDecoder(query string, t *template.Template, w io.Writer) streaming.Deco
 						SourcegraphEndpoint string
 						*streaming.EventRepoMatch
 					}{
-						SourcegraphEndpoint: cfg.Endpoint,
+						SourcegraphEndpoint: cfg.endpointURL.String(),
 						EventRepoMatch:      match,
 					})
 					if err != nil {
@@ -172,7 +172,7 @@ func textDecoder(query string, t *template.Template, w io.Writer) streaming.Deco
 						SourcegraphEndpoint string
 						*streaming.EventCommitMatch
 					}{
-						SourcegraphEndpoint: cfg.Endpoint,
+						SourcegraphEndpoint: cfg.endpointURL.String(),
 						EventCommitMatch:    match,
 					})
 					if err != nil {
@@ -184,7 +184,7 @@ func textDecoder(query string, t *template.Template, w io.Writer) streaming.Deco
 						SourcegraphEndpoint string
 						*streaming.EventSymbolMatch
 					}{
-						SourcegraphEndpoint: cfg.Endpoint,
+						SourcegraphEndpoint: cfg.endpointURL.String(),
 						EventSymbolMatch:    match,
 					},
 					)
