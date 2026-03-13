@@ -15,6 +15,10 @@ All notable changes to `src-cli` are documented in this file.
 
 ### Changed
 
+### Removed
+
+- Removed `src sbom` and `src signature` commands. SBOMs and container signatures are no longer published as of Sourcegraph 7.1.0.
+
 ## 6.7.1104
 
 ### Added

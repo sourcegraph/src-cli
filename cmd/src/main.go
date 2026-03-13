@@ -61,7 +61,6 @@ The commands are:
 	orgs,org        manages organizations
 	teams,team      manages teams
 	repos,repo      manages repositories
-	sbom            manages SBOM (Software Bill of Materials) data
 	search          search for results on Sourcegraph
 	search-jobs     manages search jobs
 	serve-git       serves your local git repositories over HTTP for Sourcegraph to pull
