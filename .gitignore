@@ -14,4 +14,3 @@ bazel-zoekt
 bazel-src-cli
 .DS_Store
 samples
-sourcegraph-sboms/
