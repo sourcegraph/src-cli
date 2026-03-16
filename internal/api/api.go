@@ -90,33 +90,36 @@ type ClientOpts struct {
 }
 
 func buildTransport(opts ClientOpts, flags *Flags) http.RoundTripper {
-	var transport http.RoundTripper
-	{
-		tp := http.DefaultTransport.(*http.Transport).Clone()
+	transport := http.DefaultTransport.(*http.Transport).Clone()
 
-		if flags.insecureSkipVerify != nil && *flags.insecureSkipVerify {
-			tp.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
-		}
-
-		if tp.TLSClientConfig == nil {
-			tp.TLSClientConfig = &tls.Config{}
-		}
-
-		if opts.ProxyURL != nil || opts.ProxyPath != "" {
-			tp = withProxyTransport(tp, opts.ProxyURL, opts.ProxyPath)
-		}
-
-		transport = tp
+	if flags.insecureSkipVerify != nil && *flags.insecureSkipVerify {
+		transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 	}
 
+	if transport.TLSClientConfig == nil {
+		transport.TLSClientConfig = &tls.Config{}
+	}
+
+	if opts.ProxyPath != "" || opts.ProxyURL != nil {
+		// Use our custom dialer for proxied connections.
+		// A custom dialer is not always needed - the connection libraries will handle HTTP(S)_PROXY-defined proxies
+		// (Go supports http, https, socks5, and socks5h proxies via HTTP(S)_PROXY),
+		// but we're also supporting proxies defined via SRC_PROXY, which can include UDS proxies,
+		// and connecting to TLS-enabled proxies adds an additional wrinkle when using HTTP/2.
+		transport = withProxyTransport(transport, opts.ProxyURL, opts.ProxyPath)
+	}
+
+	// For http:// and socks5:// proxies, the cloned
+	// transport's default Proxy handles them correctly without intervention.
+
+	var rt http.RoundTripper = transport
 	if opts.AccessToken == "" && opts.OAuthToken != nil {
-		transport = &oauth.Transport{
+		rt = &oauth.Transport{
 			Base:  transport,
 			Token: opts.OAuthToken,
 		}
 	}
-
-	return transport
+	return rt
 }
 
 // NewClient creates a new API client.
