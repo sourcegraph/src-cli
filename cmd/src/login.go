@@ -9,7 +9,6 @@ import (
 	"os"
 
 	"github.com/sourcegraph/src-cli/internal/api"
-	"github.com/sourcegraph/src-cli/internal/cmderrors"
 	"github.com/sourcegraph/src-cli/internal/oauth"
 )
 
@@ -22,53 +21,37 @@ Usage:
 
 Examples:
 
-  Authenticate to a Sourcegraph instance at https://sourcegraph.example.com:
+  Authenticate to a Sourcegraph instance specified in the SRC_ENDPOINT environment variable:
 
-    $ src login https://sourcegraph.example.com
+    $ src login
 
-  Authenticate to Sourcegraph.com:
+  Override the SRC_ENDPOINT environment variable:
 
-    $ src login https://sourcegraph.com
+    $ SRC_ENDPOINT=https://sourcegraph.example.com src login
 
   If no access token is configured, 'src login' uses OAuth device flow automatically:
 
-    $ src login https://sourcegraph.com
+    $ unset SRC_ENDPOINT
+    $ src login
 `
 
 	flagSet := flag.NewFlagSet("login", flag.ExitOnError)
 	usageFunc := func() {
 		fmt.Fprintln(flag.CommandLine.Output(), usage)
-		flagSet.PrintDefaults()
 	}
-
-	var (
-		apiFlags = api.NewFlags(flagSet)
-	)
 
 	handler := func(args []string) error {
 		if err := flagSet.Parse(args); err != nil {
 			return err
 		}
 
-		var loginEndpointURL *url.URL
-		if flagSet.NArg() >= 1 {
-			arg := flagSet.Arg(0)
-			u, err := parseEndpoint(arg)
-			if err != nil {
-				return cmderrors.Usage(fmt.Sprintf("invalid endpoint URL: %s", arg))
-			}
-			loginEndpointURL = u
-		}
-
-		client := cfg.apiClient(apiFlags, io.Discard)
+		client := cfg.apiClient(nil, io.Discard)
 
 		return loginCmd(context.Background(), loginParams{
-			cfg:              cfg,
-			client:           client,
-			out:              os.Stdout,
-			apiFlags:         apiFlags,
-			oauthClient:      oauth.NewClient(oauth.DefaultClientID),
-			loginEndpointURL: loginEndpointURL,
+			cfg:         cfg,
+			client:      client,
+			out:         os.Stdout,
+			oauthClient: oauth.NewClient(oauth.DefaultClientID),
 		})
 	}
 
@@ -80,12 +63,10 @@ Examples:
 }
 
 type loginParams struct {
-	cfg              *config
-	client           api.Client
-	out              io.Writer
-	apiFlags         *api.Flags
-	oauthClient      oauth.Client
-	loginEndpointURL *url.URL
+	cfg         *config
+	client      api.Client
+	out         io.Writer
+	oauthClient oauth.Client
 }
 
 type loginFlow func(context.Context, loginParams) error
@@ -95,7 +76,6 @@ type loginFlowKind int
 const (
 	loginFlowOAuth loginFlowKind = iota
 	loginFlowMissingAuth
-	loginFlowEndpointConflict
 	loginFlowValidate
 )
 
@@ -111,9 +91,6 @@ func loginCmd(ctx context.Context, p loginParams) error {
 
 // selectLoginFlow decides what login flow to run based on configured AuthMode.
 func selectLoginFlow(p loginParams) (loginFlowKind, loginFlow) {
-	if p.loginEndpointURL != nil && p.loginEndpointURL.String() != p.cfg.endpointURL.String() {
-		return loginFlowEndpointConflict, runEndpointConflictLogin
-	}
 	switch p.cfg.AuthMode() {
 	case AuthModeOAuth:
 		return loginFlowOAuth, runOAuthLogin
@@ -136,6 +113,6 @@ func loginAccessTokenMessage(endpointURL *url.URL) string {
 
    To verify that it's working, run the login command again.
 
-   Alternatively, you can try logging in interactively by running: src login %s
-`, endpointURL, endpointURL, endpointURL)
+   Alternatively, you can try logging in interactively by running: src login
+`, endpointURL, endpointURL)
 }

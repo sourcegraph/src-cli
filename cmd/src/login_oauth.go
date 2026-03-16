@@ -61,7 +61,7 @@ func newOAuthAPIClient(p loginParams, token *oauth.Token) api.Client {
 	return api.NewClient(api.ClientOpts{
 		EndpointURL:       p.cfg.endpointURL,
 		AdditionalHeaders: p.cfg.additionalHeaders,
-		Flags:             p.apiFlags,
+		Flags:             nil,
 		Out:               p.out,
 		ProxyURL:          p.cfg.proxyURL,
 		ProxyPath:         p.cfg.proxyPath,
