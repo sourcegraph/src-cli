@@ -50,6 +50,7 @@ The options are:
 
 The commands are:
 
+	auth            authentication helper commands
 	api             interacts with the Sourcegraph GraphQL API
 	batch           manages batch changes
 	code-intel      manages code intelligence data
