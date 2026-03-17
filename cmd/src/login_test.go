@@ -26,33 +26,22 @@ func mustParseURL(t *testing.T, raw string) *url.URL {
 }
 
 func TestLogin(t *testing.T) {
-	check := func(t *testing.T, cfg *config, endpointArgURL *url.URL) (output string, err error) {
+	check := func(t *testing.T, cfg *config) (output string, err error) {
 		t.Helper()
 
 		var out bytes.Buffer
 		err = loginCmd(context.Background(), loginParams{
-			cfg:              cfg,
-			client:           cfg.apiClient(nil, io.Discard),
-			out:              &out,
-			oauthClient:      fakeOAuthClient{startErr: fmt.Errorf("oauth unavailable")},
-			loginEndpointURL: endpointArgURL,
+			cfg:         cfg,
+			client:      cfg.apiClient(nil, io.Discard),
+			out:         &out,
+			oauthClient: fakeOAuthClient{startErr: fmt.Errorf("oauth unavailable")},
 		})
 		return strings.TrimSpace(out.String()), err
 	}
 
-	t.Run("different endpoint in config vs. arg", func(t *testing.T) {
-		out, err := check(t, &config{endpointURL: &url.URL{Scheme: "https", Host: "example.com"}}, &url.URL{Scheme: "https", Host: "sourcegraph.example.com"})
-		if err == nil {
-			t.Fatal(err)
-		}
-		if !strings.Contains(out, "The configured endpoint is https://example.com, not https://sourcegraph.example.com.") {
-			t.Errorf("got output %q, want configured endpoint error", out)
-		}
-	})
-
 	t.Run("no access token triggers oauth flow", func(t *testing.T) {
 		u := &url.URL{Scheme: "https", Host: "example.com"}
-		out, err := check(t, &config{endpointURL: u}, u)
+		out, err := check(t, &config{endpointURL: u})
 		if err == nil {
 			t.Fatal(err)
 		}
@@ -63,7 +52,7 @@ func TestLogin(t *testing.T) {
 
 	t.Run("warning when using config file", func(t *testing.T) {
 		endpoint := &url.URL{Scheme: "https", Host: "example.com"}
-		out, err := check(t, &config{endpointURL: endpoint, configFilePath: "f"}, endpoint)
+		out, err := check(t, &config{endpointURL: endpoint, configFilePath: "f"})
 		if err != cmderrors.ExitCode1 {
 			t.Fatal(err)
 		}
@@ -82,11 +71,11 @@ func TestLogin(t *testing.T) {
 		defer s.Close()
 
 		u := mustParseURL(t, s.URL)
-		out, err := check(t, &config{endpointURL: u, accessToken: "x"}, u)
+		out, err := check(t, &config{endpointURL: u, accessToken: "x"})
 		if err != cmderrors.ExitCode1 {
 			t.Fatal(err)
 		}
-		wantOut := "❌ Problem: Invalid access token.\n\n🛠  To fix: Create an access token by going to $ENDPOINT/user/settings/tokens, then set the following environment variables in your terminal:\n\n   export SRC_ENDPOINT=$ENDPOINT\n   export SRC_ACCESS_TOKEN=(your access token)\n\n   To verify that it's working, run the login command again.\n\n   Alternatively, you can try logging in interactively by running: src login $ENDPOINT\n\n   (If you need to supply custom HTTP request headers, see information about SRC_HEADER_* and SRC_HEADERS env vars at https://github.com/sourcegraph/src-cli/blob/main/AUTH_PROXY.md)"
+		wantOut := "❌ Problem: Invalid access token.\n\n🛠  To fix: Create an access token by going to $ENDPOINT/user/settings/tokens, then set the following environment variables in your terminal:\n\n   export SRC_ENDPOINT=$ENDPOINT\n   export SRC_ACCESS_TOKEN=(your access token)\n\n   To verify that it's working, run the login command again.\n\n   Alternatively, you can try logging in interactively by running: src login\n\n   (If you need to supply custom HTTP request headers, see information about SRC_HEADER_* and SRC_HEADERS env vars at https://github.com/sourcegraph/src-cli/blob/main/AUTH_PROXY.md)"
 		wantOut = strings.ReplaceAll(wantOut, "$ENDPOINT", s.URL)
 		if out != wantOut {
 			t.Errorf("got output %q, want %q", out, wantOut)
@@ -100,7 +89,7 @@ func TestLogin(t *testing.T) {
 		defer s.Close()
 
 		u := mustParseURL(t, s.URL)
-		out, err := check(t, &config{endpointURL: u, accessToken: "x"}, u)
+		out, err := check(t, &config{endpointURL: u, accessToken: "x"})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -189,17 +178,6 @@ func TestSelectLoginFlow(t *testing.T) {
 
 		if got, _ := selectLoginFlow(params); got != loginFlowOAuth {
 			t.Fatalf("flow = %v, want %v", got, loginFlowOAuth)
-		}
-	})
-
-	t.Run("uses endpoint conflict flow when auth exists for a different endpoint", func(t *testing.T) {
-		params := loginParams{
-			cfg:              &config{endpointURL: mustParseURL(t, "https://example.com"), accessToken: "x"},
-			loginEndpointURL: mustParseURL(t, "https://sourcegraph.example.com"),
-		}
-
-		if got, _ := selectLoginFlow(params); got != loginFlowEndpointConflict {
-			t.Fatalf("flow = %v, want %v", got, loginFlowEndpointConflict)
 		}
 	})
 
