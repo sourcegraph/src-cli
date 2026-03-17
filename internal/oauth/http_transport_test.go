@@ -28,9 +28,13 @@ func newRefreshServer(t *testing.T, accessToken string) *httptest.Server {
 	})
 }
 
-func TestMaybeRefresh(t *testing.T) {
+func TestTokenRefresherGetToken(t *testing.T) {
 	server := newRefreshServer(t, "new-token")
 	defer server.Close()
+
+	originalStoreFn := storeRefreshedTokenFn
+	storeRefreshedTokenFn = func(context.Context, *Token) error { return nil }
+	defer func() { storeRefreshedTokenFn = originalStoreFn }()
 
 	tests := []struct {
 		name       string
@@ -71,14 +75,15 @@ func TestMaybeRefresh(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := maybeRefresh(context.Background(), tt.token)
+			refresher := NewTokenRefresher(tt.token)
+			got, err := refresher.GetToken(context.Background())
 			if err != nil {
-				t.Fatalf("maybeRefresh() error = %v", err)
+				t.Fatalf("GetToken() error = %v", err)
 			}
 			if got.AccessToken != tt.wantAccess {
 				t.Errorf("AccessToken = %q, want %q", got.AccessToken, tt.wantAccess)
 			}
-			if tt.wantSame && got != tt.token {
+			if tt.wantSame && refresher.token != tt.token {
 				t.Errorf("token pointer changed for unexpired token")
 			}
 		})
@@ -145,13 +150,10 @@ func TestTransportRoundTrip(t *testing.T) {
 			}
 
 			var capturedAuth string
-			tr := &Transport{
-				Base: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
-					capturedAuth = req.Header.Get("Authorization")
-					return &http.Response{StatusCode: http.StatusOK, Body: http.NoBody}, nil
-				}),
-				Token: tt.token,
-			}
+			tr := NewTransport(roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+				capturedAuth = req.Header.Get("Authorization")
+				return &http.Response{StatusCode: http.StatusOK, Body: http.NoBody}, nil
+			}), tt.token)
 
 			_, err := tr.RoundTrip(httptest.NewRequest(http.MethodGet, "http://example.com", nil))
 			if err != nil {
