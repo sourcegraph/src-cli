@@ -25,7 +25,9 @@ func init() {
 	flagSet := flag.NewFlagSet("token", flag.ExitOnError)
 	header := flagSet.Bool("header", false, "print the token as an Authorization header")
 	usageFunc := func() {
-		fmt.Fprintf(flag.CommandLine.Output(), "Usage of 'src auth token':\n")
+		fmt.Fprintf(flag.CommandLine.Output(), "Usage of 'src auth token':\n\n")
+		fmt.Fprintf(flag.CommandLine.Output(), "Print the current authentication token.\n")
+		fmt.Fprintf(flag.CommandLine.Output(), "Use --header to print a complete Authorization header instead.\n\n")
 		flagSet.PrintDefaults()
 	}
 
