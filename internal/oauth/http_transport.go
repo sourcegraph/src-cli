@@ -13,7 +13,7 @@ var _ http.Transport
 
 var _ http.RoundTripper = (*Transport)(nil)
 
-const defaultRefreshWindow = 30 * time.Second
+const defaultRefreshWindow = 5 * time.Minute
 
 type Transport struct {
 	Base      http.RoundTripper
