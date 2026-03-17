@@ -110,10 +110,7 @@ func buildTransport(opts ClientOpts, flags *Flags) http.RoundTripper {
 	}
 
 	if opts.AccessToken == "" && opts.OAuthToken != nil {
-		transport = &oauth.Transport{
-			Base:  transport,
-			Token: opts.OAuthToken,
-		}
+		transport = oauth.NewTransport(transport, opts.OAuthToken)
 	}
 
 	return transport
