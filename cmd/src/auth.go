@@ -16,7 +16,7 @@ Usage:
 
 The commands are:
 
-	token   prints the current authentication token
+	token   prints the current authentication token or Authorization header
 
 Use "src auth [command] -h" for more information about a command.
 `
