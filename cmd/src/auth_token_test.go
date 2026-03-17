@@ -103,6 +103,53 @@ func TestResolveAuthToken(t *testing.T) {
 	})
 }
 
+func TestFormatAuthTokenOutput(t *testing.T) {
+	tests := []struct {
+		name   string
+		token  string
+		mode   AuthMode
+		header bool
+		want   string
+	}{
+		{
+			name:   "raw access token",
+			token:  "access-token",
+			mode:   AuthModeAccessToken,
+			header: false,
+			want:   "access-token",
+		},
+		{
+			name:   "raw oauth token",
+			token:  "oauth-token",
+			mode:   AuthModeOAuth,
+			header: false,
+			want:   "oauth-token",
+		},
+		{
+			name:   "authorization header for access token",
+			token:  "access-token",
+			mode:   AuthModeAccessToken,
+			header: true,
+			want:   "Authorization: token access-token",
+		},
+		{
+			name:   "authorization header for oauth token",
+			token:  "oauth-token",
+			mode:   AuthModeOAuth,
+			header: true,
+			want:   "Authorization: Bearer oauth-token",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := formatAuthTokenOutput(test.token, test.mode, test.header); got != test.want {
+				t.Fatalf("formatAuthTokenOutput(%q, %v, %v) = %q, want %q", test.token, test.mode, test.header, got, test.want)
+			}
+		})
+	}
+}
+
 func stubAuthTokenDependencies(t *testing.T) func() {
 	t.Helper()
 
