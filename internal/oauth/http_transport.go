@@ -11,14 +11,24 @@ var _ http.Transport
 
 var _ http.RoundTripper = (*Transport)(nil)
 
-type Transport struct {
-	Base http.RoundTripper
-	//Token is a OAuth token (which has a refresh token) that should be used during roundtrip to automatically
-	//refresh the OAuth access token once the current one has expired or is soon to expire
-	Token *Token
+const defaultRefreshWindow = 5 * time.Minute
 
-	//mu is a mutex that should be acquired whenever token used
-	mu sync.Mutex
+type Transport struct {
+	Base      http.RoundTripper
+	refresher *TokenRefresher
+}
+
+type TokenRefresher struct {
+	token *Token
+	mu    sync.Mutex
+}
+
+func NewTokenRefresher(token *Token) *TokenRefresher {
+	return &TokenRefresher{token: token}
+}
+
+func NewTransport(base http.RoundTripper, token *Token) *Transport {
+	return &Transport{Base: base, refresher: NewTokenRefresher(token)}
 }
 
 // storeRefreshedTokenFn is the function the transport should use to persist the token - mainly used during
@@ -28,8 +38,7 @@ var storeRefreshedTokenFn = StoreToken
 // RoundTrip implements http.RoundTripper.
 func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 	ctx := req.Context()
-
-	token, err := t.getToken(ctx)
+	token, err := t.refresher.GetToken(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -43,35 +52,39 @@ func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 	return http.DefaultTransport.RoundTrip(req2)
 }
 
-// getToken returns a value copy of the token. If the token has expired or expiring soon it will be refreshed before returning.
+// GetToken returns a value copy of the token. If the token has expired or expiring soon it will be refreshed before returning.
 // Once the token is refreshed, the in-memory token is updated and a best effort is made to store the token.
 //
 // If storing the token fails, no error is returned. An error is only returned if refreshing the token
 // fails.
-func (t *Transport) getToken(ctx context.Context) (Token, error) {
-	t.mu.Lock()
-	defer t.mu.Unlock()
+func (r *TokenRefresher) GetToken(ctx context.Context) (Token, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 
-	prevToken := t.Token
-	token, err := maybeRefresh(ctx, t.Token)
+	prevToken := r.token
+	token, err := maybeRefreshToken(ctx, r.token)
 	if err != nil {
 		return Token{}, err
 	}
-	t.Token = token
+	r.token = token
 	if token != prevToken {
 		// try to save the token if we fail let the request continue with in memory token
 		_ = storeRefreshedTokenFn(ctx, token)
 	}
 
-	return *t.Token, nil
+	return *r.token, nil
 }
 
-// maybeRefresh conditionally refreshes the token. If the token has expired or is expriing in the next 30s
-// it will be refreshed and the updated token will be returned. Otherwise, no refresh occurs and the original
-// token is returned.
-func maybeRefresh(ctx context.Context, token *Token) (*Token, error) {
+// maybeRefreshToken conditionally refreshes the token. If the token has expired or is
+// expiring within the default refresh window, it will be refreshed and the updated token returned.
+// Otherwise, no refresh occurs and the original token is returned.
+func maybeRefreshToken(ctx context.Context, token *Token) (*Token, error) {
+	if token == nil {
+		return nil, errors.New("token is nil")
+	}
+
 	// token has NOT expired and is NOT about to expire in 30s
-	if !(token.HasExpired() || token.ExpiringIn(time.Duration(30)*time.Second)) {
+	if !(token.HasExpired() || token.ExpiringIn(defaultRefreshWindow)) {
 		return token, nil
 	}
 	client := NewClient(token.ClientID)
