@@ -9,6 +9,7 @@ import (
 	"os"
 
 	"github.com/sourcegraph/src-cli/internal/api"
+	"github.com/sourcegraph/src-cli/internal/cmderrors"
 	"github.com/sourcegraph/src-cli/internal/oauth"
 )
 
@@ -43,6 +44,10 @@ Examples:
 	handler := func(args []string) error {
 		if err := flagSet.Parse(args); err != nil {
 			return err
+		}
+
+		if flagSet.NArg() > 0 {
+			return cmderrors.Usage("src login no longer accepts a URL argument; set SRC_ENDPOINT instead")
 		}
 
 		client := cfg.apiClient(nil, io.Discard)
