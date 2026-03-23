@@ -50,11 +50,11 @@ func init() {
 }
 
 func resolveAuthToken(ctx context.Context, cfg *config) (string, error) {
-	if cfg.accessToken != "" {
-		return cfg.accessToken, nil
+	if cfg.AccessToken != "" {
+		return cfg.AccessToken, nil
 	}
 
-	oauthToken, err := loadOAuthToken(ctx, cfg.endpointURL)
+	oauthToken, err := loadOAuthToken(ctx, cfg.Endpoint)
 	if err != nil {
 		return "", errors.Wrap(err, "error loading OAuth token; set SRC_ACCESS_TOKEN or run `src login`")
 	}
