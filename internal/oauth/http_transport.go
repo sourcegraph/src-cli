@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"sync"
 	"time"
+
+	"github.com/sourcegraph/sourcegraph/lib/errors"
 )
 
 var _ http.Transport
