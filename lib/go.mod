@@ -1,6 +1,6 @@
 module github.com/sourcegraph/sourcegraph/lib
 
-go 1.26.1
+go 1.25.1
 
 require (
 	github.com/Masterminds/semver v1.5.0
