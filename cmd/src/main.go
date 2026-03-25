@@ -137,6 +137,7 @@ type config struct {
 	proxyPath         string
 	configFilePath    string
 	endpointURL       *url.URL // always non-nil; defaults to https://sourcegraph.com via readConfig
+	inCI              bool
 }
 
 // configFromFile holds the config as read from the config file,
@@ -162,16 +163,29 @@ func (c *config) AuthMode() AuthMode {
 	return AuthModeOAuth
 }
 
+func (c *config) InCI() bool {
+	return c.inCI
+}
+
+func (c *config) requireCIAccessToken() error {
+	if c.InCI() && c.AuthMode() != AuthModeAccessToken {
+		return errCIAccessTokenRequired
+	}
+
+	return nil
+}
+
 // apiClient returns an api.Client built from the configuration.
 func (c *config) apiClient(flags *api.Flags, out io.Writer) api.Client {
 	opts := api.ClientOpts{
-		EndpointURL:       c.endpointURL,
-		AccessToken:       c.accessToken,
-		AdditionalHeaders: c.additionalHeaders,
-		Flags:             flags,
-		Out:               out,
-		ProxyURL:          c.proxyURL,
-		ProxyPath:         c.proxyPath,
+		EndpointURL:        c.endpointURL,
+		AccessToken:        c.accessToken,
+		AdditionalHeaders:  c.additionalHeaders,
+		Flags:              flags,
+		Out:                out,
+		ProxyURL:           c.proxyURL,
+		ProxyPath:          c.proxyPath,
+		RequireAccessToken: c.InCI(),
 	}
 
 	// Only use OAuth if we do not have SRC_ACCESS_TOKEN set
@@ -205,6 +219,7 @@ func readConfig() (*config, error) {
 
 	var cfgFromFile configFromFile
 	var cfg config
+	cfg.inCI = isCI()
 	var endpointStr string
 	var proxyStr string
 	if err == nil {
@@ -310,10 +325,6 @@ func readConfig() (*config, error) {
 	_, hasAuthorizationAdditonalHeader := cfg.additionalHeaders["authorization"]
 	if cfg.accessToken != "" && hasAuthorizationAdditonalHeader {
 		return nil, errConfigAuthorizationConflict
-	}
-
-	if isCI() && cfg.accessToken == "" {
-		return nil, errCIAccessTokenRequired
 	}
 
 	return &cfg, nil
