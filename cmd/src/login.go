@@ -100,6 +100,10 @@ const (
 )
 
 func loginCmd(ctx context.Context, p loginParams) error {
+	if err := p.cfg.requireCIAccessToken(); err != nil {
+		return err
+	}
+
 	if p.cfg.configFilePath != "" {
 		fmt.Fprintln(p.out)
 		fmt.Fprintf(p.out, "⚠️  Warning: Configuring src with a JSON file is deprecated. Please migrate to using the env vars SRC_ENDPOINT, SRC_ACCESS_TOKEN, and SRC_PROXY instead, and then remove %s. See https://github.com/sourcegraph/src-cli#readme for more information.\n", p.cfg.configFilePath)
