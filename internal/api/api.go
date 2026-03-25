@@ -71,9 +71,10 @@ type request struct {
 
 // ClientOpts encapsulates the options given to NewClient.
 type ClientOpts struct {
-	EndpointURL       *url.URL
-	AccessToken       string
-	AdditionalHeaders map[string]string
+	EndpointURL        *url.URL
+	AccessToken        string
+	AdditionalHeaders  map[string]string
+	RequireAccessToken bool
 
 	// Flags are the standard API client flags provided by NewFlags. If nil,
 	// default values will be used.
@@ -135,14 +136,23 @@ func NewClient(opts ClientOpts) Client {
 
 	return &client{
 		opts: ClientOpts{
-			EndpointURL:       opts.EndpointURL,
-			AccessToken:       opts.AccessToken,
-			AdditionalHeaders: opts.AdditionalHeaders,
-			Flags:             flags,
-			Out:               opts.Out,
+			EndpointURL:        opts.EndpointURL,
+			AccessToken:        opts.AccessToken,
+			AdditionalHeaders:  opts.AdditionalHeaders,
+			RequireAccessToken: opts.RequireAccessToken,
+			Flags:              flags,
+			Out:                opts.Out,
 		},
 		httpClient: httpClient,
 	}
+}
+
+func (c *client) requireAccessToken() error {
+	if c.opts.RequireAccessToken && c.opts.AccessToken == "" {
+		return fmt.Errorf("SRC_ACCESS_TOKEN must be set in CI")
+	}
+
+	return nil
 }
 func (c *client) NewQuery(query string) Request {
 	return c.NewRequest(query, nil)
@@ -170,6 +180,10 @@ func (c *client) NewHTTPRequest(ctx context.Context, method, p string, body io.R
 }
 
 func (c *client) createHTTPRequest(ctx context.Context, method, p string, body io.Reader) (*http.Request, error) {
+	if err := c.requireAccessToken(); err != nil {
+		return nil, err
+	}
+
 	// Can't use c.opts.EndpointURL.JoinPath(p) here because `p` could contain a query string
 	req, err := http.NewRequestWithContext(ctx, method, c.opts.EndpointURL.String()+"/"+p, body)
 	if err != nil {
@@ -199,6 +213,10 @@ func (c *client) createHTTPRequest(ctx context.Context, method, p string, body i
 }
 
 func (r *request) do(ctx context.Context, result any) (bool, error) {
+	if err := r.client.requireAccessToken(); err != nil {
+		return false, err
+	}
+
 	if *r.client.opts.Flags.getCurl {
 		curl, err := r.curlCmd()
 		if err != nil {
