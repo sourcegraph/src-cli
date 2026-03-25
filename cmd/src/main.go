@@ -82,7 +82,7 @@ var (
 
 	errConfigMerge                 = errors.New("when using a configuration file, zero or all environment variables must be set")
 	errConfigAuthorizationConflict = errors.New("when passing an 'Authorization' additional headers, SRC_ACCESS_TOKEN must never be set")
-	errCIAccessTokenRequired       = errors.New("SRC_ACCESS_TOKEN must be set in CI")
+	errCIAccessTokenRequired       = errors.New("CI is true and SRC_ACCESS_TOKEN is not set or empty. When running in CI OAuth tokens cannot be used, only SRC_ACCESS_TOKEN. Either set CI=false or define a SRC_ACCESS_TOKEN")
 )
 
 // commands contains all registered subcommands.
@@ -168,6 +168,9 @@ func (c *config) InCI() bool {
 }
 
 func (c *config) requireCIAccessToken() error {
+	// In CI we typically do not have access to the keyring and the machine is also typically headless
+	// we therefore require SRC_ACCESS_TOKEN to be set when in CI.
+	// If someone really wants to run with OAuth in CI they can temporarily do CI=false
 	if c.InCI() && c.AuthMode() != AuthModeAccessToken {
 		return errCIAccessTokenRequired
 	}
@@ -178,14 +181,14 @@ func (c *config) requireCIAccessToken() error {
 // apiClient returns an api.Client built from the configuration.
 func (c *config) apiClient(flags *api.Flags, out io.Writer) api.Client {
 	opts := api.ClientOpts{
-		EndpointURL:        c.endpointURL,
-		AccessToken:        c.accessToken,
-		AdditionalHeaders:  c.additionalHeaders,
-		Flags:              flags,
-		Out:                out,
-		ProxyURL:           c.proxyURL,
-		ProxyPath:          c.proxyPath,
-		RequireAccessToken: c.InCI(),
+		EndpointURL:            c.endpointURL,
+		AccessToken:            c.accessToken,
+		AdditionalHeaders:      c.additionalHeaders,
+		Flags:                  flags,
+		Out:                    out,
+		ProxyURL:               c.proxyURL,
+		ProxyPath:              c.proxyPath,
+		RequireAccessTokenInCI: c.InCI(),
 	}
 
 	// Only use OAuth if we do not have SRC_ACCESS_TOKEN set
