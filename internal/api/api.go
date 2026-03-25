@@ -91,6 +91,9 @@ type ClientOpts struct {
 	OAuthToken *oauth.Token
 }
 
+// ErrCIAccessTokenRequired indicates SRC_ACCESS_TOKEN must be set when CI=true.
+var ErrCIAccessTokenRequired = errors.New("SRC_ACCESS_TOKEN must be set when CI=true")
+
 func buildTransport(opts ClientOpts, flags *Flags) http.RoundTripper {
 	var transport http.RoundTripper
 	{
@@ -153,7 +156,7 @@ func NewClient(opts ClientOpts) Client {
 
 func (c *client) checkIfCIAccessTokenRequired() error {
 	if c.opts.RequireAccessTokenInCI && c.opts.AccessToken == "" {
-		return errors.New("SRC_ACCESS_TOKEN must be set when CI=true")
+		return ErrCIAccessTokenRequired
 	}
 
 	return nil

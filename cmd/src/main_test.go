@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/url"
 	"os"
@@ -437,8 +438,8 @@ func TestConfigAPIClientCIAccessTokenGate(t *testing.T) {
 		client := (&config{endpointURL: endpointURL, inCI: true}).apiClient(nil, io.Discard)
 
 		_, err := client.NewHTTPRequest(context.Background(), "GET", ".api/src-cli/version", nil)
-		if err == nil || err.Error() != errCIAccessTokenRequired.Error() {
-			t.Fatalf("NewHTTPRequest() error = %v, want %q", err, errCIAccessTokenRequired)
+		if !errors.Is(err, api.ErrCIAccessTokenRequired) {
+			t.Fatalf("NewHTTPRequest() error = %v, want %v", err, api.ErrCIAccessTokenRequired)
 		}
 	})
 
