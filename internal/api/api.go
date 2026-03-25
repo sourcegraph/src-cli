@@ -110,6 +110,9 @@ func buildTransport(opts ClientOpts, flags *Flags) http.RoundTripper {
 		transport = tp
 	}
 
+	// not we do not fail here if requireAccessToken is true, because that would
+	// mean returning an error on construction which we want to avoid for now
+	// TODO(burmudar): allow returning of an error upon client construction
 	if opts.AccessToken == "" && opts.OAuthToken != nil {
 		transport = oauth.NewTransport(transport, opts.OAuthToken)
 	}
