@@ -96,7 +96,9 @@ type ClientOpts struct {
 var ErrCIAccessTokenRequired = errors.New("SRC_ACCESS_TOKEN must be set when CI=true")
 
 func buildTransport(opts ClientOpts, flags *Flags) http.RoundTripper {
-	transport := http.DefaultTransport.(*http.Transport).Clone()
+	var transport http.RoundTripper
+	{
+		tp := http.DefaultTransport.(*http.Transport).Clone()
 
 	if flags.insecureSkipVerify != nil && *flags.insecureSkipVerify {
 		transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
@@ -108,7 +110,15 @@ func buildTransport(opts ClientOpts, flags *Flags) http.RoundTripper {
 	if opts.AccessToken == "" && opts.OAuthToken != nil {
 		transport = oauth.NewTransport(transport, opts.OAuthToken)
 	}
-	return rt
+
+	// not we do not fail here if requireAccessToken is true, because that would
+	// mean returning an error on construction which we want to avoid for now
+	// TODO(burmudar): allow returning of an error upon client construction
+	if opts.AccessToken == "" && opts.OAuthToken != nil {
+		transport = oauth.NewTransport(transport, opts.OAuthToken)
+	}
+
+	return transport
 }
 
 // NewClient creates a new API client.
