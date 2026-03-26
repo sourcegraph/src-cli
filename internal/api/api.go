@@ -6,7 +6,6 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -20,6 +19,8 @@ import (
 
 	"github.com/sourcegraph/src-cli/internal/oauth"
 	"github.com/sourcegraph/src-cli/internal/version"
+
+	"github.com/sourcegraph/sourcegraph/lib/errors"
 )
 
 // Client instances provide methods to create API requests.
