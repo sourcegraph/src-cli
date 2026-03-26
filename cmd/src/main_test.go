@@ -1,7 +1,10 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
+	"io"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -285,9 +288,13 @@ func TestReadConfig(t *testing.T) {
 			wantErr:     errConfigAuthorizationConflict.Error(),
 		},
 		{
-			name:    "CI requires access token",
-			envCI:   "1",
-			wantErr: errCIAccessTokenRequired.Error(),
+			name:  "CI does not require access token during config read",
+			envCI: "1",
+			want: &config{
+				Endpoint:          "https://sourcegraph.com",
+				AdditionalHeaders: map[string]string{},
+				inCI:              true,
+			},
 		},
 		{
 			name:  "CI allows access token from config file",
@@ -300,6 +307,7 @@ func TestReadConfig(t *testing.T) {
 				Endpoint:          "https://example.com",
 				AccessToken:       "deadbeef",
 				AdditionalHeaders: map[string]string{},
+				inCI:              true,
 			},
 		},
 	}
@@ -351,8 +359,8 @@ func TestReadConfig(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			config, err := readConfig()
-			if diff := cmp.Diff(test.want, config); diff != "" {
+			gotConfig, err := readConfig()
+			if diff := cmp.Diff(test.want, gotConfig, cmp.AllowUnexported(config{})); diff != "" {
 				t.Errorf("config: %v", diff)
 			}
 			var errMsg string
@@ -376,6 +384,39 @@ func TestConfigAuthMode(t *testing.T) {
 	t.Run("access token when configured", func(t *testing.T) {
 		if got := (&config{AccessToken: "token"}).AuthMode(); got != AuthModeAccessToken {
 			t.Fatalf("AuthMode() = %v, want %v", got, AuthModeAccessToken)
+		}
+	})
+}
+
+func TestConfigAPIClientCIAccessTokenGate(t *testing.T) {
+	endpoint := "https://example.com"
+
+	t.Run("requires access token in CI", func(t *testing.T) {
+		client := (&config{Endpoint: endpoint, inCI: true}).apiClient(nil, io.Discard)
+
+		_, err := client.NewHTTPRequest(context.Background(), "GET", ".api/src-cli/version", nil)
+		if !errors.Is(err, api.ErrCIAccessTokenRequired) {
+			t.Fatalf("NewHTTPRequest() error = %v, want %v", err, api.ErrCIAccessTokenRequired)
+		}
+	})
+
+	t.Run("allows access token in CI", func(t *testing.T) {
+		client := (&config{Endpoint: endpoint, inCI: true, AccessToken: "abc"}).apiClient(nil, io.Discard)
+
+		req, err := client.NewHTTPRequest(context.Background(), "GET", ".api/src-cli/version", nil)
+		if err != nil {
+			t.Fatalf("NewHTTPRequest() unexpected error: %s", err)
+		}
+		if got := req.Header.Get("Authorization"); got != "token abc" {
+			t.Fatalf("Authorization header = %q, want %q", got, "token abc")
+		}
+	})
+
+	t.Run("allows oauth mode outside CI", func(t *testing.T) {
+		client := (&config{Endpoint: endpoint}).apiClient(nil, io.Discard)
+
+		if _, err := client.NewHTTPRequest(context.Background(), "GET", ".api/src-cli/version", nil); err != nil {
+			t.Fatalf("NewHTTPRequest() unexpected error: %s", err)
 		}
 	})
 }

@@ -50,6 +50,10 @@ func init() {
 }
 
 func resolveAuthToken(ctx context.Context, cfg *config) (string, error) {
+	if err := cfg.requireCIAccessToken(); err != nil {
+		return "", err
+	}
+
 	if cfg.AccessToken != "" {
 		return cfg.AccessToken, nil
 	}

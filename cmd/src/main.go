@@ -83,7 +83,7 @@ var (
 
 	errConfigMerge                 = errors.New("when using a configuration file, zero or all environment variables must be set")
 	errConfigAuthorizationConflict = errors.New("when passing an 'Authorization' additional headers, SRC_ACCESS_TOKEN must never be set")
-	errCIAccessTokenRequired       = errors.New("SRC_ACCESS_TOKEN must be set in CI")
+	errCIAccessTokenRequired       = errors.New("CI is true and SRC_ACCESS_TOKEN is not set or empty. When running in CI OAuth tokens cannot be used, only SRC_ACCESS_TOKEN. Either set CI=false or define a SRC_ACCESS_TOKEN")
 )
 
 // commands contains all registered subcommands.
@@ -122,6 +122,7 @@ type config struct {
 	ProxyURL          *url.URL
 	ProxyPath         string
 	ConfigFilePath    string
+	inCI              bool
 }
 
 type AuthMode int
@@ -138,16 +139,31 @@ func (c *config) AuthMode() AuthMode {
 	return AuthModeOAuth
 }
 
+func (c *config) InCI() bool {
+	return c.inCI
+}
+
+func (c *config) requireCIAccessToken() error {
+	// In CI we typically do not have access to the keyring and the machine is also
+	// typically headless, so OAuth tokens are not a reliable fallback.
+	if c.InCI() && c.AuthMode() != AuthModeAccessToken {
+		return errCIAccessTokenRequired
+	}
+
+	return nil
+}
+
 // apiClient returns an api.Client built from the configuration.
 func (c *config) apiClient(flags *api.Flags, out io.Writer) api.Client {
 	opts := api.ClientOpts{
-		Endpoint:          c.Endpoint,
-		AccessToken:       c.AccessToken,
-		AdditionalHeaders: c.AdditionalHeaders,
-		Flags:             flags,
-		Out:               out,
-		ProxyURL:          c.ProxyURL,
-		ProxyPath:         c.ProxyPath,
+		Endpoint:               c.Endpoint,
+		AccessToken:            c.AccessToken,
+		AdditionalHeaders:      c.AdditionalHeaders,
+		Flags:                  flags,
+		Out:                    out,
+		ProxyURL:               c.ProxyURL,
+		ProxyPath:              c.ProxyPath,
+		RequireAccessTokenInCI: c.InCI(),
 	}
 
 	// Only use OAuth if we do not have SRC_ACCESS_TOKEN set
@@ -179,6 +195,7 @@ func readConfig() (*config, error) {
 		return nil, err
 	}
 	var cfg config
+	cfg.inCI = isCI()
 	if err == nil {
 		cfg.ConfigFilePath = cfgPath
 		if err := json.Unmarshal(data, &cfg); err != nil {
@@ -275,10 +292,6 @@ func readConfig() (*config, error) {
 	}
 
 	cfg.Endpoint = cleanEndpoint(cfg.Endpoint)
-
-	if isCI() && cfg.AccessToken == "" {
-		return nil, errCIAccessTokenRequired
-	}
 
 	return &cfg, nil
 }

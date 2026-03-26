@@ -50,6 +50,16 @@ func TestLogin(t *testing.T) {
 		}
 	})
 
+	t.Run("CI requires access token", func(t *testing.T) {
+		out, err := check(t, &config{Endpoint: "https://example.com", inCI: true}, "https://example.com")
+		if err != errCIAccessTokenRequired {
+			t.Fatalf("err = %v, want %v", err, errCIAccessTokenRequired)
+		}
+		if out != "" {
+			t.Fatalf("output = %q, want empty output", out)
+		}
+	})
+
 	t.Run("warning when using config file", func(t *testing.T) {
 		out, err := check(t, &config{Endpoint: "https://example.com", ConfigFilePath: "f"}, "https://example.com")
 		if err == nil {

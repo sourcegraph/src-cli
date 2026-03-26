@@ -17,12 +17,12 @@ func TestResolveAuthToken(t *testing.T) {
 		newOAuthTokenRefresher = func(*oauth.Token) oauthTokenRefresher {
 			newRefresherCalled = true
 			return fakeOAuthTokenRefresher{}
-			}
+		}
 
-			token, err := resolveAuthToken(context.Background(), &config{
-				AccessToken: "access-token",
-				Endpoint:    "https://example.com",
-			})
+		token, err := resolveAuthToken(context.Background(), &config{
+			AccessToken: "access-token",
+			Endpoint:    "https://example.com",
+		})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -34,23 +34,45 @@ func TestResolveAuthToken(t *testing.T) {
 		}
 	})
 
+	t.Run("requires access token in CI", func(t *testing.T) {
+		reset := stubAuthTokenDependencies(t)
+		defer reset()
+
+		loadCalled := false
+		loadOAuthToken = func(context.Context, string) (*oauth.Token, error) {
+			loadCalled = true
+			return nil, nil
+		}
+
+		_, err := resolveAuthToken(context.Background(), &config{
+			inCI:     true,
+			Endpoint: "https://example.com",
+		})
+		if err != errCIAccessTokenRequired {
+			t.Fatalf("err = %v, want %v", err, errCIAccessTokenRequired)
+		}
+		if loadCalled {
+			t.Fatal("expected OAuth token loader not to be called")
+		}
+	})
+
 	t.Run("uses stored oauth token", func(t *testing.T) {
 		reset := stubAuthTokenDependencies(t)
 		defer reset()
 
-			loadOAuthToken = func(context.Context, string) (*oauth.Token, error) {
-				return &oauth.Token{
-					AccessToken: "oauth-token",
-				}, nil
+		loadOAuthToken = func(context.Context, string) (*oauth.Token, error) {
+			return &oauth.Token{
+				AccessToken: "oauth-token",
+			}, nil
 		}
 
 		newOAuthTokenRefresher = func(*oauth.Token) oauthTokenRefresher {
 			return fakeOAuthTokenRefresher{token: oauth.Token{AccessToken: "oauth-token"}}
-			}
+		}
 
-			token, err := resolveAuthToken(context.Background(), &config{
-				Endpoint: "https://example.com",
-			})
+		token, err := resolveAuthToken(context.Background(), &config{
+			Endpoint: "https://example.com",
+		})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -63,17 +85,17 @@ func TestResolveAuthToken(t *testing.T) {
 		reset := stubAuthTokenDependencies(t)
 		defer reset()
 
-			loadOAuthToken = func(context.Context, string) (*oauth.Token, error) {
-				return &oauth.Token{AccessToken: "old-token"}, nil
-			}
+		loadOAuthToken = func(context.Context, string) (*oauth.Token, error) {
+			return &oauth.Token{AccessToken: "old-token"}, nil
+		}
 
 		newOAuthTokenRefresher = func(*oauth.Token) oauthTokenRefresher {
 			return fakeOAuthTokenRefresher{token: oauth.Token{AccessToken: "new-token"}}
-			}
+		}
 
-			token, err := resolveAuthToken(context.Background(), &config{
-				Endpoint: "https://example.com",
-			})
+		token, err := resolveAuthToken(context.Background(), &config{
+			Endpoint: "https://example.com",
+		})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -86,20 +108,20 @@ func TestResolveAuthToken(t *testing.T) {
 		reset := stubAuthTokenDependencies(t)
 		defer reset()
 
-			loadOAuthToken = func(context.Context, string) (*oauth.Token, error) {
-				return &oauth.Token{AccessToken: "old-token"}, nil
-			}
+		loadOAuthToken = func(context.Context, string) (*oauth.Token, error) {
+			return &oauth.Token{AccessToken: "old-token"}, nil
+		}
 		newOAuthTokenRefresher = func(*oauth.Token) oauthTokenRefresher {
 			return fakeOAuthTokenRefresher{err: fmt.Errorf("refresh failed")}
 		}
 
-			_, err := resolveAuthToken(context.Background(), &config{
-				Endpoint: "https://example.com",
-			})
-			if err == nil {
-				t.Fatal("expected error")
-			}
+		_, err := resolveAuthToken(context.Background(), &config{
+			Endpoint: "https://example.com",
 		})
+		if err == nil {
+			t.Fatal("expected error")
+		}
+	})
 }
 
 func stubAuthTokenDependencies(t *testing.T) func() {
