@@ -317,7 +317,7 @@ func readConfig() (*config, error) {
 				return nil, errors.Newf("invalid proxy configuration: %w", err)
 			}
 			if !isValidUDS {
-				return nil, errors.Newf("Invalid proxy socket: %s", path)
+				return nil, errors.Newf("invalid proxy socket: %s", path)
 			}
 			cfg.proxyPath = path
 		} else {
