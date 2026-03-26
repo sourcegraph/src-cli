@@ -35,6 +35,28 @@ func TestResolveAuthToken(t *testing.T) {
 		}
 	})
 
+	t.Run("requires access token in CI", func(t *testing.T) {
+		reset := stubAuthTokenDependencies(t)
+		defer reset()
+
+		loadCalled := false
+		loadOAuthToken = func(context.Context, *url.URL) (*oauth.Token, error) {
+			loadCalled = true
+			return nil, nil
+		}
+
+		_, err := resolveAuthToken(context.Background(), &config{
+			inCI:        true,
+			endpointURL: mustParseURL(t, "https://example.com"),
+		})
+		if err != errCIAccessTokenRequired {
+			t.Fatalf("err = %v, want %v", err, errCIAccessTokenRequired)
+		}
+		if loadCalled {
+			t.Fatal("expected OAuth token loader not to be called")
+		}
+	})
+
 	t.Run("uses stored oauth token", func(t *testing.T) {
 		reset := stubAuthTokenDependencies(t)
 		defer reset()
