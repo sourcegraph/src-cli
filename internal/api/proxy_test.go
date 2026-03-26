@@ -10,120 +10,46 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
 
-// startProxy starts an HTTP or HTTPS CONNECT proxy on a random port.
-// It returns the proxy URL and a channel that receives the protocol observed by
-// the proxy handler for each CONNECT request.
-func startProxy(t *testing.T, useTLS bool) (proxyURL *url.URL, obsCh <-chan string) {
-	t.Helper()
-
-	ch := make(chan string, 10)
-
-	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		select {
-		case ch <- r.Proto:
-		default:
-		}
-
-		if r.Method != http.MethodConnect {
-			http.Error(w, "expected CONNECT", http.StatusMethodNotAllowed)
-			return
-		}
-
-		destConn, err := net.DialTimeout("tcp", r.Host, 10*time.Second)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadGateway)
-			return
-		}
-		defer destConn.Close()
-
-		hijacker, ok := w.(http.Hijacker)
-		if !ok {
-			http.Error(w, "hijacking not supported", http.StatusInternalServerError)
-			return
-		}
-
-		w.WriteHeader(http.StatusOK)
-		clientConn, bufrw, err := hijacker.Hijack()
-		if err != nil {
-			return
-		}
-		defer clientConn.Close()
-
-		done := make(chan struct{}, 2)
-		// Read from bufrw (not clientConn) so any bytes already buffered
-		// by the server's bufio.Reader are forwarded to the destination.
-		go func() { io.Copy(destConn, bufrw); done <- struct{}{} }()
-		go func() { io.Copy(clientConn, destConn); done <- struct{}{} }()
-		<-done
-		// Close both sides so the remaining goroutine unblocks.
-		clientConn.Close()
-		destConn.Close()
-		<-done
-	}))
-
-	if useTLS {
-		srv.StartTLS()
-	} else {
-		srv.Start()
-	}
-	t.Cleanup(srv.Close)
-
-	pURL, _ := url.Parse(srv.URL)
-	return pURL, ch
+type proxyOpts struct {
+	useTLS   bool
+	username string
+	password string
+	observe  func(*http.Request)
 }
 
-// startProxyWithAuth is like startProxy but requires
-// Proxy-Authorization with the given username and password.
-func startProxyWithAuth(t *testing.T, useTLS bool, wantUser, wantPass string) (proxyURL *url.URL) {
+// startProxy starts an HTTP or HTTPS CONNECT proxy on a random port.
+// If opts.observe is set, it is called for each CONNECT request.
+// If opts.username is set, Proxy-Authorization is required.
+func startProxy(t *testing.T, opts proxyOpts) *url.URL {
 	t.Helper()
 
 	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if opts.observe != nil {
+			opts.observe(r)
+		}
+
 		if r.Method != http.MethodConnect {
 			http.Error(w, "expected CONNECT", http.StatusMethodNotAllowed)
 			return
 		}
 
-		authHeader := r.Header.Get("Proxy-Authorization")
-		wantAuth := "Basic " + base64.StdEncoding.EncodeToString([]byte(wantUser+":"+wantPass))
-		if authHeader != wantAuth {
-			http.Error(w, "proxy auth required", http.StatusProxyAuthRequired)
-			return
+		if opts.username != "" {
+			wantAuth := "Basic " + base64.StdEncoding.EncodeToString([]byte(opts.username+":"+opts.password))
+			if r.Header.Get("Proxy-Authorization") != wantAuth {
+				http.Error(w, "proxy auth required", http.StatusProxyAuthRequired)
+				return
+			}
 		}
 
-		destConn, err := net.DialTimeout("tcp", r.Host, 10*time.Second)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadGateway)
-			return
-		}
-		defer destConn.Close()
-
-		hijacker, ok := w.(http.Hijacker)
-		if !ok {
-			http.Error(w, "hijacking not supported", http.StatusInternalServerError)
-			return
-		}
-
-		w.WriteHeader(http.StatusOK)
-		clientConn, bufrw, err := hijacker.Hijack()
-		if err != nil {
-			return
-		}
-		defer clientConn.Close()
-
-		done := make(chan struct{}, 2)
-		go func() { io.Copy(destConn, bufrw); done <- struct{}{} }()
-		go func() { io.Copy(clientConn, destConn); done <- struct{}{} }()
-		<-done
-		clientConn.Close()
-		destConn.Close()
-		<-done
+		serveTunnel(w, r)
 	}))
 
-	if useTLS {
+	if opts.useTLS {
 		srv.StartTLS()
 	} else {
 		srv.Start()
@@ -131,8 +57,56 @@ func startProxyWithAuth(t *testing.T, useTLS bool, wantUser, wantPass string) (p
 	t.Cleanup(srv.Close)
 
 	pURL, _ := url.Parse(srv.URL)
-	pURL.User = url.UserPassword(wantUser, wantPass)
+	if opts.username != "" {
+		pURL.User = url.UserPassword(opts.username, opts.password)
+	}
 	return pURL
+}
+
+// serveTunnel implements the CONNECT tunnel: dials the target, hijacks the
+// client connection, and copies bytes bidirectionally.
+func serveTunnel(w http.ResponseWriter, r *http.Request) {
+	destConn, err := net.DialTimeout("tcp", r.Host, 10*time.Second)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadGateway)
+		return
+	}
+	defer destConn.Close()
+
+	hijacker, ok := w.(http.Hijacker)
+	if !ok {
+		http.Error(w, "hijacking not supported", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	clientConn, bufrw, err := hijacker.Hijack()
+	if err != nil {
+		return
+	}
+
+	var wg sync.WaitGroup
+	var once sync.Once
+	closeBoth := func() {
+		clientConn.Close()
+		destConn.Close()
+	}
+	defer once.Do(closeBoth)
+
+	wg.Add(2)
+	// Read from bufrw (not clientConn) so any bytes already buffered
+	// by the server's bufio.Reader are forwarded to the destination.
+	go func() {
+		defer wg.Done()
+		io.Copy(destConn, bufrw)
+		once.Do(closeBoth)
+	}()
+	go func() {
+		defer wg.Done()
+		io.Copy(clientConn, destConn)
+		once.Do(closeBoth)
+	}()
+	wg.Wait()
 }
 
 // newTestTransport creates a base transport suitable for proxy tests.
@@ -157,7 +131,19 @@ func startTargetServer(t *testing.T) *httptest.Server {
 
 func TestWithProxyTransport_HTTPProxy(t *testing.T) {
 	target := startTargetServer(t)
-	proxyURL, obsCh := startProxy(t, false)
+
+	var mu sync.Mutex
+	var used bool
+	var proto string
+
+	proxyURL := startProxy(t, proxyOpts{
+		observe: func(r *http.Request) {
+			mu.Lock()
+			defer mu.Unlock()
+			used = true
+			proto = r.Proto
+		},
+	})
 
 	transport := withProxyTransport(newTestTransport(), proxyURL, "")
 	t.Cleanup(transport.CloseIdleConnections)
@@ -180,19 +166,32 @@ func TestWithProxyTransport_HTTPProxy(t *testing.T) {
 		t.Errorf("expected body 'ok', got %q", got)
 	}
 
-	select {
-	case proto := <-obsCh:
-		if proto != "HTTP/1.1" {
-			t.Errorf("expected proxy to see HTTP/1.1 CONNECT, got %s", proto)
-		}
-	case <-time.After(2 * time.Second):
+	mu.Lock()
+	defer mu.Unlock()
+	if !used {
 		t.Fatal("proxy handler was never invoked")
+	}
+	if proto != "HTTP/1.1" {
+		t.Errorf("expected proxy to see HTTP/1.1 CONNECT, got %s", proto)
 	}
 }
 
 func TestWithProxyTransport_HTTPSProxy(t *testing.T) {
 	target := startTargetServer(t)
-	proxyURL, obsCh := startProxy(t, true)
+
+	var mu sync.Mutex
+	var used bool
+	var proto string
+
+	proxyURL := startProxy(t, proxyOpts{
+		useTLS: true,
+		observe: func(r *http.Request) {
+			mu.Lock()
+			defer mu.Unlock()
+			used = true
+			proto = r.Proto
+		},
+	})
 
 	transport := withProxyTransport(newTestTransport(), proxyURL, "")
 	t.Cleanup(transport.CloseIdleConnections)
@@ -215,13 +214,13 @@ func TestWithProxyTransport_HTTPSProxy(t *testing.T) {
 		t.Errorf("expected body 'ok', got %q", got)
 	}
 
-	select {
-	case proto := <-obsCh:
-		if proto != "HTTP/1.1" {
-			t.Errorf("expected proxy to see HTTP/1.1 CONNECT, got %s", proto)
-		}
-	case <-time.After(2 * time.Second):
+	mu.Lock()
+	defer mu.Unlock()
+	if !used {
 		t.Fatal("proxy handler was never invoked")
+	}
+	if proto != "HTTP/1.1" {
+		t.Errorf("expected proxy to see HTTP/1.1 CONNECT, got %s", proto)
 	}
 }
 
@@ -229,7 +228,7 @@ func TestWithProxyTransport_ProxyAuth(t *testing.T) {
 	target := startTargetServer(t)
 
 	t.Run("http proxy with auth", func(t *testing.T) {
-		proxyURL := startProxyWithAuth(t, false, "user", "pass")
+		proxyURL := startProxy(t, proxyOpts{username: "user", password: "pass"})
 		transport := withProxyTransport(newTestTransport(), proxyURL, "")
 		t.Cleanup(transport.CloseIdleConnections)
 		client := &http.Client{Transport: transport, Timeout: 10 * time.Second}
@@ -249,7 +248,7 @@ func TestWithProxyTransport_ProxyAuth(t *testing.T) {
 	})
 
 	t.Run("https proxy with auth", func(t *testing.T) {
-		proxyURL := startProxyWithAuth(t, true, "user", "s3cret")
+		proxyURL := startProxy(t, proxyOpts{useTLS: true, username: "user", password: "s3cret"})
 		transport := withProxyTransport(newTestTransport(), proxyURL, "")
 		t.Cleanup(transport.CloseIdleConnections)
 		client := &http.Client{Transport: transport, Timeout: 10 * time.Second}
@@ -273,7 +272,7 @@ func TestWithProxyTransport_HTTPSProxy_HTTP2ToOrigin(t *testing.T) {
 	// Verify that when tunneling through an HTTPS proxy, the connection to
 	// the origin target still negotiates HTTP/2 (not downgraded to HTTP/1.1).
 	target := startTargetServer(t)
-	proxyURL, _ := startProxy(t, true)
+	proxyURL := startProxy(t, proxyOpts{useTLS: true})
 
 	transport := withProxyTransport(newTestTransport(), proxyURL, "")
 	t.Cleanup(transport.CloseIdleConnections)
@@ -322,7 +321,7 @@ func TestWithProxyTransport_HandshakeFailureClosesConn(t *testing.T) {
 		close(connClosed)
 	}()
 
-	proxyURL, _ := startProxy(t, true)
+	proxyURL := startProxy(t, proxyOpts{useTLS: true})
 	transport := withProxyTransport(newTestTransport(), proxyURL, "")
 	t.Cleanup(transport.CloseIdleConnections)
 	client := &http.Client{Transport: transport, Timeout: 5 * time.Second}
