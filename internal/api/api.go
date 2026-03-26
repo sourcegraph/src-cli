@@ -20,6 +20,8 @@ import (
 
 	"github.com/sourcegraph/src-cli/internal/oauth"
 	"github.com/sourcegraph/src-cli/internal/version"
+
+	"github.com/sourcegraph/sourcegraph/lib/errors"
 )
 
 // Client instances provide methods to create API requests.
@@ -72,9 +74,10 @@ type request struct {
 
 // ClientOpts encapsulates the options given to NewClient.
 type ClientOpts struct {
-	Endpoint          string
-	AccessToken       string
-	AdditionalHeaders map[string]string
+	Endpoint               string
+	AccessToken            string
+	AdditionalHeaders      map[string]string
+	RequireAccessTokenInCI bool
 
 	// Flags are the standard API client flags provided by NewFlags. If nil,
 	// default values will be used.
@@ -89,6 +92,9 @@ type ClientOpts struct {
 
 	OAuthToken *oauth.Token
 }
+
+// ErrCIAccessTokenRequired indicates SRC_ACCESS_TOKEN must be set when CI=true.
+var ErrCIAccessTokenRequired = errors.New("SRC_ACCESS_TOKEN must be set when CI=true")
 
 func buildTransport(opts ClientOpts, flags *Flags) http.RoundTripper {
 	var transport http.RoundTripper
@@ -136,15 +142,25 @@ func NewClient(opts ClientOpts) Client {
 
 	return &client{
 		opts: ClientOpts{
-			Endpoint:          opts.Endpoint,
-			AccessToken:       opts.AccessToken,
-			AdditionalHeaders: opts.AdditionalHeaders,
-			Flags:             flags,
-			Out:               opts.Out,
+			Endpoint:               opts.Endpoint,
+			AccessToken:            opts.AccessToken,
+			AdditionalHeaders:      opts.AdditionalHeaders,
+			RequireAccessTokenInCI: opts.RequireAccessTokenInCI,
+			Flags:                  flags,
+			Out:                    opts.Out,
 		},
 		httpClient: httpClient,
 	}
 }
+
+func (c *client) checkIfCIAccessTokenRequired() error {
+	if c.opts.RequireAccessTokenInCI && c.opts.AccessToken == "" {
+		return ErrCIAccessTokenRequired
+	}
+
+	return nil
+}
+
 func (c *client) NewQuery(query string) Request {
 	return c.NewRequest(query, nil)
 }
@@ -171,6 +187,10 @@ func (c *client) NewHTTPRequest(ctx context.Context, method, p string, body io.R
 }
 
 func (c *client) createHTTPRequest(ctx context.Context, method, p string, body io.Reader) (*http.Request, error) {
+	if err := c.checkIfCIAccessTokenRequired(); err != nil {
+		return nil, err
+	}
+
 	req, err := http.NewRequestWithContext(ctx, method, strings.TrimRight(c.opts.Endpoint, "/")+"/"+p, body)
 	if err != nil {
 		return nil, err
@@ -199,6 +219,10 @@ func (c *client) createHTTPRequest(ctx context.Context, method, p string, body i
 }
 
 func (r *request) do(ctx context.Context, result any) (bool, error) {
+	if err := r.client.checkIfCIAccessTokenRequired(); err != nil {
+		return false, err
+	}
+
 	if *r.client.opts.Flags.getCurl {
 		curl, err := r.curlCmd()
 		if err != nil {
