@@ -9,22 +9,9 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"sync"
 
 	"github.com/sourcegraph/sourcegraph/lib/errors"
 )
-
-type connWithBufferedReader struct {
-	net.Conn
-	r  *bufio.Reader
-	mu sync.Mutex
-}
-
-func (c *connWithBufferedReader) Read(p []byte) (int, error) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return c.r.Read(p)
-}
 
 // proxyDialAddr returns proxyURL.Host with a default port appended if one is
 // not already present (443 for https, 80 for http).
@@ -93,39 +80,29 @@ func withProxyTransport(baseTransport *http.Transport, proxyURL *url.URL, proxyP
 			baseTransport.Proxy = http.ProxyURL(proxyURL)
 		case "https":
 			dial := func(ctx context.Context, network, addr string) (net.Conn, error) {
-				// Dial the proxy. For https:// proxies, we TLS-connect to the
+				// Dial the proxy. For TLS-enabled proxies, we TLS-connect to the
 				// proxy itself and force ALPN to HTTP/1.1 to prevent Go from
 				// negotiating HTTP/2 for the CONNECT tunnel. Many proxy servers
 				// don't support HTTP/2 CONNECT, and Go's default Transport.Proxy
-				// would negotiate h2 via ALPN when TLS-connecting to an https://
-				// proxy, causing "bogus greeting" errors. For http:// proxies,
+				// would negotiate h2 via ALPN when TLS-connecting to a TLS-enabled
+				// proxy, causing "bogus greeting" errors. For plain HTTP proxies,
 				// CONNECT is always HTTP/1.1 over plain TCP so this isn't needed.
 				// The target connection (e.g. to sourcegraph.com) still negotiates
 				// HTTP/2 normally through the established tunnel.
 				proxyAddr := proxyDialAddr(proxyURL)
 
-				var conn net.Conn
-				var err error
-				if proxyURL.Scheme == "https" {
-					raw, dialErr := (&net.Dialer{}).DialContext(ctx, "tcp", proxyAddr)
-					if dialErr != nil {
-						return nil, dialErr
-					}
-					cfg := baseTransport.TLSClientConfig.Clone()
-					cfg.NextProtos = []string{"http/1.1"}
-					if cfg.ServerName == "" {
-						cfg.ServerName = proxyURL.Hostname()
-					}
-					tlsConn := tls.Client(raw, cfg)
-					if err := tlsConn.HandshakeContext(ctx); err != nil {
-						raw.Close()
-						return nil, err
-					}
-					conn = tlsConn
-				} else {
-					conn, err = (&net.Dialer{}).DialContext(ctx, "tcp", proxyAddr)
+				raw, dialErr := (&net.Dialer{}).DialContext(ctx, "tcp", proxyAddr)
+				if dialErr != nil {
+					return nil, dialErr
 				}
-				if err != nil {
+				cfg := baseTransport.TLSClientConfig.Clone()
+				cfg.NextProtos = []string{"http/1.1"}
+				if cfg.ServerName == "" {
+					cfg.ServerName = proxyURL.Hostname()
+				}
+				conn := tls.Client(raw, cfg)
+				if err := conn.HandshakeContext(ctx); err != nil {
+					raw.Close()
 					return nil, err
 				}
 
@@ -145,8 +122,7 @@ func withProxyTransport(baseTransport *http.Transport, proxyURL *url.URL, proxyP
 					return nil, err
 				}
 
-				br := bufio.NewReader(conn)
-				resp, err := http.ReadResponse(br, nil)
+				resp, err := http.ReadResponse(bufio.NewReader(conn), nil)
 				if err != nil {
 					conn.Close()
 					return nil, err
@@ -160,7 +136,7 @@ func withProxyTransport(baseTransport *http.Transport, proxyURL *url.URL, proxyP
 					return nil, errors.Newf("failed to connect to proxy %s: %s: %q", proxyURL.Redacted(), resp.Status, b)
 				}
 				// 200 CONNECT: do NOT resp.Body.Close(); it would interfere with the tunnel.
-				return &connWithBufferedReader{Conn: conn, r: br}, nil
+				return conn, nil
 			}
 			dialTLS := func(ctx context.Context, network, addr string) (net.Conn, error) {
 				// Dial the underlying connection through the proxy
