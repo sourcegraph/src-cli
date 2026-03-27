@@ -100,15 +100,19 @@ func buildTransport(opts ClientOpts, flags *Flags) http.RoundTripper {
 	{
 		tp := http.DefaultTransport.(*http.Transport).Clone()
 
-	if flags.insecureSkipVerify != nil && *flags.insecureSkipVerify {
-		transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
-	}
+		if flags.insecureSkipVerify != nil && *flags.insecureSkipVerify {
+			tp.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+		}
 
-	// not we do not fail here if requireAccessToken is true, because that would
-	// mean returning an error on construction which we want to avoid for now
-	// TODO(burmudar): allow returning of an error upon client construction
-	if opts.AccessToken == "" && opts.OAuthToken != nil {
-		transport = oauth.NewTransport(transport, opts.OAuthToken)
+		if tp.TLSClientConfig == nil {
+			tp.TLSClientConfig = &tls.Config{}
+		}
+
+		if opts.ProxyURL != nil || opts.ProxyPath != "" {
+			tp = withProxyTransport(tp, opts.ProxyURL, opts.ProxyPath)
+		}
+
+		transport = tp
 	}
 
 	// not we do not fail here if requireAccessToken is true, because that would
