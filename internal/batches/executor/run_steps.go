@@ -610,26 +610,38 @@ func createCidFile(ctx context.Context, tempDir string, repoSlug string) (string
 }
 
 func getAbsoluteMountPath(batchSpecDir string, mountPath string) (string, error) {
+	// Use OpenRoot to prevent path traversal and symlink attacks via mount paths
+	root, err := os.OpenRoot(batchSpecDir)
+	if err != nil {
+		return "", errors.Wrap(err, "opening batch spec directory")
+	}
+	defer root.Close()
+
 	p := mountPath
-	if !filepath.IsAbs(p) {
-		// Try to build the absolute path since Docker will only mount absolute paths
-		p = filepath.Join(batchSpecDir, p)
+	if filepath.IsAbs(p) {
+		rel, err := filepath.Rel(batchSpecDir, p)
+		if err != nil || strings.HasPrefix(rel, "..") {
+			return "", errors.Newf("mount path %s is not in the same directory or subdirectory as the batch spec", mountPath)
+		}
+		p = rel
 	}
-	pathInfo, err := os.Stat(p)
+
+	pathInfo, err := root.Stat(p)
 	if os.IsNotExist(err) {
-		return "", errors.Newf("mount path %s does not exist", p)
+		return "", errors.Newf("mount path %s does not exist", mountPath)
 	} else if err != nil {
-		return "", errors.Wrap(err, "mount path validation")
-	}
-	if !strings.HasPrefix(p, batchSpecDir) {
 		return "", errors.Newf("mount path %s is not in the same directory or subdirectory as the batch spec", mountPath)
 	}
+
+	// Build the absolute path for Docker bind mount.
+	absPath := filepath.Join(batchSpecDir, p)
+
 	// Mounting a directory on Docker must end with the separator. So, append the file separator to make
 	// users' lives easier.
-	if pathInfo.IsDir() && !strings.HasSuffix(p, string(filepath.Separator)) {
-		p += string(filepath.Separator)
+	if pathInfo.IsDir() && !strings.HasSuffix(absPath, string(filepath.Separator)) {
+		absPath += string(filepath.Separator)
 	}
-	return p, nil
+	return absPath, nil
 }
 
 type stepFailedErr struct {

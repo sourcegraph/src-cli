@@ -49,7 +49,7 @@ func TestExecutor_Integration(t *testing.T) {
 
 	// create a temp directory with a simple shell file
 	tempDir := t.TempDir()
-	mountScript := fmt.Sprintf("%s/sample.sh", tempDir)
+	mountScript := filepath.Join(tempDir, "sample.sh")
 	err := os.WriteFile(mountScript, []byte(`echo -e "foobar\n" >> README.md`), 0777)
 	require.NoError(t, err)
 
@@ -79,7 +79,8 @@ func TestExecutor_Integration(t *testing.T) {
 
 		wantCacheCount int
 
-		failFast bool
+		failFast         bool
+		workingDirectory string
 	}{
 		{
 			name: "success",
@@ -361,7 +362,7 @@ func TestExecutor_Integration(t *testing.T) {
 			steps: []batcheslib.Step{
 				{
 					Run:   mountScript,
-					Mount: []batcheslib.Mount{{Path: mountScript, Mountpoint: mountScript}},
+					Mount: []batcheslib.Mount{{Path: "sample.sh", Mountpoint: mountScript}},
 				},
 			},
 			tasks: []*Task{
@@ -372,8 +373,9 @@ func TestExecutor_Integration(t *testing.T) {
 					rootPath: []string{"README.md"},
 				},
 			},
-			wantFinished:   1,
-			wantCacheCount: 1,
+			wantFinished:     1,
+			wantCacheCount:   1,
+			workingDirectory: tempDir,
 		},
 	}
 
@@ -424,10 +426,11 @@ func TestExecutor_Integration(t *testing.T) {
 				Logger:              mock.LogNoOpManager{},
 				EnsureImage:         imageMapEnsurer(images),
 
-				TempDir:     testTempDir,
-				Parallelism: runtime.GOMAXPROCS(parallelism),
-				Timeout:     tc.executorTimeout,
-				FailFast:    tc.failFast,
+				TempDir:          testTempDir,
+				Parallelism:      runtime.GOMAXPROCS(parallelism),
+				Timeout:          tc.executorTimeout,
+				FailFast:         tc.failFast,
+				WorkingDirectory: tc.workingDirectory,
 			}
 
 			if opts.Timeout == 0 {
