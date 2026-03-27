@@ -230,6 +230,17 @@ func TestService_ParseBatchSpec(t *testing.T) {
 	_, err = os.Create(filepath.Join(tempDir, "another.sh"))
 	require.NoError(t, err)
 
+	// Create a sibling directory whose name shares a prefix with tempDir (e.g. /tmp/specdir-123 vs /tmp/specdir-123-outside)
+	prefixBypassDir := tempDir + "-outside"
+	require.NoError(t, os.MkdirAll(prefixBypassDir, 0o755))
+	t.Cleanup(func() { os.RemoveAll(prefixBypassDir) })
+	secretFile := filepath.Join(prefixBypassDir, "secret.txt")
+	require.NoError(t, os.WriteFile(secretFile, []byte("SECRET"), 0o644))
+
+	// Create a symlink inside tempDir that points outside it
+	symlinkPath := filepath.Join(tempDir, "leak")
+	require.NoError(t, os.Symlink(secretFile, symlinkPath))
+
 	tests := []struct {
 		name         string
 		batchSpecDir string
@@ -539,6 +550,69 @@ changesetTemplate:
   commit:
     message: Test
 `, tempOutsideDir),
+			expectedErr: errors.New("handling mount: step 1 mount path is not in the same directory or subdirectory as the batch spec"),
+		},
+		{
+			name:         "mount path prefix confusion bypass",
+			batchSpecDir: tempDir,
+			rawSpec: fmt.Sprintf(`
+name: test-spec
+description: A test spec
+steps:
+  - run: cat /tmp/mounted
+    container: alpine:3
+    mount:
+      - path: %s
+        mountpoint: /tmp/mounted
+changesetTemplate:
+  title: Test Mount
+  body: Test a mounted path
+  branch: test
+  commit:
+    message: Test
+`, secretFile),
+			expectedErr: errors.New("handling mount: step 1 mount path is not in the same directory or subdirectory as the batch spec"),
+		},
+		{
+			name:         "mount path symlink escape",
+			batchSpecDir: tempDir,
+			rawSpec: `
+name: test-spec
+description: A test spec
+steps:
+  - run: cat /tmp/mounted
+    container: alpine:3
+    mount:
+      - path: ./leak
+        mountpoint: /tmp/mounted
+changesetTemplate:
+  title: Test Mount
+  body: Test a mounted path
+  branch: test
+  commit:
+    message: Test
+`,
+			expectedErr: errors.New("handling mount: step 1 mount path is not in the same directory or subdirectory as the batch spec"),
+		},
+		{
+			name:         "mount path dot-dot traversal",
+			batchSpecDir: tempDir,
+			rawSpec: `
+name: test-spec
+description: A test spec
+steps:
+  - run: cat /tmp/mounted
+    container: alpine:3
+    mount:
+      - path: ../../../etc/passwd
+        mountpoint: /tmp/mounted
+changesetTemplate:
+  title: Test Mount
+  body: Test a mounted path
+  branch: test
+  commit:
+    message: Test
+`,
 			expectedErr: errors.New("handling mount: step 1 mount path is not in the same directory or subdirectory as the batch spec"),
 		},
 	}
