@@ -486,19 +486,39 @@ func (svc *Service) ParseBatchSpec(dir string, data []byte) (*batcheslib.BatchSp
 }
 
 func validateMount(batchSpecDir string, spec *batcheslib.BatchSpec) error {
+	// Check if any step has mounts before opening the root directory.
+	hasMounts := false
+	for _, step := range spec.Steps {
+		if len(step.Mount) > 0 {
+			hasMounts = true
+			break
+		}
+	}
+	if !hasMounts {
+		return nil
+	}
+
+	root, err := os.OpenRoot(batchSpecDir)
+	if err != nil {
+		return errors.Wrap(err, "opening batch spec directory")
+	}
+	defer root.Close()
+
 	for i, step := range spec.Steps {
 		for _, mount := range step.Mount {
-			if !filepath.IsAbs(mount.Path) {
-				// Try to build the absolute path since Docker will only mount absolute paths
-				mount.Path = filepath.Join(batchSpecDir, mount.Path)
+			mountPath := mount.Path
+			if filepath.IsAbs(mountPath) {
+				// Convert absolute paths to relative paths within the root.
+				rel, err := filepath.Rel(batchSpecDir, mountPath)
+				if err != nil || strings.HasPrefix(rel, "..") {
+					return errors.Newf("step %d mount path is not in the same directory or subdirectory as the batch spec", i+1)
+				}
+				mountPath = rel
 			}
-			_, err := os.Stat(mount.Path)
+			_, err := root.Stat(mountPath)
 			if os.IsNotExist(err) {
 				return errors.Newf("step %d mount path %s does not exist", i+1, mount.Path)
 			} else if err != nil {
-				return errors.Wrapf(err, "step %d mount path validation", i+1)
-			}
-			if !strings.HasPrefix(mount.Path, batchSpecDir) {
 				return errors.Newf("step %d mount path is not in the same directory or subdirectory as the batch spec", i+1)
 			}
 		}

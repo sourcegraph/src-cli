@@ -129,31 +129,43 @@ func (svc *Service) UploadBatchSpecWorkspaceFiles(ctx context.Context, workingDi
 }
 
 func getFilePaths(workingDir, filePath string) ([]string, error) {
+	root, err := os.OpenRoot(workingDir)
+	if err != nil {
+		return nil, errors.Wrap(err, "opening working directory")
+	}
+	defer root.Close()
+	return getFilePathsInRoot(root, filePath)
+}
+
+func getFilePathsInRoot(root *os.Root, filePath string) ([]string, error) {
+	// Clean the path to resolve any ".." segments before accessing the root.
+	filePath = filepath.Clean(filePath)
+
 	var filePaths []string
-	actualFilePath := filepath.Join(workingDir, filePath)
-	info, err := os.Stat(actualFilePath)
+	info, err := root.Stat(filePath)
 	if err != nil {
 		return nil, err
 	}
 
 	if info.IsDir() {
-		dir, err := os.ReadDir(actualFilePath)
+		dir, err := root.Open(filePath)
 		if err != nil {
 			return nil, err
 		}
-		for _, dirEntry := range dir {
-			paths, err := getFilePaths(workingDir, filepath.Join(filePath, dirEntry.Name()))
+		entries, err := dir.ReadDir(-1)
+		dir.Close()
+		if err != nil {
+			return nil, err
+		}
+		for _, dirEntry := range entries {
+			paths, err := getFilePathsInRoot(root, filepath.Join(filePath, dirEntry.Name()))
 			if err != nil {
 				return nil, err
 			}
 			filePaths = append(filePaths, paths...)
 		}
 	} else {
-		relPath, err := filepath.Rel(workingDir, actualFilePath)
-		if err != nil {
-			return nil, err
-		}
-		filePaths = append(filePaths, relPath)
+		filePaths = append(filePaths, filePath)
 	}
 	return filePaths, nil
 }
@@ -201,7 +213,13 @@ func (svc *Service) uploadFile(ctx context.Context, workingDir, filePath, batchS
 const maxFileSize = 10 << 20 // 10MB
 
 func createFormFile(w *multipart.Writer, workingDir string, mountPath string) error {
-	f, err := os.Open(filepath.Join(workingDir, mountPath))
+	root, err := os.OpenRoot(workingDir)
+	if err != nil {
+		return errors.Wrap(err, "opening working directory")
+	}
+	defer root.Close()
+
+	f, err := root.Open(mountPath)
 	if err != nil {
 		return err
 	}
