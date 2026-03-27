@@ -610,6 +610,7 @@ func createCidFile(ctx context.Context, tempDir string, repoSlug string) (string
 }
 
 func getAbsoluteMountPath(batchSpecDir string, mountPath string) (string, error) {
+	// Use OpenRoot to prevent path traversal and symlink attacks via mount paths
 	root, err := os.OpenRoot(batchSpecDir)
 	if err != nil {
 		return "", errors.Wrap(err, "opening batch spec directory")
