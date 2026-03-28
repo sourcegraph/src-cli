@@ -1,16 +1,11 @@
 package api
 
 import (
-	"bufio"
 	"context"
 	"crypto/tls"
-	"encoding/base64"
-	"io"
 	"net"
 	"net/http"
 	"net/url"
-
-	"github.com/sourcegraph/sourcegraph/lib/errors"
 )
 
 // proxyDialAddr returns proxyURL.Host with a default port appended if one is
@@ -43,12 +38,6 @@ func withProxyTransport(baseTransport *http.Transport, proxyURL *url.URL, proxyP
 		if cfg.ServerName == "" {
 			cfg.ServerName = host
 		}
-		// Preserve HTTP/2 negotiation to the origin when ForceAttemptHTTP2
-		// is enabled. Without this, the manual TLS handshake would not
-		// advertise h2 via ALPN, silently forcing HTTP/1.1.
-		if baseTransport.ForceAttemptHTTP2 && len(cfg.NextProtos) == 0 {
-			cfg.NextProtos = []string{"h2", "http/1.1"}
-		}
 		tlsConn := tls.Client(conn, cfg)
 		if err := tlsConn.HandshakeContext(ctx); err != nil {
 			tlsConn.Close()
@@ -74,83 +63,7 @@ func withProxyTransport(baseTransport *http.Transport, proxyURL *url.URL, proxyP
 		// clear out any system proxy settings
 		baseTransport.Proxy = nil
 	} else if proxyURL != nil {
-		switch proxyURL.Scheme {
-		case "http", "socks5", "socks5h":
-			// HTTP and SOCKS proxies work out of the box - no need to manually dial
-			baseTransport.Proxy = http.ProxyURL(proxyURL)
-		case "https":
-			dial := func(ctx context.Context, network, addr string) (net.Conn, error) {
-				// Dial the proxy. For TLS-enabled proxies, we TLS-connect to the
-				// proxy itself and force ALPN to HTTP/1.1 to prevent Go from
-				// negotiating HTTP/2 for the CONNECT tunnel. Many proxy servers
-				// don't support HTTP/2 CONNECT, and Go's default Transport.Proxy
-				// would negotiate h2 via ALPN when TLS-connecting to a TLS-enabled
-				// proxy, causing "bogus greeting" errors. For plain HTTP proxies,
-				// CONNECT is always HTTP/1.1 over plain TCP so this isn't needed.
-				// The target connection (e.g. to sourcegraph.com) still negotiates
-				// HTTP/2 normally through the established tunnel.
-				proxyAddr := proxyDialAddr(proxyURL)
-
-				raw, dialErr := (&net.Dialer{}).DialContext(ctx, "tcp", proxyAddr)
-				if dialErr != nil {
-					return nil, dialErr
-				}
-				cfg := baseTransport.TLSClientConfig.Clone()
-				cfg.NextProtos = []string{"http/1.1"}
-				if cfg.ServerName == "" {
-					cfg.ServerName = proxyURL.Hostname()
-				}
-				conn := tls.Client(raw, cfg)
-				if err := conn.HandshakeContext(ctx); err != nil {
-					raw.Close()
-					return nil, err
-				}
-
-				connectReq := &http.Request{
-					Method: "CONNECT",
-					URL:    &url.URL{Opaque: addr},
-					Host:   addr,
-					Header: make(http.Header),
-				}
-				if proxyURL.User != nil {
-					password, _ := proxyURL.User.Password()
-					auth := base64.StdEncoding.EncodeToString([]byte(proxyURL.User.Username() + ":" + password))
-					connectReq.Header.Set("Proxy-Authorization", "Basic "+auth)
-				}
-				if err := connectReq.Write(conn); err != nil {
-					conn.Close()
-					return nil, err
-				}
-
-				resp, err := http.ReadResponse(bufio.NewReader(conn), nil)
-				if err != nil {
-					conn.Close()
-					return nil, err
-				}
-				if resp.StatusCode != http.StatusOK {
-					// For non-200, it's safe/appropriate to close the body (it’s a real response body here).
-					// Try to read a bit (4k bytes) to include in the error message.
-					b, _ := io.ReadAll(io.LimitReader(resp.Body, 4<<10))
-					resp.Body.Close()
-					conn.Close()
-					return nil, errors.Newf("failed to connect to proxy %s: %s: %q", proxyURL.Redacted(), resp.Status, b)
-				}
-				// 200 CONNECT: do NOT resp.Body.Close(); it would interfere with the tunnel.
-				return conn, nil
-			}
-			dialTLS := func(ctx context.Context, network, addr string) (net.Conn, error) {
-				// Dial the underlying connection through the proxy
-				conn, err := dial(ctx, network, addr)
-				if err != nil {
-					return nil, err
-				}
-				return handshakeTLS(ctx, conn, addr)
-			}
-			baseTransport.DialContext = dial
-			baseTransport.DialTLSContext = dialTLS
-			// clear out the system proxy because we're defining our own dialers
-			baseTransport.Proxy = nil
-		}
+		baseTransport.Proxy = http.ProxyURL(proxyURL)
 	}
 
 	return baseTransport
