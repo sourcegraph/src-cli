@@ -8,19 +8,6 @@ import (
 	"net/url"
 )
 
-// proxyDialAddr returns proxyURL.Host with a default port appended if one is
-// not already present (443 for https, 80 for http).
-func proxyDialAddr(proxyURL *url.URL) string {
-	// net.SplitHostPort returns an error when the input doesn't contain a port
-	if _, _, err := net.SplitHostPort(proxyURL.Host); err == nil {
-		return proxyURL.Host
-	}
-	if proxyURL.Scheme == "https" {
-		return net.JoinHostPort(proxyURL.Hostname(), "443")
-	}
-	return net.JoinHostPort(proxyURL.Hostname(), "80")
-}
-
 // withProxyTransport modifies the given transport to handle proxying of unix, socks5 and http connections.
 //
 // Note: baseTransport is considered to be a clone created with transport.Clone()
