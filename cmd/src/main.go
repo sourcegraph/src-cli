@@ -7,7 +7,6 @@ import (
 	"io"
 	"log"
 	"net"
-	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -322,14 +321,6 @@ func readConfig() (*config, error) {
 			cfg.proxyPath = path
 		} else {
 			return nil, errors.Newf("invalid proxy endpoint: %s", proxyStr)
-		}
-	} else {
-		// no SRC_PROXY; check for the standard proxy env variables HTTP_PROXY, HTTPS_PROXY, and NO_PROXY
-		if u, err := http.ProxyFromEnvironment(&http.Request{URL: cfg.endpointURL}); err != nil {
-			// when there's an error, the value for the env variable is not a legit URL
-			return nil, errors.Newf("invalid HTTP_PROXY or HTTPS_PROXY value: %w", err)
-		} else {
-			cfg.proxyURL = u
 		}
 	}
 

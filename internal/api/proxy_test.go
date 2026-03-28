@@ -376,8 +376,6 @@ func TestWithProxyTransport_ProxyRejectsConnect(t *testing.T) {
 		})
 
 		t.Run("https proxy/"+tt.name, func(t *testing.T) {
-			// The HTTPS proxy path uses a custom dialer with its own error
-			// formatting that includes the status, body, and redacted proxy URL.
 			srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				http.Error(w, tt.body, tt.statusCode)
 			}))
@@ -393,11 +391,8 @@ func TestWithProxyTransport_ProxyRejectsConnect(t *testing.T) {
 			if err == nil {
 				t.Fatal("expected error, got nil")
 			}
-			if !strings.Contains(err.Error(), fmt.Sprintf("%d", tt.statusCode)) {
-				t.Errorf("error should contain status code %d, got: %v", tt.statusCode, err)
-			}
-			if !strings.Contains(err.Error(), tt.body) {
-				t.Errorf("error should contain body %q, got: %v", tt.body, err)
+			if !strings.Contains(err.Error(), tt.wantErr) {
+				t.Errorf("error should contain %q, got: %v", tt.wantErr, err)
 			}
 		})
 	}
