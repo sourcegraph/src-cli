@@ -201,7 +201,8 @@ func (c *config) apiClient(flags *api.Flags, out io.Writer) api.Client {
 	return api.NewClient(opts)
 }
 
-// readConfig reads the config file from the given path.
+// readConfig reads the config from the standard config file, the (deprecated) user-specified config file,
+// the environment variables, and the (deprecated) command-line flags.
 func readConfig() (*config, error) {
 	cfgFile := *configPath
 	userSpecified := *configPath != ""
