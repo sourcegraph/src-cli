@@ -2,7 +2,7 @@
 cmd/src/src
 *.zip
 release
-./vendor
+/vendor
 .idea
 .env
 .envrc
