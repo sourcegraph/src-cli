@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"io"
 
-	"github.com/sourcegraph/scip/bindings/go/scip"
+	"github.com/scip-code/scip/bindings/go/scip"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/sourcegraph/sourcegraph/lib/errors"
