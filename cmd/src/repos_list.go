@@ -30,6 +30,9 @@ type repositoriesListResult struct {
 	Errors []json.RawMessage `json:"errors,omitempty"`
 }
 
+// listRepositories returns the repositories from the response, any GraphQL
+// errors returned alongside data (should be treated as warnings), and
+// a hard error when the query fails without usable repository data.
 func listRepositories(ctx context.Context, client api.Client, params reposListOptions) ([]Repository, api.GraphQlErrors, error) {
 	query := `query Repositories(
   $first: Int,
