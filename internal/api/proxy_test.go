@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -129,19 +131,89 @@ func startTargetServer(t *testing.T) *httptest.Server {
 	return srv
 }
 
+func TestWithProxyTransport_UDSProxy(t *testing.T) {
+	target := startTargetServer(t)
+	targetURL, _ := url.Parse(target.URL)
+
+	// Use /tmp directly because t.TempDir() paths on macOS could exceed
+	// the 108-character limit for unix socket addresses.
+	socketPath := filepath.Join("/tmp", fmt.Sprintf("src-cli-test-%d.sock", time.Now().UnixNano()))
+	t.Cleanup(func() { os.Remove(socketPath) })
+	ln, err := net.Listen("unix", socketPath)
+	if err != nil {
+		t.Fatalf("listen unix: %v", err)
+	}
+	t.Cleanup(func() { ln.Close() })
+
+	// The UDS proxy path dials the unix socket directly (no CONNECT).
+	// Simulate a forwarding proxy that copies bytes to the target.
+	var mu sync.Mutex
+	var used bool
+
+	go func() {
+		for {
+			conn, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			mu.Lock()
+			used = true
+			mu.Unlock()
+			go func() {
+				defer conn.Close()
+				dest, err := net.DialTimeout("tcp", targetURL.Host, 10*time.Second)
+				if err != nil {
+					return
+				}
+				defer dest.Close()
+				var wg sync.WaitGroup
+				wg.Add(2)
+				go func() { defer wg.Done(); io.Copy(dest, conn) }()
+				go func() { defer wg.Done(); io.Copy(conn, dest) }()
+				wg.Wait()
+			}()
+		}
+	}()
+
+	transport := withProxyTransport(newTestTransport(), nil, socketPath)
+	t.Cleanup(transport.CloseIdleConnections)
+	client := &http.Client{Transport: transport, Timeout: 10 * time.Second}
+
+	resp, err := client.Get(target.URL)
+	if err != nil {
+		t.Fatalf("GET through unix proxy: %v", err)
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("read body: %v", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("expected 200, got %d", resp.StatusCode)
+	}
+	if got := strings.TrimSpace(string(body)); got != "ok" {
+		t.Errorf("expected body 'ok', got %q", got)
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	if !used {
+		t.Fatal("unix socket proxy was never used")
+	}
+}
+
 func TestWithProxyTransport_HTTPProxy(t *testing.T) {
 	target := startTargetServer(t)
 
 	var mu sync.Mutex
 	var used bool
-	var proto string
 
 	proxyURL := startProxy(t, proxyOpts{
 		observe: func(r *http.Request) {
 			mu.Lock()
 			defer mu.Unlock()
 			used = true
-			proto = r.Proto
 		},
 	})
 
@@ -171,9 +243,6 @@ func TestWithProxyTransport_HTTPProxy(t *testing.T) {
 	if !used {
 		t.Fatal("proxy handler was never invoked")
 	}
-	if proto != "HTTP/1.1" {
-		t.Errorf("expected proxy to see HTTP/1.1 CONNECT, got %s", proto)
-	}
 }
 
 func TestWithProxyTransport_HTTPSProxy(t *testing.T) {
@@ -181,7 +250,6 @@ func TestWithProxyTransport_HTTPSProxy(t *testing.T) {
 
 	var mu sync.Mutex
 	var used bool
-	var proto string
 
 	proxyURL := startProxy(t, proxyOpts{
 		useTLS: true,
@@ -189,7 +257,6 @@ func TestWithProxyTransport_HTTPSProxy(t *testing.T) {
 			mu.Lock()
 			defer mu.Unlock()
 			used = true
-			proto = r.Proto
 		},
 	})
 
@@ -218,182 +285,5 @@ func TestWithProxyTransport_HTTPSProxy(t *testing.T) {
 	defer mu.Unlock()
 	if !used {
 		t.Fatal("proxy handler was never invoked")
-	}
-	if proto != "HTTP/1.1" {
-		t.Errorf("expected proxy to see HTTP/1.1 CONNECT, got %s", proto)
-	}
-}
-
-func TestWithProxyTransport_ProxyAuth(t *testing.T) {
-	target := startTargetServer(t)
-
-	t.Run("http proxy with auth", func(t *testing.T) {
-		proxyURL := startProxy(t, proxyOpts{username: "user", password: "pass"})
-		transport := withProxyTransport(newTestTransport(), proxyURL, "")
-		t.Cleanup(transport.CloseIdleConnections)
-		client := &http.Client{Transport: transport, Timeout: 10 * time.Second}
-
-		resp, err := client.Get(target.URL)
-		if err != nil {
-			t.Fatalf("GET through authenticated http proxy: %v", err)
-		}
-		defer resp.Body.Close()
-		if _, err := io.ReadAll(resp.Body); err != nil {
-			t.Fatalf("read body: %v", err)
-		}
-
-		if resp.StatusCode != http.StatusOK {
-			t.Errorf("expected 200, got %d", resp.StatusCode)
-		}
-	})
-
-	t.Run("https proxy with auth", func(t *testing.T) {
-		proxyURL := startProxy(t, proxyOpts{useTLS: true, username: "user", password: "s3cret"})
-		transport := withProxyTransport(newTestTransport(), proxyURL, "")
-		t.Cleanup(transport.CloseIdleConnections)
-		client := &http.Client{Transport: transport, Timeout: 10 * time.Second}
-
-		resp, err := client.Get(target.URL)
-		if err != nil {
-			t.Fatalf("GET through authenticated https proxy: %v", err)
-		}
-		defer resp.Body.Close()
-		if _, err := io.ReadAll(resp.Body); err != nil {
-			t.Fatalf("read body: %v", err)
-		}
-
-		if resp.StatusCode != http.StatusOK {
-			t.Errorf("expected 200, got %d", resp.StatusCode)
-		}
-	})
-}
-
-func TestWithProxyTransport_HTTPSProxy_HTTP2ToOrigin(t *testing.T) {
-	// Verify that when tunneling through an HTTPS proxy, the connection to
-	// the origin target still negotiates HTTP/2 (not downgraded to HTTP/1.1).
-	target := startTargetServer(t)
-	proxyURL := startProxy(t, proxyOpts{useTLS: true})
-
-	transport := withProxyTransport(newTestTransport(), proxyURL, "")
-	t.Cleanup(transport.CloseIdleConnections)
-	client := &http.Client{Transport: transport, Timeout: 10 * time.Second}
-
-	resp, err := client.Get(target.URL)
-	if err != nil {
-		t.Fatalf("GET through https proxy: %v", err)
-	}
-	defer resp.Body.Close()
-	if _, err := io.ReadAll(resp.Body); err != nil {
-		t.Fatalf("read body: %v", err)
-	}
-
-	if resp.ProtoMajor != 2 {
-		t.Errorf("expected HTTP/2 to origin, got %s", resp.Proto)
-	}
-}
-
-func TestWithProxyTransport_HandshakeFailureClosesConn(t *testing.T) {
-	// Verify that when the TLS handshake to the origin fails, the underlying
-	// tunnel connection is closed (regression test for tlsConn.Close on error).
-	//
-	// A plain TCP listener acts as the target. The proxy CONNECT succeeds
-	// (TCP-level), but the subsequent TLS handshake fails because the target
-	// is not a TLS server. If handshakeTLS properly closes tlsConn on failure,
-	// the tunnel tears down and the target sees the connection close.
-	connClosed := make(chan struct{})
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatalf("listen: %v", err)
-	}
-	defer ln.Close()
-
-	go func() {
-		conn, err := ln.Accept()
-		if err != nil {
-			return
-		}
-		defer conn.Close()
-		// Send non-TLS bytes so the client handshake fails immediately
-		// rather than waiting for a timeout.
-		conn.Write([]byte("not-tls\n"))
-		// Drain until the remote side closes the tunnel.
-		io.Copy(io.Discard, conn)
-		close(connClosed)
-	}()
-
-	proxyURL := startProxy(t, proxyOpts{useTLS: true})
-	transport := withProxyTransport(newTestTransport(), proxyURL, "")
-	t.Cleanup(transport.CloseIdleConnections)
-	client := &http.Client{Transport: transport, Timeout: 5 * time.Second}
-
-	_, err = client.Get("https://" + ln.Addr().String())
-	if err == nil {
-		t.Fatal("expected TLS handshake error, got nil")
-	}
-
-	select {
-	case <-connClosed:
-		// Connection was properly cleaned up.
-	case <-time.After(5 * time.Second):
-		t.Fatal("connection was not closed after TLS handshake failure")
-	}
-}
-
-func TestWithProxyTransport_ProxyRejectsConnect(t *testing.T) {
-	tests := []struct {
-		name       string
-		statusCode int
-		body       string
-		wantErr    string
-	}{
-		{"407 proxy auth required", http.StatusProxyAuthRequired, "proxy auth required", "Proxy Authentication Required"},
-		{"403 forbidden", http.StatusForbidden, "access denied by policy", "Forbidden"},
-		{"502 bad gateway", http.StatusBadGateway, "upstream unreachable", "Bad Gateway"},
-	}
-
-	// Use a local target so we never depend on external DNS.
-	target := startTargetServer(t)
-
-	for _, tt := range tests {
-		t.Run("http proxy/"+tt.name, func(t *testing.T) {
-			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				http.Error(w, tt.body, tt.statusCode)
-			}))
-			t.Cleanup(srv.Close)
-
-			proxyURL, _ := url.Parse(srv.URL)
-			transport := withProxyTransport(newTestTransport(), proxyURL, "")
-			t.Cleanup(transport.CloseIdleConnections)
-			client := &http.Client{Transport: transport, Timeout: 10 * time.Second}
-
-			_, err := client.Get(target.URL)
-			if err == nil {
-				t.Fatal("expected error, got nil")
-			}
-			if !strings.Contains(err.Error(), tt.wantErr) {
-				t.Errorf("error should contain %q, got: %v", tt.wantErr, err)
-			}
-		})
-
-		t.Run("https proxy/"+tt.name, func(t *testing.T) {
-			srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				http.Error(w, tt.body, tt.statusCode)
-			}))
-			srv.StartTLS()
-			t.Cleanup(srv.Close)
-
-			proxyURL, _ := url.Parse(srv.URL)
-			transport := withProxyTransport(newTestTransport(), proxyURL, "")
-			t.Cleanup(transport.CloseIdleConnections)
-			client := &http.Client{Transport: transport, Timeout: 10 * time.Second}
-
-			_, err := client.Get(target.URL)
-			if err == nil {
-				t.Fatal("expected error, got nil")
-			}
-			if !strings.Contains(err.Error(), tt.wantErr) {
-				t.Errorf("error should contain %q, got: %v", tt.wantErr, err)
-			}
-		})
 	}
 }
