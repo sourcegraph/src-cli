@@ -2,12 +2,148 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"strings"
 
 	"github.com/sourcegraph/src-cli/internal/api"
 )
+
+type reposListOptions struct {
+	first      int
+	query      string
+	cloned     bool
+	notCloned  bool
+	indexed    bool
+	notIndexed bool
+	orderBy    string
+	descending bool
+}
+
+type repositoriesListResult struct {
+	Data struct {
+		Repositories struct {
+			Nodes []Repository `json:"nodes"`
+		} `json:"repositories"`
+	} `json:"data"`
+	Errors []json.RawMessage `json:"errors,omitempty"`
+}
+
+func listRepositories(ctx context.Context, client api.Client, params reposListOptions) ([]Repository, api.GraphQlErrors, error) {
+	query := `query Repositories(
+  $first: Int,
+  $query: String,
+  $cloned: Boolean,
+  $notCloned: Boolean,
+  $indexed: Boolean,
+  $notIndexed: Boolean,
+  $orderBy: RepositoryOrderBy,
+  $descending: Boolean,
+) {
+  repositories(
+    first: $first,
+    query: $query,
+    cloned: $cloned,
+    notCloned: $notCloned,
+    indexed: $indexed,
+    notIndexed: $notIndexed,
+    orderBy: $orderBy,
+    descending: $descending,
+  ) {
+    nodes {
+      ...RepositoryFields
+    }
+  }
+}
+` + repositoryFragment
+
+	var result repositoriesListResult
+	ok, err := client.NewRequest(query, map[string]any{
+		"first":      api.NullInt(params.first),
+		"query":      api.NullString(params.query),
+		"cloned":     params.cloned,
+		"notCloned":  params.notCloned,
+		"indexed":    params.indexed,
+		"notIndexed": params.notIndexed,
+		"orderBy":    params.orderBy,
+		"descending": params.descending,
+	}).DoRaw(ctx, &result)
+	if err != nil || !ok {
+		return nil, nil, err
+	}
+	repos := result.Data.Repositories.Nodes
+	if len(result.Errors) == 0 {
+		return repos, nil, nil
+	}
+
+	errors := api.NewGraphQlErrors(result.Errors)
+	if len(repos) > 0 {
+		return filterRepositoriesWithErrors(repos, errors), errors, nil
+	}
+
+	return nil, nil, errors
+}
+
+func filterRepositoriesWithErrors(repos []Repository, errors api.GraphQlErrors) []Repository {
+	if len(errors) == 0 || len(repos) == 0 {
+		return repos
+	}
+
+	skip := make(map[int]struct{}, len(errors))
+	for _, graphQLError := range errors {
+		index, ok := gqlRepositoryErrorIndex(graphQLError)
+		if !ok || index >= len(repos) {
+			continue
+		}
+		skip[index] = struct{}{}
+	}
+
+	filtered := make([]Repository, 0, len(repos))
+	for i, repo := range repos {
+		if _, ok := skip[i]; ok {
+			continue
+		}
+		filtered = append(filtered, repo)
+	}
+
+	return filtered
+}
+
+func gqlErrorPathString(pathSegment any) (string, bool) {
+	value, ok := pathSegment.(string)
+	return value, ok
+}
+
+func gqlErrorIndex(pathSegment any) (int, bool) {
+	switch value := pathSegment.(type) {
+	case float64:
+		index := int(value)
+		return index, float64(index) == value && index >= 0
+	case int:
+		return value, value >= 0
+	default:
+		return 0, false
+	}
+}
+
+func gqlRepositoryErrorIndex(graphQLError *api.GraphQlError) (int, bool) {
+	path, err := graphQLError.Path()
+	if err != nil || len(path) < 3 {
+		return 0, false
+	}
+
+	pathRoot, ok := gqlErrorPathString(path[0])
+	if !ok || pathRoot != "repositories" {
+		return 0, false
+	}
+	pathCollection, ok := gqlErrorPathString(path[1])
+	if !ok || pathCollection != "nodes" {
+		return 0, false
+	}
+
+	return gqlErrorIndex(path[2])
+}
 
 func init() {
 	usage := `
@@ -64,33 +200,6 @@ Examples:
 			return err
 		}
 
-		query := `query Repositories(
-  $first: Int,
-  $query: String,
-  $cloned: Boolean,
-  $notCloned: Boolean,
-  $indexed: Boolean,
-  $notIndexed: Boolean,
-  $orderBy: RepositoryOrderBy,
-  $descending: Boolean,
-) {
-  repositories(
-    first: $first,
-    query: $query,
-    cloned: $cloned,
-    notCloned: $notCloned,
-    indexed: $indexed,
-    notIndexed: $notIndexed,
-    orderBy: $orderBy,
-    descending: $descending,
-  ) {
-    nodes {
-      ...RepositoryFields
-    }
-  }
-}
-` + repositoryFragment
-
 		var orderBy string
 		switch *orderByFlag {
 		case "name":
@@ -101,25 +210,22 @@ Examples:
 			return fmt.Errorf("invalid -order-by flag value: %q", *orderByFlag)
 		}
 
-		var result struct {
-			Repositories struct {
-				Nodes []Repository
-			}
-		}
-		if ok, err := client.NewRequest(query, map[string]any{
-			"first":      api.NullInt(*firstFlag),
-			"query":      api.NullString(*queryFlag),
-			"cloned":     *clonedFlag,
-			"notCloned":  *notClonedFlag,
-			"indexed":    *indexedFlag,
-			"notIndexed": *notIndexedFlag,
-			"orderBy":    orderBy,
-			"descending": *descendingFlag,
-		}).Do(context.Background(), &result); err != nil || !ok {
+		// if we get repos and errors during a listing, we consider the errors as warnings and the data partially complete
+		repos, warnings, err := listRepositories(context.Background(), client, reposListOptions{
+			first:      *firstFlag,
+			query:      *queryFlag,
+			cloned:     *clonedFlag,
+			notCloned:  *notClonedFlag,
+			indexed:    *indexedFlag,
+			notIndexed: *notIndexedFlag,
+			orderBy:    orderBy,
+			descending: *descendingFlag,
+		})
+		if err != nil {
 			return err
 		}
 
-		for _, repo := range result.Repositories.Nodes {
+		for _, repo := range repos {
 			if *namesWithoutHostFlag {
 				firstSlash := strings.Index(repo.Name, "/")
 				fmt.Println(repo.Name[firstSlash+len("/"):])
@@ -128,6 +234,16 @@ Examples:
 
 			if err := execTemplate(tmpl, repo); err != nil {
 				return err
+			}
+		}
+		if len(warnings) > 0 {
+			if *verbose {
+				fmt.Fprintf(flagSet.Output(), "warning: %d errors during listing:\n", len(warnings))
+				for _, warning := range warnings {
+					fmt.Fprintln(flagSet.Output(), warning.Error())
+				}
+			} else {
+				fmt.Fprintf(flagSet.Output(), "warning: %d errors during listing; rerun with -v to inspect them\n", len(warnings))
 			}
 		}
 		return nil

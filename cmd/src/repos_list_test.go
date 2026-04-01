@@ -83,7 +83,7 @@ func TestListRepositoriesSkipsRepositoryWhenDefaultBranchCannotBeResolved(t *tes
 		Return(true, nil).
 		Once()
 
-	repos, skipped, err := listRepositories(context.Background(), client, reposListOptions{
+	repos, warnings, err := listRepositories(context.Background(), client, reposListOptions{
 		first:      1000,
 		cloned:     true,
 		notCloned:  true,
@@ -93,9 +93,140 @@ func TestListRepositoriesSkipsRepositoryWhenDefaultBranchCannotBeResolved(t *tes
 	})
 	require.NoError(t, err)
 	require.Len(t, repos, 1)
-	require.Len(t, skipped, 1)
+	require.Len(t, warnings, 1)
 	require.Equal(t, "github.com/sourcegraph/ok", repos[0].Name)
-	require.Equal(t, "github.com/sourcegraph/broken", skipped[0].Name)
+	require.ErrorContains(t, warnings[0], "failed to resolve HEAD for github.com/sourcegraph/broken")
+	client.AssertExpectations(t)
+	request.AssertExpectations(t)
+}
+
+func TestListRepositoriesFiltersNodeScopedFieldErrors(t *testing.T) {
+	client := new(mockapi.Client)
+	request := &mockapi.Request{Response: `{
+		"data": {
+			"repositories": {
+				"nodes": [
+					{
+						"id": "UmVwb3NpdG9yeTox",
+						"name": "github.com/sourcegraph/ok",
+						"url": "/github.com/sourcegraph/ok",
+						"description": "",
+						"language": "Go",
+						"createdAt": "2026-03-31T00:00:00Z",
+						"updatedAt": null,
+						"externalRepository": {
+							"id": "RXh0ZXJuYWxSZXBvc2l0b3J5OjE=",
+							"serviceType": "github",
+							"serviceID": "https://github.com/"
+						},
+						"defaultBranch": {
+							"name": "refs/heads/main",
+							"displayName": "main"
+						},
+						"viewerCanAdminister": false,
+						"keyValuePairs": []
+					}
+				]
+			}
+		},
+		"errors": [
+			{
+				"message": "viewer permissions unavailable",
+				"path": ["repositories", "nodes", 0, "viewerCanAdminister"]
+			}
+		]
+	}`}
+
+	client.On(
+		"NewRequest",
+		mock.MatchedBy(func(query string) bool {
+			return strings.Contains(query, "viewerCanAdminister")
+		}),
+		mock.Anything,
+	).Return(request).Once()
+
+	request.On("DoRaw", context.Background(), mock.Anything).
+		Return(true, nil).
+		Once()
+
+	repos, warnings, err := listRepositories(context.Background(), client, reposListOptions{
+		first:      1000,
+		cloned:     true,
+		notCloned:  true,
+		indexed:    true,
+		notIndexed: false,
+		orderBy:    "REPOSITORY_NAME",
+	})
+	require.NoError(t, err)
+	require.Empty(t, repos)
+	require.Len(t, warnings, 1)
+	require.ErrorContains(t, warnings[0], "viewer permissions unavailable")
+	client.AssertExpectations(t)
+	request.AssertExpectations(t)
+}
+
+func TestListRepositoriesReturnsWarningsWithDataForNonNodeErrors(t *testing.T) {
+	client := new(mockapi.Client)
+	request := &mockapi.Request{Response: `{
+		"data": {
+			"repositories": {
+				"nodes": [
+					{
+						"id": "UmVwb3NpdG9yeTox",
+						"name": "github.com/sourcegraph/ok",
+						"url": "/github.com/sourcegraph/ok",
+						"description": "",
+						"language": "Go",
+						"createdAt": "2026-03-31T00:00:00Z",
+						"updatedAt": null,
+						"externalRepository": {
+							"id": "RXh0ZXJuYWxSZXBvc2l0b3J5OjE=",
+							"serviceType": "github",
+							"serviceID": "https://github.com/"
+						},
+						"defaultBranch": {
+							"name": "refs/heads/main",
+							"displayName": "main"
+						},
+						"viewerCanAdminister": false,
+						"keyValuePairs": []
+					}
+				]
+			}
+		},
+		"errors": [
+			{
+				"message": "listing timed out",
+				"path": ["repositories"]
+			}
+		]
+	}`}
+
+	client.On(
+		"NewRequest",
+		mock.MatchedBy(func(query string) bool {
+			return strings.Contains(query, "defaultBranch")
+		}),
+		mock.Anything,
+	).Return(request).Once()
+
+	request.On("DoRaw", context.Background(), mock.Anything).
+		Return(true, nil).
+		Once()
+
+	repos, warnings, err := listRepositories(context.Background(), client, reposListOptions{
+		first:      1000,
+		cloned:     true,
+		notCloned:  true,
+		indexed:    true,
+		notIndexed: false,
+		orderBy:    "REPOSITORY_NAME",
+	})
+	require.NoError(t, err)
+	require.Len(t, repos, 1)
+	require.Len(t, warnings, 1)
+	require.Equal(t, "github.com/sourcegraph/ok", repos[0].Name)
+	require.ErrorContains(t, warnings[0], "listing timed out")
 	client.AssertExpectations(t)
 	request.AssertExpectations(t)
 }
