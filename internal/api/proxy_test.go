@@ -8,11 +8,12 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"runtime"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -37,19 +38,15 @@ func newTestTransport() *http.Transport {
 }
 
 // startCONNECTProxy starts an HTTP CONNECT proxy. If useTLS is true, the proxy
-// itself listens over TLS. The returned *used bool is set to true when the
+// itself listens over TLS. The returned *atomic.Bool is set to true when the
 // proxy handles a request.
-func startCONNECTProxy(t *testing.T, useTLS bool) (proxyURL *url.URL, used *bool) {
+func startCONNECTProxy(t *testing.T, useTLS bool) (proxyURL *url.URL, used *atomic.Bool) {
 	t.Helper()
 
-	var mu sync.Mutex
-	proxyUsed := false
-	used = &proxyUsed
+	used = &atomic.Bool{}
 
 	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		mu.Lock()
-		proxyUsed = true
-		mu.Unlock()
+		used.Store(true)
 
 		if r.Method != http.MethodConnect {
 			http.Error(w, "expected CONNECT", http.StatusMethodNotAllowed)
@@ -109,9 +106,9 @@ func startCONNECTProxy(t *testing.T, useTLS bool) (proxyURL *url.URL, used *bool
 }
 
 // startUDSForwarder creates a unix domain socket that forwards TCP traffic
-// to the given target address. Returns the socket path and a *bool that
-// indicates whether the socket was used.
-func startUDSForwarder(t *testing.T, targetAddr string) (socketPath string, used *bool) {
+// to the given target address. Returns the socket path and an *atomic.Bool
+// that indicates whether the socket was used.
+func startUDSForwarder(t *testing.T, targetAddr string) (socketPath string, used *atomic.Bool) {
 	t.Helper()
 
 	socketPath = filepath.Join("/tmp", fmt.Sprintf("src-cli-test-%d.sock", time.Now().UnixNano()))
@@ -123,9 +120,7 @@ func startUDSForwarder(t *testing.T, targetAddr string) (socketPath string, used
 	}
 	t.Cleanup(func() { ln.Close() })
 
-	var mu sync.Mutex
-	udsUsed := false
-	used = &udsUsed
+	used = &atomic.Bool{}
 
 	go func() {
 		for {
@@ -133,9 +128,7 @@ func startUDSForwarder(t *testing.T, targetAddr string) (socketPath string, used
 			if err != nil {
 				return
 			}
-			mu.Lock()
-			udsUsed = true
-			mu.Unlock()
+			used.Store(true)
 			go func() {
 				defer conn.Close()
 				dest, err := net.DialTimeout("tcp", targetAddr, 10*time.Second)
@@ -183,7 +176,7 @@ func TestWithProxyTransport_HTTPProxy(t *testing.T) {
 	transport := withProxyTransport(newTestTransport(), proxyURL, "")
 	doGET(t, transport, target.URL)
 
-	if !*used {
+	if !used.Load() {
 		t.Fatal("HTTP proxy was never used")
 	}
 }
@@ -195,7 +188,7 @@ func TestWithProxyTransport_HTTPSProxy(t *testing.T) {
 	transport := withProxyTransport(newTestTransport(), proxyURL, "")
 	doGET(t, transport, target.URL)
 
-	if !*used {
+	if !used.Load() {
 		t.Fatal("HTTPS proxy was never used")
 	}
 }
@@ -212,7 +205,7 @@ func TestWithProxyTransport_UDSProxy(t *testing.T) {
 	transport := withProxyTransport(newTestTransport(), nil, socketPath)
 	doGET(t, transport, target.URL)
 
-	if !*used {
+	if !used.Load() {
 		t.Fatal("unix socket proxy was never used")
 	}
 }
@@ -240,10 +233,10 @@ func TestWithProxyTransport_UDSClearsSystemProxy(t *testing.T) {
 
 	doGET(t, transport, target.URL)
 
-	if *envProxyUsed {
+	if envProxyUsed.Load() {
 		t.Fatal("HTTPS_PROXY was used despite proxyPath being set")
 	}
-	if !*udsUsed {
+	if !udsUsed.Load() {
 		t.Fatal("unix socket proxy was never used")
 	}
 }
@@ -286,7 +279,7 @@ func TestBuildTransport_WithProxyURL(t *testing.T) {
 	httpTransport := transport.(*http.Transport)
 	doGET(t, httpTransport, target.URL)
 
-	if !*used {
+	if !used.Load() {
 		t.Fatal("proxy was not used via buildTransport")
 	}
 }
@@ -316,7 +309,7 @@ func TestBuildTransport_WithProxyPath(t *testing.T) {
 	httpTransport := transport.(*http.Transport)
 	doGET(t, httpTransport, target.URL)
 
-	if !*used {
+	if !used.Load() {
 		t.Fatal("UDS proxy was not used via buildTransport")
 	}
 }
@@ -372,7 +365,7 @@ func TestBuildTransport_NOPROXYOverridesHTTPSPROXY(t *testing.T) {
 	doGET(t, httpTransport, target.URL)
 
 	// The proxy should NOT have been used because NO_PROXY matches the target.
-	if *used {
+	if used.Load() {
 		t.Fatal("proxy was used despite NO_PROXY matching the target host")
 	}
 }
@@ -406,7 +399,7 @@ func TestBuildTransport_ExplicitProxyURLOverridesNOPROXY(t *testing.T) {
 	httpTransport := transport.(*http.Transport)
 	doGET(t, httpTransport, target.URL)
 
-	if !*used {
+	if !used.Load() {
 		t.Fatal("explicit ProxyURL did not override NO_PROXY")
 	}
 }
