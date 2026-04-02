@@ -176,6 +176,11 @@ func parseBatchSpec(schema string, data []byte) (*BatchSpec, error) {
 				errs = errors.Append(errs, NewValidationError(errors.Newf("step %d mount mountpoint contains invalid characters", i+1)))
 			}
 		}
+		for name := range step.Files {
+			if strings.Contains(name, invalidMountCharacters) {
+				errs = errors.Append(errs, NewValidationError(errors.Newf("step %d files target path contains invalid characters", i+1)))
+			}
+		}
 	}
 
 	return &spec, errs
