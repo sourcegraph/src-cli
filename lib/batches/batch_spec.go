@@ -169,15 +169,15 @@ func parseBatchSpec(schema string, data []byte) (*BatchSpec, error) {
 
 	for i, step := range spec.Steps {
 		for _, mount := range step.Mount {
-			if strings.Contains(mount.Path, invalidMountCharacters) {
+			if strings.ContainsAny(mount.Path, invalidMountCharacters) {
 				errs = errors.Append(errs, NewValidationError(errors.Newf("step %d mount path contains invalid characters", i+1)))
 			}
-			if strings.Contains(mount.Mountpoint, invalidMountCharacters) {
+			if strings.ContainsAny(mount.Mountpoint, invalidMountCharacters) {
 				errs = errors.Append(errs, NewValidationError(errors.Newf("step %d mount mountpoint contains invalid characters", i+1)))
 			}
 		}
 		for name := range step.Files {
-			if strings.Contains(name, invalidMountCharacters) {
+			if strings.ContainsAny(name, invalidMountCharacters) {
 				errs = errors.Append(errs, NewValidationError(errors.Newf("step %d files target path contains invalid characters", i+1)))
 			}
 		}
@@ -185,8 +185,8 @@ func parseBatchSpec(schema string, data []byte) (*BatchSpec, error) {
 
 	return &spec, errs
 }
-
-const invalidMountCharacters = ","
+// docker uses Golang's `encoding/csv` library to parse arguments passed to `--mount`
+const invalidMountCharacters = ",\"\n\r"
 
 func (on *OnQueryOrRepository) String() string {
 	if on.RepositoriesMatchingQuery != "" {
