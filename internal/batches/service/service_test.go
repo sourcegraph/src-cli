@@ -595,6 +595,26 @@ changesetTemplate:
 			expectedErr: errors.New("handling mount: step 1 mount path is not in the same directory or subdirectory as the batch spec"),
 		},
 		{
+			name:         "files target path with comma",
+			batchSpecDir: tempDir,
+			rawSpec: `
+name: test-spec
+description: A test spec
+steps:
+  - run: echo "hello"
+    container: alpine:3
+    files:
+      "/tmp/x,source=/var/run/docker.sock,target=/var/run/docker.sock": "IGNORED"
+changesetTemplate:
+  title: Test Files
+  body: Test files target path with comma
+  branch: test
+  commit:
+    message: Test
+`,
+			expectedErr: errors.New("parsing batch spec: step 1 files target path contains invalid characters"),
+		},
+		{
 			name:         "mount path dot-dot traversal",
 			batchSpecDir: tempDir,
 			rawSpec: `
