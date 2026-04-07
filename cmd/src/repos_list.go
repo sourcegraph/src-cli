@@ -82,35 +82,10 @@ func listRepositories(ctx context.Context, client api.Client, params reposListOp
 
 	errors := api.NewGraphQlErrors(result.Errors)
 	if len(repos) > 0 {
-		return filterRepositoriesWithErrors(repos, errors), errors, nil
+		return repos, errors, nil
 	}
 
 	return nil, nil, errors
-}
-
-func filterRepositoriesWithErrors(repos []Repository, errors api.GraphQlErrors) []Repository {
-	if len(errors) == 0 || len(repos) == 0 {
-		return repos
-	}
-
-	skip := make(map[int]struct{}, len(errors))
-	for _, graphQLError := range errors {
-		index, ok := gqlRepositoryErrorIndex(graphQLError)
-		if !ok || index >= len(repos) {
-			continue
-		}
-		skip[index] = struct{}{}
-	}
-
-	filtered := make([]Repository, 0, len(repos))
-	for i, repo := range repos {
-		if _, ok := skip[i]; ok {
-			continue
-		}
-		filtered = append(filtered, repo)
-	}
-
-	return filtered
 }
 
 func gqlErrorPathString(pathSegment any) (string, bool) {
@@ -130,22 +105,52 @@ func gqlErrorIndex(pathSegment any) (int, bool) {
 	}
 }
 
-func gqlRepositoryErrorIndex(graphQLError *api.GraphQlError) (int, bool) {
+func gqlWarningPath(graphQLError *api.GraphQlError) string {
 	path, err := graphQLError.Path()
-	if err != nil || len(path) < 3 {
-		return 0, false
+	if err != nil || len(path) == 0 {
+		return ""
 	}
 
-	pathRoot, ok := gqlErrorPathString(path[0])
-	if !ok || pathRoot != "repositories" {
-		return 0, false
-	}
-	pathCollection, ok := gqlErrorPathString(path[1])
-	if !ok || pathCollection != "nodes" {
-		return 0, false
+	var b strings.Builder
+	for _, pathSegment := range path {
+		if segment, ok := gqlErrorPathString(pathSegment); ok {
+			if b.Len() > 0 {
+				b.WriteByte('.')
+			}
+			b.WriteString(segment)
+			continue
+		}
+
+		if index, ok := gqlErrorIndex(pathSegment); ok {
+			fmt.Fprintf(&b, "[%d]", index)
+		}
 	}
 
-	return gqlErrorIndex(path[2])
+	return b.String()
+}
+
+func gqlWarningMessage(graphQLError *api.GraphQlError) string {
+	message, err := graphQLError.Message()
+	if err != nil || message == "" {
+		return graphQLError.Error()
+	}
+	return message
+}
+
+func formatRepositoryListWarnings(warnings api.GraphQlErrors) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "warnings: %d errors during listing\n", len(warnings))
+	for _, warning := range warnings {
+		path := gqlWarningPath(warning)
+		message := gqlWarningMessage(warning)
+		if path != "" {
+			fmt.Fprintf(&b, "%s - %s\n", path, message)
+		} else {
+			fmt.Fprintf(&b, "%s\n", message)
+		}
+		fmt.Fprintf(&b, "%s\n", warning.Error())
+	}
+	return b.String()
 }
 
 func init() {
@@ -241,10 +246,7 @@ Examples:
 		}
 		if len(warnings) > 0 {
 			if *verbose {
-				fmt.Fprintf(flagSet.Output(), "warning: %d errors during listing:\n", len(warnings))
-				for _, warning := range warnings {
-					fmt.Fprintln(flagSet.Output(), warning.Error())
-				}
+				fmt.Fprint(flagSet.Output(), formatRepositoryListWarnings(warnings))
 			} else {
 				fmt.Fprintf(flagSet.Output(), "warning: %d errors during listing; rerun with -v to inspect them\n", len(warnings))
 			}

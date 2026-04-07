@@ -43,6 +43,23 @@ func (gg GraphQlErrors) Error() string {
 // GraphQlError wraps a raw JSON error returned from a GraphQL endpoint.
 type GraphQlError struct{ v any }
 
+// Message returns the GraphQL error message, if one was set on the error.
+func (g *GraphQlError) Message() (string, error) {
+	e, ok := g.v.(map[string]any)
+	if !ok {
+		return "", errors.Errorf("unexpected GraphQL error of type %T", g.v)
+	}
+
+	if e["message"] == nil {
+		return "", nil
+	}
+	message, ok := e["message"].(string)
+	if !ok {
+		return "", errors.Errorf("unexpected message of type %T", e["message"])
+	}
+	return message, nil
+}
+
 // Code returns the GraphQL error code, if one was set on the error.
 func (g *GraphQlError) Code() (string, error) {
 	ext, err := g.Extensions()
