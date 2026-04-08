@@ -16,10 +16,6 @@ Examples:
 
     	$ src users list
 
-  List *all* users (may be slow!):
-
-    	$ src users list -first='-1'
-
   List users whose names match the query:
 
     	$ src users list -query='myquery'
@@ -37,7 +33,7 @@ Examples:
 		fmt.Println(usage)
 	}
 	var (
-		firstFlag  = flagSet.Int("first", 1000, "Returns the first n users from the list. (use -1 for unlimited)")
+		firstFlag  = flagSet.Int("first", 1000, "Returns the first n users from the list.")
 		queryFlag  = flagSet.String("query", "", `Returns users whose names match the query. (e.g. "alice")`)
 		tagFlag    = flagSet.String("tag", "", `Returns users with the given tag.`)
 		formatFlag = flagSet.String("f", "{{.Username}}", `Format for the output, using the syntax of Go package text/template. (e.g. "{{.ID}}: {{.Username}} ({{.DisplayName}})" or "{{.|json}}")`)
