@@ -9,6 +9,19 @@ import (
 // GraphQlErrors contains one or more GraphQlError instances.
 type GraphQlErrors []*GraphQlError
 
+// NewGraphQlErrors wraps raw GraphQL error payloads in GraphQlError values.
+func NewGraphQlErrors(graphQLErrorPayloads []json.RawMessage) GraphQlErrors {
+	errs := make(GraphQlErrors, 0, len(graphQLErrorPayloads))
+	for _, graphQLErrorPayload := range graphQLErrorPayloads {
+		var value any
+		if err := json.Unmarshal(graphQLErrorPayload, &value); err != nil {
+			value = map[string]any{"message": string(graphQLErrorPayload)}
+		}
+		errs = append(errs, &GraphQlError{v: value})
+	}
+	return errs
+}
+
 func (gg GraphQlErrors) Error() string {
 	// This slightly convoluted implementation is used to ensure that output
 	// remains stable with earlier versions of src-cli, which returned a wrapped
@@ -30,6 +43,23 @@ func (gg GraphQlErrors) Error() string {
 // GraphQlError wraps a raw JSON error returned from a GraphQL endpoint.
 type GraphQlError struct{ v any }
 
+// Message returns the GraphQL error message, if one was set on the error.
+func (g *GraphQlError) Message() (string, error) {
+	e, ok := g.v.(map[string]any)
+	if !ok {
+		return "", errors.Errorf("unexpected GraphQL error of type %T", g.v)
+	}
+
+	if e["message"] == nil {
+		return "", nil
+	}
+	message, ok := e["message"].(string)
+	if !ok {
+		return "", errors.Errorf("unexpected message of type %T", e["message"])
+	}
+	return message, nil
+}
+
 // Code returns the GraphQL error code, if one was set on the error.
 func (g *GraphQlError) Code() (string, error) {
 	ext, err := g.Extensions()
@@ -46,6 +76,23 @@ func (g *GraphQlError) Code() (string, error) {
 		return "", errors.Errorf("unexpected code of type %T", ext["code"])
 	}
 	return "", nil
+}
+
+// Path returns the GraphQL error path, if one was set on the error.
+func (g *GraphQlError) Path() ([]any, error) {
+	e, ok := g.v.(map[string]any)
+	if !ok {
+		return nil, errors.Errorf("unexpected GraphQL error of type %T", g.v)
+	}
+
+	if e["path"] == nil {
+		return nil, nil
+	}
+	path, ok := e["path"].([]any)
+	if !ok {
+		return nil, errors.Errorf("unexpected path of type %T", e["path"])
+	}
+	return path, nil
 }
 
 func (g *GraphQlError) Error() string {
