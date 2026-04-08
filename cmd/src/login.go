@@ -110,7 +110,11 @@ func loginCmd(ctx context.Context, p loginParams) error {
 	}
 
 	_, flow := selectLoginFlow(p)
-	return flow(ctx, p)
+	if err := flow(ctx, p); err != nil {
+		return err
+	}
+	fmt.Fprintf(p.out, "\n💡 Tip: To use this endpoint in your shell, run:\n\n   export SRC_ENDPOINT=%s\n\n", p.cfg.endpointURL)
+	return nil
 }
 
 // selectLoginFlow decides what login flow to run based on configured AuthMode.
