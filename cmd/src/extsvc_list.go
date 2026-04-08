@@ -29,7 +29,7 @@ Examples:
 		fmt.Println(usage)
 	}
 	var (
-		firstFlag  = flagSet.Int("first", -1, "Return only the first n external services. (use -1 for unlimited)")
+		firstFlag  = flagSet.Int("first", 1000, "Return only the first n external services.")
 		formatFlag = flagSet.String("f", "", `Format for the output, using the syntax of Go package text/template. (e.g. "{{.|json}}")`)
 		apiFlags   = api.NewFlags(flagSet)
 	)
@@ -40,9 +40,6 @@ Examples:
 		}
 
 		first := *firstFlag
-		if first == -1 {
-			first = 9999999 // GraphQL API doesn't support negative for unlimited query
-		}
 
 		var formatStr string
 		if *formatFlag != "" {

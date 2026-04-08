@@ -165,10 +165,6 @@ Examples:
 
     	$ src repos list -f '{{.|json}}'
 
-  List *all* repositories (may be slow!):
-
-    	$ src repos list -first='-1'
-
   List repositories whose names match the query:
 
     	$ src repos list -query='myquery'
@@ -182,7 +178,7 @@ Examples:
 		fmt.Println(usage)
 	}
 	var (
-		firstFlag = flagSet.Int("first", 1000, "Returns the first n repositories from the list. (use -1 for unlimited)")
+		firstFlag = flagSet.Int("first", 1000, "Returns the first n repositories from the list.")
 		queryFlag = flagSet.String("query", "", `Returns repositories whose names match the query. (e.g. "myorg/")`)
 		// TODO: add support for "names" field.
 		clonedFlag           = flagSet.Bool("cloned", true, "Include cloned repositories.")
