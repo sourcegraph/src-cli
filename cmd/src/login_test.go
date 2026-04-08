@@ -102,8 +102,8 @@ func TestLogin(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		wantOut := "✔︎ Authenticated as alice on $ENDPOINT"
-		wantOut = strings.ReplaceAll(wantOut, "$ENDPOINT", endpoint)
+		wantOut := "✔︎ Authenticated as alice on $ENDPOINT\n\n\n💡 Tip: To use this endpoint in your shell, run:\n\n   export SRC_ENDPOINT=$ENDPOINT"
+		wantOut = strings.ReplaceAll(wantOut, "$ENDPOINT", s.URL)
 		if out != wantOut {
 			t.Errorf("got output %q, want %q", out, wantOut)
 		}
@@ -143,7 +143,7 @@ func TestLogin(t *testing.T) {
 			t.Fatal("expected stored oauth token to avoid device flow")
 		}
 		gotOut := strings.TrimSpace(out.String())
-		wantOut := "✔︎ Authenticated as alice on $ENDPOINT\n\n\n✔︎ Authenticated with OAuth credentials"
+		wantOut := "✔︎ Authenticated as alice on $ENDPOINT\n\n\n✔︎ Authenticated with OAuth credentials\n\n💡 Tip: To use this endpoint in your shell, run:\n\n   export SRC_ENDPOINT=$ENDPOINT"
 		wantOut = strings.ReplaceAll(wantOut, "$ENDPOINT", s.URL)
 		if gotOut != wantOut {
 			t.Errorf("got output %q, want %q", gotOut, wantOut)
