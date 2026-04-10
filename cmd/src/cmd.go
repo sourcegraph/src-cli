@@ -1,14 +1,24 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"log"
 	"os"
 	"slices"
+	"sort"
 
+	"github.com/sourcegraph/src-cli/internal/clicompat"
 	"github.com/sourcegraph/src-cli/internal/cmderrors"
+	"github.com/urfave/cli/v3"
+
+	"github.com/sourcegraph/sourcegraph/lib/errors"
 )
+
+var MigratedCommands = map[string]*cli.Command{
+	"version": versionCommandv2,
+}
 
 // command is a subcommand handler and its flag set.
 type command struct {
@@ -68,12 +78,26 @@ func (c commander) run(flagSet *flag.FlagSet, cmdName, usageText string, args []
 
 	// Find the subcommand to execute.
 	name := flagSet.Arg(0)
+
 	for _, cmd := range c {
-		if !cmd.matches(name) {
+		_, isMigratedCmd := MigratedCommands[name]
+		if !isMigratedCmd && !cmd.matches(name) {
 			continue
 		}
+		// Read global configuration now.
+		var err error
+		cfg, err = readConfig()
+		if err != nil {
+			log.Fatal("reading config: ", err)
+		}
 
-		exitCode, err := runLegacy(cmd, flagSet)
+		var exitCode int
+
+		if isMigratedCmd {
+			exitCode, err = runMigrated(flagSet)
+		} else {
+			exitCode, err = runLegacy(cmd, flagSet)
+		}
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -84,14 +108,42 @@ func (c commander) run(flagSet *flag.FlagSet, cmdName, usageText string, args []
 	log.Fatalf("Run '%s help' for usage.", cmdName)
 }
 
-func runLegacy(cmd *command, flagSet *flag.FlagSet) (int, error) {
-	// Read global configuration now.
-	var err error
-	cfg, err = readConfig()
-	if err != nil {
-		log.Fatal("reading config: ", err)
+// migratedRootCommand constructs a root 'src' command and adds
+// MigratedCommands as subcommands to it
+func migratedRootCommand() *cli.Command {
+	names := make([]string, 0, len(MigratedCommands))
+	for name := range MigratedCommands {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	commands := make([]*cli.Command, 0, len(names))
+	for _, name := range names {
+		commands = append(commands, MigratedCommands[name])
 	}
 
+	return clicompat.WithLegacyRootCommandHelp(&cli.Command{
+		Name:        "src",
+		HideVersion: true,
+		Commands:    commands,
+	})
+}
+
+// runMigrated runs the command within urfave/cli framework
+func runMigrated(flagSet *flag.FlagSet) (int, error) {
+	ctx := context.Background()
+	args := append([]string{"src"}, flagSet.Args()...)
+
+	err := migratedRootCommand().Run(ctx, args)
+	var exitErr cli.ExitCoder
+	if errors.AsInterface(err, &exitErr) {
+		return exitErr.ExitCode(), err
+	}
+	return 0, err
+}
+
+// runLegacy runs the command using the original commander framework
+func runLegacy(cmd *command, flagSet *flag.FlagSet) (int, error) {
 	// Parse subcommand flags.
 	args := flagSet.Args()[1:]
 	if err := cmd.flagSet.Parse(args); err != nil {
