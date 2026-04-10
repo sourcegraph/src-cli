@@ -73,39 +73,48 @@ func (c commander) run(flagSet *flag.FlagSet, cmdName, usageText string, args []
 			continue
 		}
 
-		// Read global configuration now.
-		var err error
-		cfg, err = readConfig()
+		exitCode, err := runLegacy(cmd, flagSet)
 		if err != nil {
-			log.Fatal("reading config: ", err)
-		}
-
-		// Parse subcommand flags.
-		args := flagSet.Args()[1:]
-		if err := cmd.flagSet.Parse(args); err != nil {
-			fmt.Printf("Error parsing subcommand flags: %s\n", err)
-			panic(fmt.Sprintf("all registered commands should use flag.ExitOnError: error: %s", err))
-		}
-
-		// Execute the subcommand.
-		if err := cmd.handler(flagSet.Args()[1:]); err != nil {
-			if _, ok := err.(*cmderrors.UsageError); ok {
-				log.Printf("error: %s\n\n", err)
-				cmd.flagSet.SetOutput(os.Stderr)
-				flag.CommandLine.SetOutput(os.Stderr)
-				cmd.flagSet.Usage()
-				os.Exit(2)
-			}
-			if e, ok := err.(*cmderrors.ExitCodeError); ok {
-				if e.HasError() {
-					log.Println(e)
-				}
-				os.Exit(e.Code())
-			}
 			log.Fatal(err)
 		}
-		os.Exit(0)
+		os.Exit(exitCode)
+
 	}
 	log.Printf("%s: unknown subcommand %q", cmdName, name)
 	log.Fatalf("Run '%s help' for usage.", cmdName)
+}
+
+func runLegacy(cmd *command, flagSet *flag.FlagSet) (int, error) {
+	// Read global configuration now.
+	var err error
+	cfg, err = readConfig()
+	if err != nil {
+		log.Fatal("reading config: ", err)
+	}
+
+	// Parse subcommand flags.
+	args := flagSet.Args()[1:]
+	if err := cmd.flagSet.Parse(args); err != nil {
+		fmt.Printf("Error parsing subcommand flags: %s\n", err)
+		panic(fmt.Sprintf("all registered commands should use flag.ExitOnError: error: %s", err))
+	}
+
+	// Execute the subcommand.
+	if err := cmd.handler(flagSet.Args()[1:]); err != nil {
+		if _, ok := err.(*cmderrors.UsageError); ok {
+			log.Printf("error: %s\n\n", err)
+			cmd.flagSet.SetOutput(os.Stderr)
+			flag.CommandLine.SetOutput(os.Stderr)
+			cmd.flagSet.Usage()
+			return 2, nil
+		}
+		if e, ok := err.(*cmderrors.ExitCodeError); ok {
+			if e.HasError() {
+				log.Println(e)
+			}
+			return e.Code(), nil
+		}
+		return 1, err
+	}
+	return 0, nil
 }
