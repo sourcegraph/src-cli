@@ -40,7 +40,7 @@ var versionCommandv2 = clicompat.Wrap(&cli.Command{
 	HideVersion: true,
 	Action: func(ctx context.Context, c *cli.Command) error {
 		args := VersionArgs{
-			Client:     cfg.apiClient(clicompat.APIFlagsFromContext(c), os.Stdout),
+			Client:     cfg.apiClient(clicompat.APIFlagsFromCmd(c), os.Stdout),
 			ClientOnly: c.Bool("client-only"),
 		}
 		return versionHandler(args)

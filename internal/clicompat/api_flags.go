@@ -8,7 +8,6 @@ import (
 )
 
 // WithAPIFlags appends the standard API-related flags used by legacy src
-// commands to a v3 command's flag set.
 func WithAPIFlags(baseFlags ...cli.Flag) []cli.Flag {
 	var flagTable = []struct {
 		name  string
@@ -34,9 +33,8 @@ func WithAPIFlags(baseFlags ...cli.Flag) []cli.Flag {
 	return flags
 }
 
-// APIFlagsFromContext reads the shared API-related flags from a cli/v3 command
-// context into the existing api.Flags structure used by legacy command logic.
-func APIFlagsFromContext(cmd *cli.Command) *api.Flags {
+// APIFlagsFromCmd reads the shared API-related flags from a command into api.Flags
+func APIFlagsFromCmd(cmd *cli.Command) *api.Flags {
 	return api.NewFlagsFromValues(
 		cmd.Bool("dump-requests"),
 		cmd.Bool("get-curl"),
