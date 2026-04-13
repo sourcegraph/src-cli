@@ -20,25 +20,25 @@ const LegacyRootCommandHelpTemplate = `{{if .UsageText}}{{trim .UsageText}}
 {{end}}
 `
 
-// WithLegacyCommandHelp applies the shared legacy-style leaf command help
-// template and returns the same command for inline construction.
-func WithLegacyCommandHelp(cmd *cli.Command) *cli.Command {
+// Wrap sets common options on a sub commands to ensure consistency for help and error handling
+func Wrap(cmd *cli.Command) *cli.Command {
 	if cmd == nil {
 		return nil
 	}
 
 	cmd.CustomHelpTemplate = LegacyCommandHelpTemplate
+	cmd.OnUsageError = OnUsageError
 	return cmd
 }
 
-// WithLegacyRootCommandHelp applies the shared legacy-style root help template
-// and returns the same command for inline construction.
-func WithLegacyRootCommandHelp(cmd *cli.Command) *cli.Command {
+// WrapRoot sets common options on a root command to ensure consistency for help and error handling
+func WrapRoot(cmd *cli.Command) *cli.Command {
 	if cmd == nil {
 		return nil
 	}
 
 	cmd.CustomRootCommandHelpTemplate = LegacyRootCommandHelpTemplate
+	cmd.OnUsageError = OnUsageError
 	return cmd
 }
 
@@ -48,7 +48,9 @@ func WithLegacyHelp(cmd *cli.Command) *cli.Command {
 		return nil
 	}
 
-	WithLegacyCommandHelp(cmd)
-	WithLegacyRootCommandHelp(cmd)
+	cmd.CustomHelpTemplate = LegacyCommandHelpTemplate
+	cmd.CustomRootCommandHelpTemplate = LegacyRootCommandHelpTemplate
+	cmd.OnUsageError = OnUsageError
+
 	return cmd
 }
