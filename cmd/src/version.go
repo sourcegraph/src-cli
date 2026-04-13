@@ -24,7 +24,7 @@ const versionExamples = `Examples:
     	$ src version
 `
 
-var versionCommandv2 = clicompat.Wrap(&cli.Command{
+var versionCommand = clicompat.Wrap(&cli.Command{
 	Name:         "version",
 	Usage:        "display and compare the src-cli version against the recommended version for your instance",
 	UsageText:    "src version [options]",
