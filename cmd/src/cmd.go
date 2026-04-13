@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	stderrors "errors"
 	"flag"
 	"fmt"
 	"log"
@@ -122,7 +123,7 @@ func migratedRootCommand() *cli.Command {
 		commands = append(commands, MigratedCommands[name])
 	}
 
-	return clicompat.WithLegacyRootCommandHelp(&cli.Command{
+	return clicompat.WrapRoot(&cli.Command{
 		Name:        "src",
 		HideVersion: true,
 		Commands:    commands,
@@ -135,6 +136,9 @@ func runMigrated(flagSet *flag.FlagSet) (int, error) {
 	args := append([]string{"src"}, flagSet.Args()...)
 
 	err := migratedRootCommand().Run(ctx, args)
+	if _, ok := stderrors.AsType[*cmderrors.UsageError](err); ok {
+		return 2, nil
+	}
 	var exitErr cli.ExitCoder
 	if errors.AsInterface(err, &exitErr) {
 		return exitErr.ExitCode(), err
