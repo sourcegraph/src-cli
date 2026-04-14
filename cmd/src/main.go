@@ -93,7 +93,7 @@ func main() {
 	log.SetFlags(0)
 	log.SetPrefix("")
 
-	err, exitCode, ranMigratedCmd := maybeRunMigratedCommand()
+	ranMigratedCmd, exitCode, err := maybeRunMigratedCommand()
 	if ranMigratedCmd {
 		if err != nil {
 			log.Println(err)

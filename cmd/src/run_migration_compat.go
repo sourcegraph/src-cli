@@ -19,7 +19,7 @@ var migratedCommands = map[string]*cli.Command{
 	"version": versionCommand,
 }
 
-func maybeRunMigratedCommand() (err error, exitCode int, isMigrated bool) {
+func maybeRunMigratedCommand() (isMigrated bool, exitCode int, err error) {
 	// need to figure out if a migrated command has been requested
 	flag.Parse()
 	subCommand := flag.CommandLine.Arg(0)
