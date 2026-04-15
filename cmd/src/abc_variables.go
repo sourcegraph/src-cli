@@ -10,7 +10,7 @@ import (
 var abcVariablesCommands commander
 
 func init() {
-	usage := `'src abc <workflow-instance-id> variables' is a tool that manages workflow instance variables on a Sourcegraph instance.
+	usage := `'src abc <workflow-instance-id> variables' is a tool that manages workflow instance variables.
 
 Usage:
 
@@ -18,8 +18,8 @@ Usage:
 
 The commands are:
 
-	set	set workflow instance variables
-	delete	delete a workflow instance variable
+	set	    set workflow instance variables
+	delete	delete workflow instance variables
 
 Use "src abc <workflow-instance-id> variables [command] -h" for more information about a command.
 `

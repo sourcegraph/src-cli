@@ -10,7 +10,7 @@ import (
 var abcCommands commander
 
 func init() {
-	usage := `'src abc' is a tool that manages agentic batch changes on a Sourcegraph instance.
+	usage := `'src abc' is a tool that manages agentic batch changes.
 
 Usage:
 
