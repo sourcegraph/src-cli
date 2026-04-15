@@ -1,6 +1,6 @@
 module github.com/sourcegraph/src-cli
 
-go 1.25.8
+go 1.26
 
 require (
 	cloud.google.com/go/storage v1.50.0
@@ -83,6 +83,7 @@ require (
 	github.com/spiffe/go-spiffe/v2 v2.6.0 // indirect
 	github.com/tliron/commonlog v0.2.19 // indirect
 	github.com/tliron/kutil v0.3.27 // indirect
+	github.com/urfave/cli/v3 v3.8.0 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
 	github.com/xlab/treeprint v1.2.0 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect

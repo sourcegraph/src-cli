@@ -93,7 +93,18 @@ func main() {
 	log.SetFlags(0)
 	log.SetPrefix("")
 
-	commands.run(flag.CommandLine, "src", usageText, normalizeDashHelp(os.Args[1:]))
+	ranMigratedCmd, exitCode, err := maybeRunMigratedCommand()
+	if ranMigratedCmd {
+		if err != nil {
+			log.Println(err)
+		}
+		os.Exit(exitCode)
+	}
+
+	// if we didn't run a migrated command, then lets try running the legacy version
+	if !ranMigratedCmd {
+		commands.run(flag.CommandLine, "src", usageText, normalizeDashHelp(os.Args[1:]))
+	}
 }
 
 // normalizeDashHelp converts --help to -help since Go's flag parser only supports single dash.
