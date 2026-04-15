@@ -2,8 +2,6 @@ package main
 
 import (
 	"testing"
-
-	"github.com/sourcegraph/src-cli/internal/cmderrors"
 )
 
 // If we were to do a json marshalling roundtrip, it may break large integer literals.
@@ -50,4 +48,3 @@ func TestParseABCVariables(t *testing.T) {
 		t.Fatalf("variables[2] = %#v, want compact JSON array", variables[2])
 	}
 }
-

@@ -8,7 +8,7 @@ import (
 var abcVariablesCommands commander
 
 func init() {
-	usage := `'src abc variables' is a tool that manages workflow instance variables.
+	usage := `'src abc variables' is a tool that manages workflow instance variables on agentic batch changes.
 
 Usage:
 
