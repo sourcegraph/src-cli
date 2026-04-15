@@ -10,18 +10,18 @@ import (
 var abcVariablesCommands commander
 
 func init() {
-	usage := `'src abc <instance-id> variables' is a tool that manages workflow instance variables on a Sourcegraph instance.
+	usage := `'src abc <workflow-instance-id> variables' is a tool that manages workflow instance variables on a Sourcegraph instance.
 
 Usage:
 
-	src abc <instance-id> variables command [command options]
+	src abc <workflow-instance-id> variables command [command options]
 
 The commands are:
 
 	set	set workflow instance variables
 	delete	delete a workflow instance variable
 
-Use "src abc <instance-id> variables [command] -h" for more information about a command.
+Use "src abc <workflow-instance-id> variables [command] -h" for more information about a command.
 `
 
 	flagSet := flag.NewFlagSet("variables", flag.ExitOnError)
@@ -31,7 +31,7 @@ Use "src abc <instance-id> variables [command] -h" for more information about a 
 	flagSet.Usage = usageFunc
 	handler := func(args []string) error {
 		if len(args) == 0 {
-			return cmderrors.Usage("must provide an instance ID")
+			return cmderrors.Usage("must provide a workflow instance ID")
 		}
 
 		instanceID := args[0]
@@ -45,7 +45,7 @@ Use "src abc <instance-id> variables [command] -h" for more information about a 
 			return nil
 		}
 
-		abcVariablesCommands.runWithPrefixArgs("src abc <instance-id> variables", []string{instanceID}, flagSet.Args())
+		abcVariablesCommands.runWithPrefixArgs("src abc <workflow-instance-id> variables", []string{instanceID}, flagSet.Args())
 		return nil
 	}
 

@@ -20,7 +20,7 @@ Examples:
 
 	flagSet := flag.NewFlagSet("delete", flag.ExitOnError)
 	usageFunc := func() {
-		fmt.Fprintf(flag.CommandLine.Output(), "Usage of 'src abc <instance-id> variables %s':\n", flagSet.Name())
+		fmt.Fprintf(flag.CommandLine.Output(), "Usage of 'src abc <workflow-instance-id> variables %s':\n", flagSet.Name())
 		flagSet.PrintDefaults()
 		fmt.Println(usage)
 	}
@@ -28,7 +28,7 @@ Examples:
 
 	handler := func(args []string) error {
 		if len(args) == 0 {
-			return cmderrors.Usage("must provide an instance ID")
+			return cmderrors.Usage("must provide a workflow instance ID")
 		}
 
 		instanceID := args[0]

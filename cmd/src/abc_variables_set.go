@@ -44,7 +44,7 @@ Values are interpreted as JSON literals when valid. Otherwise they are sent as p
 	var variableArgs abcVariableArgs
 	flagSet.Var(&variableArgs, "var", "Variable assignment in <name>=<value> form. Repeat to set multiple variables.")
 	usageFunc := func() {
-		fmt.Fprintf(flag.CommandLine.Output(), "Usage of 'src abc <instance-id> variables %s':\n", flagSet.Name())
+		fmt.Fprintf(flag.CommandLine.Output(), "Usage of 'src abc <workflow-instance-id> variables %s':\n", flagSet.Name())
 		flagSet.PrintDefaults()
 		fmt.Println(usage)
 	}
@@ -52,7 +52,7 @@ Values are interpreted as JSON literals when valid. Otherwise they are sent as p
 
 	handler := func(args []string) error {
 		if len(args) == 0 {
-			return cmderrors.Usage("must provide an instance ID")
+			return cmderrors.Usage("must provide a workflow instance ID")
 		}
 
 		instanceID := args[0]
@@ -145,7 +145,7 @@ func parseABCVariable(raw string) (abcVariable, error) {
 		return abcVariable{}, err
 	}
 	if remove {
-		return abcVariable{}, cmderrors.Usagef("invalid variable assignment %q: use 'src abc <instance-id> variables delete %s' to remove a variable", raw, name)
+		return abcVariable{}, cmderrors.Usagef("invalid variable assignment %q: use 'src abc <workflow-instance-id> variables delete %s' to remove a variable", raw, name)
 	}
 
 	return abcVariable{Key: name, Value: value}, nil

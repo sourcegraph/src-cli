@@ -14,13 +14,13 @@ func init() {
 
 Usage:
 
-	src abc <instance-id> command [command options]
+	src abc <workflow-instance-id> command [command options]
 
 The commands are:
 
 	variables	manage workflow instance variables
 
-Use "src abc <instance-id> [command] -h" for more information about a command.
+Use "src abc <workflow-instance-id> [command] -h" for more information about a command.
 `
 
 	flagSet := flag.NewFlagSet("abc", flag.ExitOnError)
@@ -40,11 +40,11 @@ Use "src abc <instance-id> [command] -h" for more information about a command.
 		}
 
 		if flagSet.NArg() < 2 {
-			return cmderrors.Usage("must provide an instance ID and subcommand")
+			return cmderrors.Usage("must provide a workflow instance ID and subcommand")
 		}
 
 		instanceID := flagSet.Arg(0)
-		abcCommands.runWithPrefixArgs("src abc <instance-id>", []string{instanceID}, flagSet.Args()[1:])
+		abcCommands.runWithPrefixArgs("src abc <workflow-instance-id>", []string{instanceID}, flagSet.Args()[1:])
 		return nil
 	}
 
