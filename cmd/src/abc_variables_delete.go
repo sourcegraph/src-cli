@@ -24,7 +24,7 @@ Examples:
 
 	flagSet := flag.NewFlagSet("delete", flag.ExitOnError)
 	var variableArgs abcVariableArgs
-	flagSet.Var(&variableArgs, "var", "Variable name to delete. Repeat to delete multiple variables.")
+	flagSet.Var(&variableArgs, "var", "Variable name to delete. Repeat for multiple names.")
 	usageFunc := func() {
 		fmt.Fprintf(flag.CommandLine.Output(), "Usage of 'src abc <workflow-instance-id> variables %s':\n", flagSet.Name())
 		flagSet.PrintDefaults()
@@ -65,12 +65,7 @@ Examples:
 			return nil
 		}
 
-		if len(variableNames) == 1 {
-			fmt.Printf("Removed variable %q from workflow instance %q.\n", variableNames[0], instanceID)
-			return nil
-		}
-
-		fmt.Printf("Removed %d variables from workflow instance %q.\n", len(variableNames), instanceID)
+		fmt.Printf("Removed variables %q from workflow instance %q.\n", variableNames, instanceID)
 		return nil
 	}
 
