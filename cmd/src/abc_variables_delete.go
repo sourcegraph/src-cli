@@ -15,18 +15,18 @@ Examples:
 
   Delete a variable from a workflow instance:
 
-	    $ src abc QWdlbnRpY1dvcmtmbG93SW5zdGFuY2U6MQ== variables delete approval
+	    $ src abc variables delete QWdlbnRpY1dvcmtmbG93SW5zdGFuY2U6MQ== approval
 
   Delete multiple variables in one request:
 
-	    $ src abc QWdlbnRpY1dvcmtmbG93SW5zdGFuY2U6MQ== variables delete --var approval --var checkpoints
+	    $ src abc variables delete QWdlbnRpY1dvcmtmbG93SW5zdGFuY2U6MQ== --var approval --var checkpoints
 	`
 
 	flagSet := flag.NewFlagSet("delete", flag.ExitOnError)
 	var variableArgs abcVariableArgs
 	flagSet.Var(&variableArgs, "var", "Variable name to delete. Repeat for multiple names.")
 	usageFunc := func() {
-		fmt.Fprintf(flag.CommandLine.Output(), "Usage of 'src abc <workflow-instance-id> variables %s':\n", flagSet.Name())
+		fmt.Fprintf(flag.CommandLine.Output(), "Usage of 'src abc variables %s':\n", flagSet.Name())
 		flagSet.PrintDefaults()
 		fmt.Println(usage)
 	}

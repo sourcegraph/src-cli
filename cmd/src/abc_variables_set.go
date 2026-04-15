@@ -27,15 +27,15 @@ Examples:
 
   Set a string variable on a workflow instance:
 
-    	$ src abc QWdlbnRpY1dvcmtmbG93SW5zdGFuY2U6MQ== variables set prompt="tighten the review criteria"
+    	$ src abc variables set QWdlbnRpY1dvcmtmbG93SW5zdGFuY2U6MQ== prompt="tighten the review criteria"
 
   Set multiple variables in one request:
 
-    	$ src abc QWdlbnRpY1dvcmtmbG93SW5zdGFuY2U6MQ== variables set --var prompt="tighten the review criteria" --var checkpoints='[1,2,3]'
+    	$ src abc variables set QWdlbnRpY1dvcmtmbG93SW5zdGFuY2U6MQ== --var prompt="tighten the review criteria" --var checkpoints='[1,2,3]'
 
   Set a structured JSON value:
 
-	    $ src abc QWdlbnRpY1dvcmtmbG93SW5zdGFuY2U6MQ== variables set checkpoints='[1,2,3]'
+	    $ src abc variables set QWdlbnRpY1dvcmtmbG93SW5zdGFuY2U6MQ== checkpoints='[1,2,3]'
 
 Values are interpreted as JSON literals when valid. Otherwise they are sent as plain strings.
 	`
@@ -44,7 +44,7 @@ Values are interpreted as JSON literals when valid. Otherwise they are sent as p
 	var variableArgs abcVariableArgs
 	flagSet.Var(&variableArgs, "var", "Variable assignment in <name>=<value> form. Repeat to set multiple variables.")
 	usageFunc := func() {
-		fmt.Fprintf(flag.CommandLine.Output(), "Usage of 'src abc <workflow-instance-id> variables %s':\n", flagSet.Name())
+		fmt.Fprintf(flag.CommandLine.Output(), "Usage of 'src abc variables %s':\n", flagSet.Name())
 		flagSet.PrintDefaults()
 		fmt.Println(usage)
 	}
@@ -145,7 +145,7 @@ func parseABCVariable(raw string) (abcVariable, error) {
 		return abcVariable{}, err
 	}
 	if remove {
-		return abcVariable{}, cmderrors.Usagef("invalid variable assignment %q: use 'src abc <workflow-instance-id> variables delete %s' to remove a variable", raw, name)
+		return abcVariable{}, cmderrors.Usagef("invalid variable assignment %q: use 'src abc variables delete <workflow-instance-id> %s' to remove a variable", raw, name)
 	}
 
 	return abcVariable{Key: name, Value: value}, nil
