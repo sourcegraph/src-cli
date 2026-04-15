@@ -1,39 +1,31 @@
 package main
 
 import (
-	"flag"
-	"fmt"
+	"context"
+
+	"github.com/sourcegraph/src-cli/internal/clicompat"
+	"github.com/urfave/cli/v3"
 )
 
-var abcVariablesCommands commander
-
-func init() {
-	usage := `'src abc variables' is a tool that manages workflow instance variables on agentic batch changes.
+var abcVariablesCommand = clicompat.WithLegacyHelp(&cli.Command{
+	Name:  "variables",
+	Usage: "manage workflow instance variables",
+	UsageText: `'src abc variables' is a tool that manages workflow instance variables on agentic batch changes.
 
 Usage:
 
 	src abc variables command [command options]
 
-The commands are:
-
-	set	    set workflow instance variables
-	delete	delete workflow instance variables
-
-Use "src abc variables [command] -h" for more information about a command.
-`
-
-	flagSet := flag.NewFlagSet("variables", flag.ExitOnError)
-	usageFunc := func() {
-		fmt.Println(usage)
-	}
-	handler := func(args []string) error {
-		abcVariablesCommands.run(flagSet, "src abc variables", usage, args)
+The commands are:`,
+	Description:     `Use "src abc variables [command] -h" for more information about a command.`,
+	HideHelpCommand: true,
+	HideVersion:     true,
+	Commands: []*cli.Command{
+		abcVariablesSetCommand,
+		abcVariablesDeleteCommand,
+	},
+	Action: func(ctx context.Context, c *cli.Command) error {
+		cli.HelpPrinter(c.Root().Writer, c.CustomRootCommandHelpTemplate, c)
 		return nil
-	}
-
-	abcCommands = append(abcCommands, &command{
-		flagSet:   flagSet,
-		handler:   handler,
-		usageFunc: usageFunc,
-	})
-}
+	},
+})

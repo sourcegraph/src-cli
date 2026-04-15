@@ -4,12 +4,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"flag"
 	"fmt"
 	"strings"
 
 	"github.com/sourcegraph/src-cli/internal/api"
+	"github.com/sourcegraph/src-cli/internal/clicompat"
 	"github.com/sourcegraph/src-cli/internal/cmderrors"
+	"github.com/urfave/cli/v3"
 )
 
 const updateABCWorkflowInstanceVariablesMutation = `mutation UpdateAgenticWorkflowInstanceVariables(
@@ -21,47 +22,42 @@ const updateABCWorkflowInstanceVariablesMutation = `mutation UpdateAgenticWorkfl
 	}
 }`
 
-func init() {
-	usage := `
+var abcVariablesSetCommand = clicompat.Wrap(&cli.Command{
+	Name:  "set",
+	Usage: "set workflow instance variables",
+	Description: `Usage:
+
+	src abc variables set [command options] <workflow-instance-id> [<name>=<value> ...]
+
 Examples:
 
   Set a string variable on a workflow instance:
 
-    	$ src abc variables set QWdlbnRpY1dvcmtmbG93SW5zdGFuY2U6MQ== prompt="tighten the review criteria"
+	$ src abc variables set QWdlbnRpY1dvcmtmbG93SW5zdGFuY2U6MQ== prompt="tighten the review criteria"
 
   Set multiple variables in one request:
 
-    	$ src abc variables set QWdlbnRpY1dvcmtmbG93SW5zdGFuY2U6MQ== --var prompt="tighten the review criteria" --var checkpoints='[1,2,3]'
+	$ src abc variables set QWdlbnRpY1dvcmtmbG93SW5zdGFuY2U6MQ== --var prompt="tighten the review criteria" --var checkpoints='[1,2,3]'
 
   Set a structured JSON value:
 
-	    $ src abc variables set QWdlbnRpY1dvcmtmbG93SW5zdGFuY2U6MQ== checkpoints='[1,2,3]'
+	$ src abc variables set QWdlbnRpY1dvcmtmbG93SW5zdGFuY2U6MQ== checkpoints='[1,2,3]'
 
-Values are interpreted as JSON literals when valid. Otherwise they are sent as plain strings.
-	`
-
-	flagSet := flag.NewFlagSet("set", flag.ExitOnError)
-	var variableArgs abcVariableArgs
-	flagSet.Var(&variableArgs, "var", "Variable assignment in <name>=<value> form. Repeat to set multiple variables.")
-	usageFunc := func() {
-		fmt.Fprintf(flag.CommandLine.Output(), "Usage of 'src abc variables %s':\n", flagSet.Name())
-		flagSet.PrintDefaults()
-		fmt.Println(usage)
-	}
-	apiFlags := api.NewFlags(flagSet)
-
-	handler := func(args []string) error {
-		if len(args) == 0 {
+Values are interpreted as JSON literals when valid. Otherwise they are sent as plain strings.`,
+	DisableSliceFlagSeparator: true,
+	Flags: clicompat.WithAPIFlags(
+		&cli.StringSliceFlag{
+			Name:  "var",
+			Usage: "Variable assignment in <name>=<value> form. Repeat to set multiple variables.",
+		},
+	),
+	Action: func(ctx context.Context, c *cli.Command) error {
+		if c.NArg() == 0 {
 			return cmderrors.Usage("must provide a workflow instance ID")
 		}
 
-		instanceID := args[0]
-		variableArgs = nil
-		if err := flagSet.Parse(args[1:]); err != nil {
-			return err
-		}
-
-		variables, err := parseABCVariables(flagSet.Args(), variableArgs)
+		instanceID := c.Args().First()
+		variables, err := parseABCVariables(c.Args().Tail(), abcVariableArgs(c.StringSlice("var")))
 		if err != nil {
 			return err
 		}
@@ -74,8 +70,9 @@ Values are interpreted as JSON literals when valid. Otherwise they are sent as p
 			})
 		}
 
-		client := cfg.apiClient(apiFlags, flagSet.Output())
-		if err := updateABCWorkflowInstanceVariables(context.Background(), client, instanceID, graphqlVariables); err != nil {
+		apiFlags := clicompat.APIFlagsFromCmd(c)
+		client := cfg.apiClient(apiFlags, c.Writer)
+		if err := updateABCWorkflowInstanceVariables(ctx, client, instanceID, graphqlVariables); err != nil {
 			return err
 		}
 
@@ -84,20 +81,14 @@ Values are interpreted as JSON literals when valid. Otherwise they are sent as p
 		}
 
 		if len(variables) == 1 {
-			fmt.Printf("Set variable %q on workflow instance %q.\n", variables[0].Key, instanceID)
+			fmt.Fprintf(c.Writer, "Set variable %q on workflow instance %q.\n", variables[0].Key, instanceID)
 			return nil
 		}
 
-		fmt.Printf("Updated %d variables on workflow instance %q.\n", len(variables), instanceID)
+		fmt.Fprintf(c.Writer, "Updated %d variables on workflow instance %q.\n", len(variables), instanceID)
 		return nil
-	}
-
-	abcVariablesCommands = append(abcVariablesCommands, &command{
-		flagSet:   flagSet,
-		handler:   handler,
-		usageFunc: usageFunc,
-	})
-}
+	},
+})
 
 type abcVariableArgs []string
 
