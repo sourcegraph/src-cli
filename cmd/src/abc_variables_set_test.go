@@ -2,6 +2,8 @@ package main
 
 import "testing"
 
+// If we were to do a json marshalling roundtrip, it may break large integer literals.
+// This test is here to demonstrate that the compaction approach is working well.
 func TestMarshalABCVariableValuePreservesLargeIntegerLiteral(t *testing.T) {
 	t.Parallel()
 
