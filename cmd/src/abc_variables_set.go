@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"strings"
 
 	"github.com/sourcegraph/src-cli/internal/api"
@@ -23,70 +24,42 @@ const updateABCWorkflowInstanceVariablesMutation = `mutation UpdateAgenticWorkfl
 }`
 
 var abcVariablesSetCommand = clicompat.Wrap(&cli.Command{
-	Name:  "set",
-	Usage: "set workflow instance variables",
-	Description: `Usage:
-
-	src abc variables set [command options] <workflow-instance-id> [<name>=<value> ...]
+	Name:      "set",
+	UsageText: "src abc variables set [options] <workflow-instance-id> [<name>=<value> ...]",
+	Usage:     "Set variables on a workflow instance",
+	Description: `
+Set workflow instance variables
 
 Examples:
 
   Set a string variable on a workflow instance:
 
-	$ src abc variables set QWdlbnRpY1dvcmtmbG93SW5zdGFuY2U6MQ== prompt="tighten the review criteria"
+    	$ src abc variables set QWdlbnRpY1dvcmtmbG93SW5zdGFuY2U6MQ== prompt="tighten the review criteria"
 
   Set multiple variables in one request:
 
-	$ src abc variables set QWdlbnRpY1dvcmtmbG93SW5zdGFuY2U6MQ== --var prompt="tighten the review criteria" --var checkpoints='[1,2,3]'
+    	$ src abc variables set QWdlbnRpY1dvcmtmbG93SW5zdGFuY2U6MQ== --var prompt="tighten the review criteria" --var checkpoints='[1,2,3]'
 
   Set a structured JSON value:
 
-	$ src abc variables set QWdlbnRpY1dvcmtmbG93SW5zdGFuY2U6MQ== checkpoints='[1,2,3]'
+	    $ src abc variables set QWdlbnRpY1dvcmtmbG93SW5zdGFuY2U6MQ== checkpoints='[1,2,3]'
 
-Values are interpreted as JSON literals when valid. Otherwise they are sent as plain strings.`,
-	DisableSliceFlagSeparator: true,
+NOTE: Values are interpreted as JSON literals when valid. Otherwise they are sent as plain strings.
+`,
 	Flags: clicompat.WithAPIFlags(
 		&cli.StringSliceFlag{
 			Name:  "var",
 			Usage: "Variable assignment in <name>=<value> form. Repeat to set multiple variables.",
 		},
 	),
-	Action: func(ctx context.Context, c *cli.Command) error {
-		if c.NArg() == 0 {
+	Action: func(ctx context.Context, cmd *cli.Command) error {
+		if !cmd.Args().Present() {
 			return cmderrors.Usage("must provide a workflow instance ID")
 		}
 
-		instanceID := c.Args().First()
-		variables, err := parseABCVariables(c.Args().Tail(), abcVariableArgs(c.StringSlice("var")))
-		if err != nil {
-			return err
-		}
-
-		graphqlVariables := make([]map[string]string, 0, len(variables))
-		for _, variable := range variables {
-			graphqlVariables = append(graphqlVariables, map[string]string{
-				"key":   variable.Key,
-				"value": variable.Value,
-			})
-		}
-
-		apiFlags := clicompat.APIFlagsFromCmd(c)
-		client := cfg.apiClient(apiFlags, c.Writer)
-		if err := updateABCWorkflowInstanceVariables(ctx, client, instanceID, graphqlVariables); err != nil {
-			return err
-		}
-
-		if apiFlags.GetCurl() {
-			return nil
-		}
-
-		if len(variables) == 1 {
-			fmt.Fprintf(c.Writer, "Set variable %q on workflow instance %q.\n", variables[0].Key, instanceID)
-			return nil
-		}
-
-		fmt.Fprintf(c.Writer, "Updated %d variables on workflow instance %q.\n", len(variables), instanceID)
-		return nil
+		instanceID := cmd.Args().First()
+		client := cfg.apiClient(clicompat.APIFlagsFromCmd(cmd), cmd.Writer)
+		return runABCVariablesSet(ctx, client, instanceID, cmd.Args().Tail(), abcVariableArgs(cmd.StringSlice("var")), cmd.Writer, cmd.Bool("get-curl"))
 	},
 })
 
@@ -140,6 +113,37 @@ func parseABCVariable(raw string) (abcVariable, error) {
 	}
 
 	return abcVariable{Key: name, Value: value}, nil
+}
+
+func runABCVariablesSet(ctx context.Context, client api.Client, instanceID string, positional []string, flagged abcVariableArgs, output io.Writer, getCurl bool) error {
+	variables, err := parseABCVariables(positional, flagged)
+	if err != nil {
+		return err
+	}
+
+	graphqlVariables := make([]map[string]string, 0, len(variables))
+	for _, variable := range variables {
+		graphqlVariables = append(graphqlVariables, map[string]string{
+			"key":   variable.Key,
+			"value": variable.Value,
+		})
+	}
+
+	if err := updateABCWorkflowInstanceVariables(ctx, client, instanceID, graphqlVariables); err != nil {
+		return err
+	}
+
+	if getCurl {
+		return nil
+	}
+
+	if len(variables) == 1 {
+		_, err = fmt.Fprintf(output, "Set variable %q on workflow instance %q.\n", variables[0].Key, instanceID)
+		return err
+	}
+
+	_, err = fmt.Fprintf(output, "Updated %d variables on workflow instance %q.\n", len(variables), instanceID)
+	return err
 }
 
 func updateABCWorkflowInstanceVariables(ctx context.Context, client api.Client, instanceID string, variables []map[string]string) error {
