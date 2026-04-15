@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"flag"
@@ -99,15 +100,18 @@ Values are interpreted as JSON literals when valid. Otherwise they are sent as p
 }
 
 func marshalABCVariableValue(raw string) (value string, remove bool, err error) {
-	var parsed any
-	if err := json.Unmarshal([]byte(raw), &parsed); err != nil {
-		parsed = raw
+	// Try to compact valid JSON literals first. This allows us to send null to delete values, as well as raw numbers.
+	// If we that doesn't work for the given value, fall back to string encoding.
+	var compact bytes.Buffer
+	if err := json.Compact(&compact, []byte(raw)); err == nil {
+		value := compact.String()
+		return value, value == "null", nil
 	}
 
-	encoded, err := json.Marshal(parsed)
+	encoded, err := json.Marshal(raw)
 	if err != nil {
 		return "", false, err
 	}
 
-	return string(encoded), parsed == nil, nil
+	return string(encoded), false, nil
 }
