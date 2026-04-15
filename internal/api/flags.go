@@ -48,6 +48,19 @@ func NewFlags(flagSet *flag.FlagSet) *Flags {
 	}
 }
 
+// NewFlagsFromValues instantiates a new Flags structure from explicit values.
+// This is used by cli/v3 compatibility adapters that do not operate on a
+// standard flag.FlagSet.
+func NewFlagsFromValues(dump, getCurl, trace, insecureSkipVerify, userAgentTelemetry bool) *Flags {
+	return &Flags{
+		dump:               new(dump),
+		getCurl:            new(getCurl),
+		trace:              new(trace),
+		insecureSkipVerify: new(insecureSkipVerify),
+		userAgentTelemetry: new(userAgentTelemetry),
+	}
+}
+
 func defaultFlags() *Flags {
 	telemetry := defaultUserAgentTelemetry()
 	d := false
