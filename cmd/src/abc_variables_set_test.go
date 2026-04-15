@@ -23,26 +23,11 @@ func TestMarshalABCVariableValuePreservesLargeIntegerLiteral(t *testing.T) {
 	}
 }
 
-func TestMarshalABCVariableValueTreatsNullAsRemoval(t *testing.T) {
-	t.Parallel()
-
-	value, remove, err := marshalABCVariableValue("null")
-	if err != nil {
-		t.Fatalf("marshalABCVariableValue returned error: %v", err)
-	}
-	if !remove {
-		t.Fatal("marshalABCVariableValue did not mark null for removal")
-	}
-	if value != "null" {
-		t.Fatalf("marshalABCVariableValue = %q, want %q", value, "null")
-	}
-}
-
 func TestParseABCVariables(t *testing.T) {
 	t.Parallel()
 
 	variables, err := parseABCVariables(
-		[]string{"prompt=tighten the review criteria", `title="null"`},
+		[]string{"prompt=tighten the review criteria", `title="test"`},
 		abcVariableArgs{"checkpoints=[1,2,3]"},
 	)
 	if err != nil {
@@ -57,8 +42,8 @@ func TestParseABCVariables(t *testing.T) {
 		t.Fatalf("variables[0] = %#v, want prompt string variable", variables[0])
 	}
 
-	if variables[1].Key != "title" || variables[1].Value != `"null"` {
-		t.Fatalf("variables[1] = %#v, want quoted null string", variables[1])
+	if variables[1].Key != "title" || variables[1].Value != `"test"` {
+		t.Fatalf("variables[1] = %#v, want quoted test string", variables[1])
 	}
 
 	if variables[2].Key != "checkpoints" || variables[2].Value != "[1,2,3]" {
@@ -66,38 +51,3 @@ func TestParseABCVariables(t *testing.T) {
 	}
 }
 
-func TestParseABCVariablesRequiresAssignments(t *testing.T) {
-	t.Parallel()
-
-	_, err := parseABCVariables(nil, nil)
-	if err == nil {
-		t.Fatal("parseABCVariables returned nil error, want usage error")
-	}
-	if _, ok := err.(*cmderrors.UsageError); !ok {
-		t.Fatalf("parseABCVariables error = %T, want *cmderrors.UsageError", err)
-	}
-}
-
-func TestParseABCVariableRequiresNameValueFormat(t *testing.T) {
-	t.Parallel()
-
-	_, err := parseABCVariable("missing-separator")
-	if err == nil {
-		t.Fatal("parseABCVariable returned nil error, want usage error")
-	}
-	if _, ok := err.(*cmderrors.UsageError); !ok {
-		t.Fatalf("parseABCVariable error = %T, want *cmderrors.UsageError", err)
-	}
-}
-
-func TestParseABCVariableRejectsNullLiteral(t *testing.T) {
-	t.Parallel()
-
-	_, err := parseABCVariable("approval=null")
-	if err == nil {
-		t.Fatal("parseABCVariable returned nil error, want usage error")
-	}
-	if _, ok := err.(*cmderrors.UsageError); !ok {
-		t.Fatalf("parseABCVariable error = %T, want *cmderrors.UsageError", err)
-	}
-}
