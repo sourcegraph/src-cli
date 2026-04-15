@@ -50,6 +50,7 @@ The options are:
 
 The commands are:
 
+	abc             manages agentic batch changes
 	auth            authentication helper commands
 	api             interacts with the Sourcegraph GraphQL API
 	batch           manages batch changes
