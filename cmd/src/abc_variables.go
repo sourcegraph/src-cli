@@ -3,35 +3,55 @@ package main
 import (
 	"flag"
 	"fmt"
+
+	"github.com/sourcegraph/src-cli/internal/cmderrors"
 )
 
 var abcVariablesCommands commander
 
 func init() {
-	usage := `'src abc variables' is a tool that manages workflow instance variables on a Sourcegraph instance.
+	usage := `'src abc <instance-id> variables' is a tool that manages workflow instance variables on a Sourcegraph instance.
 
 Usage:
 
-	src abc variables command [command options]
+	src abc <instance-id> variables command [command options]
 
 The commands are:
 
-	set	set or remove a workflow instance variable
+	set	set workflow instance variables
+	delete	delete a workflow instance variable
 
-Use "src abc variables [command] -h" for more information about a command.
+Use "src abc <instance-id> variables [command] -h" for more information about a command.
 `
 
 	flagSet := flag.NewFlagSet("variables", flag.ExitOnError)
+	usageFunc := func() {
+		fmt.Println(usage)
+	}
+	flagSet.Usage = usageFunc
 	handler := func(args []string) error {
-		abcVariablesCommands.run(flagSet, "src abc variables", usage, args)
+		if len(args) == 0 {
+			return cmderrors.Usage("must provide an instance ID")
+		}
+
+		instanceID := args[0]
+		if err := flagSet.Parse(args[1:]); err != nil {
+			return err
+		}
+
+		if flagSet.NArg() == 0 || flagSet.Arg(0) == "help" {
+			flagSet.SetOutput(flag.CommandLine.Output())
+			flagSet.Usage()
+			return nil
+		}
+
+		abcVariablesCommands.runWithPrefixArgs("src abc <instance-id> variables", []string{instanceID}, flagSet.Args())
 		return nil
 	}
 
 	abcCommands = append(abcCommands, &command{
-		flagSet: flagSet,
-		handler: handler,
-		usageFunc: func() {
-			fmt.Println(usage)
-		},
+		flagSet:   flagSet,
+		handler:   handler,
+		usageFunc: usageFunc,
 	})
 }
