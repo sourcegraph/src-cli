@@ -67,7 +67,10 @@ func (svc *Service) getSourcegraphVersionAndMaxChangesetsCount(ctx context.Conte
 	}
 
 	ok, err := svc.client.NewQuery(getInstanceInfo).Do(ctx, &result)
-	if err != nil || !ok {
+	if err != nil {
+		return "", 0, translateBatchChangesDisabledError(err)
+	}
+	if !ok {
 		return "", 0, err
 	}
 
@@ -79,6 +82,9 @@ func (svc *Service) getSourcegraphVersionAndMaxChangesetsCount(ctx context.Conte
 func (svc *Service) DetermineLicenseAndFeatureFlags(ctx context.Context, skipErrors bool) (*batches.LicenseRestrictions, *batches.FeatureFlags, error) {
 	version, mc, err := svc.getSourcegraphVersionAndMaxChangesetsCount(ctx)
 	if err != nil {
+		if _, ok := err.(*batches.BatchChangesDisabledError); ok {
+			return nil, nil, err
+		}
 		return nil, nil, errors.Wrap(err, "failed to query Sourcegraph version and license info for instance")
 	}
 
@@ -89,6 +95,55 @@ func (svc *Service) DetermineLicenseAndFeatureFlags(ctx context.Context, skipErr
 	ffs := &batches.FeatureFlags{}
 	return lr, ffs, ffs.SetFromVersion(version, skipErrors)
 
+}
+
+func translateBatchChangesDisabledError(err error) error {
+	gqlErrs, ok := err.(api.GraphQlErrors)
+	if !ok || len(gqlErrs) == 0 {
+		return err
+	}
+
+	sawBatchChangesField := false
+
+	for _, gqlErr := range gqlErrs {
+		message, messageErr := gqlErr.Message()
+		if messageErr != nil {
+			return err
+		}
+
+		field, ok := parseMissingQueryField(message)
+		if !ok {
+			return err
+		}
+
+		switch field {
+		case "batchChanges":
+			sawBatchChangesField = true
+		case "maxUnlicensedChangesets":
+		default:
+			return err
+		}
+	}
+
+	if !sawBatchChangesField {
+		return err
+	}
+
+	return batches.NewBatchChangesDisabledError(err)
+}
+
+func parseMissingQueryField(message string) (string, bool) {
+	const (
+		prefix = `Cannot query field "`
+		suffix = `" on type "Query".`
+	)
+
+	if !strings.HasPrefix(message, prefix) || !strings.HasSuffix(message, suffix) {
+		return "", false
+	}
+
+	field := strings.TrimSuffix(strings.TrimPrefix(message, prefix), suffix)
+	return field, field != ""
 }
 
 const applyBatchChangeMutation = `
