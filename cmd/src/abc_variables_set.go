@@ -59,73 +59,47 @@ NOTE: Values are interpreted as JSON literals when valid. Otherwise they are sen
 
 		instanceID := cmd.Args().First()
 		client := cfg.apiClient(clicompat.APIFlagsFromCmd(cmd), cmd.Writer)
-		return runABCVariablesSet(ctx, client, instanceID, cmd.Args().Tail(), abcVariableArgs(cmd.StringSlice("var")), cmd.Writer, cmd.Bool("get-curl"))
+		abcVariables, err := parseABCVariables(cmd.Args().Tail(), cmd.StringSlice("var"))
+		if err != nil {
+			return err
+		}
+		return runABCVariablesSet(ctx, client, instanceID, abcVariables, cmd.Writer, cmd.Bool("get-curl"))
 	},
 })
 
-type abcVariableArgs []string
-
-func (a *abcVariableArgs) String() string {
-	return strings.Join(*a, ",")
-}
-
-func (a *abcVariableArgs) Set(value string) error {
-	*a = append(*a, value)
-	return nil
-}
-
-type abcVariable struct {
-	Key   string
-	Value string
-}
-
-func parseABCVariables(positional []string, flagged abcVariableArgs) ([]abcVariable, error) {
-	rawVariables := append([]string{}, positional...)
-	rawVariables = append(rawVariables, flagged...)
+func parseABCVariables(positional []string, flagged []string) (map[string]string, error) {
+	rawVariables := append(positional, flagged...)
 	if len(rawVariables) == 0 {
 		return nil, cmderrors.Usage("must provide at least one variable assignment")
 	}
 
-	variables := make([]abcVariable, 0, len(rawVariables))
-	for _, rawVariable := range rawVariables {
-		variable, err := parseABCVariable(rawVariable)
+	variables := make(map[string]string, len(rawVariables))
+	for _, v := range rawVariables {
+		name, rawValue, ok := strings.Cut(v, "=")
+		if !ok || name == "" {
+			return nil, cmderrors.Usagef("invalid variable assignment %q: must be in <name>=<value> form", v)
+		}
+
+		value, remove, err := marshalABCVariableValue(rawValue)
 		if err != nil {
 			return nil, err
 		}
-		variables = append(variables, variable)
+		if remove {
+			return nil, cmderrors.Usagef("invalid variable assignment %q: use 'src abc variables delete <workflow-instance-id> %s' to remove a variable", rawValue, name)
+		}
+
+		variables[name] = value
 	}
 
 	return variables, nil
 }
 
-func parseABCVariable(raw string) (abcVariable, error) {
-	name, rawValue, ok := strings.Cut(raw, "=")
-	if !ok || name == "" {
-		return abcVariable{}, cmderrors.Usagef("invalid variable assignment %q: must be in <name>=<value> form", raw)
-	}
-
-	value, remove, err := marshalABCVariableValue(rawValue)
-	if err != nil {
-		return abcVariable{}, err
-	}
-	if remove {
-		return abcVariable{}, cmderrors.Usagef("invalid variable assignment %q: use 'src abc variables delete <workflow-instance-id> %s' to remove a variable", raw, name)
-	}
-
-	return abcVariable{Key: name, Value: value}, nil
-}
-
-func runABCVariablesSet(ctx context.Context, client api.Client, instanceID string, positional []string, flagged abcVariableArgs, output io.Writer, getCurl bool) error {
-	variables, err := parseABCVariables(positional, flagged)
-	if err != nil {
-		return err
-	}
-
+func runABCVariablesSet(ctx context.Context, client api.Client, instanceID string, variables map[string]string, output io.Writer, getCurl bool) error {
 	graphqlVariables := make([]map[string]string, 0, len(variables))
-	for _, variable := range variables {
+	for k, v := range variables {
 		graphqlVariables = append(graphqlVariables, map[string]string{
-			"key":   variable.Key,
-			"value": variable.Value,
+			"key":   k,
+			"value": v,
 		})
 	}
 
@@ -137,12 +111,7 @@ func runABCVariablesSet(ctx context.Context, client api.Client, instanceID strin
 		return nil
 	}
 
-	if len(variables) == 1 {
-		_, err = fmt.Fprintf(output, "Set variable %q on workflow instance %q.\n", variables[0].Key, instanceID)
-		return err
-	}
-
-	_, err = fmt.Fprintf(output, "Updated %d variables on workflow instance %q.\n", len(variables), instanceID)
+	_, err := fmt.Fprintf(output, "Updated %d variables on workflow instance %q.\n", len(variables), instanceID)
 	return err
 }
 

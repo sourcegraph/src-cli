@@ -42,30 +42,19 @@ Examples:
 
 		instanceID := cmd.Args().First()
 		client := cfg.apiClient(clicompat.APIFlagsFromCmd(cmd), cmd.Writer)
-		varArgs := abcVariableArgs(cmd.StringSlice("var"))
+		variableNames := append(cmd.Args().Tail(), cmd.StringSlice("var")...)
 
-		if len(varArgs) == 0 {
-			return cmderrors.Usage("must provide at least one variable name")
-		}
-		return runABCVariablesDelete(ctx, client, instanceID, cmd.Args().Tail(), varArgs, cmd.Writer, cmd.Bool("get-curl"))
+		return runABCVariablesDelete(ctx, client, instanceID, variableNames, cmd.Writer, cmd.Bool("get-curl"))
 	},
 })
 
-func parseABCVariableNames(positional []string, flagged abcVariableArgs) ([]string, error) {
-	variableNames := append([]string{}, positional...)
-	variableNames = append(variableNames, flagged...)
-
-	if slices.Contains(variableNames, "") {
-		return nil, cmderrors.Usage("variable names must not be empty")
+func runABCVariablesDelete(ctx context.Context, client api.Client, instanceID string, variableNames []string, output io.Writer, getCurl bool) error {
+	if len(variableNames) == 0 {
+		return cmderrors.Usage("must provide at least one variable name")
 	}
 
-	return variableNames, nil
-}
-
-func runABCVariablesDelete(ctx context.Context, client api.Client, instanceID string, positional []string, flagged abcVariableArgs, output io.Writer, getCurl bool) error {
-	variableNames, err := parseABCVariableNames(positional, flagged)
-	if err != nil {
-		return err
+	if slices.Contains(variableNames, "") {
+		return cmderrors.Usage("variable names must not be empty")
 	}
 
 	variables := make([]map[string]string, 0, len(variableNames))
@@ -84,6 +73,6 @@ func runABCVariablesDelete(ctx context.Context, client api.Client, instanceID st
 		return nil
 	}
 
-	_, err = fmt.Fprintf(output, "Removed variables %q from workflow instance %q.\n", variableNames, instanceID)
+	_, err := fmt.Fprintf(output, "Removed variables %q from workflow instance %q.\n", variableNames, instanceID)
 	return err
 }
