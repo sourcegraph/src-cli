@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"slices"
 	"strings"
 
 	"github.com/sourcegraph/src-cli/internal/api"
@@ -102,7 +101,6 @@ func runABCVariablesSet(ctx context.Context, client api.Client, instanceID strin
 	for k := range variables {
 		keys = append(keys, k)
 	}
-	slices.Sort(keys)
 
 	for _, k := range keys {
 		graphqlVariables = append(graphqlVariables, map[string]string{

@@ -28,7 +28,7 @@ func wrapWithHelpOnUsageError(action cli.ActionFunc) cli.ActionFunc {
 	return func(ctx context.Context, cmd *cli.Command) error {
 		err := action(ctx, cmd)
 		if err != nil && errors.HasType[*cmderrors.UsageError](err) {
-			_, _ = fmt.Fprintf(cmd.Root().ErrWriter, "error: %s\n", err)
+			_, _ = fmt.Fprintf(cmd.Root().ErrWriter, "error: %s\n---\n", err)
 			cli.DefaultPrintHelp(cmd.Root().ErrWriter, cmd.CustomHelpTemplate, cmd)
 		}
 		return err
