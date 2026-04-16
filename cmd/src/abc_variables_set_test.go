@@ -9,6 +9,7 @@ import (
 	mockapi "github.com/sourcegraph/src-cli/internal/api/mock"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"github.com/urfave/cli/v3"
 )
 
 // If we were to do a json marshalling roundtrip, it may break large integer literals.
@@ -46,6 +47,27 @@ func TestParseABCVariables(t *testing.T) {
 	}); diff != "" {
 		t.Errorf("err: %v", diff)
 	}
+}
+
+func TestABCVariablesSetVarFlagPreservesCommas(t *testing.T) {
+	t.Parallel()
+
+	var got []string
+	cmd := &cli.Command{
+		Name:                      "set",
+		DisableSliceFlagSeparator: abcVariablesSetCommand.DisableSliceFlagSeparator,
+		Flags: []cli.Flag{
+			&cli.StringSliceFlag{Name: "var"},
+		},
+		Action: func(ctx context.Context, cmd *cli.Command) error {
+			got = cmd.StringSlice("var")
+			return nil
+		},
+	}
+
+	err := cmd.Run(context.Background(), []string{"set", "--var", "checkpoints=[1,2,3]"})
+	require.NoError(t, err)
+	require.Equal(t, []string{"checkpoints=[1,2,3]"}, got)
 }
 
 func TestRunABCVariablesSet(t *testing.T) {
