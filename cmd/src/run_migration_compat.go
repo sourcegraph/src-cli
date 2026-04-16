@@ -50,7 +50,7 @@ func migratedRootCommand() *cli.Command {
 		commands = append(commands, migratedCommands[name])
 	}
 
-	return clicompat.WrapRoot(&cli.Command{
+	return clicompat.Wrap(&cli.Command{
 		Name:        "src",
 		HideVersion: true,
 		Commands:    commands,
