@@ -13,9 +13,9 @@ import (
 )
 
 var abcVariablesDeleteCommand = clicompat.Wrap(&cli.Command{
-	Name:      "delete",
-	Usage:     "Delete variables on a workflow instance",
-	UsageText: "src abc variables delete [options] <workflow-instance-id> [<name> ...]",
+	Name:                      "delete",
+	Usage:                     "Delete variables on a workflow instance",
+	UsageText:                 "src abc variables delete [options] <workflow-instance-id> [<name> ...]",
 	DisableSliceFlagSeparator: true,
 	Description: `
 Delete workflow instance variables

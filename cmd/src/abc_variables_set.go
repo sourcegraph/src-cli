@@ -25,9 +25,9 @@ const updateABCWorkflowInstanceVariablesMutation = `mutation UpdateAgenticWorkfl
 }`
 
 var abcVariablesSetCommand = clicompat.Wrap(&cli.Command{
-	Name:      "set",
-	UsageText: "src abc variables set [options] <workflow-instance-id> [<name>=<value> ...]",
-	Usage:     "Set variables on a workflow instance",
+	Name:                      "set",
+	UsageText:                 "src abc variables set [options] <workflow-instance-id> [<name>=<value> ...]",
+	Usage:                     "Set variables on a workflow instance",
 	DisableSliceFlagSeparator: true,
 	Description: `
 Set workflow instance variables
