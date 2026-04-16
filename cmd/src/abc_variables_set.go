@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"slices"
 	"strings"
 
 	"github.com/sourcegraph/src-cli/internal/api"
@@ -63,7 +64,7 @@ NOTE: Values are interpreted as JSON literals when valid. Otherwise they are sen
 		if err != nil {
 			return err
 		}
-		return runABCVariablesSet(ctx, client, instanceID, abcVariables, cmd.Writer, cmd.Bool("get-curl"))
+		return runABCVariablesSet(ctx, client, instanceID, abcVariables, cmd.Writer)
 	},
 })
 
@@ -94,28 +95,31 @@ func parseABCVariables(positional []string, flagged []string) (map[string]string
 	return variables, nil
 }
 
-func runABCVariablesSet(ctx context.Context, client api.Client, instanceID string, variables map[string]string, output io.Writer, getCurl bool) error {
+func runABCVariablesSet(ctx context.Context, client api.Client, instanceID string, variables map[string]string, output io.Writer) error {
 	graphqlVariables := make([]map[string]string, 0, len(variables))
-	for k, v := range variables {
+	keys := make([]string, 0, len(variables))
+	for k := range variables {
+		keys = append(keys, k)
+	}
+	slices.Sort(keys)
+
+	for _, k := range keys {
 		graphqlVariables = append(graphqlVariables, map[string]string{
 			"key":   k,
-			"value": v,
+			"value": variables[k],
 		})
 	}
 
-	if err := updateABCWorkflowInstanceVariables(ctx, client, instanceID, graphqlVariables); err != nil {
+	ok, err := updateABCWorkflowInstanceVariables(ctx, client, instanceID, graphqlVariables)
+	if err != nil || !ok {
 		return err
 	}
 
-	if getCurl {
-		return nil
-	}
-
-	_, err := fmt.Fprintf(output, "Updated %d variables on workflow instance %q.\n", len(variables), instanceID)
+	_, err = fmt.Fprintf(output, "Updated %d variables on workflow instance %q.\n", len(variables), instanceID)
 	return err
 }
 
-func updateABCWorkflowInstanceVariables(ctx context.Context, client api.Client, instanceID string, variables []map[string]string) error {
+func updateABCWorkflowInstanceVariables(ctx context.Context, client api.Client, instanceID string, variables []map[string]string) (bool, error) {
 	var result struct {
 		UpdateAgenticWorkflowInstanceVariables struct {
 			ID string `json:"id"`
@@ -125,10 +129,10 @@ func updateABCWorkflowInstanceVariables(ctx context.Context, client api.Client, 
 		"instanceID": instanceID,
 		"variables":  variables,
 	}).Do(ctx, &result); err != nil || !ok {
-		return err
+		return ok, err
 	}
 
-	return nil
+	return true, nil
 }
 
 func marshalABCVariableValue(raw string) (value string, remove bool, err error) {

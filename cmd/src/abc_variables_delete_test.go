@@ -29,7 +29,7 @@ func TestRunABCVariablesDelete(t *testing.T) {
 	}).Return(request).Once()
 	request.On("Do", context.Background(), mock.Anything).Return(true, nil).Once()
 
-	err := runABCVariablesDelete(context.Background(), client, "QWdlbnRpY1dvcmtmbG93SW5zdGFuY2U6MQ==", variableNames, output, false)
+	err := runABCVariablesDelete(context.Background(), client, "QWdlbnRpY1dvcmtmbG93SW5zdGFuY2U6MQ==", variableNames, output)
 	require.NoError(t, err)
 	require.Equal(t, "Removed variables [\"approval\" \"checkpoints\" \"prompt\"] from workflow instance \"QWdlbnRpY1dvcmtmbG93SW5zdGFuY2U6MQ==\".\n", output.String())
 
@@ -40,6 +40,32 @@ func TestRunABCVariablesDelete(t *testing.T) {
 func TestRunABCVariablesDeleteRejectsEmptyVariableName(t *testing.T) {
 	t.Parallel()
 
-	err := runABCVariablesDelete(context.Background(), nil, "QWdlbnRpY1dvcmtmbG93SW5zdGFuY2U6MQ==", []string{"approval", ""}, io.Discard, false)
+	err := runABCVariablesDelete(context.Background(), nil, "QWdlbnRpY1dvcmtmbG93SW5zdGFuY2U6MQ==", []string{"approval", ""}, io.Discard)
 	require.ErrorContains(t, err, "variable names must not be empty")
+}
+
+func TestRunABCVariablesDeleteSuppressesSuccessMessageWhenRequestDoesNotExecute(t *testing.T) {
+	t.Parallel()
+
+	client := new(mockapi.Client)
+	request := &mockapi.Request{}
+	output := &bytes.Buffer{}
+	variableNames := []string{"approval", "checkpoints", "prompt"}
+
+	client.On("NewRequest", updateABCWorkflowInstanceVariablesMutation, map[string]any{
+		"instanceID": "QWdlbnRpY1dvcmtmbG93SW5zdGFuY2U6MQ==",
+		"variables": []map[string]string{
+			{"key": "approval", "value": "null"},
+			{"key": "checkpoints", "value": "null"},
+			{"key": "prompt", "value": "null"},
+		},
+	}).Return(request).Once()
+	request.On("Do", context.Background(), mock.Anything).Return(false, nil).Once()
+
+	err := runABCVariablesDelete(context.Background(), client, "QWdlbnRpY1dvcmtmbG93SW5zdGFuY2U6MQ==", variableNames, output)
+	require.NoError(t, err)
+	require.Empty(t, output.String())
+
+	client.AssertExpectations(t)
+	request.AssertExpectations(t)
 }

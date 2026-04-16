@@ -44,11 +44,11 @@ Examples:
 		client := cfg.apiClient(clicompat.APIFlagsFromCmd(cmd), cmd.Writer)
 		variableNames := append(cmd.Args().Tail(), cmd.StringSlice("var")...)
 
-		return runABCVariablesDelete(ctx, client, instanceID, variableNames, cmd.Writer, cmd.Bool("get-curl"))
+		return runABCVariablesDelete(ctx, client, instanceID, variableNames, cmd.Writer)
 	},
 })
 
-func runABCVariablesDelete(ctx context.Context, client api.Client, instanceID string, variableNames []string, output io.Writer, getCurl bool) error {
+func runABCVariablesDelete(ctx context.Context, client api.Client, instanceID string, variableNames []string, output io.Writer) error {
 	if len(variableNames) == 0 {
 		return cmderrors.Usage("must provide at least one variable name")
 	}
@@ -65,14 +65,11 @@ func runABCVariablesDelete(ctx context.Context, client api.Client, instanceID st
 		})
 	}
 
-	if err := updateABCWorkflowInstanceVariables(ctx, client, instanceID, variables); err != nil {
+	ok, err := updateABCWorkflowInstanceVariables(ctx, client, instanceID, variables)
+	if err != nil || !ok {
 		return err
 	}
 
-	if getCurl {
-		return nil
-	}
-
-	_, err := fmt.Fprintf(output, "Removed variables %q from workflow instance %q.\n", variableNames, instanceID)
+	_, err = fmt.Fprintf(output, "Removed variables %q from workflow instance %q.\n", variableNames, instanceID)
 	return err
 }
