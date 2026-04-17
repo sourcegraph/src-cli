@@ -17,6 +17,7 @@ import (
 
 var migratedCommands = map[string]*cli.Command{
 	"abc":     abcCommand,
+	"auth":    authCommand,
 	"version": versionCommand,
 }
 

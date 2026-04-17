@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"net/url"
@@ -123,6 +124,32 @@ func TestResolveAuthToken(t *testing.T) {
 			t.Fatal("expected error")
 		}
 	})
+}
+
+func TestAuthTokenCommand(t *testing.T) {
+	reset := stubAuthTokenDependencies(t)
+	defer reset()
+
+	prevCfg := cfg
+	defer func() { cfg = prevCfg }()
+
+	cfg = &config{
+		accessToken: "access-token",
+		endpointURL: mustParseURL(t, "https://example.com"),
+	}
+
+	var out bytes.Buffer
+	cmd := *authTokenCommand
+	cmd.Writer = &out
+	cmd.ErrWriter = &out
+
+	err := cmd.Run(context.Background(), []string{"token", "--header"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out.String() != "Authorization: token access-token\n" {
+		t.Fatalf("output = %q, want %q", out.String(), "Authorization: token access-token\n")
+	}
 }
 
 func TestFormatAuthTokenOutput(t *testing.T) {
