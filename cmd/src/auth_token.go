@@ -2,12 +2,13 @@ package main
 
 import (
 	"context"
-	"flag"
 	"fmt"
 
 	"github.com/sourcegraph/sourcegraph/lib/errors"
 
+	"github.com/sourcegraph/src-cli/internal/clicompat"
 	"github.com/sourcegraph/src-cli/internal/oauth"
+	"github.com/urfave/cli/v3"
 )
 
 var (
@@ -21,37 +22,52 @@ type oauthTokenRefresher interface {
 	GetToken(ctx context.Context) (oauth.Token, error)
 }
 
-func init() {
-	flagSet := flag.NewFlagSet("token", flag.ExitOnError)
-	header := flagSet.Bool("header", false, "print the token as an Authorization header")
-	usageFunc := func() {
-		fmt.Fprintf(flag.CommandLine.Output(), "Usage of 'src auth token':\n\n")
-		fmt.Fprintf(flag.CommandLine.Output(), "Print the current authentication token.\n")
-		fmt.Fprintf(flag.CommandLine.Output(), "Use --header to print a complete Authorization header instead.\n\n")
-		flagSet.PrintDefaults()
-	}
+const authTokenExamples = `
+Print the current authentication token.
 
-	handler := func(args []string) error {
-		if err := flagSet.Parse(args); err != nil {
-			return err
-		}
+Use --header to print a complete Authorization header instead.
 
-		token, err := resolveAuthToken(context.Background(), cfg)
+Examples:
+
+Raw token output:
+
+$ src auth token
+sgp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+Authorization header output:
+
+$ src auth token --header
+Authorization: token sgp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+If you are authenticated with OAuth instead of SRC_ACCESS_TOKEN, the header uses the Bearer scheme:
+
+$ src auth token --header
+Authorization: Bearer eyJhbGciOi...
+`
+
+var authTokenCommand = clicompat.Wrap(&cli.Command{
+	Name:        "token",
+	Usage:       "prints the current authentication token or Authorization header",
+	UsageText:   "src auth token [options]",
+	Description: authTokenExamples,
+	HideVersion: true,
+	Flags: []cli.Flag{
+		&cli.BoolFlag{
+			Name:  "header",
+			Usage: "print the token as an Authorization header",
+		},
+	},
+	Action: func(ctx context.Context, cmd *cli.Command) error {
+		token, err := resolveAuthToken(ctx, cfg)
 		if err != nil {
 			return err
 		}
 
-		token = formatAuthTokenOutput(token, cfg.AuthMode(), *header)
-		fmt.Println(token)
-		return nil
-	}
-
-	authCommands = append(authCommands, &command{
-		flagSet:   flagSet,
-		handler:   handler,
-		usageFunc: usageFunc,
-	})
-}
+		token = formatAuthTokenOutput(token, cfg.AuthMode(), cmd.Bool("header"))
+		_, err = fmt.Fprintln(cmd.Writer, token)
+		return err
+	},
+})
 
 func resolveAuthToken(ctx context.Context, cfg *config) (string, error) {
 	if err := cfg.requireCIAccessToken(); err != nil {
