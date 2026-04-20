@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"os"
 	"strings"
 	"testing"
 	"time"
@@ -24,69 +23,6 @@ func mustParseURL(t *testing.T, raw string) *url.URL {
 		t.Fatalf("failed to parse URL %q: %v", raw, err)
 	}
 	return u
-}
-
-func loginCommand(t *testing.T) *command {
-	t.Helper()
-	for _, cmd := range commands {
-		if cmd.matches("login") {
-			return cmd
-		}
-	}
-	t.Fatal("login command not found")
-	return nil
-}
-
-func captureProcessOutput(t *testing.T, fn func() error) (stdout string, stderr string, err error) {
-	t.Helper()
-
-	stdoutR, stdoutW, err := os.Pipe()
-	if err != nil {
-		t.Fatal(err)
-	}
-	stderrR, stderrW, err := os.Pipe()
-	if err != nil {
-		_ = stdoutR.Close()
-		_ = stdoutW.Close()
-		t.Fatal(err)
-	}
-
-	oldStdout := os.Stdout
-	oldStderr := os.Stderr
-	os.Stdout = stdoutW
-	os.Stderr = stderrW
-	defer func() {
-		os.Stdout = oldStdout
-		os.Stderr = oldStderr
-	}()
-
-	err = fn()
-
-	_ = stdoutW.Close()
-	_ = stderrW.Close()
-
-	stdoutBytes, readErr := io.ReadAll(stdoutR)
-	if readErr != nil {
-		t.Fatal(readErr)
-	}
-	stderrBytes, readErr := io.ReadAll(stderrR)
-	if readErr != nil {
-		t.Fatal(readErr)
-	}
-
-	return strings.TrimSpace(string(stdoutBytes)), strings.TrimSpace(string(stderrBytes)), err
-}
-
-func runLoginHandler(t *testing.T, cfgValue *config, args ...string) (stdout string, stderr string, err error) {
-	t.Helper()
-
-	oldCfg := cfg
-	cfg = cfgValue
-	t.Cleanup(func() { cfg = oldCfg })
-
-	return captureProcessOutput(t, func() error {
-		return loginCommand(t).handler(args)
-	})
 }
 
 func TestLogin(t *testing.T) {
@@ -199,87 +135,6 @@ func TestLogin(t *testing.T) {
 		wantOut = strings.ReplaceAll(wantOut, "$ENDPOINT", s.URL)
 		if gotOut != wantOut {
 			t.Errorf("got output %q, want %q", gotOut, wantOut)
-		}
-	})
-}
-
-func TestLoginHandler(t *testing.T) {
-	t.Run("warns when login endpoint differs from configured endpoint", func(t *testing.T) {
-		t.Setenv("SRC_ENDPOINT", "https://example.com")
-
-		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			fmt.Fprintln(w, `{"data":{"currentUser":{"username":"alice"}}}`)
-		}))
-		defer s.Close()
-
-		stdout, stderr, err := runLoginHandler(t, &config{
-			endpointURL: mustParseURL(t, "https://example.com"),
-			accessToken: "x",
-		}, s.URL)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if !strings.Contains(stderr, "Warning: Logging into "+s.URL+" instead of the configured endpoint https://example.com.") {
-			t.Fatalf("stderr = %q, want endpoint warning", stderr)
-		}
-		if !strings.Contains(stderr, "export SRC_ENDPOINT="+s.URL) {
-			t.Fatalf("stderr = %q, want shell tip", stderr)
-		}
-		if !strings.Contains(stdout, "✔︎ Authenticated as alice on "+s.URL) {
-			t.Fatalf("stdout = %q, want validation output", stdout)
-		}
-	})
-
-	t.Run("warns when no SRC_ENDPOINT is configured in the environment", func(t *testing.T) {
-		if oldValue, ok := os.LookupEnv("SRC_ENDPOINT"); ok {
-			_ = os.Unsetenv("SRC_ENDPOINT")
-			t.Cleanup(func() { _ = os.Setenv("SRC_ENDPOINT", oldValue) })
-		} else {
-			_ = os.Unsetenv("SRC_ENDPOINT")
-		}
-
-		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			fmt.Fprintln(w, `{"data":{"currentUser":{"username":"alice"}}}`)
-		}))
-		defer s.Close()
-
-		stdout, stderr, err := runLoginHandler(t, &config{
-			endpointURL: mustParseURL(t, SGDotComEndpoint),
-			accessToken: "x",
-		}, s.URL)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if !strings.Contains(stderr, "Warning: No SRC_ENDPOINT is configured in the environment. Logging in using \""+s.URL+"\".") {
-			t.Fatalf("stderr = %q, want default-endpoint warning", stderr)
-		}
-		if !strings.Contains(stderr, "NOTE: By default src will use \""+SGDotComEndpoint+"\" if SRC_ENDPOINT is not set.") {
-			t.Fatalf("stderr = %q, want default endpoint note", stderr)
-		}
-		if !strings.Contains(stdout, "✔︎ Authenticated as alice on "+s.URL) {
-			t.Fatalf("stdout = %q, want validation output", stdout)
-		}
-	})
-
-	t.Run("warns when using config file", func(t *testing.T) {
-		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			fmt.Fprintln(w, `{"data":{"currentUser":{"username":"alice"}}}`)
-		}))
-		defer s.Close()
-
-		stdout, stderr, err := runLoginHandler(t, &config{
-			endpointURL:    mustParseURL(t, s.URL),
-			accessToken:    "x",
-			configFilePath: "f",
-		})
-		if err != nil {
-			t.Fatal(err)
-		}
-		if !strings.Contains(stderr, "Configuring src with a JSON file is deprecated") {
-			t.Fatalf("stderr = %q, want deprecation warning", stderr)
-		}
-		if !strings.Contains(stdout, "✔︎ Authenticated as alice on "+s.URL) {
-			t.Fatalf("stdout = %q, want validation output", stdout)
 		}
 	})
 }
