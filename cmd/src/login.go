@@ -66,7 +66,7 @@ Examples:
 
 			if hasEndpointURLConflict {
 				// If the default is configured it means SRC_ENDPOINT is not set
-				if DefaultEndpointConfigured(cfg) {
+				if cfg.usingDefaultEndpoint {
 					fmt.Fprintf(os.Stderr, "⚠️  Warning: No SRC_ENDPOINT is configured in the environment. Logging in using %q.\n", loginEndpointURL)
 					fmt.Fprintf(os.Stderr, "\n💡 Tip: To use this endpoint in your shell, run:\n\n   export SRC_ENDPOINT=%s\n\nNOTE: By default src will use %q if SRC_ENDPOINT is not set.\n", loginEndpointURL, SGDotComEndpoint)
 				} else {

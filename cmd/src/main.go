@@ -143,13 +143,14 @@ var cfg *config
 
 // config holds the resolved configuration used at runtime.
 type config struct {
-	accessToken       string
-	additionalHeaders map[string]string
-	proxyURL          *url.URL
-	proxyPath         string
-	configFilePath    string
-	endpointURL       *url.URL // always non-nil; defaults to https://sourcegraph.com via readConfig
-	inCI              bool
+	accessToken          string
+	additionalHeaders    map[string]string
+	proxyURL             *url.URL
+	proxyPath            string
+	configFilePath       string
+	endpointURL          *url.URL // always non-nil; defaults to https://sourcegraph.com via readConfig
+	usingDefaultEndpoint bool
+	inCI                 bool
 }
 
 // configFromFile holds the config as read from the config file,
@@ -273,6 +274,7 @@ func readConfig() (*config, error) {
 	}
 	if endpointStr == "" {
 		endpointStr = SGDotComEndpoint
+		cfg.usingDefaultEndpoint = true
 	}
 	if envProxy != "" {
 		proxyStr = envProxy
@@ -348,15 +350,6 @@ func readConfig() (*config, error) {
 func isCI() bool {
 	value, ok := os.LookupEnv("CI")
 	return ok && value != ""
-}
-
-func DefaultEndpointConfigured(cfg *config) bool {
-	_, ok := os.LookupEnv("SRC_ENDPOINT")
-	if ok {
-		return false
-	}
-	return cfg.endpointURL != nil && cfg.endpointURL.String() == SGDotComEndpoint
-
 }
 
 // isValidUnixSocket checks if the given path is a valid Unix socket.
