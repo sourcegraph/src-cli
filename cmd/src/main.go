@@ -19,6 +19,8 @@ import (
 	"github.com/sourcegraph/src-cli/internal/oauth"
 )
 
+const SGDotComEndpoint = "https://sourcegraph.com"
+
 const usageText = `src is a tool that provides access to Sourcegraph instances.
 For more information, see https://github.com/sourcegraph/src-cli
 
@@ -270,7 +272,7 @@ func readConfig() (*config, error) {
 		endpointStr = envEndpoint
 	}
 	if endpointStr == "" {
-		endpointStr = "https://sourcegraph.com"
+		endpointStr = SGDotComEndpoint
 	}
 	if envProxy != "" {
 		proxyStr = envProxy
@@ -346,6 +348,15 @@ func readConfig() (*config, error) {
 func isCI() bool {
 	value, ok := os.LookupEnv("CI")
 	return ok && value != ""
+}
+
+func DefaultEndpointConfigured(cfg *config) bool {
+	_, ok := os.LookupEnv("SRC_ENDPOINT")
+	if ok {
+		return false
+	}
+	return cfg.endpointURL != nil && cfg.endpointURL.String() == SGDotComEndpoint
+
 }
 
 // isValidUnixSocket checks if the given path is a valid Unix socket.
