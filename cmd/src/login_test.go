@@ -14,6 +14,7 @@ import (
 
 	"github.com/sourcegraph/src-cli/internal/cmderrors"
 	"github.com/sourcegraph/src-cli/internal/oauth"
+	"github.com/urfave/cli/v3"
 )
 
 func mustParseURL(t *testing.T, raw string) *url.URL {
@@ -137,6 +138,37 @@ func TestLogin(t *testing.T) {
 			t.Errorf("got output %q, want %q", gotOut, wantOut)
 		}
 	})
+}
+
+func TestLoginCommand(t *testing.T) {
+	prevCfg := cfg
+	defer func() { cfg = prevCfg }()
+
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintln(w, `{"data":{"currentUser":{"username":"alice"}}}`)
+	}))
+	defer s.Close()
+
+	cfg = &config{
+		endpointURL: mustParseURL(t, s.URL),
+		accessToken: "x",
+	}
+
+	var out bytes.Buffer
+	cmd := *loginCommand
+	cmd.Writer = &out
+	cmd.ErrWriter = &out
+	cmd.ExitErrHandler = func(context.Context, *cli.Command, error) {}
+
+	err := cmd.Run(context.Background(), []string{"login", s.URL})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	want := "\n✔︎ Authenticated as alice on " + s.URL + "\n\n\n💡 Tip: To use this endpoint in your shell, run:\n\n   export SRC_ENDPOINT=" + s.URL + "\n\n"
+	if out.String() != want {
+		t.Fatalf("output = %q, want %q", out.String(), want)
+	}
 }
 
 type fakeOAuthClient struct {
