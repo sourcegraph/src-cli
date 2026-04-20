@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -25,34 +26,86 @@ func mustParseURL(t *testing.T, raw string) *url.URL {
 	return u
 }
 
+func loginCommand(t *testing.T) *command {
+	t.Helper()
+	for _, cmd := range commands {
+		if cmd.matches("login") {
+			return cmd
+		}
+	}
+	t.Fatal("login command not found")
+	return nil
+}
+
+func captureProcessOutput(t *testing.T, fn func() error) (stdout string, stderr string, err error) {
+	t.Helper()
+
+	stdoutR, stdoutW, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	stderrR, stderrW, err := os.Pipe()
+	if err != nil {
+		_ = stdoutR.Close()
+		_ = stdoutW.Close()
+		t.Fatal(err)
+	}
+
+	oldStdout := os.Stdout
+	oldStderr := os.Stderr
+	os.Stdout = stdoutW
+	os.Stderr = stderrW
+	defer func() {
+		os.Stdout = oldStdout
+		os.Stderr = oldStderr
+	}()
+
+	err = fn()
+
+	_ = stdoutW.Close()
+	_ = stderrW.Close()
+
+	stdoutBytes, readErr := io.ReadAll(stdoutR)
+	if readErr != nil {
+		t.Fatal(readErr)
+	}
+	stderrBytes, readErr := io.ReadAll(stderrR)
+	if readErr != nil {
+		t.Fatal(readErr)
+	}
+
+	return strings.TrimSpace(string(stdoutBytes)), strings.TrimSpace(string(stderrBytes)), err
+}
+
+func runLoginHandler(t *testing.T, cfgValue *config, args ...string) (stdout string, stderr string, err error) {
+	t.Helper()
+
+	oldCfg := cfg
+	cfg = cfgValue
+	t.Cleanup(func() { cfg = oldCfg })
+
+	return captureProcessOutput(t, func() error {
+		return loginCommand(t).handler(args)
+	})
+}
+
 func TestLogin(t *testing.T) {
-	check := func(t *testing.T, cfg *config, endpointArgURL *url.URL) (output string, err error) {
+	check := func(t *testing.T, cfg *config) (output string, err error) {
 		t.Helper()
 
 		var out bytes.Buffer
 		err = loginCmd(context.Background(), loginParams{
-			cfg:              cfg,
-			client:           cfg.apiClient(nil, io.Discard),
-			out:              &out,
-			oauthClient:      fakeOAuthClient{startErr: fmt.Errorf("oauth unavailable")},
-			loginEndpointURL: endpointArgURL,
+			cfg:         cfg,
+			client:      cfg.apiClient(nil, io.Discard),
+			out:         &out,
+			oauthClient: fakeOAuthClient{startErr: fmt.Errorf("oauth unavailable")},
 		})
 		return strings.TrimSpace(out.String()), err
 	}
 
-	t.Run("different endpoint in config vs. arg", func(t *testing.T) {
-		out, err := check(t, &config{endpointURL: &url.URL{Scheme: "https", Host: "example.com"}}, &url.URL{Scheme: "https", Host: "sourcegraph.example.com"})
-		if err == nil {
-			t.Fatal(err)
-		}
-		if !strings.Contains(out, "The configured endpoint is https://example.com, not https://sourcegraph.example.com.") {
-			t.Errorf("got output %q, want configured endpoint error", out)
-		}
-	})
-
 	t.Run("no access token triggers oauth flow", func(t *testing.T) {
 		u := &url.URL{Scheme: "https", Host: "example.com"}
-		out, err := check(t, &config{endpointURL: u}, u)
+		out, err := check(t, &config{endpointURL: u})
 		if err == nil {
 			t.Fatal(err)
 		}
@@ -63,26 +116,12 @@ func TestLogin(t *testing.T) {
 
 	t.Run("CI requires access token", func(t *testing.T) {
 		u := &url.URL{Scheme: "https", Host: "example.com"}
-		out, err := check(t, &config{endpointURL: u, inCI: true}, u)
+		out, err := check(t, &config{endpointURL: u, inCI: true})
 		if err != errCIAccessTokenRequired {
 			t.Fatalf("err = %v, want %v", err, errCIAccessTokenRequired)
 		}
 		if out != "" {
 			t.Fatalf("output = %q, want empty output", out)
-		}
-	})
-
-	t.Run("warning when using config file", func(t *testing.T) {
-		endpoint := &url.URL{Scheme: "https", Host: "example.com"}
-		out, err := check(t, &config{endpointURL: endpoint, configFilePath: "f"}, endpoint)
-		if err != cmderrors.ExitCode1 {
-			t.Fatal(err)
-		}
-		if !strings.Contains(out, "Configuring src with a JSON file is deprecated") {
-			t.Errorf("got output %q, want deprecation warning", out)
-		}
-		if !strings.Contains(out, "OAuth Device flow authentication failed:") {
-			t.Errorf("got output %q, want oauth failure output", out)
 		}
 	})
 
@@ -93,7 +132,7 @@ func TestLogin(t *testing.T) {
 		defer s.Close()
 
 		u := mustParseURL(t, s.URL)
-		out, err := check(t, &config{endpointURL: u, accessToken: "x"}, u)
+		out, err := check(t, &config{endpointURL: u, accessToken: "x"})
 		if err != cmderrors.ExitCode1 {
 			t.Fatal(err)
 		}
@@ -111,11 +150,11 @@ func TestLogin(t *testing.T) {
 		defer s.Close()
 
 		u := mustParseURL(t, s.URL)
-		out, err := check(t, &config{endpointURL: u, accessToken: "x"}, u)
+		out, err := check(t, &config{endpointURL: u, accessToken: "x"})
 		if err != nil {
 			t.Fatal(err)
 		}
-		wantOut := "✔︎ Authenticated as alice on $ENDPOINT\n\n\n💡 Tip: To use this endpoint in your shell, run:\n\n   export SRC_ENDPOINT=$ENDPOINT"
+		wantOut := "✔︎ Authenticated as alice on $ENDPOINT"
 		wantOut = strings.ReplaceAll(wantOut, "$ENDPOINT", s.URL)
 		if out != wantOut {
 			t.Errorf("got output %q, want %q", out, wantOut)
@@ -156,10 +195,91 @@ func TestLogin(t *testing.T) {
 			t.Fatal("expected stored oauth token to avoid device flow")
 		}
 		gotOut := strings.TrimSpace(out.String())
-		wantOut := "✔︎ Authenticated as alice on $ENDPOINT\n\n\n✔︎ Authenticated with OAuth credentials\n\n💡 Tip: To use this endpoint in your shell, run:\n\n   export SRC_ENDPOINT=$ENDPOINT"
+		wantOut := "✔︎ Authenticated as alice on $ENDPOINT\n\n\n✔︎ Authenticated with OAuth credentials"
 		wantOut = strings.ReplaceAll(wantOut, "$ENDPOINT", s.URL)
 		if gotOut != wantOut {
 			t.Errorf("got output %q, want %q", gotOut, wantOut)
+		}
+	})
+}
+
+func TestLoginHandler(t *testing.T) {
+	t.Run("warns when login endpoint differs from configured endpoint", func(t *testing.T) {
+		t.Setenv("SRC_ENDPOINT", "https://example.com")
+
+		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			fmt.Fprintln(w, `{"data":{"currentUser":{"username":"alice"}}}`)
+		}))
+		defer s.Close()
+
+		stdout, stderr, err := runLoginHandler(t, &config{
+			endpointURL: mustParseURL(t, "https://example.com"),
+			accessToken: "x",
+		}, s.URL)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(stderr, "Warning: Logging into "+s.URL+" instead of the configured endpoint https://example.com.") {
+			t.Fatalf("stderr = %q, want endpoint warning", stderr)
+		}
+		if !strings.Contains(stderr, "export SRC_ENDPOINT="+s.URL) {
+			t.Fatalf("stderr = %q, want shell tip", stderr)
+		}
+		if !strings.Contains(stdout, "✔︎ Authenticated as alice on "+s.URL) {
+			t.Fatalf("stdout = %q, want validation output", stdout)
+		}
+	})
+
+	t.Run("warns when no SRC_ENDPOINT is configured in the environment", func(t *testing.T) {
+		if oldValue, ok := os.LookupEnv("SRC_ENDPOINT"); ok {
+			_ = os.Unsetenv("SRC_ENDPOINT")
+			t.Cleanup(func() { _ = os.Setenv("SRC_ENDPOINT", oldValue) })
+		} else {
+			_ = os.Unsetenv("SRC_ENDPOINT")
+		}
+
+		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			fmt.Fprintln(w, `{"data":{"currentUser":{"username":"alice"}}}`)
+		}))
+		defer s.Close()
+
+		stdout, stderr, err := runLoginHandler(t, &config{
+			endpointURL: mustParseURL(t, SGDotComEndpoint),
+			accessToken: "x",
+		}, s.URL)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(stderr, "Warning: No SRC_ENDPOINT is configured in the environment. Logging in using \""+s.URL+"\".") {
+			t.Fatalf("stderr = %q, want default-endpoint warning", stderr)
+		}
+		if !strings.Contains(stderr, "NOTE: By default src will use \""+SGDotComEndpoint+"\" if SRC_ENDPOINT is not set.") {
+			t.Fatalf("stderr = %q, want default endpoint note", stderr)
+		}
+		if !strings.Contains(stdout, "✔︎ Authenticated as alice on "+s.URL) {
+			t.Fatalf("stdout = %q, want validation output", stdout)
+		}
+	})
+
+	t.Run("warns when using config file", func(t *testing.T) {
+		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			fmt.Fprintln(w, `{"data":{"currentUser":{"username":"alice"}}}`)
+		}))
+		defer s.Close()
+
+		stdout, stderr, err := runLoginHandler(t, &config{
+			endpointURL:    mustParseURL(t, s.URL),
+			accessToken:    "x",
+			configFilePath: "f",
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(stderr, "Configuring src with a JSON file is deprecated") {
+			t.Fatalf("stderr = %q, want deprecation warning", stderr)
+		}
+		if !strings.Contains(stdout, "✔︎ Authenticated as alice on "+s.URL) {
+			t.Fatalf("stdout = %q, want validation output", stdout)
 		}
 	})
 }
@@ -190,39 +310,6 @@ func (f fakeOAuthClient) Poll(context.Context, *url.URL, string, time.Duration, 
 
 func (f fakeOAuthClient) Refresh(context.Context, *oauth.Token) (*oauth.TokenResponse, error) {
 	return nil, fmt.Errorf("unexpected call to Refresh")
-}
-
-func TestSelectLoginFlow(t *testing.T) {
-	t.Run("uses oauth flow when no access token is configured", func(t *testing.T) {
-		params := loginParams{
-			cfg: &config{endpointURL: mustParseURL(t, "https://example.com")},
-		}
-
-		if got, _ := selectLoginFlow(params); got != loginFlowOAuth {
-			t.Fatalf("flow = %v, want %v", got, loginFlowOAuth)
-		}
-	})
-
-	t.Run("uses endpoint conflict flow when auth exists for a different endpoint", func(t *testing.T) {
-		params := loginParams{
-			cfg:              &config{endpointURL: mustParseURL(t, "https://example.com"), accessToken: "x"},
-			loginEndpointURL: mustParseURL(t, "https://sourcegraph.example.com"),
-		}
-
-		if got, _ := selectLoginFlow(params); got != loginFlowEndpointConflict {
-			t.Fatalf("flow = %v, want %v", got, loginFlowEndpointConflict)
-		}
-	})
-
-	t.Run("uses validation flow when auth exists for the selected endpoint", func(t *testing.T) {
-		params := loginParams{
-			cfg: &config{endpointURL: mustParseURL(t, "https://example.com"), accessToken: "x"},
-		}
-
-		if got, _ := selectLoginFlow(params); got != loginFlowValidate {
-			t.Fatalf("flow = %v, want %v", got, loginFlowValidate)
-		}
-	})
 }
 
 func TestValidateBrowserURL(t *testing.T) {

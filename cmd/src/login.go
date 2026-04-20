@@ -107,21 +107,12 @@ type loginParams struct {
 
 type loginFlow func(context.Context, loginParams) error
 
-type loginFlowKind int
-
-const (
-	loginFlowOAuth loginFlowKind = iota
-	loginFlowMissingAuth
-	loginFlowEndpointConflict
-	loginFlowValidate
-)
-
 func loginCmd(ctx context.Context, p loginParams) error {
 	if err := p.cfg.requireCIAccessToken(); err != nil {
 		return err
 	}
 
-	_, flow := selectLoginFlow(p)
+	flow := selectLoginFlow(p)
 	if err := flow(ctx, p); err != nil {
 		return err
 	}
@@ -129,15 +120,12 @@ func loginCmd(ctx context.Context, p loginParams) error {
 }
 
 // selectLoginFlow decides what login flow to run based on configured AuthMode.
-func selectLoginFlow(p loginParams) (loginFlowKind, loginFlow) {
-	switch p.cfg.AuthMode() {
-	case AuthModeOAuth:
-		return loginFlowOAuth, runOAuthLogin
-	case AuthModeAccessToken:
-		return loginFlowValidate, runValidatedLogin
-	default:
-		return loginFlowMissingAuth, runMissingAuthLogin
+
+func selectLoginFlow(p loginParams) loginFlow {
+	if p.cfg.AuthMode() == AuthModeAccessToken {
+		return runValidatedLogin
 	}
+	return runOAuthLogin
 }
 
 func printLoginProblem(out io.Writer, problem string) {

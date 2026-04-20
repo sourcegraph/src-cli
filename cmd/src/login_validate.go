@@ -11,13 +11,6 @@ import (
 	"github.com/sourcegraph/src-cli/internal/cmderrors"
 )
 
-func runMissingAuthLogin(_ context.Context, p loginParams) error {
-	fmt.Fprintln(p.out)
-	printLoginProblem(p.out, "No access token is configured.")
-	fmt.Fprintln(p.out, loginAccessTokenMessage(p.cfg.endpointURL))
-	return cmderrors.ExitCode1
-}
-
 func runValidatedLogin(ctx context.Context, p loginParams) error {
 	return validateCurrentUser(ctx, p.client, p.out, p.cfg.endpointURL)
 }
