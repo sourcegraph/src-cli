@@ -50,25 +50,43 @@ Examples:
 			return err
 		}
 
-		var loginEndpointURL *url.URL
+		if cfg.configFilePath != "" {
+			fmt.Fprintln(os.Stderr)
+			fmt.Fprintf(os.Stderr, "⚠️  Warning: Configuring src with a JSON file is deprecated. Please migrate to using the env vars SRC_ENDPOINT, SRC_ACCESS_TOKEN, and SRC_PROXY instead, and then remove %s. See https://github.com/sourcegraph/src-cli#readme for more information.\n", cfg.configFilePath)
+		}
+
 		if flagSet.NArg() >= 1 {
 			arg := flagSet.Arg(0)
-			u, err := parseEndpoint(arg)
+			loginEndpointURL, err := parseEndpoint(arg)
 			if err != nil {
 				return cmderrors.Usage(fmt.Sprintf("invalid endpoint URL: %s", arg))
 			}
-			loginEndpointURL = u
+
+			hasEndpointURLConflict := cfg.endpointURL.String() != loginEndpointURL.String()
+
+			if hasEndpointURLConflict {
+				// If the default is configured it means SRC_ENDPOINT is not set
+				if cfg.usingDefaultEndpoint {
+					fmt.Fprintf(os.Stderr, "⚠️  Warning: No SRC_ENDPOINT is configured in the environment. Logging in using %q.\n", loginEndpointURL)
+					fmt.Fprintf(os.Stderr, "\n💡 Tip: To use this endpoint in your shell, run:\n\n   export SRC_ENDPOINT=%s\n\nNOTE: By default src will use %q if SRC_ENDPOINT is not set.\n", loginEndpointURL, SGDotComEndpoint)
+				} else {
+					fmt.Fprintf(os.Stderr, "⚠️  Warning: Logging into %s instead of the configured endpoint %s.\n", loginEndpointURL, cfg.endpointURL)
+					fmt.Fprintf(os.Stderr, "\n💡 Tip: To use this endpoint in your shell, run:\n\n   export SRC_ENDPOINT=%s\n\n", loginEndpointURL)
+				}
+			}
+
+			// An explicit endpoint on the CLI overrides the configured endpoint for this login.
+			cfg.endpointURL = loginEndpointURL
 		}
 
 		client := cfg.apiClient(apiFlags, io.Discard)
 
 		return loginCmd(context.Background(), loginParams{
-			cfg:              cfg,
-			client:           client,
-			out:              os.Stdout,
-			apiFlags:         apiFlags,
-			oauthClient:      oauth.NewClient(oauth.DefaultClientID),
-			loginEndpointURL: loginEndpointURL,
+			cfg:         cfg,
+			client:      client,
+			out:         os.Stdout,
+			apiFlags:    apiFlags,
+			oauthClient: oauth.NewClient(oauth.DefaultClientID),
 		})
 	}
 
@@ -80,56 +98,34 @@ Examples:
 }
 
 type loginParams struct {
-	cfg              *config
-	client           api.Client
-	out              io.Writer
-	apiFlags         *api.Flags
-	oauthClient      oauth.Client
-	loginEndpointURL *url.URL
+	cfg         *config
+	client      api.Client
+	out         io.Writer
+	apiFlags    *api.Flags
+	oauthClient oauth.Client
 }
 
 type loginFlow func(context.Context, loginParams) error
-
-type loginFlowKind int
-
-const (
-	loginFlowOAuth loginFlowKind = iota
-	loginFlowMissingAuth
-	loginFlowEndpointConflict
-	loginFlowValidate
-)
 
 func loginCmd(ctx context.Context, p loginParams) error {
 	if err := p.cfg.requireCIAccessToken(); err != nil {
 		return err
 	}
 
-	if p.cfg.configFilePath != "" {
-		fmt.Fprintln(p.out)
-		fmt.Fprintf(p.out, "⚠️  Warning: Configuring src with a JSON file is deprecated. Please migrate to using the env vars SRC_ENDPOINT, SRC_ACCESS_TOKEN, and SRC_PROXY instead, and then remove %s. See https://github.com/sourcegraph/src-cli#readme for more information.\n", p.cfg.configFilePath)
-	}
-
-	_, flow := selectLoginFlow(p)
+	flow := selectLoginFlow(p)
 	if err := flow(ctx, p); err != nil {
 		return err
 	}
-	fmt.Fprintf(p.out, "\n💡 Tip: To use this endpoint in your shell, run:\n\n   export SRC_ENDPOINT=%s\n\n", p.cfg.endpointURL)
 	return nil
 }
 
 // selectLoginFlow decides what login flow to run based on configured AuthMode.
-func selectLoginFlow(p loginParams) (loginFlowKind, loginFlow) {
-	if p.loginEndpointURL != nil && p.loginEndpointURL.String() != p.cfg.endpointURL.String() {
-		return loginFlowEndpointConflict, runEndpointConflictLogin
+
+func selectLoginFlow(p loginParams) loginFlow {
+	if p.cfg.AuthMode() == AuthModeAccessToken {
+		return runValidatedLogin
 	}
-	switch p.cfg.AuthMode() {
-	case AuthModeOAuth:
-		return loginFlowOAuth, runOAuthLogin
-	case AuthModeAccessToken:
-		return loginFlowValidate, runValidatedLogin
-	default:
-		return loginFlowMissingAuth, runMissingAuthLogin
-	}
+	return runOAuthLogin
 }
 
 func printLoginProblem(out io.Writer, problem string) {
