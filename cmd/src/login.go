@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/url"
+	"os"
 
 	"github.com/sourcegraph/src-cli/internal/api"
 	"github.com/sourcegraph/src-cli/internal/clicompat"
@@ -42,10 +43,14 @@ var loginCommand = clicompat.Wrap(&cli.Command{
 	HideVersion: true,
 	Flags:       clicompat.WithAPIFlags(),
 	Action: func(ctx context.Context, cmd *cli.Command) error {
-		var loginEndpointURL *url.URL
+		if cfg.configFilePath != "" {
+			fmt.Fprintln(os.Stderr)
+			fmt.Fprintf(os.Stderr, "⚠️  Warning: Configuring src with a JSON file is deprecated. Please migrate to using the env vars SRC_ENDPOINT, SRC_ACCESS_TOKEN, and SRC_PROXY instead, and then remove %s. See https://github.com/sourcegraph/src-cli#readme for more information.\n", cfg.configFilePath)
+		}
+
 		if cmd.Args().Present() {
 			arg := cmd.Args().First()
-			u, err := parseEndpoint(arg)
+			loginEndpointURL, err := parseEndpoint(arg)
 			if err != nil {
 				return cmderrors.Usage(fmt.Sprintf("invalid endpoint URL: %s", arg))
 			}
@@ -76,13 +81,6 @@ var loginCommand = clicompat.Wrap(&cli.Command{
 			out:         os.Stdout,
 			apiFlags:    apiFlags,
 			oauthClient: oauth.NewClient(oauth.DefaultClientID),
-		return loginCmd(context.Background(), loginParams{
-			cfg:              cfg,
-			client:           client,
-			out:              os.Stdout,
-			apiFlags:         apiFlags,
-			oauthClient:      oauth.NewClient(oauth.DefaultClientID),
-			loginEndpointURL: loginEndpointURL,
 		})
 	},
 })
