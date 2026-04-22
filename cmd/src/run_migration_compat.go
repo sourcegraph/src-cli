@@ -17,6 +17,7 @@ import (
 
 var migratedCommands = map[string]*cli.Command{
 	"abc":     abcCommand,
+	"api":     apiCommand,
 	"auth":    authCommand,
 	"login":   loginCommand,
 	"version": versionCommand,
@@ -67,6 +68,12 @@ func runMigrated() (int, error) {
 	err := migratedRootCommand().Run(ctx, os.Args)
 	if errors.HasType[*cmderrors.UsageError](err) {
 		return 2, nil
+	}
+	if e, ok := err.(*cmderrors.ExitCodeError); ok {
+		if e.HasError() {
+			return e.Code(), e
+		}
+		return e.Code(), nil
 	}
 	var exitErr cli.ExitCoder
 	if errors.AsInterface(err, &exitErr) {
