@@ -117,3 +117,72 @@ func TestGraphQLError_Code(t *testing.T) {
 	}
 
 }
+
+func TestGraphQLError_Message(t *testing.T) {
+	for name, tc := range map[string]struct {
+		in      string
+		want    string
+		wantErr bool
+	}{
+		"invalid message": {
+			in: `{
+				"errors": [
+					{
+						"message": 42
+					}
+				],
+				"data": null
+			}`,
+			wantErr: true,
+		},
+		"no message": {
+			in: `{
+				"errors": [
+					{
+						"extensions": {
+							"code": "ErrBatchChangesUnlicensed"
+						}
+					}
+				],
+				"data": null
+			}`,
+			want: "",
+		},
+		"valid message": {
+			in: `{
+				"errors": [
+					{
+						"message": "Cannot query field \"batchChanges\" on type \"Query\"."
+					}
+				],
+				"data": null
+			}`,
+			want: `Cannot query field "batchChanges" on type "Query".`,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			var result rawResult
+			if err := json.Unmarshal([]byte(tc.in), &result); err != nil {
+				t.Fatal(err)
+			}
+			if ne := len(result.Errors); ne != 1 {
+				t.Fatalf("unexpected number of GraphQL errors (this test can only handle one!): %d", ne)
+			}
+
+			ge := &GraphQlError{result.Errors[0]}
+			have, err := ge.Message()
+			if tc.wantErr {
+				if err == nil {
+					t.Errorf("unexpected nil error")
+				}
+			} else {
+				if err != nil {
+					t.Errorf("unexpected error: %+v", err)
+				}
+				if have != tc.want {
+					t.Errorf("unexpected message: have=%q want=%q", have, tc.want)
+				}
+			}
+		})
+	}
+}

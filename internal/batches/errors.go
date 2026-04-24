@@ -77,3 +77,22 @@ func (e IgnoredRepoSet) Append(repo *graphql.Repository) {
 func (e IgnoredRepoSet) HasIgnored() bool {
 	return len(e) > 0
 }
+
+// BatchChangesDisabledError indicates that Batch Changes is unavailable on the
+// target instance, typically because the GraphQL schema does not expose the
+// relevant fields when the feature is disabled.
+type BatchChangesDisabledError struct {
+	cause error
+}
+
+func NewBatchChangesDisabledError(cause error) *BatchChangesDisabledError {
+	return &BatchChangesDisabledError{cause: cause}
+}
+
+func (e *BatchChangesDisabledError) Error() string {
+	return "Batch Changes is disabled on this Sourcegraph instance. Ask your site admin to enable Batch Changes before running 'src batch' commands."
+}
+
+func (e *BatchChangesDisabledError) Unwrap() error {
+	return e.cause
+}
