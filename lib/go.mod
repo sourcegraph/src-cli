@@ -22,6 +22,7 @@ require (
 	github.com/sourcegraph/conc v0.3.0
 	github.com/sourcegraph/go-diff v0.7.0
 	github.com/sourcegraph/log v0.0.0-20250923023806-517b6960b55b
+	github.com/urfave/cli/v3 v3.8.0
 	github.com/xeipuuv/gojsonschema v1.2.0
 	github.com/xlab/treeprint v1.2.0
 	go.opentelemetry.io/otel v1.38.0
@@ -78,3 +79,6 @@ require (
 	golang.org/x/tools v0.37.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 )
+
+// See: https://github.com/ghodss/yaml/pull/65
+replace github.com/ghodss/yaml => github.com/sourcegraph/yaml v1.0.1-0.20200714132230-56936252f152
