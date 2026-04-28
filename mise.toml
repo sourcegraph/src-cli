@@ -1,4 +1,4 @@
 [tools]
-golang = "1.26.1"
+golang = "1.26.2"
 shfmt = "3.8.0"
 shellcheck = "0.10.0"

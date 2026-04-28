@@ -19,6 +19,8 @@ import (
 	"github.com/sourcegraph/src-cli/internal/oauth"
 )
 
+const SGDotComEndpoint = "https://sourcegraph.com"
+
 const usageText = `src is a tool that provides access to Sourcegraph instances.
 For more information, see https://github.com/sourcegraph/src-cli
 
@@ -50,6 +52,7 @@ The options are:
 
 The commands are:
 
+	abc             manages agentic batch changes
 	auth            authentication helper commands
 	api             interacts with the Sourcegraph GraphQL API
 	batch           manages batch changes
@@ -140,13 +143,14 @@ var cfg *config
 
 // config holds the resolved configuration used at runtime.
 type config struct {
-	accessToken       string
-	additionalHeaders map[string]string
-	proxyURL          *url.URL
-	proxyPath         string
-	configFilePath    string
-	endpointURL       *url.URL // always non-nil; defaults to https://sourcegraph.com via readConfig
-	inCI              bool
+	accessToken          string
+	additionalHeaders    map[string]string
+	proxyURL             *url.URL
+	proxyPath            string
+	configFilePath       string
+	endpointURL          *url.URL // always non-nil; defaults to https://sourcegraph.com via readConfig
+	usingDefaultEndpoint bool
+	inCI                 bool
 }
 
 // configFromFile holds the config as read from the config file,
@@ -269,7 +273,8 @@ func readConfig() (*config, error) {
 		endpointStr = envEndpoint
 	}
 	if endpointStr == "" {
-		endpointStr = "https://sourcegraph.com"
+		endpointStr = SGDotComEndpoint
+		cfg.usingDefaultEndpoint = true
 	}
 	if envProxy != "" {
 		proxyStr = envProxy

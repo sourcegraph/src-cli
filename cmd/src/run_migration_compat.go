@@ -16,6 +16,9 @@ import (
 )
 
 var migratedCommands = map[string]*cli.Command{
+	"abc":     abcCommand,
+	"auth":    authCommand,
+	"login":   loginCommand,
 	"version": versionCommand,
 }
 
@@ -50,7 +53,7 @@ func migratedRootCommand() *cli.Command {
 		commands = append(commands, migratedCommands[name])
 	}
 
-	return clicompat.WrapRoot(&cli.Command{
+	return clicompat.Wrap(&cli.Command{
 		Name:        "src",
 		HideVersion: true,
 		Commands:    commands,
