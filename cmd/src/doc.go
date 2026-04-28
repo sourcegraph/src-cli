@@ -5,11 +5,13 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"path"
 	"strings"
 	"text/template"
 
+	"github.com/sourcegraph/sourcegraph/lib/docgen"
 	"github.com/sourcegraph/sourcegraph/lib/errors"
 	"github.com/sourcegraph/sourcegraph/lib/output"
 
@@ -29,7 +31,7 @@ documentation used within Sourcegraph.
 Usage:
 
 	src doc -o DIR
-	
+
 Examples:
 
     $ src doc -o ~/sourcegraph/doc/integration/cli/reference
@@ -46,6 +48,8 @@ Examples:
 			flagSet.Usage()
 			return cmderrors.ExitCode(1, nil)
 		}
+
+		dstDir := *outputFlag
 
 		dr, err := newDocRenderer()
 		if err != nil {
@@ -66,6 +70,7 @@ Examples:
 
 		pending := out.Pending(output.Line("", output.StylePending, "Rendering Markdown..."))
 		count := 0
+		rootSubcommands := map[string]string{}
 		defer func() {
 			pending.Complete(output.Linef(output.EmojiSuccess, output.StyleSuccess, "%d files rendered under %s", count, *outputFlag))
 		}()
@@ -94,7 +99,7 @@ Examples:
 						return err
 					}
 
-					file, err := openDocFile(*outputFlag, fqcn)
+					file, err := openDocFile(dstDir, fqcn)
 					if err != nil {
 						return err
 					}
@@ -110,12 +115,17 @@ Examples:
 				}
 			}
 
+			if groupName == "" {
+				maps.Copy(subcommands, rootSubcommands)
+				continue
+			}
+
 			content, err := dr.RenderGroup(groupName, subcommands)
 			if err != nil {
 				return err
 			}
 
-			file, err := openDocFile(*outputFlag, groupName+" index")
+			file, err := openDocFile(dstDir, groupName+" index")
 			if err != nil {
 				return err
 			}
@@ -126,6 +136,44 @@ Examples:
 			}
 			count++
 		}
+
+		root := migratedRootCommand()
+		mdFiles, err := docgen.Markdown(root)
+		if err != nil {
+			return err
+		}
+
+		for _, cmd := range docgen.VisibleCommands(root.Commands) {
+			rootSubcommands[cmd.Name] = docgen.SubcommandDocPath(cmd)
+		}
+
+		for _, md := range mdFiles {
+			pending.Update(md.Name)
+			docPath := path.Join(dstDir, md.Name)
+			if err := os.MkdirAll(path.Dir(docPath), 0755); err != nil {
+				return err
+			}
+			if err := os.WriteFile(docPath, []byte(md.Content), 0644); err != nil {
+				return err
+			}
+			count++
+		}
+
+		content, err := dr.RenderGroup("", rootSubcommands)
+		if err != nil {
+			return err
+		}
+
+		file, err := openDocFile(dstDir, " index")
+		if err != nil {
+			return err
+		}
+		defer file.Close()
+
+		if _, err := file.WriteString(content); err != nil {
+			return err
+		}
+		count++
 
 		return nil
 	}
