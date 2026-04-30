@@ -268,12 +268,12 @@ some-new-field: Foo bar
 		{
 			name: "supported version",
 			rawSpec: `
-version: 3
+version: 2
 name: test-spec
 description: A test spec
 `,
 
-			expectedSpec: &batcheslib.BatchSpec{Version: 3, Name: "test-spec", Description: "A test spec"},
+			expectedSpec: &batcheslib.BatchSpec{Version: 2, Name: "test-spec", Description: "A test spec"},
 		},
 		{
 			name: "unsupported version",
