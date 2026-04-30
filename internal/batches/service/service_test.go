@@ -268,12 +268,12 @@ some-new-field: Foo bar
 		{
 			name: "supported version",
 			rawSpec: `
-version: 2
+version: 3
 name: test-spec
 description: A test spec
 `,
 
-			expectedSpec: &batcheslib.BatchSpec{Version: 2, Name: "test-spec", Description: "A test spec"},
+			expectedSpec: &batcheslib.BatchSpec{Version: 3, Name: "test-spec", Description: "A test spec"},
 		},
 		{
 			name: "unsupported version",
@@ -282,7 +282,7 @@ version: 99
 name: test-spec
 description: A test spec
 `,
-			expectedErr: errors.New("parsing batch spec: version: version must be one of the following: 1, 2"),
+			expectedErr: errors.New("parsing batch spec: version: version must be one of the following: 1, 2, 3"),
 		},
 		{
 			name:         "mount absolute file",
