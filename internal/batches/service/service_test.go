@@ -282,7 +282,7 @@ version: 99
 name: test-spec
 description: A test spec
 `,
-			expectedErr: errors.New("parsing batch spec: version: version must be one of the following: 1, 2"),
+			expectedErr: errors.New("parsing batch spec: version: version must be one of the following: 1, 2, 3"),
 		},
 		{
 			name:         "mount absolute file",
