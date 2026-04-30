@@ -373,6 +373,10 @@ func executeBatchSpec(ctx context.Context, opts executeBatchSpecOpts) (err error
 	}
 	execUI.ParsingBatchSpecSuccess()
 
+	if batchSpec.Version == 3 {
+		return errors.New("batch spec version 3 is not supported for local execution, please run server-side")
+	}
+
 	execUI.ResolvingNamespace()
 	namespace, err := svc.ResolveNamespace(ctx, opts.flags.namespace)
 	if err != nil {
