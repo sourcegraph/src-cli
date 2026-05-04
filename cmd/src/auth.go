@@ -1,37 +1,33 @@
 package main
 
 import (
-	"flag"
-	"fmt"
+	"github.com/sourcegraph/src-cli/internal/clicompat"
+	"github.com/urfave/cli/v3"
 )
 
-var authCommands commander
+const authExamples = `
+Authentication-related helper commands.
 
-func init() {
-	usage := `'src auth' provides authentication-related helper commands.
+Examples:
 
-Usage:
+Print the active auth token:
 
-	src auth command [command options]
+$ src auth token
+sgp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
-The commands are:
+Print the current Authorization header:
 
-	token   prints the current authentication token or Authorization header
-
-Use "src auth [command] -h" for more information about a command.
+$ src auth token --header
+Authorization: token sgp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 `
 
-	flagSet := flag.NewFlagSet("auth", flag.ExitOnError)
-	handler := func(args []string) error {
-		authCommands.run(flagSet, "src auth", usage, args)
-		return nil
-	}
-
-	commands = append(commands, &command{
-		flagSet: flagSet,
-		handler: handler,
-		usageFunc: func() {
-			fmt.Println(usage)
-		},
-	})
-}
+var authCommand = clicompat.Wrap(&cli.Command{
+	Name:        "auth",
+	Usage:       "authentication helper commands",
+	UsageText:   "src auth [command options]",
+	Description: authExamples,
+	HideVersion: true,
+	Commands: []*cli.Command{
+		authTokenCommand,
+	},
+})

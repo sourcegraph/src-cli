@@ -3,63 +3,74 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"flag"
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 
 	"github.com/sourcegraph/sourcegraph/lib/errors"
 
 	"github.com/sourcegraph/src-cli/internal/api"
+	"github.com/sourcegraph/src-cli/internal/clicompat"
 	"github.com/sourcegraph/src-cli/internal/version"
+
+	"github.com/urfave/cli/v3"
 )
 
-func init() {
-	usage := `
+const versionExamples = `
+Display and compare the src-cli version against the recommended version for your instance
+
 Examples:
 
-  Get the src-cli version and the Sourcegraph instance's recommended version:
+Get the src-cli version and the Sourcegraph instance's recommended version:
 
-    	$ src version
+$ src version
 `
 
-	flagSet := flag.NewFlagSet("version", flag.ExitOnError)
-
-	var (
-		clientOnly = flagSet.Bool("client-only", false, "If true, only the client version will be printed.")
-		apiFlags   = api.NewFlags(flagSet)
-	)
-
-	handler := func(args []string) error {
-		fmt.Printf("Current version: %s\n", version.BuildTag)
-		if clientOnly != nil && *clientOnly {
-			return nil
+var versionCommand = clicompat.Wrap(&cli.Command{
+	Name:         "version",
+	UsageText:    "src version [options]",
+	OnUsageError: clicompat.OnUsageError,
+	Description:  versionExamples,
+	Flags: clicompat.WithAPIFlags(
+		&cli.BoolFlag{
+			Name:  "client-only",
+			Usage: "If true, only the client version will be printed.",
+		},
+	),
+	HideVersion: true,
+	Action: func(ctx context.Context, c *cli.Command) error {
+		args := VersionArgs{
+			Client:     cfg.apiClient(clicompat.APIFlagsFromCmd(c), os.Stdout),
+			ClientOnly: c.Bool("client-only"),
 		}
+		return versionHandler(args)
+	},
+})
 
-		client := cfg.apiClient(apiFlags, flagSet.Output())
-		recommendedVersion, err := getRecommendedVersion(context.Background(), client)
-		if err != nil {
-			return errors.Wrap(err, "failed to get recommended version for Sourcegraph deployment")
-		}
-		if recommendedVersion == "" {
-			fmt.Println("Recommended version: <unknown>")
-			fmt.Println("This Sourcegraph instance does not support this feature.")
-			return nil
-		}
-		fmt.Printf("Recommended version: %s or later\n", recommendedVersion)
+type VersionArgs struct {
+	ClientOnly bool
+	Client     api.Client
+	Output     io.Writer
+}
+
+func versionHandler(args VersionArgs) error {
+	fmt.Printf("Current version: %s\n", version.BuildTag)
+	if args.ClientOnly {
 		return nil
 	}
 
-	// Register the command.
-	commands = append(commands, &command{
-		flagSet: flagSet,
-		handler: handler,
-		usageFunc: func() {
-			fmt.Fprintf(flag.CommandLine.Output(), "Usage of 'src %s':\n", flagSet.Name())
-			flagSet.PrintDefaults()
-			fmt.Println(usage)
-		},
-	})
+	recommendedVersion, err := getRecommendedVersion(context.Background(), args.Client)
+	if err != nil {
+		return errors.Wrap(err, "failed to get recommended version for Sourcegraph deployment")
+	}
+	if recommendedVersion == "" {
+		fmt.Println("Recommended version: <unknown>")
+		fmt.Println("This Sourcegraph instance does not support this feature.")
+		return nil
+	}
+	fmt.Printf("Recommended version: %s or later\n", recommendedVersion)
+	return nil
 }
 
 func getRecommendedVersion(ctx context.Context, client api.Client) (string, error) {

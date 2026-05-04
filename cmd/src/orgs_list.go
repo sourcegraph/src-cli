@@ -16,10 +16,6 @@ Examples:
 
     	$ src orgs list
 
-  List *all* organizations (may be slow!):
-
-    	$ src orgs list -first='-1'
-
   List organizations whose names match the query:
 
     	$ src orgs list -query='myquery'
@@ -33,7 +29,7 @@ Examples:
 		fmt.Println(usage)
 	}
 	var (
-		firstFlag  = flagSet.Int("first", 1000, "Returns the first n organizations from the list. (use -1 for unlimited)")
+		firstFlag  = flagSet.Int("first", 1000, "Returns the first n organizations from the list.")
 		queryFlag  = flagSet.String("query", "", `Returns organizations whose names match the query. (e.g. "alice")`)
 		formatFlag = flagSet.String("f", "{{.Name}}", `Format for the output, using the syntax of Go package text/template. (e.g. "{{.ID}}: {{.Name}} ({{.DisplayName}})" or "{{.|json}}")`)
 		apiFlags   = api.NewFlags(flagSet)

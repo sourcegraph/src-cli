@@ -55,7 +55,6 @@ fragment RepositoryFields on Repository {
 	name
 	url
 	description
-	language
 	createdAt
 	updatedAt
 	externalRepository {
@@ -80,7 +79,6 @@ type Repository struct {
 	Name                string             `json:"name"`
 	URL                 string             `json:"url"`
 	Description         string             `json:"description"`
-	Language            string             `json:"language"`
 	CreatedAt           time.Time          `json:"createdAt"`
 	UpdatedAt           *time.Time         `json:"updatedAt"`
 	ExternalRepository  ExternalRepository `json:"externalRepository"`
