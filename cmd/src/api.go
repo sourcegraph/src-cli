@@ -8,9 +8,10 @@ import (
 	"os"
 	"strings"
 
-	"github.com/mattn/go-isatty"
 	"github.com/sourcegraph/src-cli/internal/clicompat"
 	"github.com/sourcegraph/src-cli/internal/cmderrors"
+
+	"github.com/mattn/go-isatty"
 	"github.com/urfave/cli/v3"
 )
 
