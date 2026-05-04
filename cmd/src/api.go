@@ -3,20 +3,19 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"flag"
 	"fmt"
 	"io"
 	"os"
 	"strings"
 
-	"github.com/sourcegraph/src-cli/internal/api"
+	"github.com/sourcegraph/src-cli/internal/clicompat"
 	"github.com/sourcegraph/src-cli/internal/cmderrors"
 
 	"github.com/mattn/go-isatty"
+	"github.com/urfave/cli/v3"
 )
 
-func init() {
-	usage := `
+const apiExamples = `
 Exit codes:
 
   0: Success
@@ -43,28 +42,26 @@ Examples:
     	$ src api -get-curl -query='query { currentUser { username } }'
 `
 
-	flagSet := flag.NewFlagSet("api", flag.ExitOnError)
-	usageFunc := func() {
-		fmt.Fprintf(flag.CommandLine.Output(), "Usage of 'src %s':\n", flagSet.Name())
-		flagSet.PrintDefaults()
-		fmt.Println(usage)
-	}
-	var (
-		queryFlag = flagSet.String("query", "", "GraphQL query to execute, e.g. 'query { currentUser { username } }' (stdin otherwise)")
-		varsFlag  = flagSet.String("vars", "", `GraphQL query variables to include as JSON string, e.g. '{"var": "val", "var2": "val2"}'`)
-		apiFlags  = api.NewFlags(flagSet)
-	)
-
-	handler := func(args []string) error {
-		err := flagSet.Parse(args)
-		if err != nil {
-			return err
-		}
-
-		// Build the GraphQL request.
-		query := *queryFlag
+var apiCommand = clicompat.Wrap(&cli.Command{
+	Name:                      "api",
+	Usage:                     "interacts with the Sourcegraph GraphQL API",
+	UsageText:                 "src api [options] [variable=value ...]",
+	Description:               apiExamples,
+	HideVersion:               true,
+	DisableSliceFlagSeparator: true,
+	Flags: clicompat.WithAPIFlags(
+		&cli.StringFlag{
+			Name:  "query",
+			Usage: "GraphQL query to execute, e.g. 'query { currentUser { username } }' (stdin otherwise)",
+		},
+		&cli.StringFlag{
+			Name:  "vars",
+			Usage: `GraphQL query variables to include as JSON string, e.g. '{"var": "val", "var2": "val2"}'`,
+		},
+	),
+	Action: func(ctx context.Context, cmd *cli.Command) error {
+		query := cmd.String("query")
 		if query == "" {
-			// Read query from stdin instead.
 			if isatty.IsTerminal(os.Stdin.Fd()) {
 				return cmderrors.Usage("expected query to be piped into 'src api' or -query flag to be specified")
 			}
@@ -75,42 +72,40 @@ Examples:
 			query = string(data)
 		}
 
-		// Determine which variables to use in the request.
 		vars := map[string]any{}
-		if *varsFlag != "" {
-			if err := json.Unmarshal([]byte(*varsFlag), &vars); err != nil {
+		if raw := cmd.String("vars"); raw != "" {
+			if err := json.Unmarshal([]byte(raw), &vars); err != nil {
 				return err
 			}
 		}
-		for _, arg := range flagSet.Args() {
-			idx := strings.Index(arg, "=")
-			if idx == -1 {
+		for _, arg := range cmd.Args().Slice() {
+			key, value, ok := strings.Cut(arg, "=")
+			if !ok {
 				return cmderrors.Usagef("parsing argument %q expected 'variable=value' syntax (missing equals)", arg)
 			}
-			key := arg[:idx]
-			value := arg[idx+1:]
 			vars[key] = value
 		}
 
-		// Perform the request.
-		var result any
-		if ok, err := cfg.apiClient(apiFlags, flagSet.Output()).NewRequest(query, vars).DoRaw(context.Background(), &result); err != nil || !ok {
+		var result struct {
+			Data   any               `json:"data,omitempty"`
+			Errors []json.RawMessage `json:"errors,omitempty"`
+		}
+		client := cfg.apiClient(clicompat.APIFlagsFromCmd(cmd), cmd.Writer)
+		if ok, err := client.NewRequest(query, vars).DoRaw(ctx, &result); err != nil || !ok {
 			return err
 		}
 
-		// Print the formatted JSON.
-		f, err := marshalIndent(result)
+		formatted, err := marshalIndent(result)
 		if err != nil {
 			return err
 		}
-		fmt.Println(string(f))
+		_, err = fmt.Fprintln(cmd.Writer, string(formatted))
+		if err != nil {
+			return err
+		}
+		if len(result.Errors) > 0 {
+			return cmderrors.ExitCode(cmderrors.GraphqlErrorsExitCode, nil)
+		}
 		return nil
-	}
-
-	// Register the command.
-	commands = append(commands, &command{
-		flagSet:   flagSet,
-		handler:   handler,
-		usageFunc: usageFunc,
-	})
-}
+	},
+})
