@@ -2,163 +2,190 @@ package docgen
 
 import (
 	"bytes"
+	"cmp"
 	"fmt"
 	"io"
+	"path"
+	"slices"
 	"sort"
 	"strings"
 	"text/template"
 
 	"github.com/urfave/cli/v3"
+
+	"github.com/sourcegraph/sourcegraph/lib/errors"
 )
+
+type MarkdownFile struct {
+	Name    string
+	Content string
+}
 
 // Markdown renders a Markdown reference for the app.
 //
 // It is adapted from https://sourcegraph.com/github.com/urfave/cli-docs/-/blob/docs.go?L16
-func Markdown(root *cli.Command) (string, error) {
-	var w bytes.Buffer
-	if err := writeDocTemplate(root, &w); err != nil {
-		return "", err
+func Markdown(root *cli.Command) ([]MarkdownFile, error) {
+	files := make([]MarkdownFile, 0, len(root.Commands))
+	var errs error
+	for _, sub := range VisibleCommands(root.Commands) {
+		subFiles, err := markdownFiles(root.Name, []string{sub.Name}, sub)
+		if err != nil {
+			errs = errors.Append(errs, err)
+		}
+		files = append(files, subFiles...)
 	}
-	return w.String(), nil
+	return files, errs
 }
 
 type cliTemplate struct {
-	App        *cli.Command
-	Commands   []string
-	GlobalArgs []string
+	Title       string
+	Usage       string
+	Description string
+	UsageText   string
+	Flags       []flagRow
+	Subcommands []subcommand
 }
 
-func writeDocTemplate(root *cli.Command, w io.Writer) error {
+type subcommand struct {
+	Name string
+	Link string
+}
+
+type flagRow struct {
+	Name    string
+	Desc    string
+	Default string
+}
+
+// markdownFiles recursively walks over cmd commands and sub commands to build a list of MarkdownFiles
+// that contain the name and content for a command
+func markdownFiles(rootName string, lineage []string, cmd *cli.Command) ([]MarkdownFile, error) {
+	var w bytes.Buffer
+	err := writeDocTemplate(rootName, lineage, cmd, &w)
+
+	files := []MarkdownFile{{
+		Name:    docPath(lineage, hasVisibleCommands(cmd.Commands)),
+		Content: w.String(),
+	}}
+
+	for _, sub := range VisibleCommands(cmd.Commands) {
+		subFiles, subErr := markdownFiles(rootName, append(lineage, sub.Name), sub)
+		if subErr != nil {
+			err = errors.Append(err, subErr)
+		}
+		files = append(files, subFiles...)
+	}
+
+	return files, err
+}
+
+func writeDocTemplate(rootName string, lineage []string, cmd *cli.Command, w io.Writer) error {
 	const name = "cli"
 	t, err := template.New(name).Parse(markdownDocTemplate)
 	if err != nil {
 		return err
 	}
+
+	title := strings.Join(append([]string{rootName}, lineage...), " ")
 	return t.ExecuteTemplate(w, name, &cliTemplate{
-		App:        root,
-		Commands:   prepareCommands(root.Name, root.Commands, 0),
-		GlobalArgs: prepareArgsWithValues(root.VisibleFlags()),
+		Title:       title,
+		Usage:       prepareUsage(cmd),
+		Description: strings.TrimSpace(cmd.Description),
+		UsageText:   prepareUsageText(title, cmd),
+		Flags:       prepareArgsWithValues(cmd.Flags),
+		Subcommands: prepareSubcommands(cmd.Commands),
 	})
 }
 
-func prepareCommands(lineage string, commands []*cli.Command, level int) []string {
-	var coms []string
-	for _, command := range commands {
-		if command.Hidden {
-			continue
-		}
-
-		var commandDoc strings.Builder
-		commandDoc.WriteString(strings.Repeat("#", level+2))
-		commandDoc.WriteString(" ")
-		commandDoc.WriteString(fmt.Sprintf("%s %s", lineage, command.Name))
-		commandDoc.WriteString("\n\n")
-		commandDoc.WriteString(prepareUsage(command))
-		commandDoc.WriteString("\n\n")
-
-		if len(command.Description) > 0 {
-			commandDoc.WriteString(fmt.Sprintf("%s\n\n", command.Description))
-		}
-
-		commandDoc.WriteString(prepareUsageText(command))
-
-		flags := prepareArgsWithValues(command.Flags)
-		if len(flags) > 0 {
-			commandDoc.WriteString("\nFlags:\n\n")
-			for _, f := range flags {
-				commandDoc.WriteString("* " + f)
-			}
-		}
-
-		coms = append(coms, commandDoc.String())
-
-		// recursevly iterate subcommands
-		if len(command.Commands) > 0 {
-			coms = append(
-				coms,
-				prepareCommands(lineage+" "+command.Name, command.Commands, level+1)...,
-			)
-		}
+func prepareSubcommands(commands []*cli.Command) []subcommand {
+	links := make([]subcommand, 0, len(commands))
+	for _, command := range VisibleCommands(commands) {
+		links = append(links, subcommand{
+			Name: command.Name,
+			Link: SubcommandDocPath(command),
+		})
 	}
-
-	return coms
+	return links
 }
 
-func prepareArgsWithValues(flags []cli.Flag) []string {
-	return prepareFlags(flags, ", ", "`", "`", `"<value>"`, true)
+func prepareArgsWithValues(flags []cli.Flag) []flagRow {
+	return prepareFlags(flags)
 }
 
 func prepareFlags(
 	flags []cli.Flag,
-	sep, opener, closer, value string,
-	addDetails bool,
-) []string {
-	args := []string{}
+) []flagRow {
+	rows := []flagRow{}
 	for _, f := range flags {
 		flag, ok := f.(cli.DocGenerationFlag)
 		if !ok {
 			continue
 		}
-		modifiedArg := opener
-
+		names := make([]string, 0, len(f.Names()))
 		for _, s := range f.Names() {
 			trimmed := strings.TrimSpace(s)
-			if len(modifiedArg) > len(opener) {
-				modifiedArg += sep
+			if trimmed == "" {
+				continue
 			}
 			if len(trimmed) > 1 {
-				modifiedArg += fmt.Sprintf("--%s", trimmed)
+				names = append(names, fmt.Sprintf("--%s", trimmed))
 			} else {
-				modifiedArg += fmt.Sprintf("-%s", trimmed)
+				names = append(names, fmt.Sprintf("-%s", trimmed))
 			}
 		}
 
-		if flag.TakesValue() {
-			modifiedArg += fmt.Sprintf("=%s", value)
+		name := strings.Join(names, ", ")
+		if len(name) > 0 {
+			rows = append(rows, flagRow{
+				Name:    name,
+				Desc:    flag.GetUsage(),
+				Default: flag.GetValue(),
+			})
 		}
 
-		modifiedArg += closer
-
-		if addDetails {
-			modifiedArg += flagDetails(flag)
-		}
-
-		args = append(args, modifiedArg+"\n")
-
 	}
-	sort.Strings(args)
-	return args
+	slices.SortFunc(rows, func(a, b flagRow) int {
+		return cmp.Compare(a.Name, b.Name)
+	})
+	return rows
 }
 
-// flagDetails returns a string containing the flags metadata
-func flagDetails(flag cli.DocGenerationFlag) string {
-	description := flag.GetUsage()
-	value := flag.GetValue()
-	if value != "" {
-		description += " (default: " + value + ")"
-	}
-	return ": " + description
-}
-
-func prepareUsageText(command *cli.Command) string {
+func prepareUsageText(lineage string, command *cli.Command) string {
 	if command.UsageText == "" {
+		if hasVisibleCommands(command.Commands) {
+			return renderUsageBlock(lineage + " [command options]")
+		}
+		if len(command.Flags) > 0 {
+			return renderUsageBlock(lineage + " [options]")
+		}
 		if strings.TrimSpace(command.ArgsUsage) != "" {
 			return fmt.Sprintf("Arguments: `%s`\n", command.ArgsUsage)
 		}
 		return ""
 	}
 
-	// Write all usage examples as a big shell code block
+	// Write all usage examples as a big shell code block.
+	lines := make([]string, 0, strings.Count(command.UsageText, "\n")+1)
+	for line := range strings.SplitSeq(strings.TrimSpace(command.UsageText), "\n") {
+		line = strings.TrimSpace(line)
+		if len(line) == 0 {
+			continue
+		}
+		lines = append(lines, line)
+	}
+	return renderUsageBlock(lines...)
+}
+
+func renderUsageBlock(lines ...string) string {
 	var usageText strings.Builder
 	usageText.WriteString("```sh")
-	for line := range strings.SplitSeq(strings.TrimSpace(command.UsageText), "\n") {
+	for _, line := range lines {
 		usageText.WriteByte('\n')
 
-		line = strings.TrimSpace(line)
 		if strings.HasPrefix(line, "# ") {
 			usageText.WriteString(line)
 		} else if len(line) > 0 {
-			usageText.WriteString(fmt.Sprintf("$ %s", line))
+			fmt.Fprintf(&usageText, "$ %s", line)
 		}
 	}
 	usageText.WriteString("\n```\n")
@@ -174,20 +201,70 @@ func prepareUsage(command *cli.Command) string {
 	return command.Usage + "."
 }
 
-var markdownDocTemplate = `# {{ .App.Name }} reference
+// VisibleCommands returns the non-hidden commands sorted by name.
+func VisibleCommands(commands []*cli.Command) []*cli.Command {
+	visible := make([]*cli.Command, 0, len(commands))
+	for _, command := range commands {
+		if command.Hidden {
+			continue
+		}
+		visible = append(visible, command)
+	}
 
-{{ .App.Name }}{{ if .App.Usage }} - {{ .App.Usage }}{{ end }}
-{{ if .App.Description }}
-{{ .App.Description }}
-{{ end }}
-` + "```sh" + `{{ if .App.UsageText }}
-{{ .App.UsageText }}
-{{ else }}
-{{ .App.Name }} [GLOBAL FLAGS] command [COMMAND FLAGS] [ARGUMENTS...]
-{{ end }}` + "```" + `
-{{ if .GlobalArgs }}
-Global flags:
+	sort.Slice(visible, func(i, j int) bool {
+		return visible[i].Name < visible[j].Name
+	})
 
-{{ range $v := .GlobalArgs }}* {{ $v }}{{ end }}{{ end }}{{ if .Commands }}
-{{ range $v := .Commands }}
-{{ $v }}{{ end }}{{ end }}`
+	return visible
+}
+
+// SubcommandDocPath returns the relative doc path for a direct child command.
+func SubcommandDocPath(command *cli.Command) string {
+	return docPath([]string{command.Name}, hasVisibleCommands(command.Commands))
+}
+
+func hasVisibleCommands(commands []*cli.Command) bool {
+	for _, command := range commands {
+		if !command.Hidden {
+			return true
+		}
+	}
+	return false
+}
+
+func docPath(lineage []string, isGroup bool) string {
+	if len(lineage) == 0 {
+		return "index.md"
+	}
+	if isGroup {
+		return path.Join(path.Join(lineage...), "index.md")
+	}
+	if len(lineage) == 1 {
+		return lineage[0] + ".md"
+	}
+	return path.Join(path.Join(lineage[:len(lineage)-1]...), lineage[len(lineage)-1]+".md")
+}
+
+var markdownDocTemplate = `# ` + "`" + `{{ .Title }}` + "`" + `
+
+{{ if .Usage }}{{ .Usage }}
+
+{{ end }}{{ if .Description }}{{ .Description }}
+{{- end }}
+
+{{ if .UsageText }}## Usage
+
+{{ .UsageText }}
+{{- end }}
+{{ if .Flags }}## Flags
+
+| Name | Description | Default Value |
+|------|-------------|---------------|
+{{- range .Flags -}}
+{{- "\n" -}}
+| ` + "`" + `{{ .Name }}` + "`" + ` | {{ .Desc }} | ` + "`" + `{{ .Default }}` + "`" + `|
+{{- end }}{{- end }}
+{{- if .Subcommands }}## Subcommands
+
+{{ range $v := .Subcommands }}* [` + "`" + `{{ $v.Name }}` + "`" + `]({{ $v.Link }})
+{{ end }}{{ end }}`

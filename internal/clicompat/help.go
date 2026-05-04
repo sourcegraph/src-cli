@@ -18,15 +18,17 @@ func Wrap(cmd *cli.Command) *cli.Command {
 	}
 
 	cmd.OnUsageError = OnUsageError
-	cmd.Action = wrapWithHelpOnUsageError(cmd.Action)
+	if cmd.Action == nil {
+		cmd.Action = func(ctx context.Context, cmd *cli.Command) error {
+			return cli.ShowSubcommandHelp(cmd)
+		}
+	} else {
+		cmd.Action = wrapWithHelpOnUsageError(cmd.Action)
+	}
 	return cmd
 }
 
 func wrapWithHelpOnUsageError(action cli.ActionFunc) cli.ActionFunc {
-	if action == nil {
-		return nil
-	}
-
 	return func(ctx context.Context, cmd *cli.Command) error {
 		err := action(ctx, cmd)
 		if err != nil && errors.HasType[*cmderrors.UsageError](err) {
