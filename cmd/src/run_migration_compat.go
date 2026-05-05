@@ -20,6 +20,8 @@ var migratedCommands = map[string]*cli.Command{
 	"api":     apiCommand,
 	"auth":    authCommand,
 	"login":   loginCommand,
+	"orgs":    orgsCommand,
+	"org":     orgsCommand,
 	"version": versionCommand,
 }
 

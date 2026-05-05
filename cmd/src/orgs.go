@@ -3,12 +3,30 @@ package main
 import (
 	"flag"
 	"fmt"
+
+	"github.com/sourcegraph/src-cli/internal/clicompat"
+	"github.com/urfave/cli/v3"
 )
 
 var orgsCommands commander
 
-func init() {
-	usage := `'src orgs' is a tool that manages organizations on a Sourcegraph instance.
+var orgsCommand = clicompat.Wrap(&cli.Command{
+	Name:        "orgs",
+	Aliases:     []string{"org"},
+	Usage:       "manages organizations",
+	UsageText:   "src orgs [command options]",
+	Description: orgsExamples,
+	HideVersion: true,
+	Commands: []*cli.Command{
+		orgsListCommand,
+		orgsGetCommand,
+		orgsCreateCommand,
+		orgsDeleteCommand,
+		orgsMembersCommand,
+	},
+})
+
+const orgsExamples = `'src orgs' is a tool that manages organizations on a Sourcegraph instance.
 
 Usage:
 
@@ -24,6 +42,9 @@ The commands are:
 
 Use "src orgs [command] -h" for more information about a command.
 `
+
+func init() {
+	usage := orgsExamples
 
 	flagSet := flag.NewFlagSet("orgs", flag.ExitOnError)
 	handler := func(args []string) error {
