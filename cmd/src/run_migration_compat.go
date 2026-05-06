@@ -66,19 +66,24 @@ func runMigrated() (int, error) {
 	ctx := context.Background()
 
 	err := migratedRootCommand().Run(ctx, os.Args)
-	if errors.HasType[*cmderrors.UsageError](err) {
-		return 2, nil
-	}
-	if e, ok := err.(*cmderrors.ExitCodeError); ok {
-		if e.HasError() {
-			return e.Code(), e
+	if err != nil {
+		if errors.HasType[*cmderrors.UsageError](err) {
+			return 2, nil
 		}
-		return e.Code(), nil
+		if e, ok := err.(*cmderrors.ExitCodeError); ok {
+			if e.HasError() {
+				return e.Code(), e
+			}
+			return e.Code(), nil
+		}
+		var exitErr cli.ExitCoder
+		if errors.AsInterface(err, &exitErr) {
+			return exitErr.ExitCode(), err
+		}
+
+		return 1, err
 	}
-	var exitErr cli.ExitCoder
-	if errors.AsInterface(err, &exitErr) {
-		return exitErr.ExitCode(), err
-	}
+
 	return 0, err
 }
 
