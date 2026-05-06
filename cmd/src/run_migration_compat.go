@@ -18,11 +18,14 @@ import (
 )
 
 var migratedCommands = map[string]*cli.Command{
-	"abc":     abcCommand,
-	"api":     apiCommand,
-	"auth":    authCommand,
-	"login":   loginCommand,
-	"version": versionCommand,
+	"abc":        abcCommand,
+	"api":        apiCommand,
+	"auth":       authCommand,
+	"codeowners": codeownersCommand,
+	// instead of writing lots of plumbing to handle an alias, lets just register it explicitly for now
+	"codeowner": codeownersCommand,
+	"login":     loginCommand,
+	"version":   versionCommand,
 }
 
 func maybeRunMigratedCommand() (isMigrated bool, exitCode int, err error) {
