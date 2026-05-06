@@ -1,12 +1,14 @@
 package main
 
 import (
+	"cmp"
 	"context"
 	"flag"
 	"fmt"
 	"log"
+	"maps"
 	"os"
-	"sort"
+	"slices"
 
 	"github.com/sourcegraph/src-cli/internal/clicompat"
 	"github.com/sourcegraph/src-cli/internal/cmderrors"
@@ -43,16 +45,13 @@ func maybeRunMigratedCommand() (isMigrated bool, exitCode int, err error) {
 // migratedRootCommand constructs a root 'src' command and adds
 // MigratedCommands as subcommands to it
 func migratedRootCommand() *cli.Command {
-	names := make([]string, 0, len(migratedCommands))
-	for name := range migratedCommands {
-		names = append(names, name)
+	uniqueCommands := make(map[string]*cli.Command, len(migratedCommands))
+	for _, cmd := range migratedCommands {
+		uniqueCommands[cmd.Name] = cmd
 	}
-	sort.Strings(names)
-
-	commands := make([]*cli.Command, 0, len(names))
-	for _, name := range names {
-		commands = append(commands, migratedCommands[name])
-	}
+	commands := slices.SortedFunc(maps.Values(uniqueCommands), func(a, b *cli.Command) int {
+		return cmp.Compare(a.Name, b.Name)
+	})
 
 	return clicompat.Wrap(&cli.Command{
 		Name:        "src",
