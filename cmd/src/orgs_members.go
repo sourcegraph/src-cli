@@ -1,14 +1,9 @@
 package main
 
 import (
-	"flag"
-	"fmt"
-
 	"github.com/sourcegraph/src-cli/internal/clicompat"
 	"github.com/urfave/cli/v3"
 )
-
-var orgsMembersCommands commander
 
 var orgsMembersCommand = clicompat.Wrap(&cli.Command{
 	Name:        "members",
@@ -36,23 +31,3 @@ The commands are:
 
 Use "src orgs members [command] -h" for more information about a command.
 `
-
-func init() {
-	usage := orgsMembersExamples
-
-	flagSet := flag.NewFlagSet("members", flag.ExitOnError)
-	handler := func(args []string) error {
-		orgsMembersCommands.run(flagSet, "src orgs members", usage, args)
-		return nil
-	}
-
-	// Register the command.
-	orgsCommands = append(orgsCommands, &command{
-		flagSet: flagSet,
-		aliases: []string{"member"},
-		handler: handler,
-		usageFunc: func() {
-			fmt.Println(usage)
-		},
-	})
-}

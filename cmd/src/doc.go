@@ -57,15 +57,13 @@ Examples:
 		}
 
 		commanders := map[string]*commander{
-			"":             &commands,
-			"batch":        &batchCommands,
-			"config":       &configCommands,
-			"extsvc":       &extsvcCommands,
-			"code-intel":   &codeintelCommands,
-			"orgs":         &orgsCommands,
-			"orgs members": &orgsMembersCommands,
-			"repos":        &reposCommands,
-			"users":        &usersCommands,
+			"":           &commands,
+			"batch":      &batchCommands,
+			"config":     &configCommands,
+			"extsvc":     &extsvcCommands,
+			"code-intel": &codeintelCommands,
+			"repos":      &reposCommands,
+			"users":      &usersCommands,
 		}
 
 		pending := out.Pending(output.Line("", output.StylePending, "Rendering Markdown..."))
