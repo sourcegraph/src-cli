@@ -1,47 +1,27 @@
 package main
 
 import (
-	"flag"
-	"fmt"
 	"io"
 	"os"
+
+	"github.com/sourcegraph/sourcegraph/lib/errors"
+	"github.com/sourcegraph/src-cli/internal/clicompat"
+	"github.com/urfave/cli/v3"
 )
 
-var codeownersCommands commander
-
-func init() {
-	usage := `'src codeowners' is a tool that manages ingested code ownership data in a Sourcegraph instance.
+const codeownersExamples = `'src codeowners' manages ingested code ownership data in a Sourcegraph instance.
 
 Usage:
 
-	src codeowners command [command options]
+	src codeowners [command options]
 
-The commands are:
+Examples:
 
-	get	returns the codeowners file for a repository, if exists
-	create	create a codeowners file
-	update	update a codeowners file
-	delete	delete a codeowners file
-
-Use "src codeowners [command] -h" for more information about a command.
+	$ src codeowners get -repo='github.com/sourcegraph/sourcegraph'
+	$ src codeowners create -repo='github.com/sourcegraph/sourcegraph' -f CODEOWNERS
+	$ src codeowners update -repo='github.com/sourcegraph/sourcegraph' -f CODEOWNERS
+	$ src codeowners delete -repo='github.com/sourcegraph/sourcegraph'
 `
-
-	flagSet := flag.NewFlagSet("codeowners", flag.ExitOnError)
-	handler := func(args []string) error {
-		codeownersCommands.run(flagSet, "src codeowners", usage, args)
-		return nil
-	}
-
-	// Register the command.
-	commands = append(commands, &command{
-		flagSet: flagSet,
-		aliases: []string{"codeowner"},
-		handler: handler,
-		usageFunc: func() {
-			fmt.Println(usage)
-		},
-	})
-}
 
 const codeownersFragment = `
 fragment CodeownersFileFields on CodeownersIngestedFile {
@@ -59,9 +39,33 @@ type CodeownersIngestedFile struct {
 	} `json:"repository"`
 }
 
-func readFile(f string) (io.Reader, error) {
+var codeownersCommand = clicompat.Wrap(&cli.Command{
+	Name:        "codeowners",
+	Aliases:     []string{"codeowner"},
+	Usage:       "manages ingested code ownership data",
+	UsageText:   "src codeowners [command options]",
+	Description: codeownersExamples,
+	HideVersion: true,
+	Commands: []*cli.Command{
+		codeownersGetCommand,
+		codeownersCreateCommand,
+		codeownersUpdateCommand,
+		codeownersDeleteCommand,
+	},
+})
+
+func readFile(f string) ([]byte, error) {
 	if f == "-" {
-		return os.Stdin, nil
+		return io.ReadAll(os.Stdin)
 	}
-	return os.Open(f)
+	return os.ReadFile(f)
+}
+
+func requiresNotEmpty(errMsg string) func(string) error {
+	return func(value string) error {
+		if value == "" {
+			return errors.New(errMsg)
+		}
+		return nil
+	}
 }
