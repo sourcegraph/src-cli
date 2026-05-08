@@ -20,7 +20,13 @@ func Wrap(cmd *cli.Command) *cli.Command {
 	cmd.OnUsageError = OnUsageError
 	if cmd.Action == nil {
 		cmd.Action = func(ctx context.Context, cmd *cli.Command) error {
-			return cli.ShowSubcommandHelp(cmd)
+			if err := cli.ShowSubcommandHelp(cmd); err != nil {
+				return err
+			}
+			if cmd.Args().Len() > 0 {
+				return errors.Newf("Unknown subcommand: %s", cmd.Args().First())
+			}
+			return nil
 		}
 	} else {
 		cmd.Action = wrapWithHelpOnUsageError(cmd.Action)

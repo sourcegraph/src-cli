@@ -2,74 +2,57 @@ package main
 
 import (
 	"context"
-	"flag"
-	"fmt"
-	"io"
 	"strings"
 
 	"github.com/sourcegraph/sourcegraph/lib/errors"
 
 	"github.com/sourcegraph/src-cli/internal/api"
+	"github.com/sourcegraph/src-cli/internal/clicompat"
 	"github.com/sourcegraph/src-cli/internal/cmderrors"
+	"github.com/urfave/cli/v3"
 )
 
-func init() {
-	usage := `
+const codeownersCreateExamples = `
+Create a codeowners file for a repository.
+
 Examples:
 
-  Create a codeowners file for the repository "github.com/sourcegraph/sourcegraph":
-
-    	$ src codeowners create -repo='github.com/sourcegraph/sourcegraph' -f CODEOWNERS
-
-  Create a codeowners file for the repository "github.com/sourcegraph/sourcegraph" from stdin:
-
-    	$ src codeowners create -repo='github.com/sourcegraph/sourcegraph' -f -
+	$ src codeowners create -repo='github.com/sourcegraph/sourcegraph' -f CODEOWNERS
+	$ src codeowners create -repo='github.com/sourcegraph/sourcegraph' -f -
 `
 
-	flagSet := flag.NewFlagSet("create", flag.ExitOnError)
-	usageFunc := func() {
-		fmt.Fprintf(flag.CommandLine.Output(), "Usage of 'src codeowners %s':\n", flagSet.Name())
-		flagSet.PrintDefaults()
-		fmt.Println(usage)
-	}
-	var (
-		repoFlag      = flagSet.String("repo", "", "The repository to attach the data to")
-		fileFlag      = flagSet.String("file", "", "File path to read ownership information from (- for stdin)")
-		fileShortFlag = flagSet.String("f", "", "File path to read ownership information from (- for stdin). Alias for -file")
+var codeownersCreateCommand = clicompat.Wrap(&cli.Command{
+	Name:        "create",
+	Usage:       "create a codeowners file",
+	UsageText:   "src codeowners create [options]",
+	Description: codeownersCreateExamples,
+	HideVersion: true,
+	Flags: clicompat.WithAPIFlags(
+		&cli.StringFlag{
+			Name:      "repo",
+			Usage:     "The repository to attach the data to",
+			Required:  true,
+			Validator: requiresNotEmpty("provide a repo name using -repo"),
+		},
+		&cli.StringFlag{
+			Name:      "file",
+			Aliases:   []string{"f"},
+			Usage:     "File path to read ownership information from (- for stdin)",
+			TakesFile: true,
+			Required:  true,
+			Validator: requiresNotEmpty("provide a file using -file"),
+		},
+	),
+	Action: func(ctx context.Context, cmd *cli.Command) error {
+		repoName := cmd.String("repo")
+		fileName := cmd.String("file")
 
-		apiFlags = api.NewFlags(flagSet)
-	)
-
-	handler := func(args []string) error {
-		if err := flagSet.Parse(args); err != nil {
-			return err
-		}
-
-		if *repoFlag == "" {
-			return errors.New("provide a repo name using -repo")
-		}
-
-		if *fileFlag == "" && *fileShortFlag == "" {
-			return errors.New("provide a file using -file")
-		}
-		if *fileFlag != "" && *fileShortFlag != "" {
-			return errors.New("have to provide either -file or -f")
-		}
-		if *fileShortFlag != "" {
-			*fileFlag = *fileShortFlag
-		}
-
-		file, err := readFile(*fileFlag)
+		content, err := readFile(fileName)
 		if err != nil {
 			return err
 		}
 
-		content, err := io.ReadAll(file)
-		if err != nil {
-			return err
-		}
-
-		client := cfg.apiClient(apiFlags, flagSet.Output())
+		client := cfg.apiClient(clicompat.APIFlagsFromCmd(cmd), cmd.Writer)
 
 		query := `mutation CreateCodeownersFile(
 	$repoName: String!,
@@ -89,14 +72,14 @@ Examples:
 			AddCodeownersFile CodeownersIngestedFile
 		}
 		if ok, err := client.NewRequest(query, map[string]any{
-			"repoName": *repoFlag,
+			"repoName": repoName,
 			"content":  string(content),
-		}).Do(context.Background(), &result); err != nil || !ok {
+		}).Do(ctx, &result); err != nil || !ok {
 			var gqlErr api.GraphQlErrors
 			if errors.As(err, &gqlErr) {
 				for _, e := range gqlErr {
 					if strings.Contains(e.Error(), "repo not found:") {
-						return cmderrors.ExitCode(2, errors.Newf("repository %q not found", *repoFlag))
+						return cmderrors.ExitCode(2, errors.Newf("repository %q not found", repoName))
 					}
 					if strings.Contains(e.Error(), "codeowners file has already been ingested for this repository") {
 						return cmderrors.ExitCode(2, errors.New("codeowners file has already been ingested for this repository"))
@@ -107,12 +90,5 @@ Examples:
 		}
 
 		return nil
-	}
-
-	// Register the command.
-	codeownersCommands = append(codeownersCommands, &command{
-		flagSet:   flagSet,
-		handler:   handler,
-		usageFunc: usageFunc,
-	})
-}
+	},
+})

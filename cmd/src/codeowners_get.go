@@ -2,53 +2,47 @@ package main
 
 import (
 	"context"
-	"flag"
 	"fmt"
-	"os"
 
 	"github.com/sourcegraph/sourcegraph/lib/errors"
 
-	"github.com/sourcegraph/src-cli/internal/api"
+	"github.com/sourcegraph/src-cli/internal/clicompat"
 	"github.com/sourcegraph/src-cli/internal/cmderrors"
+	"github.com/urfave/cli/v3"
 )
 
-func init() {
-	usage := `
+const codeownersGetExamples = `
+Read the current codeowners file for a repository.
+
 Examples:
 
-  Read the current codeowners file for the repository "github.com/sourcegraph/sourcegraph":
-
-    	$ src codeowners get -repo='github.com/sourcegraph/sourcegraph'
+	$ src codeowners get -repo='github.com/sourcegraph/sourcegraph'
 `
 
-	flagSet := flag.NewFlagSet("get", flag.ExitOnError)
-	usageFunc := func() {
-		fmt.Fprintf(flag.CommandLine.Output(), "Usage of 'src codeowners %s':\n", flagSet.Name())
-		flagSet.PrintDefaults()
-		fmt.Println(usage)
-	}
-	var (
-		repoFlag = flagSet.String("repo", "", "The repository to attach the data to")
-		apiFlags = api.NewFlags(flagSet)
-	)
-
-	handler := func(args []string) error {
-		if err := flagSet.Parse(args); err != nil {
-			return err
-		}
-
-		if *repoFlag == "" {
-			return errors.New("provide a repo name using -repo")
-		}
-
-		client := cfg.apiClient(apiFlags, flagSet.Output())
+var codeownersGetCommand = clicompat.Wrap(&cli.Command{
+	Name:        "get",
+	Usage:       "returns the codeowners file for a repository, if it exists",
+	UsageText:   "src codeowners get [options]",
+	Description: codeownersGetExamples,
+	HideVersion: true,
+	Flags: clicompat.WithAPIFlags(
+		&cli.StringFlag{
+			Name:      "repo",
+			Usage:     "The repository to attach the data to",
+			Required:  true,
+			Validator: requiresNotEmpty("provide a repo name using -repo"),
+		},
+	),
+	Action: func(ctx context.Context, cmd *cli.Command) error {
+		repoName := cmd.String("repo")
+		client := cfg.apiClient(clicompat.APIFlagsFromCmd(cmd), cmd.Writer)
 
 		query := `query GetCodeownersFile(
 	$repoName: String!
 ) {
 	repository(name: $repoName) {
 		ingestedCodeowners {
-			...CodeownersFileFields			
+			...CodeownersFileFields
 		}
 	}
 }
@@ -60,28 +54,20 @@ Examples:
 			}
 		}
 		if ok, err := client.NewRequest(query, map[string]any{
-			"repoName": *repoFlag,
-		}).Do(context.Background(), &result); err != nil || !ok {
+			"repoName": repoName,
+		}).Do(ctx, &result); err != nil || !ok {
 			return err
 		}
 
 		if result.Repository == nil {
-			return cmderrors.ExitCode(2, errors.Newf("repository %q not found", *repoFlag))
+			return cmderrors.ExitCode(2, errors.Newf("repository %q not found", repoName))
 		}
 
 		if result.Repository.IngestedCodeowners == nil {
-			return cmderrors.ExitCode(2, errors.Newf("no codeowners data found for %q", *repoFlag))
+			return cmderrors.ExitCode(2, errors.Newf("no codeowners data found for %q", repoName))
 		}
 
-		fmt.Fprintf(os.Stdout, "%s", result.Repository.IngestedCodeowners.Contents)
-
-		return nil
-	}
-
-	// Register the command.
-	codeownersCommands = append(codeownersCommands, &command{
-		flagSet:   flagSet,
-		handler:   handler,
-		usageFunc: usageFunc,
-	})
-}
+		_, err := fmt.Fprint(cmd.Writer, result.Repository.IngestedCodeowners.Contents)
+		return err
+	},
+})
