@@ -185,6 +185,7 @@ func parseBatchSpec(schema string, data []byte) (*BatchSpec, error) {
 
 	return &spec, errs
 }
+
 // docker uses Golang's `encoding/csv` library to parse arguments passed to `--mount`
 const invalidMountCharacters = ",\"\n\r"
 

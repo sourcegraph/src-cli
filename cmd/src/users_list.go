@@ -2,14 +2,13 @@ package main
 
 import (
 	"context"
-	"flag"
-	"fmt"
 
 	"github.com/sourcegraph/src-cli/internal/api"
+	"github.com/sourcegraph/src-cli/internal/clicompat"
+	"github.com/urfave/cli/v3"
 )
 
-func init() {
-	usage := `
+const usersListExamples = `
 Examples:
 
   List users:
@@ -26,36 +25,48 @@ Examples:
 
 `
 
-	flagSet := flag.NewFlagSet("list", flag.ExitOnError)
-	usageFunc := func() {
-		fmt.Fprintf(flag.CommandLine.Output(), "Usage of 'src users %s':\n", flagSet.Name())
-		flagSet.PrintDefaults()
-		fmt.Println(usage)
-	}
-	var (
-		firstFlag  = flagSet.Int("first", 1000, "Returns the first n users from the list.")
-		queryFlag  = flagSet.String("query", "", `Returns users whose names match the query. (e.g. "alice")`)
-		tagFlag    = flagSet.String("tag", "", `Returns users with the given tag.`)
-		formatFlag = flagSet.String("f", "{{.Username}}", `Format for the output, using the syntax of Go package text/template. (e.g. "{{.ID}}: {{.Username}} ({{.DisplayName}})" or "{{.|json}}")`)
-		apiFlags   = api.NewFlags(flagSet)
-	)
+var usersListCommand = clicompat.Wrap(&cli.Command{
+	Name:        "list",
+	Usage:       "lists users",
+	UsageText:   "src users list [options]",
+	Description: usersListExamples,
+	HideVersion: true,
+	Flags: clicompat.WithAPIFlags(
+		&cli.IntFlag{
+			Name:  "first",
+			Value: 1000,
+			Usage: "Returns the first n users from the list.",
+		},
+		&cli.StringFlag{
+			Name:  "query",
+			Usage: `Returns users whose names match the query. (e.g. "alice")`,
+		},
+		&cli.StringFlag{
+			Name:  "tag",
+			Usage: `Returns users with the given tag.`,
+		},
+		&cli.StringFlag{
+			Name:  "f",
+			Value: "{{.Username}}",
+			Usage: `Format for the output, using the syntax of Go package text/template. (e.g. "{{.ID}}: {{.Username}} ({{.DisplayName}})" or "{{.|json}}")`,
+		},
+	),
+	Action: func(ctx context.Context, cmd *cli.Command) error {
+		first := cmd.Int("first")
+		queryValue := cmd.String("query")
+		tag := cmd.String("tag")
+		format := cmd.String("f")
 
-	handler := func(args []string) error {
-		if err := flagSet.Parse(args); err != nil {
-			return err
-		}
+		client := cfg.apiClient(clicompat.APIFlagsFromCmd(cmd), cmd.Writer)
 
-		ctx := context.Background()
-		client := cfg.apiClient(apiFlags, flagSet.Output())
-
-		tmpl, err := parseTemplate(*formatFlag)
+		tmpl, err := parseTemplate(format)
 		if err != nil {
 			return err
 		}
 		vars := map[string]any{
-			"first": api.NullInt(*firstFlag),
-			"query": api.NullString(*queryFlag),
-			"tag":   api.NullString(*tagFlag),
+			"first": api.NullInt(first),
+			"query": api.NullString(queryValue),
+			"tag":   api.NullString(tag),
 		}
 		queryTagVar := ""
 		queryTag := ""
@@ -94,12 +105,5 @@ first: $first,
 			}
 		}
 		return nil
-	}
-
-	// Register the command.
-	usersCommands = append(usersCommands, &command{
-		flagSet:   flagSet,
-		handler:   handler,
-		usageFunc: usageFunc,
-	})
-}
+	},
+})
