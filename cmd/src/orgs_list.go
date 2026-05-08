@@ -2,14 +2,13 @@ package main
 
 import (
 	"context"
-	"flag"
-	"fmt"
 
 	"github.com/sourcegraph/src-cli/internal/api"
+	"github.com/sourcegraph/src-cli/internal/clicompat"
+	"github.com/urfave/cli/v3"
 )
 
-func init() {
-	usage := `
+const orgsListExamples = `
 Examples:
 
   List organizations:
@@ -22,27 +21,36 @@ Examples:
 
 `
 
-	flagSet := flag.NewFlagSet("list", flag.ExitOnError)
-	usageFunc := func() {
-		fmt.Fprintf(flag.CommandLine.Output(), "Usage of 'src orgs %s':\n", flagSet.Name())
-		flagSet.PrintDefaults()
-		fmt.Println(usage)
-	}
-	var (
-		firstFlag  = flagSet.Int("first", 1000, "Returns the first n organizations from the list.")
-		queryFlag  = flagSet.String("query", "", `Returns organizations whose names match the query. (e.g. "alice")`)
-		formatFlag = flagSet.String("f", "{{.Name}}", `Format for the output, using the syntax of Go package text/template. (e.g. "{{.ID}}: {{.Name}} ({{.DisplayName}})" or "{{.|json}}")`)
-		apiFlags   = api.NewFlags(flagSet)
-	)
+var orgsListCommand = clicompat.Wrap(&cli.Command{
+	Name:        "list",
+	Usage:       "lists organizations",
+	UsageText:   "src orgs list [options]",
+	Description: orgsListExamples,
+	HideVersion: true,
+	Flags: clicompat.WithAPIFlags(
+		&cli.IntFlag{
+			Name:  "first",
+			Value: 1000,
+			Usage: "Returns the first n organizations from the list.",
+		},
+		&cli.StringFlag{
+			Name:  "query",
+			Usage: `Returns organizations whose names match the query. (e.g. "alice")`,
+		},
+		&cli.StringFlag{
+			Name:  "f",
+			Value: "{{.Name}}",
+			Usage: `Format for the output, using the syntax of Go package text/template. (e.g. "{{.ID}}: {{.Name}} ({{.DisplayName}})" or "{{.|json}}")`,
+		},
+	),
+	Action: func(ctx context.Context, cmd *cli.Command) error {
+		first := cmd.Int("first")
+		queryValue := cmd.String("query")
+		format := cmd.String("f")
 
-	handler := func(args []string) error {
-		if err := flagSet.Parse(args); err != nil {
-			return err
-		}
+		client := cfg.apiClient(clicompat.APIFlagsFromCmd(cmd), cmd.Writer)
 
-		client := cfg.apiClient(apiFlags, flagSet.Output())
-
-		tmpl, err := parseTemplate(*formatFlag)
+		tmpl, err := parseTemplate(format)
 		if err != nil {
 			return err
 		}
@@ -67,9 +75,9 @@ Examples:
 			}
 		}
 		if ok, err := client.NewRequest(query, map[string]any{
-			"first": api.NullInt(*firstFlag),
-			"query": api.NullString(*queryFlag),
-		}).Do(context.Background(), &result); err != nil || !ok {
+			"first": api.NullInt(first),
+			"query": api.NullString(queryValue),
+		}).Do(ctx, &result); err != nil || !ok {
 			return err
 		}
 
@@ -79,12 +87,5 @@ Examples:
 			}
 		}
 		return nil
-	}
-
-	// Register the command.
-	orgsCommands = append(orgsCommands, &command{
-		flagSet:   flagSet,
-		handler:   handler,
-		usageFunc: usageFunc,
-	})
-}
+	},
+})
