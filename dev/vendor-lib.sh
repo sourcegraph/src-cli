@@ -128,7 +128,7 @@ echo "Creating go.mod file..."
 cat > "$DEST_LIB/go.mod" <<EOF
 module github.com/sourcegraph/sourcegraph/lib
 
-go 1.23
+go 1.26.3
 EOF
 
 # Create README.md
