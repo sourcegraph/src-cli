@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"flag"
 	"fmt"
 	"os"
 	"strings"
@@ -11,10 +10,11 @@ import (
 	"github.com/jedib0t/go-pretty/v6/table"
 
 	"github.com/sourcegraph/src-cli/internal/api"
+	"github.com/sourcegraph/src-cli/internal/clicompat"
+	"github.com/urfave/cli/v3"
 )
 
-func init() {
-	usage := `
+const usersPruneExamples = `
 This command removes users from a Sourcegraph instance who have been inactive for 60 or more days. Admin accounts are omitted by default.
 	
 Examples:
@@ -24,32 +24,49 @@ Examples:
 	$ src users prune -remove-admin -remove-null-users
 `
 
-	flagSet := flag.NewFlagSet("prune", flag.ExitOnError)
-	usageFunc := func() {
-		fmt.Fprintf(flag.CommandLine.Output(), "Usage of 'src users %s':\n", flagSet.Name())
-		flagSet.PrintDefaults()
-		fmt.Println(usage)
-	}
-	var (
-		daysToDelete         = flagSet.Int("days", 60, "Days threshold on which to remove users, must be 60 days or greater and defaults to this value ")
-		removeAdmin          = flagSet.Bool("remove-admin", false, "prune admin accounts")
-		removeNoLastActive   = flagSet.Bool("remove-null-users", false, "removes users with no last active value")
-		skipConfirmation     = flagSet.Bool("force", false, "skips user confirmation step allowing programmatic use")
-		displayUsersToDelete = flagSet.Bool("display-users", false, "display table of users to be deleted by prune")
-		apiFlags             = api.NewFlags(flagSet)
-	)
+var usersPruneCommand = clicompat.Wrap(&cli.Command{
+	Name:        "prune",
+	Usage:       "deletes inactive users",
+	UsageText:   "src users prune [options]",
+	Description: usersPruneExamples,
+	HideVersion: true,
+	Flags: clicompat.WithAPIFlags(
+		&cli.IntFlag{
+			Name:  "days",
+			Value: 60,
+			Usage: "Days threshold on which to remove users, must be 60 days or greater and defaults to this value ",
+		},
+		&cli.BoolFlag{
+			Name:  "remove-admin",
+			Usage: "prune admin accounts",
+		},
+		&cli.BoolFlag{
+			Name:  "remove-null-users",
+			Usage: "removes users with no last active value",
+		},
+		&cli.BoolFlag{
+			Name:  "force",
+			Usage: "skips user confirmation step allowing programmatic use",
+		},
+		&cli.BoolFlag{
+			Name:  "display-users",
+			Usage: "display table of users to be deleted by prune",
+		},
+	),
+	Action: func(ctx context.Context, cmd *cli.Command) error {
+		daysToDelete := cmd.Int("days")
+		removeAdmin := cmd.Bool("remove-admin")
+		removeNoLastActive := cmd.Bool("remove-null-users")
+		skipConfirmation := cmd.Bool("force")
+		displayUsersToDelete := cmd.Bool("display-users")
 
-	handler := func(args []string) error {
-		if err := flagSet.Parse(args); err != nil {
+		if daysToDelete < 60 {
+			_, err := fmt.Fprintln(cmd.Writer, "-days flag must be set to 60 or greater")
 			return err
 		}
-		if *daysToDelete < 60 {
-			fmt.Println("-days flag must be set to 60 or greater")
-			return nil
-		}
 
-		ctx := context.Background()
-		client := cfg.apiClient(apiFlags, flagSet.Output())
+		apiFlags := clicompat.APIFlagsFromCmd(cmd)
+		client := cfg.apiClient(apiFlags, cmd.Writer)
 
 		// get current user so as not to delete issuer of the prune request
 		currentUserQuery := `query getCurrentUser { currentUser { username }}`
@@ -58,7 +75,7 @@ Examples:
 				Username string
 			}
 		}
-		if ok, err := cfg.apiClient(apiFlags, flagSet.Output()).NewRequest(currentUserQuery, nil).Do(context.Background(), &currentUserResult); err != nil || !ok {
+		if ok, err := client.NewRequest(currentUserQuery, nil).Do(ctx, &currentUserResult); err != nil || !ok {
 			return err
 		}
 
@@ -71,7 +88,7 @@ Examples:
 				}
 			}
 		}
-		if ok, err := cfg.apiClient(apiFlags, flagSet.Output()).NewRequest(totalUsersQuery, nil).Do(context.Background(), &totalUsers); err != nil || !ok {
+		if ok, err := client.NewRequest(totalUsersQuery, nil).Do(ctx, &totalUsers); err != nil || !ok {
 			return err
 		}
 
@@ -140,15 +157,15 @@ Examples:
 				return err
 			}
 			// don't remove users with no last active value unless option flag is set
-			if !hasLastActive && !*removeNoLastActive {
+			if !hasLastActive && !removeNoLastActive {
 				continue
 			}
 			// don't remove admins unless option flag is set
-			if !*removeAdmin && user.SiteAdmin {
+			if !removeAdmin && user.SiteAdmin {
 				continue
 			}
 			// remove users who have been inactive for longer than the threshold set by the -days flag
-			if daysSinceLastUse <= *daysToDelete && hasLastActive {
+			if daysSinceLastUse <= daysToDelete && hasLastActive {
 				continue
 			}
 			// serialize user to print in table as part of confirmUserRemoval, add to delete slice
@@ -156,7 +173,7 @@ Examples:
 			usersToDelete = append(usersToDelete, userToDelete)
 		}
 
-		if *skipConfirmation {
+		if skipConfirmation {
 			for _, user := range usersToDelete {
 				if err := removeUser(user.User, client, ctx); err != nil {
 					return err
@@ -166,11 +183,11 @@ Examples:
 		}
 
 		// confirm and remove users
-		if confirmed, _ := confirmUserRemoval(usersToDelete, *daysToDelete, *displayUsersToDelete); !confirmed {
-			fmt.Println("Aborting removal")
+		if confirmed, _ := confirmUserRemoval(usersToDelete, daysToDelete, displayUsersToDelete); !confirmed {
+			fmt.Fprintln(cmd.Writer, "Aborting removal")
 			return nil
 		} else {
-			fmt.Println("REMOVING USERS")
+			fmt.Fprintln(cmd.Writer, "REMOVING USERS")
 			for _, user := range usersToDelete {
 				if err := removeUser(user.User, client, ctx); err != nil {
 					return err
@@ -179,15 +196,8 @@ Examples:
 		}
 
 		return nil
-	}
-
-	// Register the command.
-	usersCommands = append(usersCommands, &command{
-		flagSet:   flagSet,
-		handler:   handler,
-		usageFunc: usageFunc,
-	})
-}
+	},
+})
 
 // computes days since last usage from current day and time and aggregated_user_statistics.lastActiveAt, uses time.Parse
 func computeDaysSinceLastUse(user SiteUser) (timeDiff int, hasLastActive bool, _ error) {

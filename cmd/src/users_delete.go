@@ -3,17 +3,16 @@ package main
 import (
 	"bufio"
 	"context"
-	"flag"
 	"fmt"
 	"os"
 	"strconv"
 	"strings"
 
-	"github.com/sourcegraph/src-cli/internal/api"
+	"github.com/sourcegraph/src-cli/internal/clicompat"
+	"github.com/urfave/cli/v3"
 )
 
-func init() {
-	usage := `
+const usersDeleteExamples = `
 Examples:
 
   Delete a user account by ID:
@@ -30,25 +29,23 @@ Examples:
 
 `
 
-	flagSet := flag.NewFlagSet("delete", flag.ExitOnError)
-	usageFunc := func() {
-		fmt.Fprintf(flag.CommandLine.Output(), "Usage of 'src users %s':\n", flagSet.Name())
-		flagSet.PrintDefaults()
-		fmt.Println(usage)
-	}
-	var (
-		userIDFlag = flagSet.String("id", "", `The ID of the user to delete.`)
-		apiFlags   = api.NewFlags(flagSet)
-	)
+var usersDeleteCommand = clicompat.Wrap(&cli.Command{
+	Name:        "delete",
+	Usage:       "deletes a user account",
+	UsageText:   "src users delete [options]",
+	Description: usersDeleteExamples,
+	HideVersion: true,
+	Flags: clicompat.WithAPIFlags(
+		&cli.StringFlag{
+			Name:  "id",
+			Usage: "The ID of the user to delete.",
+		},
+	),
+	Action: func(ctx context.Context, cmd *cli.Command) error {
+		userID := cmd.String("id")
+		client := cfg.apiClient(clicompat.APIFlagsFromCmd(cmd), cmd.Writer)
 
-	handler := func(args []string) error {
-		if err := flagSet.Parse(args); err != nil {
-			return err
-		}
-
-		client := cfg.apiClient(apiFlags, flagSet.Output())
-
-		if *userIDFlag == "" {
+		if userID == "" {
 			query := `query UsersTotalCountCountUsers { users { totalCount } }`
 
 			var result struct {
@@ -56,12 +53,14 @@ Examples:
 					TotalCount int
 				}
 			}
-			ok, err := client.NewQuery(query).Do(context.Background(), &result)
+			ok, err := client.NewQuery(query).Do(ctx, &result)
 			if err != nil || !ok {
 				return err
 			}
 
-			fmt.Printf("No user ID specified. This would delete %d users.\nType in this number to confirm and hit return: ", result.Users.TotalCount)
+			if _, err := fmt.Fprintf(cmd.Writer, "No user ID specified. This would delete %d users.\nType in this number to confirm and hit return: ", result.Users.TotalCount); err != nil {
+				return err
+			}
 			reader := bufio.NewReader(os.Stdin)
 			text, err := reader.ReadString('\n')
 			if err != nil {
@@ -74,8 +73,8 @@ Examples:
 			}
 
 			if count != result.Users.TotalCount {
-				fmt.Println("Number does not match. Aborting.")
-				return nil
+				_, err := fmt.Fprintln(cmd.Writer, "Number does not match. Aborting.")
+				return err
 			}
 		}
 
@@ -93,19 +92,12 @@ Examples:
 			DeleteUser struct{}
 		}
 		if ok, err := client.NewRequest(query, map[string]any{
-			"user": *userIDFlag,
-		}).Do(context.Background(), &result); err != nil || !ok {
+			"user": userID,
+		}).Do(ctx, &result); err != nil || !ok {
 			return err
 		}
 
-		fmt.Printf("User with ID %q deleted.\n", *userIDFlag)
-		return nil
-	}
-
-	// Register the command.
-	usersCommands = append(usersCommands, &command{
-		flagSet:   flagSet,
-		handler:   handler,
-		usageFunc: usageFunc,
-	})
-}
+		_, err := fmt.Fprintf(cmd.Writer, "User with ID %q deleted.\n", userID)
+		return err
+	},
+})

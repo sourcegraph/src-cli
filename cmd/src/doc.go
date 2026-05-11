@@ -63,7 +63,6 @@ Examples:
 			"extsvc":     &extsvcCommands,
 			"code-intel": &codeintelCommands,
 			"repos":      &reposCommands,
-			"users":      &usersCommands,
 		}
 
 		pending := out.Pending(output.Line("", output.StylePending, "Rendering Markdown..."))
