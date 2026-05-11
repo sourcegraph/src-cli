@@ -2,14 +2,13 @@ package main
 
 import (
 	"context"
-	"flag"
 	"fmt"
 
-	"github.com/sourcegraph/src-cli/internal/api"
+	"github.com/sourcegraph/src-cli/internal/clicompat"
+	"github.com/urfave/cli/v3"
 )
 
-func init() {
-	usage := `
+const usersCreateExamples = `
 Examples:
 
   Create a user account:
@@ -18,25 +17,36 @@ Examples:
 
 `
 
-	flagSet := flag.NewFlagSet("create", flag.ExitOnError)
-	usageFunc := func() {
-		fmt.Fprintf(flag.CommandLine.Output(), "Usage of 'src users %s':\n", flagSet.Name())
-		flagSet.PrintDefaults()
-		fmt.Println(usage)
-	}
-	var (
-		usernameFlag         = flagSet.String("username", "", `The new user's username. (required)`)
-		emailFlag            = flagSet.String("email", "", `The new user's email address. (required)`)
-		resetPasswordURLFlag = flagSet.Bool("reset-password-url", false, `Print the reset password URL to manually send to the new user.`)
-		apiFlags             = api.NewFlags(flagSet)
-	)
+var usersCreateCommand = clicompat.Wrap(&cli.Command{
+	Name:        "create",
+	Usage:       "creates a user account",
+	UsageText:   "src users create [options]",
+	Description: usersCreateExamples,
+	HideVersion: true,
+	Flags: clicompat.WithAPIFlags(
+		&cli.StringFlag{
+			Name:      "username",
+			Usage:     "The new user's username.",
+			Required:  true,
+			Validator: requiresNotEmpty("provide a username name using -username"),
+		},
+		&cli.StringFlag{
+			Name:      "email",
+			Usage:     "The new user's email address",
+			Required:  true,
+			Validator: requiresNotEmpty("provide a email name using -email"),
+		},
+		&cli.BoolFlag{
+			Name:  "reset-password-url",
+			Usage: "Print the reset password URL to manually send to the new user.",
+		},
+	),
+	Action: func(ctx context.Context, cmd *cli.Command) error {
+		username := cmd.String("username")
+		email := cmd.String("email")
+		resetPasswordURL := cmd.Bool("reset-password-url")
 
-	handler := func(args []string) error {
-		if err := flagSet.Parse(args); err != nil {
-			return err
-		}
-
-		client := cfg.apiClient(apiFlags, flagSet.Output())
+		client := cfg.apiClient(clicompat.APIFlagsFromCmd(cmd), cmd.Writer)
 
 		query := `mutation CreateUser(
   $username: String!,
@@ -56,24 +66,22 @@ Examples:
 			}
 		}
 		if ok, err := client.NewRequest(query, map[string]any{
-			"username": *usernameFlag,
-			"email":    *emailFlag,
-		}).Do(context.Background(), &result); err != nil || !ok {
+			"username": username,
+			"email":    email,
+		}).Do(ctx, &result); err != nil || !ok {
 			return err
 		}
 
-		fmt.Printf("User %q created.\n", *usernameFlag)
-		if *resetPasswordURLFlag && result.CreateUser.ResetPasswordURL != "" {
-			fmt.Println()
-			fmt.Printf("\tReset pasword URL: %s\n", result.CreateUser.ResetPasswordURL)
+		if _, err := fmt.Fprintf(cmd.Writer, "User %q created.\n", username); err != nil {
+			return err
+		}
+		if resetPasswordURL && result.CreateUser.ResetPasswordURL != "" {
+			if _, err := fmt.Fprintln(cmd.Writer); err != nil {
+				return err
+			}
+			_, err := fmt.Fprintf(cmd.Writer, "\tReset pasword URL: %s\n", result.CreateUser.ResetPasswordURL)
+			return err
 		}
 		return nil
-	}
-
-	// Register the command.
-	usersCommands = append(usersCommands, &command{
-		flagSet:   flagSet,
-		handler:   handler,
-		usageFunc: usageFunc,
-	})
-}
+	},
+})

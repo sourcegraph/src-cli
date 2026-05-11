@@ -1,14 +1,28 @@
 package main
 
 import (
-	"flag"
-	"fmt"
+	"github.com/sourcegraph/src-cli/internal/clicompat"
+	"github.com/urfave/cli/v3"
 )
 
-var usersCommands commander
+var usersCommand = clicompat.Wrap(&cli.Command{
+	Name:        "users",
+	Aliases:     []string{"user"},
+	Usage:       "manages users",
+	UsageText:   "src users [command options]",
+	Description: usersExamples,
+	HideVersion: true,
+	Commands: []*cli.Command{
+		usersListCommand,
+		usersGetCommand,
+		usersCreateCommand,
+		usersDeleteCommand,
+		usersPruneCommand,
+		usersTagCommand,
+	},
+})
 
-func init() {
-	usage := `'src users' is a tool that manages users on a Sourcegraph instance.
+const usersExamples = `'src users' is a tool that manages users on a Sourcegraph instance.
 
 Usage:
 
@@ -25,23 +39,6 @@ The commands are:
 
 Use "src users [command] -h" for more information about a command.
 `
-
-	flagSet := flag.NewFlagSet("users", flag.ExitOnError)
-	handler := func(args []string) error {
-		usersCommands.run(flagSet, "src users", usage, args)
-		return nil
-	}
-
-	// Register the command.
-	commands = append(commands, &command{
-		flagSet: flagSet,
-		aliases: []string{"user"},
-		handler: handler,
-		usageFunc: func() {
-			fmt.Println(usage)
-		},
-	})
-}
 
 const userFragment = `
 fragment UserFields on User {

@@ -2,14 +2,12 @@ package main
 
 import (
 	"context"
-	"flag"
-	"fmt"
 
-	"github.com/sourcegraph/src-cli/internal/api"
+	"github.com/sourcegraph/src-cli/internal/clicompat"
+	"github.com/urfave/cli/v3"
 )
 
-func init() {
-	usage := `
+const usersTagExamples = `
 Examples:
 
   Add a tag "foo" to a user:
@@ -28,25 +26,36 @@ Related examples:
 
 `
 
-	flagSet := flag.NewFlagSet("tag", flag.ExitOnError)
-	usageFunc := func() {
-		fmt.Fprintf(flag.CommandLine.Output(), "Usage of 'src users %s':\n", flagSet.Name())
-		flagSet.PrintDefaults()
-		fmt.Println(usage)
-	}
-	var (
-		userIDFlag = flagSet.String("user-id", "", `The ID of the user to tag. (required)`)
-		tagFlag    = flagSet.String("tag", "", `The tag to set on the user. (required)`)
-		removeFlag = flagSet.Bool("remove", false, `Remove the tag. (default: add the tag`)
-		apiFlags   = api.NewFlags(flagSet)
-	)
+var usersTagCommand = clicompat.Wrap(&cli.Command{
+	Name:        "tag",
+	Usage:       "add/remove a tag on a user",
+	UsageText:   "src users tag [options]",
+	Description: usersTagExamples,
+	HideVersion: true,
+	Flags: clicompat.WithAPIFlags(
+		&cli.StringFlag{
+			Name:      "user-id",
+			Usage:     "The ID of the user to tag.",
+			Required:  true,
+			Validator: requiresNotEmpty("provide a user ID by using -user-id"),
+		},
+		&cli.StringFlag{
+			Name:      "tag",
+			Usage:     "The tag to set on the user.",
+			Required:  true,
+			Validator: requiresNotEmpty("provide a tag by using -tag"),
+		},
+		&cli.BoolFlag{
+			Name:  "remove",
+			Usage: "Remove the tag. (default: add the tag)",
+		},
+	),
+	Action: func(ctx context.Context, cmd *cli.Command) error {
+		userID := cmd.String("user-id")
+		tag := cmd.String("tag")
+		remove := cmd.Bool("remove")
 
-	handler := func(args []string) error {
-		if err := flagSet.Parse(args); err != nil {
-			return err
-		}
-
-		client := cfg.apiClient(apiFlags, flagSet.Output())
+		client := cfg.apiClient(clicompat.APIFlagsFromCmd(cmd), cmd.Writer)
 
 		query := `mutation SetUserTag(
   $user: ID!,
@@ -63,17 +72,10 @@ Related examples:
 }`
 
 		_, err := client.NewRequest(query, map[string]any{
-			"user":    *userIDFlag,
-			"tag":     *tagFlag,
-			"present": !*removeFlag,
-		}).Do(context.Background(), &struct{}{})
+			"user":    userID,
+			"tag":     tag,
+			"present": !remove,
+		}).Do(ctx, &struct{}{})
 		return err
-	}
-
-	// Register the command.
-	usersCommands = append(usersCommands, &command{
-		flagSet:   flagSet,
-		handler:   handler,
-		usageFunc: usageFunc,
-	})
-}
+	},
+})
