@@ -1,8 +1,12 @@
 package service
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -16,10 +20,65 @@ import (
 
 	batcheslib "github.com/sourcegraph/sourcegraph/lib/batches"
 
+	"github.com/sourcegraph/src-cli/internal/api"
+	"github.com/sourcegraph/src-cli/internal/batches"
 	"github.com/sourcegraph/src-cli/internal/batches/docker"
 	"github.com/sourcegraph/src-cli/internal/batches/graphql"
 	"github.com/sourcegraph/src-cli/internal/batches/mock"
 )
+
+func TestService_DetermineLicenseAndFeatureFlags_BatchChangesDisabled(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, http.MethodPost, r.Method)
+		require.Equal(t, "/.api/graphql", r.URL.Path)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"errors": [
+				{"message": "Cannot query field \"maxUnlicensedChangesets\" on type \"Query\"."},
+				{"message": "Cannot query field \"batchChanges\" on type \"Query\"."}
+			],
+			"data": {}
+		}`))
+	}))
+	defer ts.Close()
+
+	endpointURL, err := url.Parse(ts.URL)
+	require.NoError(t, err)
+
+	var clientOutput bytes.Buffer
+	svc := New(&Opts{Client: api.NewClient(api.ClientOpts{EndpointURL: endpointURL, Out: &clientOutput})})
+
+	_, _, err = svc.DetermineLicenseAndFeatureFlags(context.Background(), false)
+	require.Error(t, err)
+
+	var disabledErr *batches.BatchChangesDisabledError
+	require.ErrorAs(t, err, &disabledErr)
+	assert.Equal(t, "Batch Changes is disabled on this Sourcegraph instance. Ask your site admin to enable Batch Changes before running 'src batch' commands.", err.Error())
+}
+
+func TestService_DetermineLicenseAndFeatureFlags_DoesNotMisclassifySchemaErrors(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"errors": [
+				{"message": "Cannot query field \"maxUnlicensedChangesets\" on type \"Query\"."}
+			],
+			"data": {}
+		}`))
+	}))
+	defer ts.Close()
+
+	endpointURL, err := url.Parse(ts.URL)
+	require.NoError(t, err)
+
+	var clientOutput bytes.Buffer
+	svc := New(&Opts{Client: api.NewClient(api.ClientOpts{EndpointURL: endpointURL, Out: &clientOutput})})
+
+	_, _, err = svc.DetermineLicenseAndFeatureFlags(context.Background(), false)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to query Sourcegraph version and license info for instance")
+	assert.NotContains(t, err.Error(), "Batch Changes is disabled on this Sourcegraph instance")
+}
 
 func TestService_ValidateChangesetSpecs(t *testing.T) {
 	repo1 := &graphql.Repository{ID: "repo-graphql-id-1", Name: "github.com/sourcegraph/src-cli"}
