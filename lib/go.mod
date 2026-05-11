@@ -12,7 +12,7 @@ require (
 	github.com/gobwas/glob v0.2.3
 	github.com/google/go-cmp v0.7.0
 	github.com/grafana/regexp v0.0.0-20250905093917-f7b3be9d1853
-	github.com/jackc/pgx/v5 v5.9.1
+	github.com/jackc/pgx/v5 v5.9.2
 	github.com/klauspost/pgzip v1.2.6
 	github.com/mattn/go-isatty v0.0.20
 	github.com/mattn/go-runewidth v0.0.19
@@ -25,7 +25,7 @@ require (
 	github.com/urfave/cli/v3 v3.8.0
 	github.com/xeipuuv/gojsonschema v1.2.0
 	github.com/xlab/treeprint v1.2.0
-	go.opentelemetry.io/otel v1.38.0
+	go.opentelemetry.io/otel v1.43.0
 	golang.org/x/sys v0.41.0
 	golang.org/x/term v0.37.0
 	google.golang.org/protobuf v1.36.10
@@ -38,6 +38,7 @@ require (
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/aymerick/douceur v0.2.0 // indirect
 	github.com/benbjohnson/clock v1.3.5 // indirect
+	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/charmbracelet/colorprofile v0.2.3-0.20250311203215-f60798e515dc // indirect
 	github.com/charmbracelet/x/ansi v0.8.0 // indirect
 	github.com/charmbracelet/x/cellbuf v0.0.13 // indirect
@@ -48,6 +49,8 @@ require (
 	github.com/dlclark/regexp2 v1.11.0 // indirect
 	github.com/fatih/color v1.18.0 // indirect
 	github.com/getsentry/sentry-go v0.27.0 // indirect
+	github.com/go-logr/logr v1.4.3 // indirect
+	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/gorilla/css v1.0.1 // indirect
@@ -69,6 +72,9 @@ require (
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
 	github.com/yuin/goldmark v1.7.8 // indirect
 	github.com/yuin/goldmark-emoji v1.0.5 // indirect
+	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
+	go.opentelemetry.io/otel/metric v1.43.0 // indirect
+	go.opentelemetry.io/otel/trace v1.43.0 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	go.uber.org/goleak v1.3.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
