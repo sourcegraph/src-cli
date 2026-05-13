@@ -40,6 +40,13 @@ type Client interface {
 
 	// Do runs an http.Request against the Sourcegraph API.
 	Do(req *http.Request) (*http.Response, error)
+
+	// Flags returns the diagnostic flags configured on the client.
+	Flags() *Flags
+
+	// Out returns the writer used for diagnostic output (e.g. -get-curl,
+	// -dump-requests, -trace).
+	Out() io.Writer
 }
 
 // Request instances represent GraphQL requests.
@@ -176,6 +183,14 @@ func (c *client) NewRequest(query string, vars map[string]any) Request {
 
 func (c *client) Do(req *http.Request) (*http.Response, error) {
 	return c.httpClient.Do(req)
+}
+
+func (c *client) Flags() *Flags {
+	return c.opts.Flags
+}
+
+func (c *client) Out() io.Writer {
+	return c.opts.Out
 }
 
 func (c *client) NewHTTPRequest(ctx context.Context, method, p string, body io.Reader) (*http.Request, error) {

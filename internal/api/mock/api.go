@@ -52,6 +52,24 @@ func (m *Client) Do(req *http.Request) (*http.Response, error) {
 	return obj, args.Error(1)
 }
 
+func (m *Client) Flags() *api.Flags {
+	args := m.Called()
+	var obj *api.Flags
+	if args.Get(0) != nil {
+		obj = args.Get(0).(*api.Flags)
+	}
+	return obj
+}
+
+func (m *Client) Out() io.Writer {
+	args := m.Called()
+	var obj io.Writer
+	if args.Get(0) != nil {
+		obj = args.Get(0).(io.Writer)
+	}
+	return obj
+}
+
 type Request struct {
 	mock.Mock
 	Response string

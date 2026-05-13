@@ -15,6 +15,13 @@ type Flags struct {
 	userAgentTelemetry *bool
 }
 
+func (f *Flags) Dump() bool {
+	if f.dump == nil {
+		return false
+	}
+	return *(f.dump)
+}
+
 func (f *Flags) Trace() bool {
 	if f.trace == nil {
 		return false
