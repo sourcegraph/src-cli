@@ -57,6 +57,13 @@ type RunStepsOpts struct {
 	ForceRoot bool
 
 	BinaryDiffs bool
+
+	// ArtifactUploader uploads oversized step artifacts when set. Small artifacts
+	// remain inline for backwards compatibility.
+	ArtifactUploader ArtifactUploader
+	// ArtifactUploadThresholdBytes is the number of bytes an artifact may contain
+	// before it is externalized through ArtifactUploader.
+	ArtifactUploadThresholdBytes int64
 }
 
 func RunSteps(ctx context.Context, opts *RunStepsOpts) (stepResults []execution.AfterStepResult, err error) {
@@ -175,7 +182,7 @@ func RunSteps(ctx context.Context, opts *RunStepsOpts) (stepResults []execution.
 			return nil, err
 		}
 
-		stdoutBuffer, stderrBuffer, err := executeSingleStep(ctx, opts, ws, i, step, digest, &stepContext)
+		stepOutput, err := executeSingleStep(ctx, opts, ws, i, step, digest, &stepContext)
 		defer func() {
 			if err != nil {
 				exitCode := -1
@@ -189,6 +196,7 @@ func RunSteps(ctx context.Context, opts *RunStepsOpts) (stepResults []execution.
 		if err != nil {
 			return stepResults, err
 		}
+		defer stepOutput.cleanup()
 
 		// Get the current diff and store that away as the per-step result.
 		stepDiff, err := ws.Diff(ctx)
@@ -209,8 +217,8 @@ func RunSteps(ctx context.Context, opts *RunStepsOpts) (stepResults []execution.
 		stepResult := execution.AfterStepResult{
 			Version:      version,
 			ChangedFiles: changes,
-			Stdout:       stdoutBuffer.String(),
-			Stderr:       stderrBuffer.String(),
+			Stdout:       stepOutput.stdout.inline(),
+			Stderr:       stepOutput.stderr.inline(),
 			StepIndex:    i,
 			Diff:         stepDiff,
 			// Those will be set below.
@@ -224,6 +232,15 @@ func RunSteps(ctx context.Context, opts *RunStepsOpts) (stepResults []execution.
 			return stepResults, errors.Wrap(err, "setting step outputs")
 		}
 		maps.Copy(stepResult.Outputs, lastOutputs)
+
+		// Upload artifacts only after outputs have been rendered so this first pass
+		// stores the final step result artifacts, not intermediate step output.
+		if opts.ArtifactUploader != nil {
+			if err := uploadStepArtifacts(ctx, opts.ArtifactUploader, opts.ArtifactUploadThresholdBytes, i, &stepResult, stepOutput); err != nil {
+				return stepResults, err
+			}
+		}
+
 		stepResults = append(stepResults, stepResult)
 		previousStepResult = stepResult
 
@@ -251,7 +268,20 @@ func executeSingleStep(
 	step batcheslib.Step,
 	imageDigest string,
 	stepContext *template.StepContext,
-) (stdout bytes.Buffer, stderr bytes.Buffer, err error) {
+) (output *stepOutput, err error) {
+	artifactUploadThreshold := opts.ArtifactUploadThresholdBytes
+	if opts.ArtifactUploader == nil {
+		artifactUploadThreshold = maxInlineArtifactSize
+	}
+	output, err = newStepOutput(opts.TempDir, artifactUploadThreshold)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if err != nil {
+			output.cleanup()
+		}
+	}()
 	// ----------
 	// PREPARATION
 	// ----------
@@ -260,7 +290,7 @@ func executeSingleStep(
 	cidFile, cleanup, err := createCidFile(ctx, opts.TempDir, util.SlugForRepo(opts.Task.Repository.Name, opts.Task.Repository.Rev()))
 	if err != nil {
 		opts.UI.StepPreparingFailed(stepIdx+1, err)
-		return bytes.Buffer{}, bytes.Buffer{}, err
+		return output, err
 	}
 	defer cleanup()
 
@@ -269,13 +299,13 @@ func executeSingleStep(
 	if err != nil {
 		err = errors.Wrapf(err, "probing image %q for shell", step.Container)
 		opts.UI.StepPreparingFailed(stepIdx+1, err)
-		return bytes.Buffer{}, bytes.Buffer{}, err
+		return output, err
 	}
 
 	runScriptFile, runScript, cleanup, err := createRunScriptFile(ctx, opts.TempDir, step.Run, stepContext)
 	if err != nil {
 		opts.UI.StepPreparingFailed(stepIdx+1, err)
-		return bytes.Buffer{}, bytes.Buffer{}, err
+		return output, err
 	}
 	defer cleanup()
 
@@ -283,7 +313,7 @@ func executeSingleStep(
 	filesToMount, cleanup, err := createFilesToMount(opts.TempDir, step, stepContext)
 	if err != nil {
 		opts.UI.StepPreparingFailed(stepIdx+1, err)
-		return bytes.Buffer{}, bytes.Buffer{}, err
+		return output, err
 	}
 	defer cleanup()
 
@@ -292,7 +322,7 @@ func executeSingleStep(
 	if err != nil {
 		err = errors.Wrap(err, "resolving step environment")
 		opts.UI.StepPreparingFailed(stepIdx+1, err)
-		return bytes.Buffer{}, bytes.Buffer{}, err
+		return output, err
 	}
 
 	// Render the step.Env variables as templates.
@@ -300,7 +330,7 @@ func executeSingleStep(
 	if err != nil {
 		err = errors.Wrap(err, "parsing step environment")
 		opts.UI.StepPreparingFailed(stepIdx+1, err)
-		return bytes.Buffer{}, bytes.Buffer{}, err
+		return output, err
 	}
 
 	opts.UI.StepPreparingSuccess(stepIdx + 1)
@@ -312,7 +342,7 @@ func executeSingleStep(
 
 	workspaceOpts, err := workspace.DockerRunOpts(ctx, workDir)
 	if err != nil {
-		return bytes.Buffer{}, bytes.Buffer{}, errors.Wrap(err, "getting Docker options for workspace")
+		return output, errors.Wrap(err, "getting Docker options for workspace")
 	}
 
 	// Where should we execute the steps.run script?
@@ -342,7 +372,7 @@ func executeSingleStep(
 	for _, mount := range step.Mount {
 		workspaceFilePath, err := getAbsoluteMountPath(opts.WorkingDirectory, mount.Path)
 		if err != nil {
-			return bytes.Buffer{}, bytes.Buffer{}, err
+			return output, err
 		}
 		args = append(args, "--mount", fmt.Sprintf("type=bind,source=%s,target=%s,ro", workspaceFilePath, mount.Mountpoint))
 	}
@@ -366,13 +396,13 @@ func executeSingleStep(
 		outputWriter.Close()
 	}()
 
-	stdoutWriter := io.MultiWriter(&stdout, outputWriter.StdoutWriter(), opts.Logger.PrefixWriter("stdout"))
-	stderrWriter := io.MultiWriter(&stderr, outputWriter.StderrWriter(), opts.Logger.PrefixWriter("stderr"))
+	stdoutWriter := io.MultiWriter(output.stdout.writer(), outputWriter.StdoutWriter(), opts.Logger.PrefixWriter("stdout"))
+	stderrWriter := io.MultiWriter(output.stderr.writer(), outputWriter.StderrWriter(), opts.Logger.PrefixWriter("stderr"))
 
 	// Setup readers that pipe the output into the given buffers
 	wg, err := process.PipeOutput(ctx, cmd, stdoutWriter, stderrWriter)
 	if err != nil {
-		return stdout, stderr, errors.Wrap(err, "piping process output")
+		return output, errors.Wrap(err, "piping process output")
 	}
 
 	newStepFailedErr := func(wrappedErr error) stepFailedErr {
@@ -388,8 +418,8 @@ func executeSingleStep(
 			Run:         runScript,
 			Container:   step.Container,
 			TmpFilename: containerTemp,
-			Stdout:      strings.TrimSpace(stdout.String()),
-			Stderr:      strings.TrimSpace(stderr.String()),
+			Stdout:      strings.TrimSpace(output.stdout.inline()),
+			Stderr:      strings.TrimSpace(output.stderr.inline()),
 		}
 	}
 
@@ -400,7 +430,7 @@ func executeSingleStep(
 	t0 := time.Now()
 	if err := cmd.Start(); err != nil {
 		opts.Logger.Logf("[Step %d] error starting Docker container: %+v", stepIdx+1, err)
-		return stdout, stderr, newStepFailedErr(err)
+		return output, newStepFailedErr(err)
 	}
 
 	// Wait for the readers, because the pipes used by PipeOutput under the
@@ -412,11 +442,11 @@ func executeSingleStep(
 	elapsed := time.Since(t0).Round(time.Millisecond)
 	if err != nil {
 		opts.Logger.Logf("[Step %d] took %s; error running Docker container: %+v", stepIdx+1, elapsed, err)
-		return stdout, stderr, newStepFailedErr(err)
+		return output, newStepFailedErr(err)
 	}
 
 	opts.Logger.Logf("[Step %d] complete in %s", stepIdx+1, elapsed)
-	return stdout, stderr, nil
+	return output, nil
 }
 
 func setOutputs(stepOutputs batcheslib.Outputs, global map[string]any, stepCtx *template.StepContext) error {
