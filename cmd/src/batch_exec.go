@@ -123,7 +123,11 @@ Examples:
 }
 
 func executeBatchSpecInWorkspaces(ctx context.Context, flags *executorModeFlags) (err error) {
-	ui := &ui.JSONLines{BinaryDiffs: flags.binaryDiffs}
+	artifactUploader, err := newBatchArtifactUploaderFromEnv(cfg.endpointURL)
+	if err != nil {
+		return err
+	}
+	ui := &ui.JSONLines{BinaryDiffs: flags.binaryDiffs, SuppressStepOutput: artifactUploader != nil}
 
 	// Ensure the temp dir exists.
 	tempDir := flags.tempDir
@@ -214,6 +218,9 @@ func executeBatchSpecInWorkspaces(ctx context.Context, flags *executorModeFlags)
 		UI:               taskExecUI.StepsExecutionUI(task),
 		ForceRoot:        !flags.runAsImageUser,
 		BinaryDiffs:      flags.binaryDiffs,
+
+		ArtifactUploader:        artifactUploader,
+		ArtifactUploadChunkSize: defaultArtifactUploadChunkSize,
 	}
 	results, err := executor.RunSteps(ctx, opts)
 

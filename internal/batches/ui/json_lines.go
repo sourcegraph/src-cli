@@ -24,7 +24,8 @@ import (
 var _ ExecUI = &JSONLines{}
 
 type JSONLines struct {
-	BinaryDiffs bool
+	BinaryDiffs        bool
+	SuppressStepOutput bool
 }
 
 func (ui *JSONLines) ParsingBatchSpec() {
@@ -92,7 +93,8 @@ func (ui *JSONLines) CheckingCacheSuccess(cachedSpecsFound int, tasksToExecute i
 
 func (ui *JSONLines) ExecutingTasks(_ bool, _ int) executor.TaskExecutionUI {
 	return &taskExecutionJSONLines{
-		binaryDiffs: ui.BinaryDiffs,
+		binaryDiffs:        ui.BinaryDiffs,
+		suppressStepOutput: ui.SuppressStepOutput,
 	}
 }
 
@@ -186,8 +188,9 @@ Error: %s
 }
 
 type taskExecutionJSONLines struct {
-	linesTasks  map[*executor.Task]batcheslib.JSONLinesTask
-	binaryDiffs bool
+	linesTasks         map[*executor.Task]batcheslib.JSONLinesTask
+	binaryDiffs        bool
+	suppressStepOutput bool
 }
 
 // seededRand is used in randomID() to generate a "random" number.
@@ -265,12 +268,13 @@ func (ui *taskExecutionJSONLines) StepsExecutionUI(task *executor.Task) executor
 		panic("unknown task started")
 	}
 
-	return &stepsExecutionJSONLines{linesTask: &lt}
+	return &stepsExecutionJSONLines{linesTask: &lt, binaryDiffs: ui.binaryDiffs, suppressStepOutput: ui.suppressStepOutput}
 }
 
 type stepsExecutionJSONLines struct {
-	linesTask   *batcheslib.JSONLinesTask
-	binaryDiffs bool
+	linesTask          *batcheslib.JSONLinesTask
+	binaryDiffs        bool
+	suppressStepOutput bool
 }
 
 const stepFlushDuration = 500 * time.Millisecond
@@ -319,6 +323,9 @@ func (ui *stepsExecutionJSONLines) StepStarted(step int, runScript string, env m
 }
 
 func (ui *stepsExecutionJSONLines) StepOutputWriter(ctx context.Context, task *executor.Task, step int) executor.StepOutputWriter {
+	if ui.suppressStepOutput {
+		return executor.NoopStepOutputWriter{}
+	}
 	sink := func(data string) {
 		logOperationProgress(
 			batcheslib.LogEventOperationTaskStep,
