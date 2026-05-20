@@ -65,12 +65,8 @@ Examples:
 			"repos":      &reposCommands,
 		}
 
-		pending := out.Pending(output.Line("", output.StylePending, "Rendering Markdown..."))
-		count := 0
 		rootSubcommands := map[string]string{}
-		defer func() {
-			pending.Complete(output.Linef(output.EmojiSuccess, output.StyleSuccess, "%d files rendered under %s", count, *outputFlag))
-		}()
+		count := 0
 		for groupName, cmdr := range commanders {
 			subcommands := map[string]string{}
 
@@ -86,7 +82,6 @@ Examples:
 				if fqcn == "doc" || fqcn == "publish" {
 					continue
 				}
-				pending.Update(fqcn)
 
 				// If this name appears in our commanders map, then this isn't a
 				// real command, and we'll handle it differently.
@@ -145,7 +140,7 @@ Examples:
 		}
 
 		for _, md := range mdFiles {
-			pending.Update(md.Name)
+			out.Verbosef("writing: %s", md.Name)
 			docPath := path.Join(dstDir, md.Name)
 			if err := os.MkdirAll(path.Dir(docPath), 0755); err != nil {
 				return err
@@ -171,6 +166,7 @@ Examples:
 			return err
 		}
 		count++
+		out.VerboseLine(output.Linef(output.EmojiSuccess, output.StyleSuccess, "%d files rendered under %s", count, *outputFlag))
 
 		return nil
 	}
