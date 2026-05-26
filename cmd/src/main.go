@@ -68,6 +68,7 @@ The commands are:
 	search          search for results on Sourcegraph
 	search-jobs     manages search jobs
 	serve-git       serves your local git repositories over HTTP for Sourcegraph to pull
+	stream-test     prototype Batch Changes executor log streaming
 	users,user      manages users
 	codeowners      manages code ownership information
 	version         display and compare the src-cli version against the recommended version for your instance
