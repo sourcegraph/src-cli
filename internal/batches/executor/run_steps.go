@@ -14,6 +14,8 @@ import (
 	"time"
 
 	batcheslib "github.com/sourcegraph/sourcegraph/lib/batches"
+	"github.com/sourcegraph/sourcegraph/lib/batches/codingagent"
+	codingagenttypes "github.com/sourcegraph/sourcegraph/lib/batches/codingagent/types"
 	"github.com/sourcegraph/sourcegraph/lib/batches/execution"
 	"github.com/sourcegraph/sourcegraph/lib/batches/git"
 	"github.com/sourcegraph/sourcegraph/lib/batches/template"
@@ -272,12 +274,32 @@ func executeSingleStep(
 		return bytes.Buffer{}, bytes.Buffer{}, err
 	}
 
-	runScriptFile, runScript, cleanup, err := createRunScriptFile(ctx, opts.TempDir, step.Run, stepContext)
+	var (
+		runScriptFile    string
+		runScript        string
+		runScriptCleanup func()
+	)
+	if step.CodingAgent != nil {
+		if opts.Task.ModelProviderURL == "" {
+			err = errors.New("codingAgent step requires WorkspacesExecutionInput.ModelProviderURL to be set")
+			opts.UI.StepPreparingFailed(stepIdx+1, err)
+			return bytes.Buffer{}, bytes.Buffer{}, err
+		}
+		runScript, err = codingagent.RenderRunCommand(step.CodingAgent, opts.Task.ModelProviderURL, stepContext)
+		if err != nil {
+			err = errors.Wrap(err, "rendering codingAgent step")
+			opts.UI.StepPreparingFailed(stepIdx+1, err)
+			return bytes.Buffer{}, bytes.Buffer{}, err
+		}
+		runScriptFile, runScriptCleanup, err = writeRunScriptFile(opts.TempDir, runScript)
+	} else {
+		runScriptFile, runScript, runScriptCleanup, err = createRunScriptFile(ctx, opts.TempDir, step.Run, stepContext)
+	}
 	if err != nil {
 		opts.UI.StepPreparingFailed(stepIdx+1, err)
 		return bytes.Buffer{}, bytes.Buffer{}, err
 	}
-	defer cleanup()
+	defer runScriptCleanup()
 
 	// Parse and render the step.Files.
 	filesToMount, cleanup, err := createFilesToMount(opts.TempDir, step, stepContext)
@@ -301,6 +323,21 @@ func executeSingleStep(
 		err = errors.Wrap(err, "parsing step environment")
 		opts.UI.StepPreparingFailed(stepIdx+1, err)
 		return bytes.Buffer{}, bytes.Buffer{}, err
+	}
+
+	// For codingAgent steps, forward the model-provider auth env from the
+	// executor's environment (injected via CliStep.Env and JobTokenEnvVar on
+	// the server) into the user container so the agent CLI can talk to the
+	// /model-provider/batches proxy.
+	if step.CodingAgent != nil {
+		for _, key := range []string{codingagenttypes.ModelProviderTokenEnvVar, codingagenttypes.JobIDEnvVar} {
+			for _, e := range opts.GlobalEnv {
+				if v, ok := strings.CutPrefix(e, key+"="); ok {
+					env[key] = v
+					break
+				}
+			}
+		}
 	}
 
 	opts.UI.StepPreparingSuccess(stepIdx + 1)
@@ -571,6 +608,34 @@ func createRunScriptFile(ctx context.Context, tempDir string, stepRun string, st
 	}
 
 	return runScriptFile.Name(), runScript.String(), cleanup, nil
+}
+
+// writeRunScriptFile writes a pre-rendered run script (e.g. a codingAgent
+// step desugared by the codingagent registry) verbatim to a temp file, with
+// the same permission semantics as createRunScriptFile. Unlike that helper,
+// this one does NOT pass the content through template.RenderStepTemplate:
+// the script is treated as opaque shell text so embedded sequences like
+// `{{` inside a shell-quoted prompt are not re-parsed as templates.
+func writeRunScriptFile(tempDir, script string) (string, func(), error) {
+	runScriptFile, err := os.CreateTemp(tempDir, "")
+	if err != nil {
+		return "", nil, errors.Wrap(err, "creating temporary file")
+	}
+	cleanup := func() { os.Remove(runScriptFile.Name()) }
+
+	if _, err := runScriptFile.WriteString(script); err != nil {
+		cleanup()
+		return "", nil, errors.Wrap(err, "writing temporary file")
+	}
+	if err := runScriptFile.Close(); err != nil {
+		cleanup()
+		return "", nil, errors.Wrap(err, "closing temporary file")
+	}
+	if err := os.Chmod(runScriptFile.Name(), 0644); err != nil {
+		cleanup()
+		return "", nil, errors.Wrap(err, "setting permissions on the temporary file")
+	}
+	return runScriptFile.Name(), cleanup, nil
 }
 
 // createCidFile creates a temporary file that will contain the container ID

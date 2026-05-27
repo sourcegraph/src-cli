@@ -278,6 +278,7 @@ func convertWorkspace(w batcheslib.WorkspacesExecutionInput) *executor.Task {
 		BatchChangeAttributes: &w.BatchChangeAttributes,
 		CachedStepResultFound: w.CachedStepResultFound,
 		CachedStepResult:      w.CachedStepResult,
+		ModelProviderURL:      w.ModelProviderURL,
 	}
 
 	return task

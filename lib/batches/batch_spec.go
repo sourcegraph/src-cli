@@ -90,13 +90,29 @@ func (oqor *OnQueryOrRepository) GetBranches() ([]string, error) {
 }
 
 type Step struct {
-	Run       string            `json:"run,omitempty" yaml:"run"`
-	Container string            `json:"container,omitempty" yaml:"container"`
-	Env       env.Environment   `json:"env" yaml:"env"`
-	Files     map[string]string `json:"files,omitempty" yaml:"files,omitempty"`
-	Outputs   Outputs           `json:"outputs,omitempty" yaml:"outputs,omitempty"`
-	Mount     []Mount           `json:"mount,omitempty" yaml:"mount,omitempty"`
-	If        any               `json:"if,omitempty" yaml:"if,omitempty"`
+	Run         string            `json:"run,omitempty" yaml:"run"`
+	CodingAgent *CodingAgentStep  `json:"codingAgent,omitempty" yaml:"codingAgent,omitempty"`
+	Container   string            `json:"container,omitempty" yaml:"container"`
+	Image       string            `json:"image,omitempty" yaml:"image,omitempty"`
+	Env         env.Environment   `json:"env" yaml:"env"`
+	Files       map[string]string `json:"files,omitempty" yaml:"files,omitempty"`
+	Outputs     Outputs           `json:"outputs,omitempty" yaml:"outputs,omitempty"`
+	Mount       []Mount           `json:"mount,omitempty" yaml:"mount,omitempty"`
+	If          any               `json:"if,omitempty" yaml:"if,omitempty"`
+}
+
+// CodingAgentType identifies a registered coding-agent implementation.
+type CodingAgentType string
+
+const (
+	CodingAgentTypeCodex CodingAgentType = "codex"
+)
+
+// CodingAgentStep is a v3-spec step that delegates the step's work to a
+// coding agent CLI invoked via the server-side model-provider proxy.
+type CodingAgentStep struct {
+	Type   CodingAgentType `json:"type,omitempty" yaml:"type"`
+	Prompt string          `json:"prompt,omitempty" yaml:"prompt"`
 }
 
 func (s *Step) IfCondition() string {
@@ -159,6 +175,16 @@ func parseBatchSpec(schema string, data []byte) (*BatchSpec, error) {
 		}
 
 		return nil, err
+	}
+
+	if spec.Version == 3 {
+		// Mirror v3 `image:` into `container:` so executor consumers that
+		// read step.Container keep working.
+		for i := range spec.Steps {
+			if spec.Steps[i].Image != "" {
+				spec.Steps[i].Container = spec.Steps[i].Image
+			}
+		}
 	}
 
 	var errs error

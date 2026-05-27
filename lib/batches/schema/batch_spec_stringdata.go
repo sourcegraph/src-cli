@@ -128,7 +128,12 @@ const BatchSpecJSON = `{
         "type": "object",
         "description": "A command to run (as part of a sequence) in a repository branch to produce the required changes.",
         "additionalProperties": false,
-        "required": ["run", "container"],
+        "anyOf": [
+          { "required": ["run", "container"] },
+          { "required": ["run", "image"] },
+          { "required": ["codingAgent", "container"] },
+          { "required": ["codingAgent", "image"] }
+        ],
         "properties": {
           "run": {
             "type": "string",
@@ -138,6 +143,29 @@ const BatchSpecJSON = `{
             "type": "string",
             "description": "The Docker image used to launch the Docker container in which the shell command is run.",
             "examples": ["alpine:3"]
+          },
+          "image": {
+            "type": "string",
+            "description": "The Docker image used to launch the Docker container in which the shell command is run. Equivalent to 'container' in version 3 batch specs.",
+            "examples": ["alpine:3"]
+          },
+          "codingAgent": {
+            "title": "CodingAgent",
+            "type": "object",
+            "description": "An out-of-the-box coding agent step that runs the given prompt inside a managed container. Mutually exclusive with run. Only supported in version 3 batch specs.",
+            "additionalProperties": false,
+            "required": ["type", "prompt"],
+            "properties": {
+              "type": {
+                "type": "string",
+                "description": "The coding agent to use.",
+                "enum": ["codex"]
+              },
+              "prompt": {
+                "type": "string",
+                "description": "The prompt to send to the agent."
+              }
+            }
           },
           "outputs": {
             "type": ["object", "null"],
