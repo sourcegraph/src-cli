@@ -2,6 +2,7 @@ package codingagent_test
 
 import (
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/kballard/go-shellquote"
@@ -36,13 +37,20 @@ func TestRenderRunCommand_promptShellQuoting(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	tokens, err := shellquote.Split(cmd)
-	if err != nil {
-		t.Fatal(err)
-	}
+	// The rendered command appends the shell-quoted prompt as its final
+	// argument. Round-tripping via shellquote.Split is unreliable here
+	// because the install script contains POSIX shell comments with
+	// apostrophes (e.g. "can't"), which shellquote does not understand
+	// and would treat as unterminated quoted strings. Assert on the
+	// suffix instead.
 	wantPrompt := "You're working in the " + repoName + " repository.\n" +
 		"Add a README section describing the project; don't touch existing files."
-	if got := tokens[len(tokens)-1]; got != wantPrompt {
-		t.Fatalf("prompt mismatch:\n  got:  %q\n  want: %q", got, wantPrompt)
+	wantQuoted := shellquote.Join(wantPrompt)
+	if !strings.HasSuffix(cmd, wantQuoted) {
+		tail := cmd
+		if n := len(wantQuoted) + 50; len(cmd) > n {
+			tail = cmd[len(cmd)-n:]
+		}
+		t.Fatalf("rendered cmd does not end with shell-quoted prompt:\n  want suffix: %q\n  cmd tail:    %q", wantQuoted, tail)
 	}
 }
