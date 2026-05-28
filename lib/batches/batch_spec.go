@@ -1,6 +1,7 @@
 package batches
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -93,7 +94,7 @@ type Step struct {
 	Run         string            `json:"run,omitempty" yaml:"run"`
 	CodingAgent *CodingAgentStep  `json:"codingAgent,omitempty" yaml:"codingAgent,omitempty"`
 	Container   string            `json:"container,omitempty" yaml:"container"`
-	Image       string            `json:"image,omitempty" yaml:"image,omitempty"`
+	Image       string            `json:"image,omitempty" yaml:"image"`
 	Env         env.Environment   `json:"env" yaml:"env"`
 	Files       map[string]string `json:"files,omitempty" yaml:"files,omitempty"`
 	Outputs     Outputs           `json:"outputs,omitempty" yaml:"outputs,omitempty"`
@@ -101,18 +102,33 @@ type Step struct {
 	If          any               `json:"if,omitempty" yaml:"if,omitempty"`
 }
 
-// CodingAgentType identifies a registered coding-agent implementation.
 type CodingAgentType string
 
 const (
 	CodingAgentTypeCodex CodingAgentType = "codex"
 )
 
-// CodingAgentStep is a v3-spec step that delegates the step's work to a
-// coding agent CLI invoked via the server-side model-provider proxy.
 type CodingAgentStep struct {
 	Type   CodingAgentType `json:"type,omitempty" yaml:"type"`
 	Prompt string          `json:"prompt,omitempty" yaml:"prompt"`
+}
+
+// MarshalJSON canonicalizes the v3 `image:` field into `container:` on the
+// wire. Both fields exist on Step for ergonomic reasons (v3 specs use
+// `image:`, v1/v2 specs use `container:`), but src-cli's executor reads
+// `Container`. Without canonicalization, the prep-side cache key — computed
+// by JSON-marshaling Step — would include `image` while the executor side
+// (which round-trips through src-cli) would not, producing divergent keys
+// and silent cache misses for any v3 spec.
+func (s Step) MarshalJSON() ([]byte, error) {
+	// Use an alias type to avoid infinite recursion through MarshalJSON.
+	type stepAlias Step
+	canon := stepAlias(s)
+	if canon.Container == "" {
+		canon.Container = canon.Image
+	}
+	canon.Image = ""
+	return json.Marshal(canon)
 }
 
 func (s *Step) IfCondition() string {
@@ -178,12 +194,12 @@ func parseBatchSpec(schema string, data []byte) (*BatchSpec, error) {
 	}
 
 	if spec.Version == 3 {
-		// Mirror v3 `image:` into `container:` so executor consumers that
-		// read step.Container keep working.
+		// Mirror v3 `image:` into `container:` so in-memory consumers that
+		// read step.Container (e.g. the executor transform) keep working.
+		// JSON serialization is canonicalized separately in Step.MarshalJSON
+		// so prep-side cache hashing matches src-cli/executor serialization.
 		for i := range spec.Steps {
-			if spec.Steps[i].Image != "" {
-				spec.Steps[i].Container = spec.Steps[i].Image
-			}
+			spec.Steps[i].Container = spec.Steps[i].Image
 		}
 	}
 
@@ -206,6 +222,9 @@ func parseBatchSpec(schema string, data []byte) (*BatchSpec, error) {
 			if strings.ContainsAny(name, invalidMountCharacters) {
 				errs = errors.Append(errs, NewValidationError(errors.Newf("step %d files target path contains invalid characters", i+1)))
 			}
+		}
+		if step.CodingAgent != nil && step.Run != "" {
+			errs = errors.Append(errs, NewValidationError(errors.Newf("step %d: codingAgent and run cannot be combined in the same step", i+1)))
 		}
 	}
 

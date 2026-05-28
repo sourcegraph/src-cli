@@ -11,6 +11,317 @@ const BatchSpecJSON = `{
   "type": "object",
   "additionalProperties": false,
   "required": ["name"],
+  "allOf": [
+    {
+      "if": { "properties": { "version": { "const": 3 } }, "required": ["version"] },
+      "then": {
+        "properties": {
+          "steps": {
+            "items": {
+              "anyOf": [{ "required": ["run", "image"] }, { "required": ["codingAgent"] }]
+            }
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "steps": {
+            "items": {
+              "required": ["run", "container"],
+              "not": { "required": ["codingAgent"] }
+            }
+          }
+        }
+      }
+    },
+    {
+      "$comment": "The ` + "`" + `changesetHooks` + "`" + ` property is only allowed when ` + "`" + `version: 3` + "`" + ` is set.",
+      "if": {
+        "required": ["changesetHooks"]
+      },
+      "then": {
+        "required": ["version"],
+        "properties": {
+          "version": {
+            "const": 3
+          }
+        }
+      }
+    }
+  ],
+  "definitions": {
+    "OutputVariable": {
+      "title": "OutputVariable",
+      "type": "object",
+      "required": ["value"],
+      "properties": {
+        "value": {
+          "type": "string",
+          "description": "The value of the output, which can be a template string.",
+          "examples": ["hello world", "${{ step.stdout }}", "${{ repository.name }}"]
+        },
+        "format": {
+          "type": "string",
+          "description": "The expected format of the output. If set, the output is being parsed in that format before being stored in the var. If not set, 'text' is assumed to the format.",
+          "enum": ["json", "yaml", "text"]
+        }
+      }
+    },
+    "Mount": {
+      "title": "Mount",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "mountpoint"],
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "The path on the local machine to mount. The path must be in the same directory or a subdirectory of the batch spec.",
+          "examples": ["local/path/to/file.text", "local/path/to/directory"]
+        },
+        "mountpoint": {
+          "type": "string",
+          "description": "The path in the container to mount the path on the local machine to.",
+          "examples": ["path/to/file.txt", "path/to/directory"]
+        }
+      }
+    },
+    "CodingAgent": {
+      "title": "CodingAgent",
+      "type": "object",
+      "description": "An out-of-the-box coding agent step that runs the given prompt inside a managed container. Mutually exclusive with run. Only supported in version 3 batch specs. Use the step's top-level container/image field to override the default agent image.",
+      "additionalProperties": false,
+      "required": ["type", "prompt"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "description": "The coding agent to use.",
+          "enum": ["codex", "claude-code"]
+        },
+        "prompt": {
+          "type": "string",
+          "description": "The prompt to send to the agent."
+        }
+      }
+    },
+    "Step": {
+      "title": "Step",
+      "type": "object",
+      "description": "A command to run (as part of a sequence) in a repository branch to produce the required changes.",
+      "additionalProperties": false,
+      "properties": {
+        "run": {
+          "type": "string",
+          "description": "The shell command to run in the container. It can also be a multi-line shell script. The working directory is the root directory of the repository checkout."
+        },
+        "container": {
+          "type": "string",
+          "description": "The Docker image used to launch the Docker container in which the shell command is run.",
+          "examples": ["alpine:3"]
+        },
+        "image": {
+          "type": "string",
+          "description": "The Docker image used to launch the Docker container in which the shell command is run.",
+          "examples": ["alpine:3"]
+        },
+        "codingAgent": {
+          "$ref": "#/definitions/CodingAgent"
+        },
+        "outputs": {
+          "type": ["object", "null"],
+          "description": "Output variables of this step that can be referenced in the changesetTemplate or other steps via outputs.<name-of-output>",
+          "additionalProperties": {
+            "$ref": "#/definitions/OutputVariable"
+          }
+        },
+        "env": {
+          "description": "Environment variables to set in the step environment.",
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "description": "Environment variables to set in the step environment.",
+              "additionalProperties": {
+                "type": "string"
+              }
+            },
+            {
+              "type": "array",
+              "items": {
+                "oneOf": [
+                  {
+                    "type": "string",
+                    "description": "An environment variable to set in the step environment: the value will be passed through from the environment src is running within."
+                  },
+                  {
+                    "type": "object",
+                    "description": "An environment variable to set in the step environment: the key is used as the environment variable name and the value as the value.",
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "minProperties": 1,
+                    "maxProperties": 1
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "files": {
+          "type": ["object", "null"],
+          "description": "Files that should be mounted into or be created inside the Docker container.",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "if": {
+          "oneOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "A condition to check before executing steps. Supports templating. The value 'true' is interpreted as true.",
+          "examples": [
+            "true",
+            "${{ matches repository.name \"github.com/my-org/my-repo*\" }}",
+            "${{ outputs.goModFileExists }}",
+            "${{ eq previous_step.stdout \"success\" }}"
+          ]
+        },
+        "mount": {
+          "description": "Files that are mounted to the Docker container.",
+          "type": ["array", "null"],
+          "items": {
+            "$ref": "#/definitions/Mount"
+          }
+        }
+      }
+    },
+    "HookStep": {
+      "title": "HookStep",
+      "type": "object",
+      "description": "A command to run (as part of a sequence) inside a changeset hook action. Uses the version 3 step shape and supports additional hook-only fields such as maxAttempts.",
+      "additionalProperties": false,
+      "properties": {
+        "run": {
+          "type": "string",
+          "description": "The shell command to run in the container. It can also be a multi-line shell script. The working directory is the root directory of the repository checkout."
+        },
+        "image": {
+          "type": "string",
+          "description": "The Docker image used to launch the Docker container in which the shell command is run.",
+          "examples": ["alpine:3"]
+        },
+        "codingAgent": {
+          "$ref": "#/definitions/CodingAgent"
+        },
+        "outputs": {
+          "type": ["object", "null"],
+          "description": "Output variables of this step that can be referenced in the changesetTemplate or other steps via outputs.<name-of-output>",
+          "additionalProperties": {
+            "$ref": "#/definitions/OutputVariable"
+          }
+        },
+        "env": {
+          "description": "Environment variables to set in the step environment.",
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "description": "Environment variables to set in the step environment.",
+              "additionalProperties": {
+                "type": "string"
+              }
+            },
+            {
+              "type": "array",
+              "items": {
+                "oneOf": [
+                  {
+                    "type": "string",
+                    "description": "An environment variable to set in the step environment: the value will be passed through from the environment src is running within."
+                  },
+                  {
+                    "type": "object",
+                    "description": "An environment variable to set in the step environment: the key is used as the environment variable name and the value as the value.",
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "minProperties": 1,
+                    "maxProperties": 1
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "files": {
+          "type": ["object", "null"],
+          "description": "Files that should be mounted into or be created inside the Docker container.",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "if": {
+          "oneOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "A condition to check before executing steps. Supports templating. The value 'true' is interpreted as true.",
+          "examples": [
+            "true",
+            "${{ matches repository.name \"github.com/my-org/my-repo*\" }}",
+            "${{ outputs.goModFileExists }}",
+            "${{ eq previous_step.stdout \"success\" }}"
+          ]
+        },
+        "mount": {
+          "description": "Files that are mounted to the Docker container.",
+          "type": ["array", "null"],
+          "items": {
+            "$ref": "#/definitions/Mount"
+          }
+        },
+        "maxAttempts": {
+          "type": "integer",
+          "description": "The maximum number of times this step will be attempted before the hook action is considered failed. Defaults to 1 (no retries).",
+          "minimum": 1
+        }
+      }
+    },
+    "ChangesetHookAction": {
+      "title": "ChangesetHookAction",
+      "type": "object",
+      "description": "A side-effect action to run at a changeset lifecycle event. Hook actions run in an executor.",
+      "additionalProperties": false,
+      "required": ["steps"],
+      "properties": {
+        "steps": {
+          "type": "array",
+          "description": "The sequence of steps to execute when the hook fires. Uses the version 3 step shape, with additional hook-only fields.",
+          "items": {
+            "$ref": "#/definitions/HookStep"
+          }
+        }
+      }
+    }
+  },
   "properties": {
     "version": {
       "type": "number",
@@ -28,20 +339,20 @@ const BatchSpecJSON = `{
     },
     "on": {
       "type": ["array", "null"],
-      "description": "The set of repositories (and branches) to run the batch change on, specified as a list of search queries (that match repositories) and/or specific repositories.",
+      "description": "The set of repositories to run the batch change on, specified as a list of search queries (that match repositories) and/or specific repositories. Repositories matched by repositoriesMatchingQuery use each repository's default branch unless overridden by an explicit repository entry with branch or branches.",
       "items": {
         "title": "OnQueryOrRepository",
         "oneOf": [
           {
             "title": "OnQuery",
             "type": "object",
-            "description": "A Sourcegraph search query that matches a set of repositories (and branches). Each matched repository branch is added to the list of repositories that the batch change will be run on.",
+            "description": "A Sourcegraph search query that matches a set of repositories. Each matched repository is added to the list of repositories that the batch change will be run on using the repository's default branch.",
             "additionalProperties": false,
             "required": ["repositoriesMatchingQuery"],
             "properties": {
               "repositoriesMatchingQuery": {
                 "type": "string",
-                "description": "A Sourcegraph search query that matches a set of repositories (and branches). If the query matches files, symbols, or some other object inside a repository, the object's repository is included.",
+                "description": "A Sourcegraph search query that matches a set of repositories. If the query matches files, symbols, or some other object inside a repository, the object's repository is included. Matched repositories are run on their default branch; use explicit repository entries with branch or branches to target non-default branches.",
                 "examples": ["file:README.md"]
               }
             }
@@ -124,154 +435,7 @@ const BatchSpecJSON = `{
       "type": ["array", "null"],
       "description": "The sequence of commands to run (for each repository branch matched in the ` + "`" + `on` + "`" + ` property) to produce the workspace changes that will be included in the batch change.",
       "items": {
-        "title": "Step",
-        "type": "object",
-        "description": "A command to run (as part of a sequence) in a repository branch to produce the required changes.",
-        "additionalProperties": false,
-        "anyOf": [
-          { "required": ["run", "container"] },
-          { "required": ["run", "image"] },
-          { "required": ["codingAgent", "container"] },
-          { "required": ["codingAgent", "image"] }
-        ],
-        "properties": {
-          "run": {
-            "type": "string",
-            "description": "The shell command to run in the container. It can also be a multi-line shell script. The working directory is the root directory of the repository checkout."
-          },
-          "container": {
-            "type": "string",
-            "description": "The Docker image used to launch the Docker container in which the shell command is run.",
-            "examples": ["alpine:3"]
-          },
-          "image": {
-            "type": "string",
-            "description": "The Docker image used to launch the Docker container in which the shell command is run. Equivalent to 'container' in version 3 batch specs.",
-            "examples": ["alpine:3"]
-          },
-          "codingAgent": {
-            "title": "CodingAgent",
-            "type": "object",
-            "description": "An out-of-the-box coding agent step that runs the given prompt inside a managed container. Mutually exclusive with run. Only supported in version 3 batch specs.",
-            "additionalProperties": false,
-            "required": ["type", "prompt"],
-            "properties": {
-              "type": {
-                "type": "string",
-                "description": "The coding agent to use.",
-                "enum": ["codex"]
-              },
-              "prompt": {
-                "type": "string",
-                "description": "The prompt to send to the agent."
-              }
-            }
-          },
-          "outputs": {
-            "type": ["object", "null"],
-            "description": "Output variables of this step that can be referenced in the changesetTemplate or other steps via outputs.<name-of-output>",
-            "additionalProperties": {
-              "title": "OutputVariable",
-              "type": "object",
-              "required": ["value"],
-              "properties": {
-                "value": {
-                  "type": "string",
-                  "description": "The value of the output, which can be a template string.",
-                  "examples": ["hello world", "${{ step.stdout }}", "${{ repository.name }}"]
-                },
-                "format": {
-                  "type": "string",
-                  "description": "The expected format of the output. If set, the output is being parsed in that format before being stored in the var. If not set, 'text' is assumed to the format.",
-                  "enum": ["json", "yaml", "text"]
-                }
-              }
-            }
-          },
-          "env": {
-            "description": "Environment variables to set in the step environment.",
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "type": "object",
-                "description": "Environment variables to set in the step environment.",
-                "additionalProperties": {
-                  "type": "string"
-                }
-              },
-              {
-                "type": "array",
-                "items": {
-                  "oneOf": [
-                    {
-                      "type": "string",
-                      "description": "An environment variable to set in the step environment: the value will be passed through from the environment src is running within."
-                    },
-                    {
-                      "type": "object",
-                      "description": "An environment variable to set in the step environment: the key is used as the environment variable name and the value as the value.",
-                      "additionalProperties": {
-                        "type": "string"
-                      },
-                      "minProperties": 1,
-                      "maxProperties": 1
-                    }
-                  ]
-                }
-              }
-            ]
-          },
-          "files": {
-            "type": ["object", "null"],
-            "description": "Files that should be mounted into or be created inside the Docker container.",
-            "additionalProperties": {
-              "type": "string"
-            }
-          },
-          "if": {
-            "oneOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "A condition to check before executing steps. Supports templating. The value 'true' is interpreted as true.",
-            "examples": [
-              "true",
-              "${{ matches repository.name \"github.com/my-org/my-repo*\" }}",
-              "${{ outputs.goModFileExists }}",
-              "${{ eq previous_step.stdout \"success\" }}"
-            ]
-          },
-          "mount": {
-            "description": "Files that are mounted to the Docker container.",
-            "type": ["array", "null"],
-            "items": {
-              "type": "object",
-              "additionalProperties": false,
-              "required": ["path", "mountpoint"],
-              "properties": {
-                "path": {
-                  "type": "string",
-                  "description": "The path on the local machine to mount. The path must be in the same directory or a subdirectory of the batch spec.",
-                  "examples": ["local/path/to/file.text", "local/path/to/directory"]
-                },
-                "mountpoint": {
-                  "type": "string",
-                  "description": "The path in the container to mount the path on the local machine to.",
-                  "examples": ["path/to/file.txt", "path/to/directory"]
-                }
-              }
-            }
-          }
-        }
+        "$ref": "#/definitions/Step"
       }
     },
     "transformChanges": {
@@ -432,6 +596,21 @@ const BatchSpecJSON = `{
               }
             }
           ]
+        }
+      }
+    },
+    "changesetHooks": {
+      "type": "object",
+      "description": "Side-effect actions to run at well-defined changeset lifecycle events. Only allowed when ` + "`" + `version: 3` + "`" + ` is set.",
+      "additionalProperties": false,
+      "properties": {
+        "onCIFailure": {
+          "description": "Action to run when the changeset's combined check state transitions into ` + "`" + `failed` + "`" + ` for a given head SHA.",
+          "$ref": "#/definitions/ChangesetHookAction"
+        },
+        "onMergeConflict": {
+          "description": "Action to run when the changeset's external mergeability transitions into ` + "`" + `conflicting` + "`" + ` for a given (base, head) SHA pair.",
+          "$ref": "#/definitions/ChangesetHookAction"
         }
       }
     }

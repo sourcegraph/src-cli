@@ -38,6 +38,7 @@ func RenderRunCommand(agentStep *batcheslib.CodingAgentStep, modelProviderURL st
 	for _, binary := range a.ImageRequirements() {
 		b.WriteString(failIfMissing(a.Type(), binary))
 	}
+	b.WriteString(a.InstallScript())
 	b.WriteString(a.RunCommand(renderedPrompt.String(), prefixed))
 	return b.String(), nil
 }
@@ -47,8 +48,8 @@ func RenderRunCommand(agentStep *batcheslib.CodingAgentStep, modelProviderURL st
 // if binary isn't on PATH.
 func failIfMissing(agentType batcheslib.CodingAgentType, binary string) string {
 	msg := fmt.Sprintf(
-		"codingAgent %q requires %q on PATH in the run container; ensure your image includes the %s binary",
-		agentType, binary, binary,
+		"codingAgent %q requires %q on PATH in the run container",
+		agentType, binary,
 	)
 	return fmt.Sprintf("command -v %s >/dev/null 2>&1 || { echo %s >&2; exit 1; }\n",
 		binary,

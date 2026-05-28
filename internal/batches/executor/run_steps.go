@@ -330,14 +330,7 @@ func executeSingleStep(
 	// the server) into the user container so the agent CLI can talk to the
 	// /model-provider/batches proxy.
 	if step.CodingAgent != nil {
-		for _, key := range []string{codingagenttypes.ModelProviderTokenEnvVar, codingagenttypes.JobIDEnvVar} {
-			for _, e := range opts.GlobalEnv {
-				if v, ok := strings.CutPrefix(e, key+"="); ok {
-					env[key] = v
-					break
-				}
-			}
-		}
+		forwardCodingAgentEnv(opts.GlobalEnv, env)
 	}
 
 	opts.UI.StepPreparingSuccess(stepIdx + 1)
@@ -608,6 +601,22 @@ func createRunScriptFile(ctx context.Context, tempDir string, stepRun string, st
 	}
 
 	return runScriptFile.Name(), runScript.String(), cleanup, nil
+}
+
+// forwardCodingAgentEnv copies the model-provider auth env vars
+// (SRC_BATCHES_MODEL_PROVIDER_TOKEN, SRC_BATCHES_JOB_ID) from globalEnv into
+// stepEnv. These are placed on the v1 CliStep that runs `src batch exec` by
+// the Sourcegraph server; the agent CLI in the user container needs them to
+// reach the /.executors/model-provider/batches proxy.
+func forwardCodingAgentEnv(globalEnv []string, stepEnv map[string]string) {
+	for _, key := range []string{codingagenttypes.ModelProviderTokenEnvVar, codingagenttypes.JobIDEnvVar} {
+		for _, e := range globalEnv {
+			if v, ok := strings.CutPrefix(e, key+"="); ok {
+				stepEnv[key] = v
+				break
+			}
+		}
+	}
 }
 
 // writeRunScriptFile writes a pre-rendered run script (e.g. a codingAgent

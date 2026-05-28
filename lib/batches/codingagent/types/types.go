@@ -14,6 +14,10 @@ const JobIDEnvVar = "SRC_BATCHES_JOB_ID"
 
 const JobIDHeaderName = "X-Sourcegraph-Job-ID"
 
+// InstallDir is where each Agent installs its pinned binary; invoked by
+// absolute path so we ignore any copy shipped by the image.
+const InstallDir = "/tmp/sg-codingagent/bin"
+
 type Agent interface {
 	Type() batcheslib.CodingAgentType
 	// RunCommand receives the already-templated prompt and MUST shell-quote it.
@@ -21,9 +25,13 @@ type Agent interface {
 	// ModelProviderRoutes returns routes whose WirePath is relative to the
 	// agent type; the registry prefixes "/<agent-type>" before exposing them.
 	ModelProviderRoutes() []ModelProviderRoute
-	// ImageRequirements returns binaries the agent expects on PATH in the run
-	// container. The registry emits a check before RunCommand.
+	// ImageRequirements lists binaries that must be on PATH in the run
+	// container (e.g. "curl" so InstallScript can fetch the agent). The
+	// registry emits a `command -v` check for each before InstallScript.
 	ImageRequirements() []string
+	// InstallScript returns shell that installs the agent at a pinned
+	// version into a Sourcegraph-owned scratch dir and prepends it to PATH.
+	InstallScript() string
 }
 
 // ModelProviderRoute is one wire→upstream mapping served by the Sourcegraph
