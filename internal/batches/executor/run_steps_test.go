@@ -10,7 +10,7 @@ import (
 func TestRedactSensitiveEnv(t *testing.T) {
 	in := map[string]string{
 		codingagenttypes.ModelProviderTokenEnvVar: "tok-abc",
-		"PATH":                                    "/bin",
+		"PATH": "/bin",
 	}
 	out := redactSensitiveEnv(in)
 	if got := out[codingagenttypes.ModelProviderTokenEnvVar]; got != redactedPlaceholder {
