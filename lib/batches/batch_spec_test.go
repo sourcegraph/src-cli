@@ -6,8 +6,6 @@ import (
 	"testing"
 )
 
-// Step JSON must always emit `container` (never `image`) so prep-side cache
-// keys computed by marshaling Step match src-cli's serialization.
 func TestStep_MarshalJSON_canonicalizesImageToContainer(t *testing.T) {
 	v3FromImage, err := json.Marshal(Step{Image: "alpine:3", Run: "echo hi"})
 	if err != nil {
@@ -32,9 +30,6 @@ func TestStep_MarshalJSON_canonicalizesImageToContainer(t *testing.T) {
 	}
 }
 
-// TestParseBatchSpec_v3_imageMirroredToContainer ensures that in v3 specs the
-// step-level `image:` field is mirrored into Step.Container so executor
-// consumers that read step.Container keep working.
 func TestParseBatchSpec_v3_imageMirroredToContainer(t *testing.T) {
 	spec := []byte(`
 version: 3
@@ -67,8 +62,6 @@ changesetTemplate:
 	}
 }
 
-// A v3 codingAgent step without image: must be rejected at parse time so
-// it doesn't fail later with an opaque empty-image error in the executor.
 func TestParseBatchSpec_v3_codingAgentRequiresImage(t *testing.T) {
 	spec := []byte(`
 version: 3
@@ -97,8 +90,6 @@ changesetTemplate:
 	}
 }
 
-// TestParseBatchSpec_v3_codingAgentStep ensures that a v3 spec with a
-// codingAgent step parses with the expected typed step.
 func TestParseBatchSpec_v3_codingAgentStep(t *testing.T) {
 	spec := []byte(`
 version: 3

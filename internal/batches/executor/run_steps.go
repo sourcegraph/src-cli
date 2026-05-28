@@ -325,10 +325,6 @@ func executeSingleStep(
 		return bytes.Buffer{}, bytes.Buffer{}, err
 	}
 
-	// For codingAgent steps, forward the model-provider auth env from the
-	// executor's environment (injected via CliStep.Env and JobTokenEnvVar on
-	// the server) into the user container so the agent CLI can talk to the
-	// /model-provider/batches proxy.
 	if step.CodingAgent != nil {
 		forwardCodingAgentEnv(opts.GlobalEnv, env)
 	}

@@ -52,9 +52,6 @@ func TestRedactSensitiveArgs(t *testing.T) {
 	}
 }
 
-// TestForwardCodingAgentEnv verifies that the model-provider auth env vars
-// placed on the v1 CliStep by the Sourcegraph server are forwarded into the
-// user container env for codingAgent steps.
 func TestForwardCodingAgentEnv(t *testing.T) {
 	cases := []struct {
 		name      string

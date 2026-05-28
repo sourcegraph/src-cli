@@ -121,7 +121,6 @@ type CodingAgentStep struct {
 // (which round-trips through src-cli) would not, producing divergent keys
 // and silent cache misses for any v3 spec.
 func (s Step) MarshalJSON() ([]byte, error) {
-	// Use an alias type to avoid infinite recursion through MarshalJSON.
 	type stepAlias Step
 	canon := stepAlias(s)
 	if canon.Container == "" {

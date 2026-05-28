@@ -22,10 +22,6 @@ func TestRenderRunCommand_unknownType(t *testing.T) {
 	}
 }
 
-// TestRenderRunCommand_promptShellQuoting ensures the rendered prompt is
-// shell-quoted as a single argument even when it contains shell
-// metacharacters (apostrophes, semicolons), so prompt text can't break out
-// into the host shell.
 func TestRenderRunCommand_promptShellQuoting(t *testing.T) {
 	const repoName = `github.com/sourcegraph/sourcegraph`
 	prompt := "You're working in the ${{ repository.name }} repository.\n" +
