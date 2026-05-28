@@ -600,10 +600,8 @@ func createRunScriptFile(ctx context.Context, tempDir string, stepRun string, st
 }
 
 // forwardCodingAgentEnv copies the model-provider auth env vars
-// (SRC_BATCHES_MODEL_PROVIDER_TOKEN, SRC_BATCHES_JOB_ID) from globalEnv into
-// stepEnv. These are placed on the v1 CliStep that runs `src batch exec` by
-// the Sourcegraph server; the agent CLI in the user container needs them to
-// reach the /.executors/model-provider/batches proxy.
+// (SRC_BATCHES_MODEL_PROVIDER_TOKEN, SRC_BATCHES_JOB_ID) from globalEnv
+// into stepEnv so they reach the user container.
 func forwardCodingAgentEnv(globalEnv []string, stepEnv map[string]string) {
 	for _, key := range []string{codingagenttypes.ModelProviderTokenEnvVar, codingagenttypes.JobIDEnvVar} {
 		for _, e := range globalEnv {
@@ -655,12 +653,10 @@ func redactSensitiveArgs(args []string) []string {
 	return out
 }
 
-// writeRunScriptFile writes a pre-rendered run script (e.g. a codingAgent
-// step desugared by the codingagent registry) verbatim to a temp file, with
-// the same permission semantics as createRunScriptFile. Unlike that helper,
-// this one does NOT pass the content through template.RenderStepTemplate:
-// the script is treated as opaque shell text so embedded sequences like
-// `{{` inside a shell-quoted prompt are not re-parsed as templates.
+// writeRunScriptFile writes a pre-rendered run script verbatim to a temp
+// file. Unlike createRunScriptFile it does NOT pass the content through
+// template.RenderStepTemplate, so embedded `{{` sequences in a
+// shell-quoted prompt are not re-parsed as templates.
 func writeRunScriptFile(tempDir, script string) (string, func(), error) {
 	runScriptFile, err := os.CreateTemp(tempDir, "")
 	if err != nil {
