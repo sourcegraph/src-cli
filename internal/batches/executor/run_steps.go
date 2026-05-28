@@ -281,7 +281,7 @@ func executeSingleStep(
 	)
 	if step.CodingAgent != nil {
 		if opts.Task.ModelProviderURL == "" {
-			err = errors.New("codingAgent step requires WorkspacesExecutionInput.ModelProviderURL to be set")
+			err = errors.New("codingAgent step requires a model-provider URL")
 			opts.UI.StepPreparingFailed(stepIdx+1, err)
 			return bytes.Buffer{}, bytes.Buffer{}, err
 		}
@@ -670,7 +670,7 @@ func writeRunScriptFile(tempDir, script string) (string, func(), error) {
 
 	if _, err := runScriptFile.WriteString(script); err != nil {
 		cleanup()
-		return "", nil, errors.Wrap(err, "writing temporary file")
+		return "", nil, errors.Wrap(err, "writing to temporary file")
 	}
 	if err := runScriptFile.Close(); err != nil {
 		cleanup()

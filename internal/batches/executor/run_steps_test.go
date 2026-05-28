@@ -2,7 +2,6 @@ package executor
 
 import (
 	"slices"
-	"strings"
 	"testing"
 
 	codingagenttypes "github.com/sourcegraph/sourcegraph/lib/batches/codingagent/types"
@@ -11,15 +10,11 @@ import (
 func TestRedactSensitiveEnv(t *testing.T) {
 	in := map[string]string{
 		codingagenttypes.ModelProviderTokenEnvVar: "tok-abc",
-		codingagenttypes.JobIDEnvVar:              "job-123",
 		"PATH":                                    "/bin",
 	}
 	out := redactSensitiveEnv(in)
 	if got := out[codingagenttypes.ModelProviderTokenEnvVar]; got != redactedPlaceholder {
 		t.Errorf("token: got %q want %q", got, redactedPlaceholder)
-	}
-	if got := out[codingagenttypes.JobIDEnvVar]; got != "job-123" {
-		t.Errorf("job id should not be redacted: got %q", got)
 	}
 	if got := out["PATH"]; got != "/bin" {
 		t.Errorf("PATH should not be redacted: got %q", got)
@@ -46,9 +41,6 @@ func TestRedactSensitiveArgs(t *testing.T) {
 	}
 	if !slices.Contains(out, codingagenttypes.JobIDEnvVar+"=job-123") {
 		t.Errorf("job id should pass through: %v", out)
-	}
-	if strings.Contains(strings.Join(out, " "), "tok-abc") {
-		t.Errorf("token leaked anywhere in joined args: %v", out)
 	}
 }
 

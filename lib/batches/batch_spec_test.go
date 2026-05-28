@@ -2,9 +2,30 @@ package batches
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 )
+
+// v3SpecWith wraps stepsYAML in the minimum scaffold needed for ParseBatchSpec
+// to accept a v3 spec.
+func v3SpecWith(stepsYAML string) []byte {
+	return []byte(fmt.Sprintf(`
+version: 3
+name: test
+description: test
+on:
+  - repository: github.com/sourcegraph/sourcegraph
+steps:
+%s
+changesetTemplate:
+  title: test
+  body: test
+  branch: test
+  commit:
+    message: test
+`, stepsYAML))
+}
 
 func TestStep_MarshalJSON_canonicalizesImageToContainer(t *testing.T) {
 	v3FromImage, err := json.Marshal(Step{Image: "alpine:3", Run: "echo hi"})
@@ -31,23 +52,7 @@ func TestStep_MarshalJSON_canonicalizesImageToContainer(t *testing.T) {
 }
 
 func TestParseBatchSpec_v3_imageMirroredToContainer(t *testing.T) {
-	spec := []byte(`
-version: 3
-name: test
-description: test
-on:
-  - repository: github.com/sourcegraph/sourcegraph
-steps:
-  - run: echo hi
-    image: alpine:3
-changesetTemplate:
-  title: test
-  body: test
-  branch: test
-  commit:
-    message: test
-`)
-	got, err := ParseBatchSpec(spec)
+	got, err := ParseBatchSpec(v3SpecWith("  - run: echo hi\n    image: alpine:3"))
 	if err != nil {
 		t.Fatalf("ParseBatchSpec failed: %v", err)
 	}
@@ -63,53 +68,17 @@ changesetTemplate:
 }
 
 func TestParseBatchSpec_v3_codingAgentRequiresImage(t *testing.T) {
-	spec := []byte(`
-version: 3
-name: test
-description: test
-on:
-  - repository: github.com/sourcegraph/sourcegraph
-steps:
-  - codingAgent:
-      type: codex
-      prompt: do the thing
-changesetTemplate:
-  title: test
-  body: test
-  branch: test
-  commit:
-    message: test
-`)
-	_, err := ParseBatchSpec(spec)
+	_, err := ParseBatchSpec(v3SpecWith("  - codingAgent:\n      type: codex\n      prompt: do the thing"))
 	if err == nil {
 		t.Fatal("expected validation error, got nil")
 	}
-	if !strings.Contains(err.Error(), "requires an image") &&
-		!strings.Contains(err.Error(), "Must validate") {
+	if !strings.Contains(err.Error(), "requires an image") {
 		t.Errorf("error should mention missing image, got: %v", err)
 	}
 }
 
 func TestParseBatchSpec_v3_codingAgentStep(t *testing.T) {
-	spec := []byte(`
-version: 3
-name: test
-description: test
-on:
-  - repository: github.com/sourcegraph/sourcegraph
-steps:
-  - codingAgent:
-      type: codex
-      prompt: do the thing
-    image: alpine:3
-changesetTemplate:
-  title: test
-  body: test
-  branch: test
-  commit:
-    message: test
-`)
-	got, err := ParseBatchSpec(spec)
+	got, err := ParseBatchSpec(v3SpecWith("  - codingAgent:\n      type: codex\n      prompt: do the thing\n    image: alpine:3"))
 	if err != nil {
 		t.Fatalf("ParseBatchSpec failed: %v", err)
 	}
