@@ -1,7 +1,6 @@
 package batches
 
 import (
-	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -113,23 +112,6 @@ type CodingAgentStep struct {
 	Prompt string          `json:"prompt,omitempty" yaml:"prompt"`
 }
 
-// MarshalJSON canonicalizes the v3 `image:` field into `container:` on the
-// wire. Both fields exist on Step for ergonomic reasons (v3 specs use
-// `image:`, v1/v2 specs use `container:`), but src-cli's executor reads
-// `Container`. Without canonicalization, the prep-side cache key — computed
-// by JSON-marshaling Step — would include `image` while the executor side
-// (which round-trips through src-cli) would not, producing divergent keys
-// and silent cache misses for any v3 spec.
-func (s Step) MarshalJSON() ([]byte, error) {
-	type stepAlias Step
-	canon := stepAlias(s)
-	if canon.Container == "" {
-		canon.Container = canon.Image
-	}
-	canon.Image = ""
-	return json.Marshal(canon)
-}
-
 func (s *Step) IfCondition() string {
 	switch v := s.If.(type) {
 	case bool:
@@ -192,16 +174,6 @@ func parseBatchSpec(schema string, data []byte) (*BatchSpec, error) {
 		return nil, err
 	}
 
-	if spec.Version == 3 {
-		// Mirror v3 `image:` into `container:` so in-memory consumers that
-		// read step.Container (e.g. the executor transform) keep working.
-		// JSON serialization is canonicalized separately in Step.MarshalJSON
-		// so prep-side cache hashing matches src-cli/executor serialization.
-		for i := range spec.Steps {
-			spec.Steps[i].Container = spec.Steps[i].Image
-		}
-	}
-
 	var errs error
 
 	if len(spec.Steps) != 0 && spec.ChangesetTemplate == nil {
@@ -225,8 +197,7 @@ func parseBatchSpec(schema string, data []byte) (*BatchSpec, error) {
 		if step.CodingAgent != nil && step.Run != "" {
 			errs = errors.Append(errs, NewValidationError(errors.Newf("step %d: codingAgent and run cannot be combined in the same step", i+1)))
 		}
-		if step.CodingAgent != nil && step.Container == "" {
-			// v3 image: is mirrored into Container above.
+		if step.CodingAgent != nil && step.Container == "" && step.Image == "" {
 			errs = errors.Append(errs, NewValidationError(errors.Newf("step %d: codingAgent step requires an image", i+1)))
 		}
 	}
