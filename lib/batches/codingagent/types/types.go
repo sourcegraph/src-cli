@@ -6,12 +6,15 @@ import (
 	batcheslib "github.com/sourcegraph/sourcegraph/lib/batches"
 )
 
+// Mirrored in sourcegraph/sourcegraph lib/batches/codingagent/codingagent.go; keep in sync.
 const (
 	ModelProviderTokenEnvVar = "SRC_BATCHES_MODEL_PROVIDER_TOKEN"
 	JobIDEnvVar              = "SRC_BATCHES_JOB_ID"
 	JobIDHeaderName          = "X-Sourcegraph-Job-ID"
-	InstallDir               = "/tmp/sg-codingagent/bin"
 )
+
+// InstallDir is src-cli-local; not part of the cross-repo contract.
+const InstallDir = "/tmp/sg-codingagent/bin"
 
 type Agent interface {
 	Type() batcheslib.CodingAgentType
