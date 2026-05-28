@@ -1,4 +1,4 @@
-// Package codex implements the codex coding agent run-command rewrite.
+// Package codex implements the codex coding agent.
 package codex
 
 import (
@@ -10,23 +10,16 @@ import (
 	"github.com/sourcegraph/sourcegraph/lib/batches/codingagent/types"
 )
 
-const model = "gpt-5.4"
-
-// pinnedVersion is the codex CLI release we test against. Bump in lockstep
-// with the model_providers.* config keys below; codex CLI is pre-v1.
-const pinnedVersion = "0.134.0"
-
-var routes = []types.ModelProviderRoute{
-	{WirePath: "/responses", UpstreamPath: "/v1/completions/openai-responses"},
-}
+const (
+	model         = "gpt-5.4"
+	pinnedVersion = "0.134.0"
+)
 
 type Agent struct{}
 
-func (Agent) Type() batcheslib.CodingAgentType                { return batcheslib.CodingAgentTypeCodex }
-func (Agent) ModelProviderRoutes() []types.ModelProviderRoute { return routes }
-func (Agent) ImageRequirements() []string                     { return []string{"curl", "tar"} }
+func (Agent) Type() batcheslib.CodingAgentType { return batcheslib.CodingAgentTypeCodex }
+func (Agent) ImageRequirements() []string      { return []string{"curl", "tar"} }
 
-// InstallScript installs codex at pinnedVersion into types.InstallDir.
 func (Agent) InstallScript() string {
 	return fmt.Sprintf(`_install_dir=%s
 _version=%s
@@ -69,7 +62,6 @@ func (Agent) RunCommand(prompt, modelProviderURL string) string {
 		"-c", fmt.Sprintf(`model_providers.sourcegraph.base_url=%q`, modelProviderURL),
 		"-c", fmt.Sprintf(`model_providers.sourcegraph.env_key=%q`, types.ModelProviderTokenEnvVar),
 		"-c", fmt.Sprintf(`model_providers.sourcegraph.env_http_headers={%q=%q}`, types.JobIDHeaderName, types.JobIDEnvVar),
-		"-c", `model_providers.sourcegraph.wire_api="responses"`,
 		prompt,
 	)
 }

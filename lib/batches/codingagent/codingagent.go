@@ -1,5 +1,5 @@
-// Package codingagent rewrites v3 batch spec coding-agent steps into the
-// shell commands that drive them. Register new agents in the agents list.
+// Package codingagent rewrites v3 batch spec coding-agent steps into shell
+// commands. Register new agents in the agents list.
 package codingagent
 
 import (
@@ -16,13 +16,9 @@ import (
 	"github.com/sourcegraph/sourcegraph/lib/errors"
 )
 
-// ErrUnknownType is returned when a codingAgent step references a type that
-// has no registered Agent.
 var ErrUnknownType = errors.New("unknown codingAgent type")
 
-// RenderRunCommand returns the shell-quoted command that runs agentStep. The
-// prompt is rendered before quoting; reversing would let templated values
-// break out of the shell quoting.
+// RenderRunCommand returns the shell command that runs agentStep.
 func RenderRunCommand(agentStep *batcheslib.CodingAgentStep, modelProviderURL string, stepCtx *template.StepContext) (string, error) {
 	a, ok := agents[agentStep.Type]
 	if !ok {
@@ -43,9 +39,6 @@ func RenderRunCommand(agentStep *batcheslib.CodingAgentStep, modelProviderURL st
 	return b.String(), nil
 }
 
-// failIfMissing returns a shell snippet that, when prepended to the step
-// script, writes a message to stderr and exits the container with status 1
-// if binary isn't on PATH.
 func failIfMissing(agentType batcheslib.CodingAgentType, binary string) string {
 	msg := fmt.Sprintf(
 		"codingAgent %q requires %q on PATH in the run container",
@@ -69,20 +62,3 @@ var agents = func() map[batcheslib.CodingAgentType]types.Agent {
 	}
 	return out
 }()
-
-// RegisteredModelProviderRoutes returns the model-provider proxy routes
-// contributed by every registered Agent, each WirePath prefixed with
-// its agent type.
-func RegisteredModelProviderRoutes() []types.ModelProviderRoute {
-	var out []types.ModelProviderRoute
-	for _, a := range agents {
-		prefix := "/" + string(a.Type())
-		for _, route := range a.ModelProviderRoutes() {
-			out = append(out, types.ModelProviderRoute{
-				WirePath:     prefix + route.WirePath,
-				UpstreamPath: route.UpstreamPath,
-			})
-		}
-	}
-	return out
-}
