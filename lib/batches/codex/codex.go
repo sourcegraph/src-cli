@@ -26,21 +26,31 @@ func (Agent) Type() batcheslib.CodingAgentType                { return batchesli
 func (Agent) ModelProviderRoutes() []types.ModelProviderRoute { return routes }
 func (Agent) ImageRequirements() []string                     { return []string{"curl", "tar"} }
 
-// InstallScript installs codex from GitHub Releases into types.InstallDir.
+// InstallScript installs codex at pinnedVersion into types.InstallDir.
 func (Agent) InstallScript() string {
 	return fmt.Sprintf(`_install_dir=%s
 _version=%s
-_codex_arch=$(uname -m)
-case "$_codex_arch" in
-  x86_64)  _codex_triple=x86_64-unknown-linux-musl ;;
-  aarch64) _codex_triple=aarch64-unknown-linux-musl ;;
-  *) echo "codingAgent codex: unsupported architecture: $_codex_arch" >&2; exit 1 ;;
+
+case "$(uname -m)" in
+  x86_64)  _triple=x86_64-unknown-linux-musl ;;
+  aarch64) _triple=aarch64-unknown-linux-musl ;;
+  *) echo "codingAgent codex: unsupported architecture $(uname -m)" >&2; exit 1 ;;
 esac
+
+# Stage in a temp dir and mv into place so a failed retry can't leave a half-written binary behind.
+_url="https://github.com/openai/codex/releases/download/rust-v${_version}/codex-${_triple}.tar.gz"
+_tmp=$(mktemp -d "${TMPDIR:-/tmp}/sg-codex.XXXXXX")
 mkdir -p "$_install_dir"
-curl -fsSL "https://github.com/openai/codex/releases/download/rust-v${_version}/codex-${_codex_triple}.tar.gz" | tar -xz -C "$_install_dir"
-mv "$_install_dir/codex-${_codex_triple}" "$_install_dir/codex"
-chmod +x "$_install_dir/codex"
-"$_install_dir/codex" --version >/dev/null || { echo "codingAgent codex: install verification failed (cannot exec $_install_dir/codex)" >&2; exit 1; }
+curl -fsSL "$_url" | tar -xz -C "$_tmp" || { echo "codingAgent codex: download/extract failed: $_url" >&2; exit 1; }
+chmod +x "$_tmp/codex-${_triple}"
+mv -f "$_tmp/codex-${_triple}" "$_install_dir/codex"
+rm -rf "$_tmp"
+
+_actual=$("$_install_dir/codex" --version 2>&1) || { echo "codingAgent codex: cannot exec $_install_dir/codex: $_actual" >&2; exit 1; }
+case "$_actual" in
+  *"$_version"*) ;;
+  *) echo "codingAgent codex: version mismatch: want $_version, got: $_actual" >&2; exit 1 ;;
+esac
 `, types.InstallDir, pinnedVersion)
 }
 

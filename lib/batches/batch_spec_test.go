@@ -1,8 +1,36 @@
 package batches
 
 import (
+	"encoding/json"
+	"strings"
 	"testing"
 )
+
+// Step JSON must always emit `container` (never `image`) so prep-side cache
+// keys computed by marshaling Step match src-cli's serialization.
+func TestStep_MarshalJSON_canonicalizesImageToContainer(t *testing.T) {
+	v3FromImage, err := json.Marshal(Step{Image: "alpine:3", Run: "echo hi"})
+	if err != nil {
+		t.Fatalf("marshal v3-shaped step: %v", err)
+	}
+	v1FromContainer, err := json.Marshal(Step{Container: "alpine:3", Run: "echo hi"})
+	if err != nil {
+		t.Fatalf("marshal v1-shaped step: %v", err)
+	}
+	if string(v3FromImage) != string(v1FromContainer) {
+		t.Errorf("canonical JSON differs:\n  v3 image:     %s\n  v1 container: %s", v3FromImage, v1FromContainer)
+	}
+	var out map[string]any
+	if err := json.Unmarshal(v3FromImage, &out); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if _, ok := out["image"]; ok {
+		t.Errorf("expected no image key in canonical JSON, got %s", v3FromImage)
+	}
+	if got, _ := out["container"].(string); got != "alpine:3" {
+		t.Errorf("container: got %v want alpine:3 (full=%s)", out["container"], v3FromImage)
+	}
+}
 
 // TestParseBatchSpec_v3_imageMirroredToContainer ensures that in v3 specs the
 // step-level `image:` field is mirrored into Step.Container so executor
@@ -36,6 +64,36 @@ changesetTemplate:
 	}
 	if got.Steps[0].Container != "alpine:3" {
 		t.Errorf("Step.Container (mirrored from image): got %q want %q", got.Steps[0].Container, "alpine:3")
+	}
+}
+
+// A v3 codingAgent step without image: must be rejected at parse time so
+// it doesn't fail later with an opaque empty-image error in the executor.
+func TestParseBatchSpec_v3_codingAgentRequiresImage(t *testing.T) {
+	spec := []byte(`
+version: 3
+name: test
+description: test
+on:
+  - repository: github.com/sourcegraph/sourcegraph
+steps:
+  - codingAgent:
+      type: codex
+      prompt: do the thing
+changesetTemplate:
+  title: test
+  body: test
+  branch: test
+  commit:
+    message: test
+`)
+	_, err := ParseBatchSpec(spec)
+	if err == nil {
+		t.Fatal("expected validation error, got nil")
+	}
+	if !strings.Contains(err.Error(), "requires an image") &&
+		!strings.Contains(err.Error(), "Must validate") {
+		t.Errorf("error should mention missing image, got: %v", err)
 	}
 }
 

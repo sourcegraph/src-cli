@@ -226,6 +226,10 @@ func parseBatchSpec(schema string, data []byte) (*BatchSpec, error) {
 		if step.CodingAgent != nil && step.Run != "" {
 			errs = errors.Append(errs, NewValidationError(errors.Newf("step %d: codingAgent and run cannot be combined in the same step", i+1)))
 		}
+		if step.CodingAgent != nil && step.Container == "" {
+			// v3 image: is mirrored into Container above.
+			errs = errors.Append(errs, NewValidationError(errors.Newf("step %d: codingAgent step requires an image", i+1)))
+		}
 	}
 
 	return &spec, errs

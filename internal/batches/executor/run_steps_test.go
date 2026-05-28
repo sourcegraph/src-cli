@@ -1,10 +1,56 @@
 package executor
 
 import (
+	"slices"
+	"strings"
 	"testing"
 
 	codingagenttypes "github.com/sourcegraph/sourcegraph/lib/batches/codingagent/types"
 )
+
+func TestRedactSensitiveEnv(t *testing.T) {
+	in := map[string]string{
+		codingagenttypes.ModelProviderTokenEnvVar: "tok-abc",
+		codingagenttypes.JobIDEnvVar:              "job-123",
+		"PATH":                                    "/bin",
+	}
+	out := redactSensitiveEnv(in)
+	if got := out[codingagenttypes.ModelProviderTokenEnvVar]; got != redactedPlaceholder {
+		t.Errorf("token: got %q want %q", got, redactedPlaceholder)
+	}
+	if got := out[codingagenttypes.JobIDEnvVar]; got != "job-123" {
+		t.Errorf("job id should not be redacted: got %q", got)
+	}
+	if got := out["PATH"]; got != "/bin" {
+		t.Errorf("PATH should not be redacted: got %q", got)
+	}
+	if in[codingagenttypes.ModelProviderTokenEnvVar] != "tok-abc" {
+		t.Errorf("input must not be mutated")
+	}
+}
+
+func TestRedactSensitiveArgs(t *testing.T) {
+	in := []string{
+		"docker", "run",
+		"-e", codingagenttypes.ModelProviderTokenEnvVar + "=tok-abc",
+		"-e", codingagenttypes.JobIDEnvVar + "=job-123",
+		"-e", "PATH=/bin",
+		"--", "image:tag", "/script",
+	}
+	out := redactSensitiveArgs(in)
+	if slices.Contains(out, codingagenttypes.ModelProviderTokenEnvVar+"=tok-abc") {
+		t.Errorf("token value still present in args: %v", out)
+	}
+	if !slices.Contains(out, codingagenttypes.ModelProviderTokenEnvVar+"="+redactedPlaceholder) {
+		t.Errorf("token not redacted in args: %v", out)
+	}
+	if !slices.Contains(out, codingagenttypes.JobIDEnvVar+"=job-123") {
+		t.Errorf("job id should pass through: %v", out)
+	}
+	if strings.Contains(strings.Join(out, " "), "tok-abc") {
+		t.Errorf("token leaked anywhere in joined args: %v", out)
+	}
+}
 
 // TestForwardCodingAgentEnv verifies that the model-provider auth env vars
 // placed on the v1 CliStep by the Sourcegraph server are forwarded into the

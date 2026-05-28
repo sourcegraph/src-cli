@@ -338,7 +338,7 @@ func executeSingleStep(
 	// ----------
 	// EXECUTION
 	// ----------
-	opts.UI.StepStarted(stepIdx+1, runScript, env)
+	opts.UI.StepStarted(stepIdx+1, runScript, redactSensitiveEnv(env))
 
 	workspaceOpts, err := workspace.DockerRunOpts(ctx, workDir)
 	if err != nil {
@@ -424,7 +424,7 @@ func executeSingleStep(
 	}
 
 	opts.Logger.Logf("[Step %d] run: %q, container: %q", stepIdx+1, step.Run, step.Container)
-	opts.Logger.Logf("[Step %d] full command: %q", stepIdx+1, strings.Join(cmd.Args, " "))
+	opts.Logger.Logf("[Step %d] full command: %q", stepIdx+1, strings.Join(redactSensitiveArgs(cmd.Args), " "))
 
 	// Start the command.
 	t0 := time.Now()
@@ -617,6 +617,46 @@ func forwardCodingAgentEnv(globalEnv []string, stepEnv map[string]string) {
 			}
 		}
 	}
+}
+
+// sensitiveEnvKeys names env vars that get passed verbatim into the user
+// container but must be scrubbed from UI sinks and log lines.
+var sensitiveEnvKeys = map[string]struct{}{
+	codingagenttypes.ModelProviderTokenEnvVar: {},
+}
+
+const redactedPlaceholder = "REDACTED"
+
+func redactSensitiveEnv(env map[string]string) map[string]string {
+	out := make(map[string]string, len(env))
+	for k, v := range env {
+		if _, sensitive := sensitiveEnvKeys[k]; sensitive && v != "" {
+			out[k] = redactedPlaceholder
+		} else {
+			out[k] = v
+		}
+	}
+	return out
+}
+
+// redactSensitiveArgs scrubs the value side of `-e KEY=VALUE` pairs whose
+// KEY is sensitive, returning a copy of args suitable for logging.
+func redactSensitiveArgs(args []string) []string {
+	out := make([]string, len(args))
+	copy(out, args)
+	for i := 0; i+1 < len(out); i++ {
+		if out[i] != "-e" {
+			continue
+		}
+		key, _, ok := strings.Cut(out[i+1], "=")
+		if !ok {
+			continue
+		}
+		if _, sensitive := sensitiveEnvKeys[key]; sensitive {
+			out[i+1] = key + "=" + redactedPlaceholder
+		}
+	}
+	return out
 }
 
 // writeRunScriptFile writes a pre-rendered run script (e.g. a codingAgent
