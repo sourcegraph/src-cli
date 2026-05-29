@@ -47,9 +47,10 @@ func (key CacheKey) mountsMetadata() ([]MountMetadata, error) {
 	return nil, nil
 }
 
-// perJobEnvVars resolve to per-job or per-executor values and must be
-// stripped from cache keys. Mirrored in sourcegraph/sourcegraph/lib/batches/execution/cache/cache.go.
-var perJobEnvVars = []string{
+// perRunEnvVars resolve to per-job or per-executor values that change on
+// every dequeue and must be stripped from cache keys. Mirrored in
+// sourcegraph/sourcegraph/lib/batches/execution/cache/cache.go.
+var perRunEnvVars = []string{
 	"SRC_EXECUTOR_JOB_TOKEN",
 	"SRC_EXECUTOR_JOB_ID",
 	"SRC_EXECUTOR_NAME",
@@ -72,7 +73,7 @@ func resolveStepsEnvironment(globalEnv []string, steps []batches.Step) ([]map[st
 		if err != nil {
 			return nil, errors.Wrapf(err, "resolving environment for step %d", i)
 		}
-		for _, name := range perJobEnvVars {
+		for _, name := range perRunEnvVars {
 			delete(env, name)
 		}
 		envs[i] = env

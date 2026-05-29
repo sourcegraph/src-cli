@@ -10,7 +10,7 @@ import (
 	"github.com/sourcegraph/sourcegraph/lib/batches/env"
 )
 
-func TestKeyer_Key_PerJobEnvVarsIgnored(t *testing.T) {
+func TestKeyer_Key_PerRunEnvVarsIgnored(t *testing.T) {
 	var stepEnv env.Environment
 	require.NoError(t, json.Unmarshal(
 		[]byte(`["SRC_EXECUTOR_JOB_TOKEN", "SRC_EXECUTOR_JOB_ID", "SRC_EXECUTOR_NAME"]`),
