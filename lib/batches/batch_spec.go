@@ -90,13 +90,26 @@ func (oqor *OnQueryOrRepository) GetBranches() ([]string, error) {
 }
 
 type Step struct {
-	Run       string            `json:"run,omitempty" yaml:"run"`
-	Container string            `json:"container,omitempty" yaml:"container"`
-	Env       env.Environment   `json:"env" yaml:"env"`
-	Files     map[string]string `json:"files,omitempty" yaml:"files,omitempty"`
-	Outputs   Outputs           `json:"outputs,omitempty" yaml:"outputs,omitempty"`
-	Mount     []Mount           `json:"mount,omitempty" yaml:"mount,omitempty"`
-	If        any               `json:"if,omitempty" yaml:"if,omitempty"`
+	Run         string            `json:"run,omitempty" yaml:"run"`
+	CodingAgent *CodingAgentStep  `json:"codingAgent,omitempty" yaml:"codingAgent,omitempty"`
+	Container   string            `json:"container,omitempty" yaml:"container"`
+	Image       string            `json:"image,omitempty" yaml:"image"`
+	Env         env.Environment   `json:"env" yaml:"env"`
+	Files       map[string]string `json:"files,omitempty" yaml:"files,omitempty"`
+	Outputs     Outputs           `json:"outputs,omitempty" yaml:"outputs,omitempty"`
+	Mount       []Mount           `json:"mount,omitempty" yaml:"mount,omitempty"`
+	If          any               `json:"if,omitempty" yaml:"if,omitempty"`
+}
+
+type CodingAgentType string
+
+const (
+	CodingAgentTypeCodex CodingAgentType = "codex"
+)
+
+type CodingAgentStep struct {
+	Type   CodingAgentType `json:"type,omitempty" yaml:"type"`
+	Prompt string          `json:"prompt,omitempty" yaml:"prompt"`
 }
 
 func (s *Step) IfCondition() string {
@@ -180,6 +193,12 @@ func parseBatchSpec(schema string, data []byte) (*BatchSpec, error) {
 			if strings.ContainsAny(name, invalidMountCharacters) {
 				errs = errors.Append(errs, NewValidationError(errors.Newf("step %d files target path contains invalid characters", i+1)))
 			}
+		}
+		if step.CodingAgent != nil && step.Run != "" {
+			errs = errors.Append(errs, NewValidationError(errors.Newf("step %d: codingAgent and run cannot be combined in the same step", i+1)))
+		}
+		if step.CodingAgent != nil && step.Container == "" && step.Image == "" {
+			errs = errors.Append(errs, NewValidationError(errors.Newf("step %d: codingAgent step requires an image", i+1)))
 		}
 	}
 

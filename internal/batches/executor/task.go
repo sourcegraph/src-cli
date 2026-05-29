@@ -29,6 +29,9 @@ type Task struct {
 	// When this field is true, CachedStepResult is also populated.
 	CachedStepResultFound bool
 	CachedStepResult      execution.AfterStepResult
+	// ModelProviderURL is the resolved proxy base URL for coding-agent
+	// steps; empty unless the spec contains at least one codingAgent step.
+	ModelProviderURL string
 }
 
 func (t *Task) ArchivePathToFetch() string {

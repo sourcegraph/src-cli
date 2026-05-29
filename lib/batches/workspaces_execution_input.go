@@ -21,6 +21,9 @@ type WorkspacesExecutionInput struct {
 	CachedStepResult execution.AfterStepResult `json:"cachedStepResult"`
 	// SkippedSteps determines which steps are skipped in the execution.
 	SkippedSteps map[int]struct{} `json:"skippedSteps"`
+	// ModelProviderURL is the resolved proxy base URL for coding-agent
+	// steps; only set when the spec contains at least one codingAgent step.
+	ModelProviderURL string `json:"modelProviderURL,omitempty"`
 }
 
 type WorkspaceRepo struct {
