@@ -113,8 +113,9 @@ func TestEnsureDockerImages(t *testing.T) {
 			}
 
 			for name, steps := range map[string][]batcheslib.Step{
-				"single step":    {{Container: "image"}},
-				"multiple steps": {{Container: "image"}, {Container: "image"}},
+				"single step":      {{Container: "image"}},
+				"multiple steps":   {{Container: "image"}, {Container: "image"}},
+				"dynamic deferred": {{Container: "${{ outputs.imageName }}"}, {Container: "image"}},
 			} {
 				t.Run(name, func(t *testing.T) {
 					for _, parallelism := range parallelCases {
@@ -264,6 +265,35 @@ description: A test spec
 some-new-field: Foo bar
 `,
 			expectedErr: errors.New("parsing batch spec: Additional property some-new-field is not allowed"),
+		},
+		{
+			name: "step image alias",
+			rawSpec: `
+name: test-spec
+description: A test spec
+steps:
+  - run: echo hi
+    image: alpine:3
+changesetTemplate:
+  title: Test
+  body: Test
+  branch: test
+  commit:
+    message: Test
+`,
+			expectedSpec: &batcheslib.BatchSpec{
+				Name:        "test-spec",
+				Description: "A test spec",
+				Steps: []batcheslib.Step{
+					{Run: "echo hi", Container: "alpine:3", Image: "alpine:3"},
+				},
+				ChangesetTemplate: &batcheslib.ChangesetTemplate{
+					Title:  "Test",
+					Body:   "Test",
+					Branch: "test",
+					Commit: batcheslib.ExpandedGitCommitDescription{Message: "Test"},
+				},
+			},
 		},
 		{
 			name: "supported version",

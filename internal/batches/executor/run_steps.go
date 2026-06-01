@@ -165,10 +165,16 @@ func RunSteps(ctx context.Context, opts *RunStepsOpts) (stepResults []execution.
 			continue
 		}
 
+		resolvedContainer, err := renderStepContainer(step.Container, &stepContext)
+		if err != nil {
+			return nil, errors.Wrapf(err, "failed to resolve image for step %d", i+1)
+		}
+		step.Container = resolvedContainer
+
 		// We need to grab the digest for the exact image we're using.
 		img, err := opts.EnsureImage(ctx, step.Container)
 		if err != nil {
-			return nil, err
+			return nil, errors.Wrapf(err, "failed to pull image for step %d: %s", i+1, step.Container)
 		}
 		digest, err := img.Digest(ctx)
 		if err != nil {
@@ -239,6 +245,27 @@ func RunSteps(ctx context.Context, opts *RunStepsOpts) (stepResults []execution.
 	}
 
 	return stepResults, err
+}
+
+func renderStepContainer(container string, stepContext *template.StepContext) (string, error) {
+	if container == "" {
+		return "", nil
+	}
+
+	var out bytes.Buffer
+	if err := template.RenderStepTemplate("step-container", container, &out, stepContext); err != nil {
+		return "", err
+	}
+
+	resolved := out.String()
+	if strings.TrimSpace(resolved) == "" {
+		return "", errors.New("empty image")
+	}
+	if strings.Contains(resolved, "${{") {
+		return "", errors.Errorf("unresolved template in image %q", resolved)
+	}
+
+	return resolved, nil
 }
 
 const workDir = "/work"

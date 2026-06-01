@@ -1,6 +1,7 @@
 package batches
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -92,11 +93,40 @@ func (oqor *OnQueryOrRepository) GetBranches() ([]string, error) {
 type Step struct {
 	Run       string            `json:"run,omitempty" yaml:"run"`
 	Container string            `json:"container,omitempty" yaml:"container"`
+	Image     string            `json:"image,omitempty" yaml:"image,omitempty"`
 	Env       env.Environment   `json:"env" yaml:"env"`
 	Files     map[string]string `json:"files,omitempty" yaml:"files,omitempty"`
 	Outputs   Outputs           `json:"outputs,omitempty" yaml:"outputs,omitempty"`
 	Mount     []Mount           `json:"mount,omitempty" yaml:"mount,omitempty"`
 	If        any               `json:"if,omitempty" yaml:"if,omitempty"`
+}
+
+func (s *Step) normalizeImageAlias() {
+	if s.Container == "" && s.Image != "" {
+		s.Container = s.Image
+	}
+}
+
+func (s *Step) UnmarshalJSON(data []byte) error {
+	type step Step
+	var decoded step
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+	*s = Step(decoded)
+	s.normalizeImageAlias()
+	return nil
+}
+
+func (s *Step) UnmarshalYAML(unmarshal func(any) error) error {
+	type step Step
+	var decoded step
+	if err := unmarshal(&decoded); err != nil {
+		return err
+	}
+	*s = Step(decoded)
+	s.normalizeImageAlias()
+	return nil
 }
 
 func (s *Step) IfCondition() string {

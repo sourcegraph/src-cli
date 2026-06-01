@@ -128,13 +128,18 @@ const BatchSpecJSON = `{
         "type": "object",
         "description": "A command to run (as part of a sequence) in a repository branch to produce the required changes.",
         "additionalProperties": false,
-        "required": ["run", "container"],
+        "required": ["run"],
         "properties": {
           "run": {
             "type": "string",
             "description": "The shell command to run in the container. It can also be a multi-line shell script. The working directory is the root directory of the repository checkout."
           },
           "container": {
+            "type": "string",
+            "description": "The Docker image used to launch the Docker container in which the shell command is run.",
+            "examples": ["alpine:3"]
+          },
+          "image": {
             "type": "string",
             "description": "The Docker image used to launch the Docker container in which the shell command is run.",
             "examples": ["alpine:3"]
