@@ -59,10 +59,7 @@ func newProgressWithStatusBarsSimple(bars []*ProgressBar, statusBars []*StatusBa
 	}
 
 	if opts != nil && opts.NoSpinner {
-		if p.Output.verbose {
-			writeBars(p.Output, p.bars)
-			writeStatusBars(p.Output, p.statusBars)
-		}
+		p.done = nil
 		return p
 	}
 
@@ -77,7 +74,6 @@ func newProgressWithStatusBarsSimple(bars []*ProgressBar, statusBars []*StatusBa
 					writeBars(p.Output, p.bars)
 					writeStatusBars(p.Output, p.statusBars)
 				}
-
 			case c := <-p.done:
 				c <- struct{}{}
 				return

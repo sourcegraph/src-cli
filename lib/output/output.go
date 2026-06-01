@@ -92,7 +92,7 @@ var newOutputPlatformQuirks func(o *Output) error
 // newCapabilityWatcher returns a channel that receives a message when
 // capabilities are updated. By default, no watching functionality is
 // available.
-var newCapabilityWatcher = func(opts OutputOpts) chan capabilities { return nil }
+var newCapabilityWatcher = func(_ OutputOpts) chan capabilities { return nil }
 
 func NewOutput(w io.Writer, opts OutputOpts) *Output {
 	// Not being able to detect capabilities is alright. It might mean output will look
@@ -144,6 +144,17 @@ func (o *Output) UnsetVerbose() {
 	o.lock.Lock()
 	defer o.lock.Unlock()
 	o.verbose = false
+}
+
+func (o *Output) IsVerbose() bool {
+	o.lock.Lock()
+	defer o.lock.Unlock()
+	return o.verbose
+}
+
+// IsTTY reports whether this output is configured to render to a TTY.
+func (o *Output) IsTTY() bool {
+	return o.caps.Isatty
 }
 
 func (o *Output) Unlock() {

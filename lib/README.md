@@ -5,8 +5,8 @@ This directory contains vendored packages from `github.com/sourcegraph/sourcegra
 ## Source
 
 - **Repository**: https://github.com/sourcegraph/sourcegraph
-- **Commit**: 2ee2b8e77de9663b08ce5f6e5a2c7d2217ce721a
-- **Date**: 2025-11-17 19:49:42 -0800
+- **Commit**: bdc2f4bb8b59f78f4fa8868b2690b673b41948d4
+- **Date**: 2026-06-01 07:34:50 +0100
 
 ## Updating
 

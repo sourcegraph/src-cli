@@ -102,7 +102,7 @@ func AsInterface[I any](err error, target *I) bool {
 	if target == nil {
 		panic("Expected non-nil pointer to interface")
 	}
-	if typ := reflect.TypeOf(target); typ.Elem().Kind() != reflect.Interface {
+	if typ := reflect.TypeFor[*I](); typ.Elem().Kind() != reflect.Interface {
 		panic("Expected pointer to interface")
 	}
 	return errors.As(err, target)
@@ -164,23 +164,23 @@ func registerCockroachSafeTypes() {
 	// We consider booleans and numeric values to be always safe for
 	// reporting. A log call can opt out by using redact.Unsafe() around
 	// a value that would be otherwise considered safe.
-	redact.RegisterSafeType(reflect.TypeOf(true)) // bool
-	redact.RegisterSafeType(reflect.TypeOf(123))  // int
-	redact.RegisterSafeType(reflect.TypeOf(int8(0)))
-	redact.RegisterSafeType(reflect.TypeOf(int16(0)))
-	redact.RegisterSafeType(reflect.TypeOf(int32(0)))
-	redact.RegisterSafeType(reflect.TypeOf(int64(0)))
-	redact.RegisterSafeType(reflect.TypeOf(uint8(0)))
-	redact.RegisterSafeType(reflect.TypeOf(uint16(0)))
-	redact.RegisterSafeType(reflect.TypeOf(uint32(0)))
-	redact.RegisterSafeType(reflect.TypeOf(uint64(0)))
-	redact.RegisterSafeType(reflect.TypeOf(float32(0)))
-	redact.RegisterSafeType(reflect.TypeOf(float64(0)))
-	redact.RegisterSafeType(reflect.TypeOf(complex64(0)))
-	redact.RegisterSafeType(reflect.TypeOf(complex128(0)))
+	redact.RegisterSafeType(reflect.TypeFor[bool]()) // bool
+	redact.RegisterSafeType(reflect.TypeFor[int]())  // int
+	redact.RegisterSafeType(reflect.TypeFor[int8]())
+	redact.RegisterSafeType(reflect.TypeFor[int16]())
+	redact.RegisterSafeType(reflect.TypeFor[int32]())
+	redact.RegisterSafeType(reflect.TypeFor[int64]())
+	redact.RegisterSafeType(reflect.TypeFor[uint8]())
+	redact.RegisterSafeType(reflect.TypeFor[uint16]())
+	redact.RegisterSafeType(reflect.TypeFor[uint32]())
+	redact.RegisterSafeType(reflect.TypeFor[uint64]())
+	redact.RegisterSafeType(reflect.TypeFor[float32]())
+	redact.RegisterSafeType(reflect.TypeFor[float64]())
+	redact.RegisterSafeType(reflect.TypeFor[complex64]())
+	redact.RegisterSafeType(reflect.TypeFor[complex128]())
 	// Signal names are also safe for reporting.
 	redact.RegisterSafeType(reflect.TypeOf(os.Interrupt))
 	// Times and durations too.
-	redact.RegisterSafeType(reflect.TypeOf(time.Time{}))
-	redact.RegisterSafeType(reflect.TypeOf(time.Duration(0)))
+	redact.RegisterSafeType(reflect.TypeFor[time.Time]())
+	redact.RegisterSafeType(reflect.TypeFor[time.Duration]())
 }

@@ -39,7 +39,30 @@ type BatchSpec struct {
 	TransformChanges  *TransformChanges        `json:"transformChanges,omitempty" yaml:"transformChanges,omitempty"`
 	ImportChangesets  []ImportChangeset        `json:"importChangesets,omitempty" yaml:"importChangesets"`
 	ChangesetTemplate *ChangesetTemplate       `json:"changesetTemplate,omitempty" yaml:"changesetTemplate"`
+	ChangesetHooks    *ChangesetHooks          `json:"changesetHooks,omitempty" yaml:"hooks,omitempty"`
 }
+
+// Hooks declares side-effect actions to run at well-defined changeset
+// lifecycle events. Only allowed when Version is 3.
+type ChangesetHooks struct {
+	OnCIFailure     ChangesetHookAction `json:"onCIFailure,omitempty" yaml:"onCIFailure,omitempty"`
+	OnMergeConflict ChangesetHookAction `json:"onMergeConflict,omitempty" yaml:"onMergeConflict,omitempty"`
+}
+
+// HookAction is a single action attached to a changeset lifecycle event.
+//
+// Hook actions reuse the Step shape from the top-level steps block.
+type ChangesetHookAction struct {
+	Steps []Step `json:"steps,omitempty" yaml:"steps,omitempty"`
+}
+
+type changesetHookEvent string
+
+// Hook event names. Kept here so callers don't pass typoed strings.
+const (
+	ChangesetHookEventOnCIFailure     changesetHookEvent = "onCIFailure"
+	ChangesetHookEventOnMergeConflict changesetHookEvent = "onMergeConflict"
+)
 
 type ChangesetTemplate struct {
 	Title     string                       `json:"title,omitempty" yaml:"title"`
@@ -91,42 +114,46 @@ func (oqor *OnQueryOrRepository) GetBranches() ([]string, error) {
 }
 
 type Step struct {
-	Run       string            `json:"run,omitempty" yaml:"run"`
-	Container string            `json:"container,omitempty" yaml:"container"`
-	Image     string            `json:"image,omitempty" yaml:"image,omitempty"`
-	Env       env.Environment   `json:"env" yaml:"env"`
-	Files     map[string]string `json:"files,omitempty" yaml:"files,omitempty"`
-	Outputs   Outputs           `json:"outputs,omitempty" yaml:"outputs,omitempty"`
-	Mount     []Mount           `json:"mount,omitempty" yaml:"mount,omitempty"`
-	If        any               `json:"if,omitempty" yaml:"if,omitempty"`
+	Run         string            `json:"run,omitempty" yaml:"run"`
+	CodingAgent *CodingAgentStep  `json:"codingAgent,omitempty" yaml:"codingAgent,omitempty"`
+	BuildImage  *BuildImageStep   `json:"buildImage,omitempty" yaml:"buildImage,omitempty"`
+	Container   string            `json:"container,omitempty" yaml:"container"`
+	Image       string            `json:"image,omitempty" yaml:"image"`
+	MaxAttempts int               `json:"maxAttempts,omitempty" yaml:"maxAttempts,omitempty"`
+	Env         env.Environment   `json:"env" yaml:"env"`
+	Files       map[string]string `json:"files,omitempty" yaml:"files,omitempty"`
+	Outputs     Outputs           `json:"outputs,omitempty" yaml:"outputs,omitempty"`
+	Mount       []Mount           `json:"mount,omitempty" yaml:"mount,omitempty"`
+	If          any               `json:"if,omitempty" yaml:"if,omitempty"`
 }
 
-func (s *Step) normalizeImageAlias() {
-	if s.Container == "" && s.Image != "" {
-		s.Container = s.Image
-	}
+type CodingAgentStep struct {
+	Type   string `json:"type,omitempty" yaml:"type"`
+	Prompt string `json:"prompt,omitempty" yaml:"prompt"`
 }
 
-func (s *Step) UnmarshalJSON(data []byte) error {
-	type step Step
-	var decoded step
-	if err := json.Unmarshal(data, &decoded); err != nil {
-		return err
-	}
-	*s = Step(decoded)
-	s.normalizeImageAlias()
-	return nil
+type BuildImageStep struct {
+	Run       string `json:"run" yaml:"run"`
+	BaseImage string `json:"baseImage" yaml:"baseImage"`
 }
 
-func (s *Step) UnmarshalYAML(unmarshal func(any) error) error {
-	type step Step
-	var decoded step
-	if err := unmarshal(&decoded); err != nil {
-		return err
+// MarshalJSON canonicalizes the v3 `image:` field into `container:` on the
+// wire. Both fields exist on Step for ergonomic reasons (v3 specs use
+// `image:`, v1/v2 specs use `container:`), but src-cli's Step has only
+// `Container`. Without canonicalization, the prep-side cache key — computed
+// by JSON-marshaling Step — would include `image` while the executor side
+// (which round-trips through src-cli) would not, producing divergent keys
+// and silent cache misses for any v3 spec. See the regression test in
+// lib/batches/execution/cache.
+func (s Step) MarshalJSON() ([]byte, error) {
+	// Use an alias type to avoid infinite recursion through MarshalJSON.
+	type stepAlias Step
+	canon := stepAlias(s)
+	if canon.Container == "" {
+		canon.Container = canon.Image
 	}
-	*s = Step(decoded)
-	s.normalizeImageAlias()
-	return nil
+	canon.Image = ""
+	return json.Marshal(canon)
 }
 
 func (s *Step) IfCondition() string {
@@ -191,33 +218,97 @@ func parseBatchSpec(schema string, data []byte) (*BatchSpec, error) {
 		return nil, err
 	}
 
-	var errs error
+	if spec.Version == 3 {
+		// Mirror v3 `image:` into `container:` so in-memory consumers that
+		// read step.Container (e.g. the executor transform) keep working.
+		// JSON serialization is canonicalized separately in Step.MarshalJSON
+		// so prep-side cache hashing matches src-cli/executor serialization.
+		for i := range spec.Steps {
+			spec.Steps[i].Container = spec.Steps[i].Image
+		}
+	}
 
+	var errs error
 	if len(spec.Steps) != 0 && spec.ChangesetTemplate == nil {
 		errs = errors.Append(errs, NewValidationError(errors.New("batch spec includes steps but no changesetTemplate")))
 	}
 
+	// v3 specs do not support changesetTemplate.published — publication is
+	// driven exclusively via the batchchangeagent tools. Reject the field at
+	// parse time.
+	if spec.Version == 3 && spec.ChangesetTemplate != nil && spec.ChangesetTemplate.Published != nil {
+		errs = errors.Append(errs, NewValidationError(errors.New("changesetTemplate.published is not supported in batch spec version 3; drive publication via the publish_changesets tool instead")))
+	}
+
 	for i, step := range spec.Steps {
 		for _, mount := range step.Mount {
-			if strings.ContainsAny(mount.Path, invalidMountCharacters) {
+			if strings.Contains(mount.Path, invalidMountCharacters) {
 				errs = errors.Append(errs, NewValidationError(errors.Newf("step %d mount path contains invalid characters", i+1)))
 			}
-			if strings.ContainsAny(mount.Mountpoint, invalidMountCharacters) {
+			if strings.Contains(mount.Mountpoint, invalidMountCharacters) {
 				errs = errors.Append(errs, NewValidationError(errors.Newf("step %d mount mountpoint contains invalid characters", i+1)))
 			}
 		}
+		if step.CodingAgent != nil && step.Run != "" {
+			errs = errors.Append(errs, NewValidationError(errors.Newf("step %d: codingAgent and run cannot be combined in the same step", i+1)))
+		}
+		if step.BuildImage != nil && step.Run != "" {
+			errs = errors.Append(errs, NewValidationError(errors.Newf("step %d: buildImage and run cannot be combined in the same step", i+1)))
+		}
 		for name := range step.Files {
-			if strings.ContainsAny(name, invalidMountCharacters) {
+			if strings.Contains(name, invalidMountCharacters) {
 				errs = errors.Append(errs, NewValidationError(errors.Newf("step %d files target path contains invalid characters", i+1)))
 			}
 		}
 	}
 
+	if hookErr := validateHooks(&spec); hookErr != nil {
+		errs = errors.Append(errs, hookErr)
+	}
+
 	return &spec, errs
 }
 
-// docker uses Golang's `encoding/csv` library to parse arguments passed to `--mount`
-const invalidMountCharacters = ",\"\n\r"
+// validateHooks performs Go-level validation of spec.Hooks beyond what the
+// JSON schema enforces. The schema already gates `hooks:` on `version: 3` and
+// rejects unknown event names. We re-check the version invariant here so
+// non-schema callers (and any future schema drift) still fail safely, and we
+// run the per-step mount-character validator that the schema cannot express.
+func validateHooks(spec *BatchSpec) error {
+	if spec.ChangesetHooks == nil {
+		return nil
+	}
+
+	var errs error
+
+	if spec.Version != 3 {
+		errs = errors.Append(errs, NewValidationError(errors.New("batch spec hooks require version: 3")))
+	}
+
+	validate := func(event changesetHookEvent, action ChangesetHookAction) {
+		for i, step := range action.Steps {
+			for _, mount := range step.Mount {
+				if strings.Contains(mount.Path, invalidMountCharacters) {
+					errs = errors.Append(errs, NewValidationError(errors.Newf(
+						"hooks.%s step %d mount path contains invalid characters", event, i+1,
+					)))
+				}
+				if strings.Contains(mount.Mountpoint, invalidMountCharacters) {
+					errs = errors.Append(errs, NewValidationError(errors.Newf(
+						"hooks.%s step %d mount mountpoint contains invalid characters", event, i+1,
+					)))
+				}
+			}
+		}
+	}
+
+	validate(ChangesetHookEventOnCIFailure, spec.ChangesetHooks.OnCIFailure)
+	validate(ChangesetHookEventOnMergeConflict, spec.ChangesetHooks.OnMergeConflict)
+
+	return errs
+}
+
+const invalidMountCharacters = ","
 
 func (on *OnQueryOrRepository) String() string {
 	if on.RepositoriesMatchingQuery != "" {
@@ -240,10 +331,6 @@ func NewValidationError(err error) BatchSpecValidationError {
 
 func (e BatchSpecValidationError) Error() string {
 	return e.err.Error()
-}
-
-func IsValidationError(err error) bool {
-	return errors.HasType[*BatchSpecValidationError](err)
 }
 
 // SkippedStepsForRepo calculates the steps required to run on the given repo.

@@ -203,12 +203,6 @@ func (d *ChangesetSpec) IsImportingExisting() bool {
 	return d.Type() == ChangesetSpecDescriptionTypeExisting
 }
 
-// IsBranch returns whether the description is of type
-// ChangesetSpecDescriptionTypeBranch.
-func (d *ChangesetSpec) IsBranch() bool {
-	return d.Type() == ChangesetSpecDescriptionTypeBranch
-}
-
 // ChangesetSpecDescriptionType tells the consumer what the type of a
 // ChangesetSpecDescription is without having to look into the description.
 // Useful in the GraphQL when a HiddenChangesetSpec is returned.
