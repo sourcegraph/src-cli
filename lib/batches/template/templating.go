@@ -16,10 +16,8 @@ import (
 	"github.com/sourcegraph/sourcegraph/lib/errors"
 )
 
-const (
-	startDelim = "${{"
-	endDelim   = "}}"
-)
+const startDelim = "${{"
+const endDelim = "}}"
 
 var builtins = template.FuncMap{
 	"join":    strings.Join,
@@ -76,6 +74,7 @@ func ValidateBatchSpecTemplate(spec string) (bool, error) {
 	// option "missingkey=error". See https://pkg.go.dev/text/template#Template.Option for
 	// more.
 	t, err := New("validateBatchSpecTemplate", spec, "missingkey=error", sfm, cstfm)
+
 	if err != nil {
 		// Attempt to extract the specific template variable field that caused the error
 		// to provide a clearer message.

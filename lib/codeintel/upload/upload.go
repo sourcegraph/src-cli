@@ -218,6 +218,8 @@ func uploadMultipartIndexParts(ctx context.Context, httpClient Client, opts Uplo
 	}
 
 	for i, reader := range readers {
+		i, reader := i, reader
+
 		pool.Go(func(ctx context.Context) error {
 			// Determine size of this reader. If we're not the last reader in the slice,
 			// then we're the maximum payload size. Otherwise, we're whatever is left.

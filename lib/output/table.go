@@ -6,7 +6,9 @@ import (
 )
 
 const (
-	purple = lipgloss.Color("99")
+	purple    = lipgloss.Color("99")
+	gray      = lipgloss.Color("245")
+	lightGray = lipgloss.Color("241")
 )
 
 type Table struct {
@@ -39,6 +41,10 @@ func NewTable(headers []string) *Table {
 
 func (t *Table) AddRow(elems ...string) {
 	t.tbl.Row(elems...)
+}
+
+func (t *Table) AddRows(elems ...[]string) {
+	t.tbl.Rows(elems...)
 }
 
 func (t *Table) Render() string {

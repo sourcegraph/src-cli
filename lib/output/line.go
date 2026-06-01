@@ -64,12 +64,11 @@ func (fl FancyLine) write(w io.Writer, caps capabilities) {
 	if fl.Prefix != "" {
 		fmt.Fprint(w, fl.Prefix+" ")
 	}
-	emojiPrefix := ""
 	if fl.emoji != "" {
-		emojiPrefix = fl.emoji + " "
+		fmt.Fprint(w, fl.emoji+" ")
 	}
 
-	fmt.Fprintf(w, "%s"+emojiPrefix+fl.format+"%s", caps.formatArgs(append(append([]any{fl.style}, fl.args...), StyleReset))...)
+	fmt.Fprintf(w, "%s"+fl.format+"%s", caps.formatArgs(append(append([]any{fl.style}, fl.args...), StyleReset))...)
 	if fl.Prompt {
 		// Add whitespace for user input
 		_, _ = w.Write([]byte(" "))

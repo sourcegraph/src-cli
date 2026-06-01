@@ -89,6 +89,7 @@ func parseAndPartialEval(input string, ctx *StepContext) (*template.Template, er
 		Funcs(builtins).
 		Funcs(ctx.ToFuncMap()).
 		Parse(input)
+
 	if err != nil {
 		return nil, err
 	}
@@ -348,7 +349,7 @@ func isTrue(val reflect.Value) (truth bool) {
 		return val.Bool()
 	case reflect.Complex64, reflect.Complex128:
 		return val.Complex() != 0
-	case reflect.Chan, reflect.Func, reflect.Pointer, reflect.Interface:
+	case reflect.Chan, reflect.Func, reflect.Ptr, reflect.Interface:
 		return !val.IsNil()
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 		return val.Int() != 0

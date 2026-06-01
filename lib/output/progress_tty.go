@@ -139,11 +139,13 @@ func newProgressTTY(bars []*ProgressBar, o *Output, opts *ProgressOpts) *progres
 		o:            o,
 		emojiWidth:   3,
 		pendingEmoji: spinnerStrings[0],
+		spinner:      newSpinner(100 * time.Millisecond),
 	}
 
-	p.opts = *DefaultProgressTTYOpts
 	if opts != nil {
-		p.opts.NoSpinner = opts.NoSpinner
+		p.opts = *opts
+	} else {
+		p.opts = *DefaultProgressTTYOpts
 	}
 
 	if w := runewidth.StringWidth(p.opts.SuccessEmoji); w > p.emojiWidth {
@@ -160,8 +162,6 @@ func newProgressTTY(bars []*ProgressBar, o *Output, opts *ProgressOpts) *progres
 	if opts != nil && opts.NoSpinner {
 		return p
 	}
-
-	p.spinner = newSpinner(100 * time.Millisecond)
 
 	go func() {
 		for s := range p.spinner.C {

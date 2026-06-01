@@ -30,9 +30,6 @@ type uploadRequestOptions struct {
 // ErrUnauthorized occurs when the upload endpoint returns a 401 response.
 var ErrUnauthorized = errors.New("unauthorized upload")
 
-// ErrForbidden occurs when the upload endpoint returns a 403 response.
-var ErrForbidden = errors.New("insufficient permissions")
-
 // performUploadRequest performs an HTTP POST to the upload endpoint. The query string of the request
 // is constructed from the given request options and the body of the request is the unmodified reader.
 // If target is a non-nil pointer, it will be assigned the value of the upload identifier present
@@ -108,17 +105,17 @@ func performRequest(ctx context.Context, req *http.Request, httpClient Client, l
 // returns a boolean flag indicating if the function can be retried on failure (error-dependent).
 func decodeUploadPayload(resp *http.Response, body []byte, target *int) (bool, error) {
 	if resp.StatusCode >= 300 {
-		detail := extractBodyDetail(body)
-
 		if resp.StatusCode == http.StatusUnauthorized {
-			return false, errors.Wrap(ErrUnauthorized, detail)
+			return false, ErrUnauthorized
 		}
-		if resp.StatusCode == http.StatusForbidden {
-			return false, errors.Wrap(ErrForbidden, detail)
+
+		suffix := ""
+		if !bytes.HasPrefix(bytes.TrimSpace(body), []byte{'<'}) {
+			suffix = fmt.Sprintf(" (%s)", bytes.TrimSpace(body))
 		}
 
 		// Do not retry client errors
-		return resp.StatusCode >= 500, errors.Errorf("unexpected status code: %d: %s", resp.StatusCode, detail)
+		return resp.StatusCode >= 500, errors.Errorf("unexpected status code: %d%s", resp.StatusCode, suffix)
 	}
 
 	if target == nil {
@@ -200,16 +197,6 @@ func makeUploadURL(opts uploadRequestOptions) (*url.URL, error) {
 
 	parsedUrl.RawQuery = qs.Encode()
 	return parsedUrl, nil
-}
-
-// extractBodyDetail returns the response body as a suffix string for error messages.
-// Returns an empty string if the body is empty or appears to be HTML.
-func extractBodyDetail(body []byte) string {
-	trimmed := bytes.TrimSpace(body)
-	if len(trimmed) == 0 || bytes.HasPrefix(trimmed, []byte{'<'}) {
-		return ""
-	}
-	return string(trimmed)
 }
 
 func formatInt(v int) string {

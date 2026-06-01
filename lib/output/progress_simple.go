@@ -33,9 +33,6 @@ func (p *progressSimple) SetValue(i int, v float64) {
 }
 
 func (p *progressSimple) stop() {
-	if p.done == nil {
-		return
-	}
 	c := make(chan struct{})
 	p.done <- c
 	<-c
@@ -49,7 +46,9 @@ func newProgressSimple(bars []*ProgressBar, o *Output, opts *ProgressOpts) *prog
 	}
 
 	if opts != nil && opts.NoSpinner {
-		p.done = nil
+		if p.Output.verbose {
+			writeBars(p.Output, p.bars)
+		}
 		return p
 	}
 
@@ -63,6 +62,7 @@ func newProgressSimple(bars []*ProgressBar, o *Output, opts *ProgressOpts) *prog
 				if p.Output.verbose {
 					writeBars(p.Output, p.bars)
 				}
+
 			case c := <-p.done:
 				c <- struct{}{}
 				return

@@ -82,13 +82,7 @@ func detectCapabilities(opts OutputOpts) (caps capabilities, err error) {
 	// detect color mode
 	caps.Color = opts.ForceColor
 	if !opts.ForceColor {
-		// If ForceTTY is explicitly false, we also disable colors since non-TTY
-		// mode shouldn't have colors (and detection might be affected by env vars).
-		if opts.ForceTTY != nil && !*opts.ForceTTY {
-			caps.Color = false
-		} else {
-			caps.Color = detectColor(caps.Isatty)
-		}
+		caps.Color = detectColor(caps.Isatty)
 	}
 
 	// set detected background color

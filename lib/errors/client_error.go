@@ -14,10 +14,8 @@ type ClientError struct {
 	Err error
 }
 
-var (
-	_ error   = ClientError{nil}
-	_ Wrapper = ClientError{nil}
-)
+var _ error = ClientError{nil}
+var _ Wrapper = ClientError{nil}
 
 func (e ClientError) Error() string {
 	return e.Err.Error()

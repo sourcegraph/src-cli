@@ -7,6 +7,13 @@ type Bool struct {
 	rules rules
 }
 
+// FromBool creates a Bool representing a static, scalar value.
+func FromBool(b bool) Bool {
+	return Bool{
+		rules: rules{simpleRule(b)},
+	}
+}
+
 // Value returns the bool value for the given repository.
 func (b *Bool) Value(name string) bool {
 	v := b.rules.Match(name)

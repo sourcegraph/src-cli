@@ -17,9 +17,9 @@ var allEmojis = [...]string{
 
 // Standard emoji for use in output.
 const (
-	EmojiFailure          = " ⨯"
+	EmojiFailure          = "❌"
 	EmojiWarning          = "❗️"
-	EmojiSuccess          = " ✓"
+	EmojiSuccess          = "✅"
 	EmojiInfo             = "ℹ️"
 	EmojiLightbulb        = "💡"
 	EmojiAsterisk         = "✱"
