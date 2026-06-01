@@ -295,10 +295,19 @@ func (svc *Service) EnsureDockerImages(
 	parallelism int,
 	progress func(done, total int),
 ) (map[string]docker.Image, error) {
-	// Figure out the image names used in the batch spec.
+	// Figure out the concrete image names used in the batch spec. Images that
+	// still depend on runtime values, such as outputs from earlier steps, are
+	// resolved and pulled just-in-time by the executor.
 	names := map[string]struct{}{}
 	for i := range steps {
-		names[steps[i].Container] = struct{}{}
+		isStatic, name, err := templatelib.IsStaticString(steps[i].Container, &templatelib.StepContext{})
+		if err != nil {
+			return nil, err
+		}
+		if !isStatic {
+			continue
+		}
+		names[name] = struct{}{}
 	}
 
 	total := len(names)

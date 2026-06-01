@@ -113,8 +113,9 @@ func TestEnsureDockerImages(t *testing.T) {
 			}
 
 			for name, steps := range map[string][]batcheslib.Step{
-				"single step":    {{Container: "image"}},
-				"multiple steps": {{Container: "image"}, {Container: "image"}},
+				"single step":      {{Container: "image"}},
+				"multiple steps":   {{Container: "image"}, {Container: "image"}},
+				"dynamic deferred": {{Container: "${{ outputs.imageName }}"}, {Container: "image"}},
 			} {
 				t.Run(name, func(t *testing.T) {
 					for _, parallelism := range parallelCases {
