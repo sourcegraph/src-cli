@@ -41,6 +41,9 @@ func newSpinner(interval time.Duration) *spinner {
 }
 
 func (s *spinner) stop() {
+	if s == nil {
+		return
+	}
 	c := make(chan struct{})
 	s.done <- c
 	<-c

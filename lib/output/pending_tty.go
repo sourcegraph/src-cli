@@ -95,7 +95,11 @@ func (p *pendingTTY) Complete(message FancyLine) {
 
 	p.o.moveUp(1)
 	p.o.clearCurrentLine()
-	p.write(message)
+	// Write directly without truncation (unlike p.write, which truncates to
+	// terminal width to keep spinner animation frames on a single line).
+	// Completion messages may contain multi-line output such as URLs and must
+	// be displayed in full.
+	message.write(p.o.w, p.o.caps)
 }
 
 func (p *pendingTTY) Close() { p.Destroy() }

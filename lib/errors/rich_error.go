@@ -46,7 +46,7 @@ func UnpackRichErrorPtr(richErr *RichError) (error, []attribute.KeyValue) {
 	if richErr == nil || *richErr == nil {
 		return nil, nil
 	}
-	if val := reflect.ValueOf(*richErr); val.Kind() == reflect.Ptr && val.IsNil() {
+	if val := reflect.ValueOf(*richErr); val.Kind() == reflect.Pointer && val.IsNil() {
 		return nil, nil
 	}
 	data := (*richErr).Unpack()
@@ -55,11 +55,6 @@ func UnpackRichErrorPtr(richErr *RichError) (error, []attribute.KeyValue) {
 
 type ErrorPtr[A any, T PtrRichError[A]] struct {
 	ptr2 **A
-}
-
-// nolint:unused
-func typeAssertion[A any, T PtrRichError[A]]() {
-	var _ RichError = (*ErrorPtr[A, T])(nil)
 }
 
 // NewErrorPtr is the only way to create an ErrorPtr.
@@ -94,7 +89,7 @@ func (p ErrorPtr[A, T]) Unpack() RichErrorData {
 	if val == nil {
 		return empty
 	}
-	if inner := reflect.ValueOf(val); inner.Kind() == reflect.Ptr && inner.IsNil() {
+	if inner := reflect.ValueOf(val); inner.Kind() == reflect.Pointer && inner.IsNil() {
 		return empty
 	}
 	return val.Unpack()

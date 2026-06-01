@@ -1,6 +1,9 @@
 package template
 
-import "text/template"
+import (
+	"strings"
+	"text/template"
+)
 
 func New(name, tmpl, option string, ctxs ...template.FuncMap) (*template.Template, error) {
 	t := template.New(name).Delims(startDelim, endDelim)
@@ -15,4 +18,8 @@ func New(name, tmpl, option string, ctxs ...template.FuncMap) (*template.Templat
 	}
 
 	return t.Parse(tmpl)
+}
+
+func ContainsTemplateAction(tmpl string) bool {
+	return strings.Contains(tmpl, startDelim)
 }
