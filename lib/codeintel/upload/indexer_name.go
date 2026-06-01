@@ -20,9 +20,6 @@ import (
 // is 10639 characters long.
 const MaxBufferSize = 128 * 1024
 
-// ErrMetadataExceedsBuffer occurs when the first line of an LSIF index is too long to read.
-var ErrMetadataExceedsBuffer = errors.New("metaData vertex exceeds buffer")
-
 // ErrInvalidMetaDataVertex occurs when the first line of an LSIF index is not a valid metadata vertex.
 var ErrInvalidMetaDataVertex = errors.New("invalid metaData vertex")
 

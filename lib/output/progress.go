@@ -34,9 +34,11 @@ type ProgressOpts struct {
 	SuccessEmoji string
 	SuccessStyle Style
 
-	// NoSpinner turns of the automatic updating of the progress bar and
-	// spinner in a background goroutine.
-	// Used for testing only!
+	// NoSpinner disables the background goroutine that updates progress bars
+	// and spinners. In TTY mode this stops the spinner animation; in non-TTY
+	// (simple) mode this suppresses the periodic ticker that dumps progress
+	// bars, which is useful when output cannot be overwritten in place (e.g.
+	// CI log files). Completion and failure events still print.
 	NoSpinner bool
 }
 
