@@ -122,6 +122,14 @@ for pkg in $ALL_PACKAGES; do
     done
 done
 
+# Keep the generated batch spec schema in sync with the source repository.
+# This file can be missed by package discovery, but src-cli validates batch
+# specs against it at runtime.
+echo ""
+echo "Copying generated batch spec schema..."
+mkdir -p "$DEST_LIB/batches/schema"
+cp "$SRC_LIB/batches/schema/batch_spec_stringdata.go" "$DEST_LIB/batches/schema/"
+
 # Create go.mod file
 echo ""
 echo "Creating go.mod file..."
