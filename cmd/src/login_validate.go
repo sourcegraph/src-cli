@@ -16,11 +16,8 @@ func runValidatedLogin(ctx context.Context, p loginParams) error {
 }
 
 func validateCurrentUser(ctx context.Context, client api.Client, out io.Writer, endpointURL *url.URL) error {
-	query := `query CurrentUser { currentUser { username } }`
-	var result struct {
-		CurrentUser *struct{ Username string }
-	}
-	if _, err := client.NewRequest(query, nil).Do(ctx, &result); err != nil {
+	username, err := currentUsername(ctx, client)
+	if err != nil {
 		if strings.HasPrefix(err.Error(), "error: 401 Unauthorized") || strings.HasPrefix(err.Error(), "error: 403 Forbidden") {
 			printLoginProblem(out, "Invalid access token.")
 		} else {
@@ -31,14 +28,32 @@ func validateCurrentUser(ctx context.Context, client api.Client, out io.Writer, 
 		return cmderrors.ExitCode1
 	}
 
-	if result.CurrentUser == nil {
+	if username == "" {
 		// This should never happen; we verified there is an access token, so there should always be
 		// a user.
 		printLoginProblem(out, fmt.Sprintf("Unable to determine user on %s.", endpointURL))
 		return cmderrors.ExitCode1
 	}
-	fmt.Fprintln(out)
-	fmt.Fprintf(out, "✔︎ Authenticated as %s on %s\n", result.CurrentUser.Username, endpointURL)
-	fmt.Fprintln(out)
+	printAuthenticatedUser(out, username, endpointURL)
 	return nil
+}
+
+func printAuthenticatedUser(out io.Writer, username string, endpointURL *url.URL) {
+	fmt.Fprintln(out)
+	fmt.Fprintf(out, "✔︎ Authenticated as %s on %s\n", username, endpointURL)
+	fmt.Fprintln(out)
+}
+
+func currentUsername(ctx context.Context, client api.Client) (string, error) {
+	query := `query CurrentUser { currentUser { username } }`
+	var result struct {
+		CurrentUser *struct{ Username string }
+	}
+	if _, err := client.NewRequest(query, nil).Do(ctx, &result); err != nil {
+		return "", err
+	}
+	if result.CurrentUser == nil {
+		return "", nil
+	}
+	return result.CurrentUser.Username, nil
 }

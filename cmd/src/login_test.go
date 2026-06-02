@@ -137,11 +137,80 @@ func TestLogin(t *testing.T) {
 			t.Errorf("got output %q, want %q", gotOut, wantOut)
 		}
 	})
+
+	t.Run("invalid stored oauth token restarts device flow", func(t *testing.T) {
+		var authHeaders []string
+		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			authHeaders = append(authHeaders, r.Header.Get("Authorization"))
+			if r.Header.Get("Authorization") != "Bearer new-oauth-token" {
+				http.Error(w, "", http.StatusUnauthorized)
+				return
+			}
+			fmt.Fprintln(w, `{"data":{"currentUser":{"username":"alice"}}}`)
+		}))
+		defer s.Close()
+
+		restoreStoredOAuthLoader(t, func(_ context.Context, _ *url.URL) (*oauth.Token, error) {
+			return &oauth.Token{
+				Endpoint:    s.URL,
+				ClientID:    oauth.DefaultClientID,
+				AccessToken: "old-oauth-token",
+				ExpiresAt:   time.Now().Add(time.Hour),
+			}, nil
+		})
+		restoreOAuthTokenStore(t, func(context.Context, *oauth.Token) error { return nil })
+
+		u, _ := url.ParseRequestURI(s.URL)
+		startCalled := false
+		pollCalled := false
+		var out bytes.Buffer
+		err := loginCmd(context.Background(), loginParams{
+			cfg:    &config{endpointURL: u},
+			client: (&config{endpointURL: u}).apiClient(nil, io.Discard),
+			out:    &out,
+			oauthClient: fakeOAuthClient{
+				startCalled: &startCalled,
+				deviceResp: &oauth.DeviceAuthResponse{
+					DeviceCode: "device-code",
+					ExpiresIn:  60,
+				},
+				pollCalled: &pollCalled,
+				pollResp: &oauth.TokenResponse{
+					AccessToken: "new-oauth-token",
+					ExpiresIn:   3600,
+					TokenType:   "Bearer",
+				},
+			},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !startCalled || !pollCalled {
+			t.Fatal("expected invalid stored oauth token to restart device flow")
+		}
+		if len(authHeaders) != 2 || authHeaders[0] != "Bearer old-oauth-token" || authHeaders[1] != "Bearer new-oauth-token" {
+			t.Fatalf("Authorization headers = %q, want old token then new token", authHeaders)
+		}
+		gotOut := out.String()
+		for _, want := range []string{
+			"⚠️  Warning: Stored OAuth credentials could not be verified. Starting a new OAuth device flow.",
+			"Waiting for authorization... DONE",
+			"✔︎ Authenticated as alice on " + s.URL,
+			"✔︎ Authenticated with OAuth credentials",
+		} {
+			if !strings.Contains(gotOut, want) {
+				t.Errorf("got output %q, want it to contain %q", gotOut, want)
+			}
+		}
+	})
 }
 
 type fakeOAuthClient struct {
 	startErr    error
 	startCalled *bool
+	deviceResp  *oauth.DeviceAuthResponse
+	pollCalled  *bool
+	pollResp    *oauth.TokenResponse
 }
 
 func (f fakeOAuthClient) ClientID() string {
@@ -156,10 +225,22 @@ func (f fakeOAuthClient) Start(context.Context, *url.URL, []string) (*oauth.Devi
 	if f.startCalled != nil {
 		*f.startCalled = true
 	}
-	return nil, f.startErr
+	if f.startErr != nil {
+		return nil, f.startErr
+	}
+	if f.deviceResp != nil {
+		return f.deviceResp, nil
+	}
+	return nil, fmt.Errorf("unexpected call to Start")
 }
 
 func (f fakeOAuthClient) Poll(context.Context, *url.URL, string, time.Duration, int) (*oauth.TokenResponse, error) {
+	if f.pollCalled != nil {
+		*f.pollCalled = true
+	}
+	if f.pollResp != nil {
+		return f.pollResp, nil
+	}
 	return nil, fmt.Errorf("unexpected call to Poll")
 }
 
@@ -240,5 +321,15 @@ func restoreStoredOAuthLoader(t *testing.T, loader func(context.Context, *url.UR
 	loadStoredOAuthToken = loader
 	t.Cleanup(func() {
 		loadStoredOAuthToken = prev
+	})
+}
+
+func restoreOAuthTokenStore(t *testing.T, store func(context.Context, *oauth.Token) error) {
+	t.Helper()
+
+	prev := storeOAuthToken
+	storeOAuthToken = store
+	t.Cleanup(func() {
+		storeOAuthToken = prev
 	})
 }

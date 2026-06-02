@@ -15,14 +15,38 @@ import (
 	"github.com/sourcegraph/src-cli/internal/oauth"
 )
 
-var loadStoredOAuthToken = oauth.LoadToken
+var (
+	loadStoredOAuthToken = oauth.LoadToken
+	storeOAuthToken      = oauth.StoreToken
+)
 
 func runOAuthLogin(ctx context.Context, p loginParams) error {
-	client, err := oauthLoginClient(ctx, p)
+	client, loadedFromStore, err := oauthLoginClient(ctx, p)
 	if err != nil {
 		printLoginProblem(p.out, fmt.Sprintf("OAuth Device flow authentication failed: %s", err))
 		fmt.Fprintln(p.out, loginAccessTokenMessage(p.cfg.endpointURL))
 		return cmderrors.ExitCode1
+	}
+
+	if loadedFromStore {
+		username, validateErr := currentUsername(ctx, client)
+		if validateErr == nil && username != "" {
+			printAuthenticatedUser(p.out, username, p.cfg.endpointURL)
+			fmt.Fprintln(p.out)
+			fmt.Fprint(p.out, "✔︎ Authenticated with OAuth credentials")
+			fmt.Fprintln(p.out)
+			return nil
+		}
+
+		fmt.Fprintln(p.out)
+		fmt.Fprintln(p.out, "⚠️  Warning: Stored OAuth credentials could not be verified. Starting a new OAuth device flow.")
+
+		client, err = newOAuthLoginClient(ctx, p)
+		if err != nil {
+			printLoginProblem(p.out, fmt.Sprintf("OAuth Device flow authentication failed: %s", err))
+			fmt.Fprintln(p.out, loginAccessTokenMessage(p.cfg.endpointURL))
+			return cmderrors.ExitCode1
+		}
 	}
 
 	if err := validateCurrentUser(ctx, client, p.out, p.cfg.endpointURL); err != nil {
@@ -38,18 +62,23 @@ func runOAuthLogin(ctx context.Context, p loginParams) error {
 // oauthLoginClient returns a api.Client with the OAuth token set. It will check secret storage for a token
 // and use it if one is present.
 // If no token is found, it will start a OAuth Device flow to get a token and storage in secret storage.
-func oauthLoginClient(ctx context.Context, p loginParams) (api.Client, error) {
-	// if we have a stored token, used it. Otherwise run the device flow
+func oauthLoginClient(ctx context.Context, p loginParams) (api.Client, bool, error) {
+	// if we have a stored token, use it. Otherwise run the device flow
 	if token, err := loadStoredOAuthToken(ctx, p.cfg.endpointURL); err == nil {
-		return newOAuthAPIClient(p, token), nil
+		return newOAuthAPIClient(p, token), true, nil
 	}
 
+	client, err := newOAuthLoginClient(ctx, p)
+	return client, false, err
+}
+
+func newOAuthLoginClient(ctx context.Context, p loginParams) (api.Client, error) {
 	token, err := runOAuthDeviceFlow(ctx, p.cfg.endpointURL, p.out, p.oauthClient)
 	if err != nil {
 		return nil, err
 	}
 
-	if err := oauth.StoreToken(ctx, token); err != nil {
+	if err := storeOAuthToken(ctx, token); err != nil {
 		fmt.Fprintln(p.out)
 		fmt.Fprintf(p.out, "⚠️  Warning: Failed to store token in keyring store: %q. Continuing with this session only.\n", err)
 	}
