@@ -20,10 +20,24 @@ type AfterStepResult struct {
 	StepIndex int `json:"stepIndex"`
 	// Diff is the cumulative `git diff` after executing the Step.
 	Diff []byte `json:"diff"`
+	// Artifacts points to externally stored step artifacts by artifact name when
+	// they are too large to inline.
+	Artifacts map[string]Artifact `json:"artifacts,omitempty"`
 	// Outputs is a copy of the Outputs after executing the Step.
 	Outputs map[string]any `json:"outputs"`
 	// Skipped determines whether the step was skipped.
 	Skipped bool `json:"skipped"`
+}
+
+const (
+	ArtifactStdout = "stdout"
+	ArtifactStderr = "stderr"
+	ArtifactDiff   = "diff"
+)
+
+type Artifact struct {
+	ObjectStorageKey string `json:"objectStorageKey"`
+	Size             int64  `json:"size"`
 }
 
 func (a AfterStepResult) MarshalJSON() ([]byte, error) {
@@ -36,6 +50,7 @@ func (a AfterStepResult) MarshalJSON() ([]byte, error) {
 		Stderr:       a.Stderr,
 		StepIndex:    a.StepIndex,
 		Diff:         string(a.Diff),
+		Artifacts:    a.Artifacts,
 		Outputs:      a.Outputs,
 	})
 }
@@ -56,6 +71,7 @@ func (a *AfterStepResult) UnmarshalJSON(data []byte) error {
 		a.Stderr = v2.Stderr
 		a.StepIndex = v2.StepIndex
 		a.Diff = v2.Diff
+		a.Artifacts = v2.Artifacts
 		a.Outputs = v2.Outputs
 		a.Skipped = v2.Skipped
 		return nil
@@ -69,6 +85,7 @@ func (a *AfterStepResult) UnmarshalJSON(data []byte) error {
 	a.Stderr = v1.Stderr
 	a.StepIndex = v1.StepIndex
 	a.Diff = []byte(v1.Diff)
+	a.Artifacts = v1.Artifacts
 	a.Outputs = v1.Outputs
 	return nil
 }
@@ -78,21 +95,23 @@ type versionAfterStepResult struct {
 }
 
 type v2AfterStepResult struct {
-	Version      int            `json:"version"`
-	ChangedFiles git.Changes    `json:"changedFiles"`
-	Stdout       string         `json:"stdout"`
-	Stderr       string         `json:"stderr"`
-	StepIndex    int            `json:"stepIndex"`
-	Diff         []byte         `json:"diff"`
-	Outputs      map[string]any `json:"outputs"`
-	Skipped      bool           `json:"skipped"`
+	Version      int                 `json:"version"`
+	ChangedFiles git.Changes         `json:"changedFiles"`
+	Stdout       string              `json:"stdout"`
+	Stderr       string              `json:"stderr"`
+	StepIndex    int                 `json:"stepIndex"`
+	Diff         []byte              `json:"diff"`
+	Artifacts    map[string]Artifact `json:"artifacts,omitempty"`
+	Outputs      map[string]any      `json:"outputs"`
+	Skipped      bool                `json:"skipped"`
 }
 
 type v1AfterStepResult struct {
-	ChangedFiles git.Changes    `json:"changedFiles"`
-	Stdout       string         `json:"stdout"`
-	Stderr       string         `json:"stderr"`
-	StepIndex    int            `json:"stepIndex"`
-	Diff         string         `json:"diff"`
-	Outputs      map[string]any `json:"outputs"`
+	ChangedFiles git.Changes         `json:"changedFiles"`
+	Stdout       string              `json:"stdout"`
+	Stderr       string              `json:"stderr"`
+	StepIndex    int                 `json:"stepIndex"`
+	Diff         string              `json:"diff"`
+	Artifacts    map[string]Artifact `json:"artifacts,omitempty"`
+	Outputs      map[string]any      `json:"outputs"`
 }
