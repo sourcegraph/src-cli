@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"slices"
 	"sort"
 	"strings"
 	"text/template"
@@ -11,20 +12,192 @@ import (
 	"github.com/gobwas/glob"
 	"github.com/grafana/regexp"
 
+	"github.com/kballard/go-shellquote"
 	"github.com/sourcegraph/sourcegraph/lib/batches/execution"
 	"github.com/sourcegraph/sourcegraph/lib/batches/git"
 	"github.com/sourcegraph/sourcegraph/lib/errors"
 )
 
-const (
-	startDelim = "${{"
-	endDelim   = "}}"
-)
+const startDelim = "${{"
+const endDelim = "}}"
 
+// shellEscapeAll returns a copy of in where every element has been quoted
+// with shellquote.Join so that it is safe to splat into a /bin/sh command line.
+// Elements without shell metacharacters are returned unmodified, so callers
+// that pre-existed this escaping (e.g. `${{ join steps.modified_files " " }}`
+// against safe filenames) continue to see the same rendered output.
+//
+// 🚨 SECURITY: This is used to defang attacker-controlled filenames coming
+// out of `git diff` parsing before they reach the rendered step script. See
+// VULN-91 / HackerOne report 3767160.
+func shellEscapeAll(in ...string) []string {
+	out := make([]string, len(in))
+	for i, s := range in {
+		out[i] = shellquote.Join(s)
+	}
+	return out
+}
+
+// isCanonicallyShellQuoted reports whether s is exactly what shellquote.Join
+// would produce for some single-element argv: i.e. s parses as one shell
+// word whose re-quoted canonical form is identical to s.
+//
+// This lets `shellquote_join` be idempotent — calling it on a value that
+// src-cli already pre-escaped (e.g. each element of
+// `previous_step.modified_files`) or on the output of a previous
+// `shellquote_join` returns the value unchanged instead of double-escaping
+// it into a literal filename that the shell would then look up verbatim.
+//
+// The check is content-based, so it works regardless of how the value
+// reached the template (direct slice access, captured outputs, raw stdio,
+// hand-built argv, etc.) — types do not have to survive the trip through
+// `outputs` serialization and template rendering.
+func isCanonicallyShellQuoted(s string) bool {
+	parts, err := shellquote.Split(s)
+	if err != nil || len(parts) != 1 {
+		return false
+	}
+	return shellquote.Join(parts[0]) == s
+}
+
+// Builtin template functions available inside any batch spec template.
+//
+// Quick reference for what to use when a value flows into a /bin/sh command:
+//
+//   - Splatting `repository.search_result_paths`, `*_files`, or any other
+//     filename slice that src-cli pre-escapes for you: use plain `join`.
+//     These slices already have every element wrapped with shellquote.Join
+//     so they are safe to splat as-is. Reaching for `shellquote_join` here
+//     is unnecessary but also harmless — see the idempotence note below.
+//
+//   - Splatting a string or slice that you built yourself from raw stdio
+//     (`previous_step.stdout`), captured `outputs.*` values, search results
+//     fed back through outputs, or any other source where the bytes are not
+//     already canonical-quoted: use `shellquote_join`.
+//
+//   - Re-parsing a shell-formatted string back into an argv: use
+//     `shellquote_split` (optionally piping back through `shellquote_join`).
+//
+// String helpers (all from the Go standard library):
+//
+//   - join     — strings.Join(elems, sep). Concatenates the elements of a
+//     slice with the given separator. Performs NO shell quoting
+//     itself, so it is only safe on slices whose elements are
+//     either already shell-quoted (the src-cli `*_files` and
+//     `repository.search_result_paths` fields) or trusted not
+//     to contain shell metacharacters. For anything else,
+//     reach for `shellquote_join`.
+//   - split    — strings.Split(s, sep). Splits a string around every
+//     occurrence of sep into a slice.
+//   - replace  — strings.ReplaceAll(s, old, new). Replaces every occurrence
+//     of old in s with new.
+//   - join_if  — Joins elems with sep, skipping any empty strings.
+//   - matches  — Reports whether the input matches the given glob pattern.
+//
+// Shell-quoting helpers (from github.com/kballard/go-shellquote):
+//
+//   - shellquote_join  — Joins its arguments into a single string with each
+//     element shell-quoted. Accepts either a single
+//     []string or any number of individual string args
+//     (or a mix of both), so it works equally well on
+//     slice variables and on a hand-built argv. Example:
+//
+//     run: gofmt -w ${{ shellquote_join outputs.argv }}
+//     run: my-tool ${{ shellquote_join "--name" outputs.userName }}
+//
+//     Element-level calls are idempotent: every string
+//     that is already in canonical shellquote form (each
+//     element of `*_files` and
+//     `repository.search_result_paths`, or anything you
+//     hand-quoted yourself) is passed through unchanged
+//     instead of being double-escaped. So if you do reach
+//     for `shellquote_join` on a pre-escaped slice you
+//     will get the same output as `join … " "`, not a
+//     corrupted second layer of quoting.
+//
+//     Note: this idempotence is per-element. If you pass
+//     a SINGLE string that itself happens to look like a
+//     multi-word canonical argv (e.g. the output of a
+//     previous shellquote_join captured into outputs),
+//     it is treated as one shell word and re-quoted as a
+//     whole. Keep the slice shape if you intend to feed
+//     the result through shellquote_join a second time.
+//
+//   - shellquote_split — shellquote.Split(input). The inverse of
+//     shellquote_join: parses a shell-quoted string back
+//     into the original slice of arguments, honouring
+//     quoting, escaping and backslash rules in the same
+//     way /bin/sh's word-splitting does. Useful when a
+//     previous step (or a user-provided output) hands you
+//     a single shell-formatted string that you need to
+//     iterate over or re-quote. Example:
+//
+//     run: |
+//     for f in ${{ shellquote_join (shellquote_split outputs.fileList) }}; do
+//     process "$f"
+//     done
+//
+//     Returns an error (which surfaces as a template
+//     execution failure) if the input contains an
+//     unterminated quote.
 var builtins = template.FuncMap{
-	"join":    strings.Join,
-	"split":   strings.Split,
-	"replace": strings.ReplaceAll,
+	"join": strings.Join,
+	// shellquote_join accepts either a single []string or variadic string
+	// arguments and returns a single shell-quoted string.
+	//
+	// We expose it as `func(...any) (string, error)` rather than
+	// `shellquote.Join` directly for two reasons:
+	//
+	//  1. Go's text/template does NOT splat a []string into a variadic
+	//     ...string parameter, so a bare shellquote.Join would reject the
+	//     natural `${{ shellquote_join (shellquote_split foo) }}` round-trip
+	//     and `${{ shellquote_join outputs.argv }}` (where argv is a slice).
+	//
+	//  2. Elements that are already in canonical shellquote form are passed
+	//     through unchanged so the function is idempotent. This prevents the
+	//     common footgun of calling `shellquote_join` on a value that
+	//     src-cli already pre-escaped (every element of `*_files` and
+	//     `repository.search_result_paths`, or the result of a previous
+	//     `shellquote_join`) and getting a literal-quoted filename that the
+	//     shell would then look up verbatim. See isCanonicallyShellQuoted.
+	"shellquote_join": func(args ...any) (string, error) {
+		var flat []string
+		appendOne := func(s string) {
+			if isCanonicallyShellQuoted(s) {
+				flat = append(flat, s)
+				return
+			}
+			flat = append(flat, shellquote.Join(s))
+		}
+		for _, a := range args {
+			switch v := a.(type) {
+			case string:
+				appendOne(v)
+			case []string:
+				for _, s := range v {
+					appendOne(s)
+				}
+			case []any:
+				for i, e := range v {
+					s, ok := e.(string)
+					if !ok {
+						return "", errors.Newf("shellquote_join: element %d is %T, want string", i, e)
+					}
+					appendOne(s)
+				}
+			default:
+				return "", errors.Newf("shellquote_join: unsupported argument type %T", a)
+			}
+		}
+		// flat is already per-element canonical-quoted, so a plain
+		// strings.Join(" ") would suffice. We use shellquote.Join's
+		// space-separated concatenation for symmetry and to keep the public
+		// contract "this returns a canonical shellquote.Join string".
+		return strings.Join(flat, " "), nil
+	},
+	"shellquote_split": shellquote.Split,
+	"split":            strings.Split,
+	"replace":          strings.ReplaceAll,
 	"join_if": func(sep string, elems ...string) string {
 		var nonBlank []string
 		for _, e := range elems {
@@ -76,6 +249,7 @@ func ValidateBatchSpecTemplate(spec string) (bool, error) {
 	// option "missingkey=error". See https://pkg.go.dev/text/template#Template.Option for
 	// more.
 	t, err := New("validateBatchSpecTemplate", spec, "missingkey=error", sfm, cstfm)
+
 	if err != nil {
 		// Attempt to extract the specific template variable field that caused the error
 		// to provide a clearer message.
@@ -164,9 +338,22 @@ type Repository struct {
 	FileMatches []string
 }
 
+// SearchResultPaths returns the repository's matched paths in a form that is
+// safe to splat into a /bin/sh command line.
+//
+// 🚨 SECURITY: paths originate from a Sourcegraph search and ultimately from
+// `git`, so they may contain attacker-controlled shell metacharacters (see
+// VULN-91). Every element is run through shellquote.Join before it is exposed
+// to the step template. Elements without metacharacters are returned
+// unmodified, so existing usage like `${{ join repository.search_result_paths
+// " " }}` keeps producing the same output for benign filenames.
 func (r Repository) SearchResultPaths() (list fileMatchPathList) {
-	sort.Strings(r.FileMatches)
-	return r.FileMatches
+	paths := slices.Clone(r.FileMatches)
+	sort.Strings(paths)
+	for i, p := range paths {
+		paths[i] = shellquote.Join(p)
+	}
+	return paths
 }
 
 type fileMatchPathList []string
@@ -209,10 +396,24 @@ func (stepCtx *StepContext) ToFuncMap() template.FuncMap {
 			return m
 		}
 
-		m["modified_files"] = res.ChangedFiles.Modified
-		m["added_files"] = res.ChangedFiles.Added
-		m["deleted_files"] = res.ChangedFiles.Deleted
-		m["renamed_files"] = res.ChangedFiles.Renamed
+		// 🚨 SECURITY: file lists are derived from `git diff` output and can
+		// contain attacker-controlled filenames with shell metacharacters.
+		// We shell-escape each element before exposing them to the step
+		// template to prevent command injection when the rendered template
+		// is executed by /bin/sh. The slice shape is preserved so
+		// `${{ join … " " }}` and `${{ range … }}` continue to work as
+		// before. See VULN-91.
+		//
+		// NOTE: stdout/stderr are intentionally NOT pre-escaped. They are
+		// commonly captured into `outputs` and reused as plain values (e.g.
+		// a filename written by `echo`), where pre-quoting would change
+		// semantics. Users that splat stdout/stderr into a shell command
+		// against untrusted data should pipe through the `shellquote_join`
+		// builtin: `${{ shellquote_join previous_step.stdout }}`.
+		m["modified_files"] = shellEscapeAll(res.ChangedFiles.Modified...)
+		m["added_files"] = shellEscapeAll(res.ChangedFiles.Added...)
+		m["deleted_files"] = shellEscapeAll(res.ChangedFiles.Deleted...)
+		m["renamed_files"] = shellEscapeAll(res.ChangedFiles.Renamed...)
 		m["stdout"] = res.Stdout
 		m["stderr"] = res.Stderr
 
@@ -296,11 +497,13 @@ func (tmplCtx *ChangesetTemplateContext) ToFuncMap() template.FuncMap {
 			return tmplCtx.Outputs
 		},
 		"steps": func() map[string]any {
+			// 🚨 SECURITY: shell-escape per element to defang attacker
+			// controlled filenames from `git diff`. See VULN-91.
 			return map[string]any{
-				"modified_files": tmplCtx.Steps.Changes.Modified,
-				"added_files":    tmplCtx.Steps.Changes.Added,
-				"deleted_files":  tmplCtx.Steps.Changes.Deleted,
-				"renamed_files":  tmplCtx.Steps.Changes.Renamed,
+				"modified_files": shellEscapeAll(tmplCtx.Steps.Changes.Modified...),
+				"added_files":    shellEscapeAll(tmplCtx.Steps.Changes.Added...),
+				"deleted_files":  shellEscapeAll(tmplCtx.Steps.Changes.Deleted...),
+				"renamed_files":  shellEscapeAll(tmplCtx.Steps.Changes.Renamed...),
 				"path":           tmplCtx.Steps.Path,
 			}
 		},

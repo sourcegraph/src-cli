@@ -9,6 +9,7 @@ import (
 	"sort"
 	"time"
 
+	executortypes "github.com/sourcegraph/sourcegraph/internal/executor/types"
 	"github.com/sourcegraph/sourcegraph/lib/batches"
 	"github.com/sourcegraph/sourcegraph/lib/batches/execution"
 	"github.com/sourcegraph/sourcegraph/lib/batches/template"
@@ -49,11 +50,11 @@ func (key CacheKey) mountsMetadata() ([]MountMetadata, error) {
 
 // perRunEnvVars resolve to per-job or per-executor values that change on
 // every dequeue and must be stripped from cache keys. Mirrored in
-// sourcegraph/sourcegraph/lib/batches/execution/cache/cache.go.
+// src-cli/lib/batches/execution/cache/cache.go.
 var perRunEnvVars = []string{
-	"SRC_EXECUTOR_JOB_TOKEN",
-	"SRC_EXECUTOR_JOB_ID",
-	"SRC_EXECUTOR_NAME",
+	executortypes.JobTokenEnvVar,
+	executortypes.JobIDEnvVar,
+	executortypes.ExecutorNameEnvVar,
 }
 
 // resolveStepsEnvironment returns a slice of environments for each of the steps,

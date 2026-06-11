@@ -25,14 +25,6 @@ const (
 	RequestLoggerVerbosityTraceShowResponseBody                               // -trace=3
 )
 
-// NewRequestLogger creates a new request logger that writes requests and response pairs
-// to the given writer.
-func NewRequestLogger(w io.Writer, verbosity RequestLoggerVerbosity) RequestLogger {
-	return &requestLogger{
-		writer:    w,
-		verbosity: verbosity}
-}
-
 func (l *requestLogger) LogRequest(req *http.Request) {
 	if l.verbosity == RequestLoggerVerbosityNone {
 		return

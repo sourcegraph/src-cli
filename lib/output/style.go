@@ -42,29 +42,15 @@ var (
 	StyleUnderline = Style{"\033[4m"}
 
 	// Search-specific colors.
-	StyleSearchQuery         = Fg256Color(68)
-	StyleSearchBorder        = Fg256Color(239)
-	StyleSearchLink          = Fg256Color(237)
-	StyleSearchRepository    = Fg256Color(23)
-	StyleSearchFilename      = Fg256Color(69)
-	StyleSearchMatch         = CombineStyles(Fg256Color(0), Bg256Color(11))
-	StyleSearchLineNumbers   = Fg256Color(69)
-	StyleSearchCommitAuthor  = Fg256Color(2)
-	StyleSearchCommitSubject = Fg256Color(68)
-	StyleSearchCommitDate    = Fg256Color(23)
+	StyleSearchQuery = Fg256Color(68)
+	StyleSearchLink  = Fg256Color(237)
+	StyleSearchMatch = CombineStyles(Fg256Color(0), Bg256Color(11))
 
 	StyleWhiteOnPurple  = CombineStyles(Fg256Color(255), Bg256Color(55))
 	StyleGreyBackground = CombineStyles(Fg256Color(0), Bg256Color(242))
 
 	// Search alert specific colors.
-	StyleSearchAlertTitle               = Fg256Color(124)
-	StyleSearchAlertDescription         = Fg256Color(124)
-	StyleSearchAlertProposedTitle       = Style{""}
-	StyleSearchAlertProposedQuery       = Fg256Color(69)
-	StyleSearchAlertProposedDescription = Style{""}
-
-	StyleLinesDeleted = Fg256Color(196)
-	StyleLinesAdded   = Fg256Color(2)
+	StyleSearchAlertTitle = Fg256Color(124)
 
 	// Colors
 	StyleGrey   = Fg256Color(8)

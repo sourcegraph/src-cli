@@ -64,5 +64,3 @@ func (sb *StatusBar) runtime() time.Duration {
 func NewStatusBarWithLabel(label string) *StatusBar {
 	return &StatusBar{label: label, startedAt: time.Now()}
 }
-
-func NewStatusBar() *StatusBar { return &StatusBar{} }

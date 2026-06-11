@@ -32,50 +32,11 @@ func (l *LogEvent) UnmarshalJSON(data []byte) error {
 	l.Timestamp = j.Timestamp
 	l.Status = j.Status
 
-	switch l.Operation {
-	case LogEventOperationParsingBatchSpec:
-		l.Metadata = new(ParsingBatchSpecMetadata)
-	case LogEventOperationResolvingNamespace:
-		l.Metadata = new(ResolvingNamespaceMetadata)
-	case LogEventOperationPreparingDockerImages:
-		l.Metadata = new(PreparingDockerImagesMetadata)
-	case LogEventOperationDeterminingWorkspaceType:
-		l.Metadata = new(DeterminingWorkspaceTypeMetadata)
-	case LogEventOperationDeterminingWorkspaces:
-		l.Metadata = new(DeterminingWorkspacesMetadata)
-	case LogEventOperationCheckingCache:
-		l.Metadata = new(CheckingCacheMetadata)
-	case LogEventOperationExecutingTasks:
-		l.Metadata = new(ExecutingTasksMetadata)
-	case LogEventOperationLogFileKept:
-		l.Metadata = new(LogFileKeptMetadata)
-	case LogEventOperationUploadingChangesetSpecs:
-		l.Metadata = new(UploadingChangesetSpecsMetadata)
-	case LogEventOperationCreatingBatchSpec:
-		l.Metadata = new(CreatingBatchSpecMetadata)
-	case LogEventOperationApplyingBatchSpec:
-		l.Metadata = new(ApplyingBatchSpecMetadata)
-	case LogEventOperationBatchSpecExecution:
-		l.Metadata = new(BatchSpecExecutionMetadata)
-	case LogEventOperationExecutingTask:
-		l.Metadata = new(ExecutingTaskMetadata)
-	case LogEventOperationTaskBuildChangesetSpecs:
-		l.Metadata = new(TaskBuildChangesetSpecsMetadata)
-	case LogEventOperationTaskSkippingSteps:
-		l.Metadata = new(TaskSkippingStepsMetadata)
-	case LogEventOperationTaskStepSkipped:
-		l.Metadata = new(TaskStepSkippedMetadata)
-	case LogEventOperationTaskPreparingStep:
-		l.Metadata = new(TaskPreparingStepMetadata)
-	case LogEventOperationTaskStep:
-		l.Metadata = new(TaskStepMetadata)
-	case LogEventOperationCacheAfterStepResult:
-		l.Metadata = new(CacheAfterStepResultMetadata)
-	case LogEventOperationDockerWatchDog:
-		l.Metadata = new(DockerWatchDogMetadata)
-	default:
-		return errors.Newf("invalid event type %s", l.Operation)
+	metadata, err := NewLogEventMetadata(l.Operation)
+	if err != nil {
+		return err
 	}
+	l.Metadata = metadata
 
 	wrapper := struct {
 		Metadata any `json:"metadata"`
@@ -84,6 +45,54 @@ func (l *LogEvent) UnmarshalJSON(data []byte) error {
 	}
 
 	return json.Unmarshal(data, &wrapper)
+}
+
+// NewLogEventMetadata returns an empty metadata value for the given operation.
+func NewLogEventMetadata(operation LogEventOperation) (any, error) {
+	switch operation {
+	case LogEventOperationParsingBatchSpec:
+		return new(ParsingBatchSpecMetadata), nil
+	case LogEventOperationResolvingNamespace:
+		return new(ResolvingNamespaceMetadata), nil
+	case LogEventOperationPreparingDockerImages:
+		return new(PreparingDockerImagesMetadata), nil
+	case LogEventOperationDeterminingWorkspaceType:
+		return new(DeterminingWorkspaceTypeMetadata), nil
+	case LogEventOperationDeterminingWorkspaces:
+		return new(DeterminingWorkspacesMetadata), nil
+	case LogEventOperationCheckingCache:
+		return new(CheckingCacheMetadata), nil
+	case LogEventOperationExecutingTasks:
+		return new(ExecutingTasksMetadata), nil
+	case LogEventOperationLogFileKept:
+		return new(LogFileKeptMetadata), nil
+	case LogEventOperationUploadingChangesetSpecs:
+		return new(UploadingChangesetSpecsMetadata), nil
+	case LogEventOperationCreatingBatchSpec:
+		return new(CreatingBatchSpecMetadata), nil
+	case LogEventOperationApplyingBatchSpec:
+		return new(ApplyingBatchSpecMetadata), nil
+	case LogEventOperationBatchSpecExecution:
+		return new(BatchSpecExecutionMetadata), nil
+	case LogEventOperationExecutingTask:
+		return new(ExecutingTaskMetadata), nil
+	case LogEventOperationTaskBuildChangesetSpecs:
+		return new(TaskBuildChangesetSpecsMetadata), nil
+	case LogEventOperationTaskSkippingSteps:
+		return new(TaskSkippingStepsMetadata), nil
+	case LogEventOperationTaskStepSkipped:
+		return new(TaskStepSkippedMetadata), nil
+	case LogEventOperationTaskPreparingStep:
+		return new(TaskPreparingStepMetadata), nil
+	case LogEventOperationTaskStep:
+		return new(TaskStepMetadata), nil
+	case LogEventOperationCacheAfterStepResult:
+		return new(CacheAfterStepResultMetadata), nil
+	case LogEventOperationDockerWatchDog:
+		return new(DockerWatchDogMetadata), nil
+	default:
+		return nil, errors.Newf("invalid event type %s", errors.Safe(operation))
+	}
 }
 
 type LogEventOperation string
