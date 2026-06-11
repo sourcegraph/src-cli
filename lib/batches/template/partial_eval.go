@@ -42,26 +42,6 @@ func IsStaticBool(input string, ctx *StepContext) (isStatic bool, boolVal bool, 
 	return true, isTrueOutput(t.Tree.Root), nil
 }
 
-// IsStaticString parses the input as a text/template and attempts to evaluate it
-// with only the information currently available in StepContext. If any template
-// actions remain after partial evaluation, the first return value is false.
-func IsStaticString(input string, ctx *StepContext) (isStatic bool, value string, err error) {
-	t, err := parseAndPartialEval(input, ctx)
-	if err != nil {
-		return false, "", err
-	}
-
-	var out bytes.Buffer
-	for _, n := range t.Tree.Root.Nodes {
-		if n.Type() != parse.NodeText {
-			return false, "", nil
-		}
-		out.WriteString(n.String())
-	}
-
-	return true, out.String(), nil
-}
-
 // parseAndPartialEval parses input as a text/template and then attempts to
 // partially evaluate the parts of the template it can evaluate ahead of time
 // (meaning: before we've executed any batch spec steps and have a full

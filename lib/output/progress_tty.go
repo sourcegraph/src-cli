@@ -10,7 +10,7 @@ import (
 )
 
 var DefaultProgressTTYOpts = &ProgressOpts{
-	SuccessEmoji: "\u2705",
+	SuccessEmoji: EmojiSuccess,
 	SuccessStyle: StyleSuccess,
 	PendingStyle: StylePending,
 }

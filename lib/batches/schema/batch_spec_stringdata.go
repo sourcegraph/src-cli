@@ -18,11 +18,43 @@ const BatchSpecJSON = `{
         "properties": {
           "steps": {
             "items": {
-              "anyOf": [
+              "oneOf": [
                 { "required": ["run", "image"] },
                 { "required": ["buildImage"] },
-                { "required": ["codingAgent"] }
+                { "required": ["codingAgent", "image"] }
               ]
+            }
+          },
+          "changesetHooks": {
+            "properties": {
+              "onCIFailure": {
+                "properties": {
+                  "steps": {
+                    "items": {
+                      "oneOf": [{ "required": ["run", "image"] }, { "required": ["codingAgent", "image"] }]
+                    }
+                  }
+                }
+              },
+              "onMergeConflict": {
+                "properties": {
+                  "steps": {
+                    "items": {
+                      "oneOf": [{ "required": ["run", "image"] }, { "required": ["codingAgent", "image"] }]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "importChangesets": {
+            "not": {}
+          },
+          "changesetTemplate": {
+            "properties": {
+              "published": {
+                "not": {}
+              }
             }
           }
         }
@@ -42,6 +74,20 @@ const BatchSpecJSON = `{
       "$comment": "The ` + "`" + `changesetHooks` + "`" + ` property is only allowed when ` + "`" + `version: 3` + "`" + ` is set.",
       "if": {
         "required": ["changesetHooks"]
+      },
+      "then": {
+        "required": ["version"],
+        "properties": {
+          "version": {
+            "const": 3
+          }
+        }
+      }
+    },
+    {
+      "$comment": "The ` + "`" + `checkout` + "`" + ` property is only allowed when ` + "`" + `version: 3` + "`" + ` is set.",
+      "if": {
+        "required": ["checkout"]
       },
       "then": {
         "required": ["version"],
@@ -92,7 +138,7 @@ const BatchSpecJSON = `{
     "CodingAgent": {
       "title": "CodingAgent",
       "type": "object",
-      "description": "An out-of-the-box coding agent step that runs the given prompt inside a managed container. Mutually exclusive with run. Only supported in version 3 batch specs. Use the step's top-level container/image field to override the default agent image.",
+      "description": "An out-of-the-box coding agent step that runs the given prompt inside the step's top-level image. One option for the image is the Sourcegraph-managed ` + "`" + `batches-coding-agent-base` + "`" + `. Mutually exclusive with run. Only supported in version 3 batch specs.",
       "additionalProperties": false,
       "required": ["type", "prompt"],
       "properties": {
@@ -109,7 +155,7 @@ const BatchSpecJSON = `{
     },
     "BuildImage": {
       "type": "object",
-      "description": "A step that creates a local image by running a shell command in a base image using buildah. Later steps can use the generated image via ${{ outputs.imageName }}. The generated image name is deterministic for the exact baseImage and run values.",
+      "description": "A step that creates a local image by running a shell command in a base image using kaniko. Later steps can use the generated image via ${{ outputs.imageName }}. The generated image name is deterministic for the exact baseImage and run values.",
       "additionalProperties": false,
       "required": ["run", "baseImage"],
       "properties": {
@@ -324,8 +370,60 @@ const BatchSpecJSON = `{
         },
         "maxAttempts": {
           "type": "integer",
-          "description": "The maximum number of times this step will be attempted before the hook action is considered failed. Defaults to 1 (no retries).",
-          "minimum": 1
+          "description": "The maximum number of times this step will be attempted before the hook action is considered failed. Defaults to 1 (no retries). Must be between 1 and 10. Retries reuse the same working tree, so any file changes made by a failed attempt remain in place for subsequent attempts.",
+          "minimum": 1,
+          "maximum": 10,
+          "default": 1
+        }
+      }
+    },
+    "GitCommitAuthor": {
+      "title": "GitCommitAuthor",
+      "type": "object",
+      "description": "The author of the Git commit.",
+      "additionalProperties": false,
+      "required": ["name", "email"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "The Git commit author name."
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "The Git commit author email."
+        }
+      }
+    },
+    "ExpandedGitCommitDescription": {
+      "title": "ExpandedGitCommitDescription",
+      "type": "object",
+      "description": "The Git commit to create with the changes.",
+      "additionalProperties": false,
+      "required": ["message"],
+      "properties": {
+        "message": {
+          "type": "string",
+          "description": "The Git commit message."
+        },
+        "author": {
+          "$ref": "#/definitions/GitCommitAuthor"
+        }
+      }
+    },
+    "ChangesetHookCommitDescription": {
+      "title": "ChangesetHookCommitDescription",
+      "type": "object",
+      "description": "The Git commit to create for changes produced by a changeset hook's steps. Both fields are optional and are resolved independently.",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "properties": {
+        "message": {
+          "type": "string",
+          "description": "The Git commit message. If omitted, a per-event default message is used (e.g. \"Fix for CI failure on ${{ repository.branch }}\")."
+        },
+        "author": {
+          "$ref": "#/definitions/GitCommitAuthor"
         }
       }
     },
@@ -342,6 +440,10 @@ const BatchSpecJSON = `{
           "items": {
             "$ref": "#/definitions/HookStep"
           }
+        },
+        "commit": {
+          "description": "The Git commit to create for changes produced by the hook's steps. The message and author are resolved independently: if message is omitted, a per-event default is used; if author is omitted, the changesetTemplate's author is inherited, falling back to the changeset's author.",
+          "$ref": "#/definitions/ChangesetHookCommitDescription"
         }
       }
     }
@@ -455,6 +557,19 @@ const BatchSpecJSON = `{
         }
       }
     },
+    "checkout": {
+      "type": "object",
+      "description": "Options controlling how repositories are checked out for workspace execution. Only supported in version 3 batch specs.",
+      "additionalProperties": false,
+      "properties": {
+        "fetchDepth": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 1,
+          "description": "The number of commits of git history to fetch into the workspace checkout. The default, 1, fetches only the target commit (a shallow clone). Set to 0 to fetch the full history, which is useful for history-related tasks (e.g. updating CODEOWNERS based on git history) or changeset hooks such as onMergeConflict."
+        }
+      }
+    },
     "steps": {
       "type": ["array", "null"],
       "description": "The sequence of commands to run (for each repository branch matched in the ` + "`" + `on` + "`" + ` property) to produce the workspace changes that will be included in the batch change.",
@@ -550,35 +665,7 @@ const BatchSpecJSON = `{
           "description": "Whether to publish the changeset to a fork of the target repository. If omitted, the changeset will be published to a branch directly on the target repository, unless the global ` + "`" + `batches.enforceFork` + "`" + ` setting is enabled. If set, this property will override any global setting."
         },
         "commit": {
-          "title": "ExpandedGitCommitDescription",
-          "type": "object",
-          "description": "The Git commit to create with the changes.",
-          "additionalProperties": false,
-          "required": ["message"],
-          "properties": {
-            "message": {
-              "type": "string",
-              "description": "The Git commit message."
-            },
-            "author": {
-              "title": "GitCommitAuthor",
-              "type": "object",
-              "description": "The author of the Git commit.",
-              "additionalProperties": false,
-              "required": ["name", "email"],
-              "properties": {
-                "name": {
-                  "type": "string",
-                  "description": "The Git commit author name."
-                },
-                "email": {
-                  "type": "string",
-                  "format": "email",
-                  "description": "The Git commit author email."
-                }
-              }
-            }
-          }
+          "$ref": "#/definitions/ExpandedGitCommitDescription"
         },
         "published": {
           "description": "Whether to publish the changeset. An unpublished changeset can be previewed on Sourcegraph by any person who can view the batch change, but its commit, branch, and pull request aren't created on the code host. A published changeset results in a commit, branch, and pull request being created on the code host. If omitted, the publication state is controlled from the Batch Changes UI.",
@@ -633,7 +720,7 @@ const BatchSpecJSON = `{
           "$ref": "#/definitions/ChangesetHookAction"
         },
         "onMergeConflict": {
-          "description": "Action to run when the changeset's external mergeability transitions into ` + "`" + `conflicting` + "`" + ` for a given (base, head) SHA pair.",
+          "description": "Action to run when the changeset's external mergeability transitions into ` + "`" + `conflicting` + "`" + ` for a given head SHA.",
           "$ref": "#/definitions/ChangesetHookAction"
         }
       }
