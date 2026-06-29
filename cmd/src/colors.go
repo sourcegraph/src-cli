@@ -8,6 +8,8 @@ import (
 	"github.com/grafana/regexp"
 
 	"github.com/mattn/go-isatty"
+
+	"github.com/sourcegraph/sourcegraph/lib/output"
 )
 
 // Returns the string for a foreground ANSI 8 bit color code.
@@ -58,6 +60,30 @@ var ansiColors = map[string]string{
 // Borrowed from https://github.com/acarl005/stripansi/blob/master/stripansi.go
 // MIT licensed, see https://github.com/acarl005/stripansi/blob/master/LICENSE
 var ansiRegexp = regexp.MustCompile("[\u001B\u009B][[\\]()#;?]*(?:(?:(?:[a-zA-Z\\d]*(?:;[a-zA-Z\\d]*)*)?\u0007)|(?:(?:\\d{1,4}(?:;\\d{0,4})*)?[\\dA-PRZcf-ntqry=><~]))")
+
+// applyColorMode optionally remaps ansiColors entries that use 256-color
+// SGR sequences to their nearest basic 16-color SGR equivalents and flips
+// lib/output's force16 state so package-level Style values render the same
+// way.
+//
+// When force16 is false this is a no-op (the default lib/output state is
+// already 256-color). Disabled color entries (empty strings, set by
+// NO_COLOR / COLOR=false / non-tty) are left untouched so we never
+// re-enable colored output the environment asked us to suppress.
+//
+// See sourcegraph/src-cli#1144.
+func applyColorMode(force16 bool) {
+	if !force16 {
+		return
+	}
+	output.SetForce16Color(true)
+	for name, code := range ansiColors {
+		if code == "" {
+			continue
+		}
+		ansiColors[name] = output.Remap256To16SGR(code)
+	}
+}
 
 var isTest bool
 var colorDisabled bool
