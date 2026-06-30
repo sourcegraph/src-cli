@@ -57,9 +57,7 @@ func StartUnixSocketServer(socketPath string) (*Server, error) {
 		StopChan: make(chan struct{}),
 	}
 
-	server.Wg.Add(1)
-	go func() {
-		defer server.Wg.Done()
+	server.Wg.Go(func() {
 		for {
 			conn, err := server.Listener.Accept()
 			if err != nil {
@@ -96,7 +94,7 @@ func StartUnixSocketServer(socketPath string) (*Server, error) {
 				}
 			}(conn)
 		}
-	}()
+	})
 
 	return server, nil
 }
