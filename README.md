@@ -13,6 +13,9 @@
 
 **Note:** Using Sourcegraph 3.12 or earlier? [See the older README](https://github.com/sourcegraph/src-cli/tree/3.11.2).
 
+> [!WARNING]
+> **We are no longer using GitHub issues to track src-cli feature requests or reports**. For feature or support requests, please contact [Sourcegraph Support](mailto:support@sourcegraph.com).
+
 ## Installation
 
 Binary downloads are available on the [releases tab](https://github.com/sourcegraph/src-cli/releases), and through Sourcegraph.com. _If the latest version does not work for you,_ consider using the version compatible with your Sourcegraph instance instead.
@@ -120,7 +123,7 @@ Run <code><strong>src login <i>SOURCEGRAPH-URL</i></strong></code> to authentica
 - `SRC_ENDPOINT`: the URL to your Sourcegraph instance (such as `https://sourcegraph.example.com`)
 - `SRC_ACCESS_TOKEN`: your Sourcegraph access token (on your Sourcegraph instance, click your user menu in the top right, then select **Settings > Access tokens** to create one)
 
-For convenience, you can add these environment variables persistently. 
+For convenience, you can add these environment variables persistently.
 
 ### Configuration: Mac OS / Linux
 
@@ -128,7 +131,7 @@ Add the following to your terminal profile file, typically accessible at `~/.bas
 
 ```
 export SRC_ACCESS_TOKEN=my-token
-export SRC_ENDPOINT=https://sourcegraph.example.com 
+export SRC_ENDPOINT=https://sourcegraph.example.com
 ```
 
 Replace `my-token` and `https://sourcegraph.example.com` with the appropriate values for your account and instance.
