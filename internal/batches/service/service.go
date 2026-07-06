@@ -337,9 +337,7 @@ func (svc *Service) EnsureDockerImages(
 	}
 	var wg sync.WaitGroup
 	for i := 0; i < parallelism; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			for {
 				select {
 				case <-workerCtx.Done():
@@ -363,7 +361,7 @@ func (svc *Service) EnsureDockerImages(
 					}
 				}
 			}
-		}()
+		})
 	}
 
 	go func() {
