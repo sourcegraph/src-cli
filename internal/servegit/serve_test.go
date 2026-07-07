@@ -97,14 +97,15 @@ func testReposHandler(t *testing.T, h http.Handler, repos []Repo) {
 		}
 	}
 
-	// repos page will list the top-level dirs
-	list := get("/repos/")
-	for _, repo := range repos {
-		if path.Dir(repo.URI) != "/repos" {
-			continue
-		}
-		if !strings.Contains(repo.Name, "/") && !strings.Contains(list, repo.Name) {
-			t.Errorf("repos page does not contain substring %q", repo.Name)
+	// Directory browsing under /repos/ is intentionally disabled to avoid
+	// exposing arbitrary files (VULN-99). Only smart Git HTTP endpoints are
+	// served; anything else returns 404.
+	if res, err := http.Get(ts.URL + "/repos/"); err != nil {
+		t.Fatal(err)
+	} else {
+		res.Body.Close()
+		if res.StatusCode != http.StatusNotFound {
+			t.Errorf("GET /repos/ status = %d, want %d", res.StatusCode, http.StatusNotFound)
 		}
 	}
 
