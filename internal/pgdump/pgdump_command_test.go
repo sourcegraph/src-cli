@@ -1,6 +1,7 @@
 package pgdump
 
 import (
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -77,18 +78,20 @@ func TestBuildCommandsRedirection(t *testing.T) {
 	builder, _ := Builder("pg_dump", DumpCommand)
 	targets := Targets{Pgsql: Target{DBName: "sg", Username: "sg"}}
 
+	wantPath := filepath.Join("out", "pgsql.sql")
+
 	dumps, err := BuildCommands("out", builder, targets, true)
 	require.NoError(t, err)
 	require.NotEmpty(t, dumps)
 	// Dump commands write to the output file; nothing is read from stdin.
-	assert.Equal(t, "out/pgsql.sql", dumps[0].OutputFile)
+	assert.Equal(t, wantPath, dumps[0].OutputFile)
 	assert.Empty(t, dumps[0].InputFile)
 
 	restores, err := BuildCommands("out", builder, targets, false)
 	require.NoError(t, err)
 	require.NotEmpty(t, restores)
 	// Restore commands read from the input file; no shell redirection is used.
-	assert.Equal(t, "out/pgsql.sql", restores[0].InputFile)
+	assert.Equal(t, wantPath, restores[0].InputFile)
 	assert.Empty(t, restores[0].OutputFile)
 }
 
