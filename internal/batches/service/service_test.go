@@ -616,6 +616,31 @@ changesetTemplate:
 			expectedErr: errors.New("parsing batch spec: step 1 files target path contains invalid characters"),
 		},
 		{
+			name:         "hook files target path with comma",
+			batchSpecDir: tempDir,
+			rawSpec: `
+version: 3
+name: test-spec
+description: A test spec
+on:
+  - repository: github.com/sourcegraph/src-cli
+changesetTemplate:
+  title: Test Hook Files
+  body: Test hook files target path with comma
+  branch: test
+  commit:
+    message: Test
+changesetHooks:
+  onCIFailure:
+    steps:
+      - run: echo test
+        image: alpine:3
+        files:
+          "/tmp/x,source=/var/run/docker.sock,target=/var/run/docker.sock": "IGNORED"
+`,
+			expectedErr: errors.New("parsing batch spec: hooks.onCIFailure step 1 files target path contains invalid characters"),
+		},
+		{
 			name:         "mount path dot-dot traversal",
 			batchSpecDir: tempDir,
 			rawSpec: `
