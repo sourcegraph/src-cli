@@ -102,8 +102,6 @@ func (s *Serve) handler() http.Handler {
 		_ = enc.Encode(&resp)
 	})
 
-	safeFS := http.FS(s.RootFS.FS())
-	fs := http.FileServer(safeFS)
 	svc := &Handler{
 		Dir: func(_ context.Context, name string) (string, error) {
 			return filepath.Join(s.Root, filepath.FromSlash(name)), nil
@@ -123,14 +121,17 @@ func (s *Serve) handler() http.Handler {
 		RootFS: s.RootFS,
 	}
 	mux.Handle("/repos/", http.StripPrefix("/repos/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Use git service if git is trying to clone. Otherwise show http.FileServer for convenience
+		// Only serve the smart Git HTTP endpoints used for cloning/fetching.
+		// We deliberately do not fall back to a file server: doing so would
+		// expose arbitrary files under the served root to unauthenticated
+		// clients (see VULN-99 / HackerOne #3814799).
 		for _, suffix := range []string{"/info/refs", "/git-upload-pack"} {
 			if strings.HasSuffix(r.URL.Path, suffix) {
 				svc.ServeHTTP(w, r)
 				return
 			}
 		}
-		fs.ServeHTTP(w, r)
+		http.NotFound(w, r)
 	})))
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
