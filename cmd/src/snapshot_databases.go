@@ -4,7 +4,6 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"os/exec"
 	"strings"
 
 	"github.com/sourcegraph/sourcegraph/lib/errors"
@@ -13,6 +12,16 @@ import (
 
 	"github.com/sourcegraph/src-cli/internal/pgdump"
 )
+
+// renderCommands renders a set of commands for display as copy-pasteable,
+// safely shell-quoted strings.
+func renderCommands(commands []pgdump.Command) []string {
+	lines := make([]string, len(commands))
+	for i, c := range commands {
+		lines[i] = c.String()
+	}
+	return lines
+}
 
 func init() {
 	usage := `'src snapshot databases' generates commands to export Sourcegraph database dumps.
@@ -83,19 +92,18 @@ TARGETS FILES
 
 			if *run {
 				for _, c := range commands {
-					out.WriteLine(output.Emojif(output.EmojiInfo, "Running command: %q", c))
-					command := exec.Command("bash", "-c", c)
-					output, err := command.CombinedOutput()
-					out.Write(string(output))
+					out.WriteLine(output.Emojif(output.EmojiInfo, "Running command: %q", c.String()))
+					combined, err := c.Run()
+					out.Write(string(combined))
 					if err != nil {
-						return errors.Wrapf(err, "failed to run command: %q", c)
+						return errors.Wrapf(err, "failed to run command: %q", c.String())
 					}
 				}
 
 				out.WriteLine(output.Emoji(output.EmojiSuccess, "Successfully completed dump commands"))
 			} else {
 				b := out.Block(output.Emoji(output.EmojiSuccess, "Run these commands to generate the required database dumps:"))
-				b.Write("\n" + strings.Join(commands, "\n"))
+				b.Write("\n" + strings.Join(renderCommands(commands), "\n"))
 				b.Close()
 
 				out.WriteLine(output.Styledf(output.StyleSuggestion, "Note that you may need to do some additional setup, such as authentication, beforehand."))
