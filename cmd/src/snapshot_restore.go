@@ -4,7 +4,6 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"os/exec"
 	"strings"
 
 	"github.com/sourcegraph/sourcegraph/lib/errors"
@@ -81,12 +80,11 @@ TARGETS FILES
 			}
 			if *run {
 				for _, c := range commands {
-					out.WriteLine(output.Emojif(output.EmojiInfo, "Running command: %q", c))
-					command := exec.Command("bash", "-c", c)
-					output, err := command.CombinedOutput()
-					out.Write(string(output))
+					out.WriteLine(output.Emojif(output.EmojiInfo, "Running command: %q", c.String()))
+					combined, err := c.Run()
+					out.Write(string(combined))
 					if err != nil {
-						return errors.Wrapf(err, "failed to run command: %q", c)
+						return errors.Wrapf(err, "failed to run command: %q", c.String())
 					}
 				}
 
@@ -94,7 +92,7 @@ TARGETS FILES
 				out.WriteLine(output.Styledf(output.StyleSuggestion, "It may be necessary to restart your Sourcegraph instance after restoring"))
 			} else {
 				b := out.Block(output.Emoji(output.EmojiSuccess, "Run these commands to restore the databases:"))
-				b.Write("\n" + strings.Join(commands, "\n"))
+				b.Write("\n" + strings.Join(renderCommands(commands), "\n"))
 				b.Close()
 
 				out.WriteLine(output.Styledf(output.StyleSuggestion, "Note that you may need to do some additional setup, such as authentication, beforehand."))
