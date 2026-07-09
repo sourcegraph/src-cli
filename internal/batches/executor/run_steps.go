@@ -745,8 +745,9 @@ func (e *errTimeoutReached) Error() string {
 }
 
 func reachedTimeout(cmdCtx context.Context, err error) bool {
-	if ee, ok := errors.Cause(err).(*exec.ExitError); ok {
-		if ee.String() == "signal: killed" && cmdCtx.Err() == context.DeadlineExceeded {
+	var ee *exec.ExitError
+	if errors.As(err, &ee) {
+		if ee.String() == "signal: killed" && errors.Is(cmdCtx.Err(), context.DeadlineExceeded) {
 			return true
 		}
 	}
