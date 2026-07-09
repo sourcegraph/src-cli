@@ -299,13 +299,6 @@ func validateHooks(spec *BatchSpec) error {
 					)))
 				}
 			}
-			for name := range step.Files {
-				if strings.Contains(name, invalidMountCharacters) {
-					errs = errors.Append(errs, NewValidationError(errors.Newf(
-						"hooks.%s step %d files target path contains invalid characters", event, i+1,
-					)))
-				}
-			}
 		}
 	}
 
