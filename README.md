@@ -120,6 +120,8 @@ Run <code><strong>src login <i>SOURCEGRAPH-URL</i></strong></code> to authentica
 - `SRC_ENDPOINT`: the URL to your Sourcegraph instance (such as `https://sourcegraph.example.com`)
 - `SRC_ACCESS_TOKEN`: your Sourcegraph access token (on your Sourcegraph instance, click your user menu in the top right, then select **Settings > Access tokens** to create one)
 
+To force terminal-theme colours instead of 256-colour ANSI output, set `"force16Color": true` in `~/src-config.json`.
+
 For convenience, you can add these environment variables persistently. 
 
 ### Configuration: Mac OS / Linux
