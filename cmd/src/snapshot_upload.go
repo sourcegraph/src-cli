@@ -292,8 +292,6 @@ func uploadFilesToBucket(client *gcsClient, args *uploadArgs, openedFiles []uplo
 	// Upload each file in parallel
 	for fileIndex, openedFile := range openedFiles {
 
-		openedFile := openedFile
-
 		uploadPool.Go(func(ctx context.Context) error {
 			progressFn := func(bytesWritten int64) { progress.SetValue(fileIndex, float64(bytesWritten)) }
 

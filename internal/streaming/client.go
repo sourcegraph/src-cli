@@ -59,13 +59,13 @@ func (rr Decoder) ReadAll(r io.Reader) error {
 		// event: $event\n
 		// data: json($data)\n\n
 		data := scanner.Bytes()
-		nl := bytes.Index(data, []byte("\n"))
-		if nl < 0 {
+		before, after, ok := bytes.Cut(data, []byte("\n"))
+		if !ok {
 			return fmt.Errorf("malformed event, no newline: %s", data)
 		}
 
-		eventK, event := splitColon(data[:nl])
-		dataK, data := splitColon(data[nl+1:])
+		eventK, event := splitColon(before)
+		dataK, data := splitColon(after)
 
 		if !bytes.Equal(eventK, []byte("event")) {
 			return fmt.Errorf("malformed event, expected event: %s", eventK)
@@ -137,11 +137,11 @@ func (rr Decoder) ReadAll(r io.Reader) error {
 }
 
 func splitColon(data []byte) ([]byte, []byte) {
-	i := bytes.Index(data, []byte(":"))
-	if i < 0 {
+	before, after, ok := bytes.Cut(data, []byte(":"))
+	if !ok {
 		return bytes.TrimSpace(data), nil
 	}
-	return bytes.TrimSpace(data[:i]), bytes.TrimSpace(data[i+1:])
+	return bytes.TrimSpace(before), bytes.TrimSpace(after)
 }
 
 type eventMatchUnmarshaller struct {
