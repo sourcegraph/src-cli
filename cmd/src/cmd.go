@@ -78,6 +78,7 @@ func (c commander) run(flagSet *flag.FlagSet, cmdName, usageText string, args []
 		if err != nil {
 			log.Fatal("reading config: ", err)
 		}
+		applyColorMode(cfg.force16Color)
 
 		exitCode, err := runLegacy(cmd, flagSet)
 		if err != nil {

@@ -358,6 +358,42 @@ func TestReadConfig(t *testing.T) {
 				inCI:              true,
 			},
 		},
+		{
+			// Regression for sourcegraph/src-cli#1144: 16-color mode is a
+			// persistent config option, not a per-invocation flag. The JSON
+			// key "force16Color" must round-trip into config.force16Color.
+			name: "config file, force16Color enabled",
+			fileContents: &configFromFile{
+				Endpoint:     "https://example.com/",
+				AccessToken:  "deadbeef",
+				Force16Color: true,
+			},
+			want: &config{
+				endpointURL: &url.URL{
+					Scheme: "https",
+					Host:   "example.com",
+				},
+				accessToken:       "deadbeef",
+				additionalHeaders: map[string]string{},
+				force16Color:      true,
+			},
+		},
+		{
+			name: "config file, force16Color omitted defaults to false",
+			fileContents: &configFromFile{
+				Endpoint:    "https://example.com/",
+				AccessToken: "deadbeef",
+			},
+			want: &config{
+				endpointURL: &url.URL{
+					Scheme: "https",
+					Host:   "example.com",
+				},
+				accessToken:       "deadbeef",
+				additionalHeaders: map[string]string{},
+				force16Color:      false,
+			},
+		},
 	}
 
 	for _, test := range tests {

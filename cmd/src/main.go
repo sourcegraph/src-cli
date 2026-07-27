@@ -151,6 +151,7 @@ type config struct {
 	endpointURL          *url.URL // always non-nil; defaults to https://sourcegraph.com via readConfig
 	usingDefaultEndpoint bool
 	inCI                 bool
+	force16Color         bool
 }
 
 // configFromFile holds the config as read from the config file,
@@ -160,6 +161,9 @@ type configFromFile struct {
 	AccessToken       string            `json:"accessToken"`
 	AdditionalHeaders map[string]string `json:"additionalHeaders"`
 	Proxy             string            `json:"proxy"`
+	// Force16Color restricts colored output to the basic 16-color SGR palette
+	// instead of 256-color sequences. See sourcegraph/src-cli#1144.
+	Force16Color bool `json:"force16Color"`
 }
 
 type AuthMode int
@@ -247,6 +251,7 @@ func readConfig() (*config, error) {
 		cfg.accessToken = cfgFromFile.AccessToken
 		cfg.additionalHeaders = cfgFromFile.AdditionalHeaders
 		proxyStr = cfgFromFile.Proxy
+		cfg.force16Color = cfgFromFile.Force16Color
 	}
 
 	envToken := os.Getenv("SRC_ACCESS_TOKEN")

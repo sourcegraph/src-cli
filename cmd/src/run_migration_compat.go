@@ -44,6 +44,7 @@ func maybeRunMigratedCommand() (isMigrated bool, exitCode int, err error) {
 	if err != nil {
 		log.Fatal("reading config: ", err)
 	}
+	applyColorMode(cfg.force16Color)
 
 	exitCode, err = runMigrated()
 	return
