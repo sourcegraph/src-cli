@@ -266,10 +266,10 @@ func TestBuildTransport_WithProxyURL(t *testing.T) {
 	insecure := true
 	flags := &Flags{
 		insecureSkipVerify: &insecure,
-		dump:               boolPtr(false),
-		getCurl:            boolPtr(false),
-		trace:              boolPtr(false),
-		userAgentTelemetry: boolPtr(false),
+		dump:               new(false),
+		getCurl:            new(false),
+		trace:              new(false),
+		userAgentTelemetry: new(false),
 	}
 	opts := ClientOpts{
 		ProxyURL: proxyURL,
@@ -296,10 +296,10 @@ func TestBuildTransport_WithProxyPath(t *testing.T) {
 	insecure := true
 	flags := &Flags{
 		insecureSkipVerify: &insecure,
-		dump:               boolPtr(false),
-		getCurl:            boolPtr(false),
-		trace:              boolPtr(false),
-		userAgentTelemetry: boolPtr(false),
+		dump:               new(false),
+		getCurl:            new(false),
+		trace:              new(false),
+		userAgentTelemetry: new(false),
 	}
 	opts := ClientOpts{
 		ProxyPath: socketPath,
@@ -324,10 +324,10 @@ func TestBuildTransport_NoProxyPreservesProxyFunc(t *testing.T) {
 	insecure := true
 	flags := &Flags{
 		insecureSkipVerify: &insecure,
-		dump:               boolPtr(false),
-		getCurl:            boolPtr(false),
-		trace:              boolPtr(false),
-		userAgentTelemetry: boolPtr(false),
+		dump:               new(false),
+		getCurl:            new(false),
+		trace:              new(false),
+		userAgentTelemetry: new(false),
 	}
 	opts := ClientOpts{} // no ProxyURL or ProxyPath
 
@@ -353,10 +353,10 @@ func TestBuildTransport_NOPROXYOverridesHTTPSPROXY(t *testing.T) {
 	insecure := true
 	flags := &Flags{
 		insecureSkipVerify: &insecure,
-		dump:               boolPtr(false),
-		getCurl:            boolPtr(false),
-		trace:              boolPtr(false),
-		userAgentTelemetry: boolPtr(false),
+		dump:               new(false),
+		getCurl:            new(false),
+		trace:              new(false),
+		userAgentTelemetry: new(false),
 	}
 	opts := ClientOpts{} // no ProxyURL or ProxyPath
 
@@ -386,10 +386,10 @@ func TestBuildTransport_ExplicitProxyURLOverridesNOPROXY(t *testing.T) {
 	insecure := true
 	flags := &Flags{
 		insecureSkipVerify: &insecure,
-		dump:               boolPtr(false),
-		getCurl:            boolPtr(false),
-		trace:              boolPtr(false),
-		userAgentTelemetry: boolPtr(false),
+		dump:               new(false),
+		getCurl:            new(false),
+		trace:              new(false),
+		userAgentTelemetry: new(false),
 	}
 	opts := ClientOpts{
 		ProxyURL: proxyURL,
@@ -404,4 +404,5 @@ func TestBuildTransport_ExplicitProxyURLOverridesNOPROXY(t *testing.T) {
 	}
 }
 
-func boolPtr(b bool) *bool { return &b }
+//go:fix inline
+func boolPtr(b bool) *bool { return new(b) }
