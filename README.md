@@ -103,54 +103,65 @@ See [Sourcegraph CLI for Windows](WINDOWS.md).
 docker run --rm=true sourcegraph/src-cli:latest search 'hello world'
 ```
 
-## Log into your Sourcegraph instance
+<a id="log-into-your-sourcegraph-instance"></a>
 
-Run <code><strong>src login <i>SOURCEGRAPH-URL</i></strong></code> to authenticate `src` to access your Sourcegraph instance with your user credentials.
+## Connect to your Sourcegraph instance
 
-<blockquote>
-
-**Examples**
-`src login https://sourcegraph.example.com`
-`src login https://sourcegraph.com`
-
-</blockquote>
-
-`src` consults the following environment variables:
-
-- `SRC_ENDPOINT`: the URL to your Sourcegraph instance (such as `https://sourcegraph.example.com`)
-- `SRC_ACCESS_TOKEN`: your Sourcegraph access token (on your Sourcegraph instance, click your user menu in the top right, then select **Settings > Access tokens** to create one)
-
-For convenience, you can add these environment variables persistently. 
-
-### Configuration: Mac OS / Linux
-
-Add the following to your terminal profile file, typically accessible at `~/.bash_profile` (if using Bash) or `~/.zprofile` (if using Zsh):
-
-```
-export SRC_ACCESS_TOKEN=my-token
-export SRC_ENDPOINT=https://sourcegraph.example.com 
-```
-
-Replace `my-token` and `https://sourcegraph.example.com` with the appropriate values for your account and instance.
-
-You can also inline them in a single command with:
+`src` needs the URL of your Sourcegraph instance. Set `SRC_ENDPOINT` in your shell environment, replacing `https://sourcegraph.example.com` with your instance URL:
 
 ```sh
-SRC_ENDPOINT=https://sourcegraph.example.com SRC_ACCESS_TOKEN=my-token src search 'foo'
+export SRC_ENDPOINT=https://sourcegraph.example.com
 ```
 
-### Configuration: Windows
+For PowerShell on Windows:
 
-Type the following on your PowerShell terminal:
-
+```powershell
+$env:SRC_ENDPOINT = 'https://sourcegraph.example.com'
 ```
+
+For convenience, add this environment variable to your terminal profile or system environment variables. On Mac OS and Linux, the terminal profile is typically `~/.bash_profile` for Bash or `~/.zprofile` for Zsh. On Windows, you can add it through the *System Properties* window. See [these instructions](https://www.computerhope.com/issues/ch000549.htm) for details.
+
+If `SRC_ENDPOINT` is not set, `src` defaults to `https://sourcegraph.com`.
+
+### OAuth login
+
+Run `src login` to authenticate interactively with OAuth:
+
+```sh
+src login
+```
+
+OAuth does not require you to create or export `SRC_ACCESS_TOKEN`. The OAuth credential is stored in your operating system's native keyring. Keep `SRC_ENDPOINT` set when running subsequent commands because `src` uses the endpoint to load the matching OAuth credential.
+
+You can also pass the instance URL directly to `src login`, but this only selects the endpoint for that login command. You must still set `SRC_ENDPOINT` when running subsequent commands:
+
+```sh
+src login https://sourcegraph.example.com
+```
+
+To use the active credential in another command, `src auth token` prints the raw token and `src auth token --header` prints a complete `Authorization` header for the active authentication mode.
+
+### Personal access token login
+
+For non-interactive authentication, such as in CI or scripts, create an access token on your Sourcegraph instance under **Settings > Access tokens**, then set both `SRC_ENDPOINT` and `SRC_ACCESS_TOKEN`:
+
+```sh
+export SRC_ENDPOINT=https://sourcegraph.example.com
+export SRC_ACCESS_TOKEN=my-token
+```
+
+For PowerShell on Windows:
+
+```powershell
 $env:SRC_ENDPOINT = 'https://sourcegraph.example.com'
 $env:SRC_ACCESS_TOKEN = 'my-token'
 ```
 
-Replace `my-token` and `https://sourcegraph.example.com` with the appropriate values for your account and instance.
+When `SRC_ACCESS_TOKEN` is set, `src` uses it instead of an OAuth credential and running `src login` is not necessary. You can also set both variables for a single command:
 
-You can also manually add them via the *System Properties* windows. Check [this post](https://www.computerhope.com/issues/ch000549.htm) for details.
+```sh
+SRC_ENDPOINT=https://sourcegraph.example.com SRC_ACCESS_TOKEN=my-token src search 'foo'
+```
 
 Is your Sourcegraph instance behind a custom auth proxy? See [auth proxy configuration](./AUTH_PROXY.md) docs.
 
@@ -159,6 +170,7 @@ Is your Sourcegraph instance behind a custom auth proxy? See [auth proxy configu
 `src` provides different subcommands to interact with different parts of Sourcegraph:
 
  - `src login` - authenticate to a Sourcegraph instance with your user credentials
+ - `src auth` - print the active authentication token or authorization header
  - `src search` - perform searches and get results in your terminal or as JSON
  - `src api` - run Sourcegraph GraphQL API requests
  - `src batch` - execute and manage [batch changes](https://docs.sourcegraph.com/batch_changes)
