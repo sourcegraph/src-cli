@@ -337,7 +337,16 @@ func readConfig() (*config, error) {
 		}
 	}
 
-	cfg.additionalHeaders = parseAdditionalHeaders()
+	// Merge config-file headers under the env headers (which take precedence),
+	// lowercasing config keys to match the env-header convention.
+	envHeaders := parseAdditionalHeaders()
+	for k, v := range cfg.additionalHeaders {
+		lk := strings.ToLower(k)
+		if _, ok := envHeaders[lk]; !ok {
+			envHeaders[lk] = v
+		}
+	}
+	cfg.additionalHeaders = envHeaders
 	// Ensure that we're not clashing additonal headers
 	_, hasAuthorizationAdditonalHeader := cfg.additionalHeaders["authorization"]
 	if cfg.accessToken != "" && hasAuthorizationAdditonalHeader {
