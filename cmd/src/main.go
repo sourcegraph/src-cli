@@ -337,15 +337,8 @@ func readConfig() (*config, error) {
 		}
 	}
 
-	// Merge additional headers from the environment on top of any headers loaded
-	// from the config file, rather than overwriting them. Environment-provided
-	// headers take precedence, consistent with how the access token and endpoint
-	// are overridden above. parseAdditionalHeaders always returns a non-nil map.
-	// Config-file keys are used verbatim, but parseAdditionalHeaders always
-	// lowercases its keys, so normalize the config keys too. Otherwise a
-	// differently-cased config key (e.g. "Authorization") would neither be
-	// overridden by its environment counterpart nor be caught by the
-	// authorization-conflict check below.
+	// Merge config-file headers under the env headers (which take precedence),
+	// lowercasing config keys to match the env-header convention.
 	envHeaders := parseAdditionalHeaders()
 	for k, v := range cfg.additionalHeaders {
 		lk := strings.ToLower(k)
