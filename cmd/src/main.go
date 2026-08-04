@@ -337,7 +337,23 @@ func readConfig() (*config, error) {
 		}
 	}
 
-	cfg.additionalHeaders = parseAdditionalHeaders()
+	// Merge additional headers from the environment on top of any headers loaded
+	// from the config file, rather than overwriting them. Environment-provided
+	// headers take precedence, consistent with how the access token and endpoint
+	// are overridden above. parseAdditionalHeaders always returns a non-nil map.
+	// Config-file keys are used verbatim, but parseAdditionalHeaders always
+	// lowercases its keys, so normalize the config keys too. Otherwise a
+	// differently-cased config key (e.g. "Authorization") would neither be
+	// overridden by its environment counterpart nor be caught by the
+	// authorization-conflict check below.
+	envHeaders := parseAdditionalHeaders()
+	for k, v := range cfg.additionalHeaders {
+		lk := strings.ToLower(k)
+		if _, ok := envHeaders[lk]; !ok {
+			envHeaders[lk] = v
+		}
+	}
+	cfg.additionalHeaders = envHeaders
 	// Ensure that we're not clashing additonal headers
 	_, hasAuthorizationAdditonalHeader := cfg.additionalHeaders["authorization"]
 	if cfg.accessToken != "" && hasAuthorizationAdditonalHeader {
