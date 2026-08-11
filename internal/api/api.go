@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"os"
 	"runtime"
+	"strings"
 
 	ioaux "github.com/jig/teereadcloser"
 	"github.com/kballard/go-shellquote"
@@ -371,18 +372,19 @@ func (r *request) curlCmd() (string, error) {
 		return "", err
 	}
 
-	s := "curl \\\n"
+	var s strings.Builder
+	s.WriteString("curl \\\n")
 	if r.client.opts.AccessToken != "" {
-		s += fmt.Sprintf("   %s \\\n", shellquote.Join("-H", "Authorization: token "+r.client.opts.AccessToken))
+		s.WriteString(fmt.Sprintf("   %s \\\n", shellquote.Join("-H", "Authorization: token "+r.client.opts.AccessToken)))
 	}
 	// Preserve overrides if Content-Type is set
 	if r.client.opts.AdditionalHeaders["Content-Type"] == "" {
 		r.client.opts.AdditionalHeaders["Content-Type"] = "application/json"
 	}
 	for k, v := range r.client.opts.AdditionalHeaders {
-		s += fmt.Sprintf("   %s \\\n", shellquote.Join("-H", k+": "+v))
+		s.WriteString(fmt.Sprintf("   %s \\\n", shellquote.Join("-H", k+": "+v)))
 	}
-	s += fmt.Sprintf("   %s \\\n", shellquote.Join("-d", string(data)))
-	s += fmt.Sprintf("   %s", shellquote.Join(r.client.opts.EndpointURL.JoinPath(".api/graphql").String()))
-	return s, nil
+	s.WriteString(fmt.Sprintf("   %s \\\n", shellquote.Join("-d", string(data))))
+	s.WriteString(fmt.Sprintf("   %s", shellquote.Join(r.client.opts.EndpointURL.JoinPath(".api/graphql").String())))
+	return s.String(), nil
 }
