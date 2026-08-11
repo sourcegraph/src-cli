@@ -96,6 +96,10 @@ func main() {
 	log.SetFlags(0)
 	log.SetPrefix("")
 
+	// Best-effort warning if src-cli is behind the version recommended by the
+	// configured instance. Fail-open, bounded by a short timeout, stderr only.
+	maybeWarnVersion(os.Args[1:])
+
 	ranMigratedCmd, exitCode, err := maybeRunMigratedCommand()
 	if ranMigratedCmd {
 		if err != nil {
