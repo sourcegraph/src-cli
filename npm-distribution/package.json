@@ -17,7 +17,7 @@
     "sourcegraph"
   ],
   "dependencies": {
-    "tar": "^7.5.15"
+    "tar": "^7.5.22"
   },
   "overrides": {
     "cross-spawn": "^7.0.5",

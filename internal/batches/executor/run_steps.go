@@ -540,6 +540,16 @@ func createFilesToMount(tempDir string, step batcheslib.Step, stepContext *templ
 	// can mount them into the container.
 	filesToMount := make(map[string]*os.File, len(files))
 	for name, content := range files {
+		// Defense-in-depth: the mount target name is concatenated directly
+		// into a Docker `--mount type=bind,...,target=<name>` argument. A comma
+		// in the name would let an attacker break out of the mount spec and
+		// inject arbitrary source=/target= pairs (e.g. /var/run/docker.sock).
+		// Parse-time validation rejects this, but the executor receives
+		// pre-parsed steps via JSON and never re-runs that validation, so we
+		// re-check here at the sink.
+		if strings.Contains(name, ",") {
+			return nil, cleanup, errors.Newf("files target path %q contains invalid characters", name)
+		}
 		fp, err := os.CreateTemp(tempDir, "")
 		if err != nil {
 			return nil, cleanup, errors.Wrap(err, "creating temporary file")
