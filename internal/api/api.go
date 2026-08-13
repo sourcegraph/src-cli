@@ -139,7 +139,8 @@ func NewClient(opts ClientOpts) Client {
 	transport := buildTransport(opts, flags)
 
 	httpClient := &http.Client{
-		Transport: transport,
+		Transport:     transport,
+		CheckRedirect: checkRedirect,
 	}
 
 	return &client{
@@ -153,6 +154,13 @@ func NewClient(opts ClientOpts) Client {
 		},
 		httpClient: httpClient,
 	}
+}
+
+func checkRedirect(req *http.Request, via []*http.Request) error {
+	if len(via) > 0 && req.URL.Host != via[0].URL.Host {
+		return http.ErrUseLastResponse
+	}
+	return nil
 }
 
 func (c *client) checkIfCIAccessTokenRequired() error {
