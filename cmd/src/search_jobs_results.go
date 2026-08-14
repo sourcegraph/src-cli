@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/sourcegraph/src-cli/internal/api"
 	"github.com/sourcegraph/src-cli/internal/cmderrors"
@@ -24,7 +25,8 @@ func fetchJobResults(jobID string, resultsURL string) (io.ReadCloser, error) {
 
 	req.Header.Add("Authorization", "token "+cfg.accessToken)
 
-	resp, err := http.DefaultClient.Do(req)
+	client := &http.Client{Timeout: 60 * time.Second}
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err
 	}
