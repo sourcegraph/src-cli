@@ -199,7 +199,7 @@ You can then invoke it via `src-cli`.
 
 ## Timeouts
 
-`src` waits up to 5 minutes for the server to start responding to a request. To change this, set the `SRC_RESPONSE_HEADER_TIMEOUT` environment variable to a duration such as `30s` or `10m`, or to `0` to disable the timeout. This timeout only applies until the server sends its response headers — responses that stream data for a long time, such as large search job results, are not interrupted.
+`src` waits up to 1 minute for the server to start responding to a request. To change this, set the `SRC_RESPONSE_HEADER_TIMEOUT` environment variable to a duration such as `30s` or `10m`, or to `0` to disable the timeout. This timeout only applies until the server sends its response headers — responses that stream data for a long time, such as large search job results, are not interrupted.
 
 ## Telemetry
 

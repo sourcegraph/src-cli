@@ -99,7 +99,7 @@ var ErrCIAccessTokenRequired = errors.New("SRC_ACCESS_TOKEN must be set when CI=
 // defaultResponseHeaderTimeout bounds how long we wait for a server to start
 // responding. It is deliberately generous because some GraphQL queries take a
 // long time server-side before the first response byte is written.
-const defaultResponseHeaderTimeout = 5 * time.Minute
+const defaultResponseHeaderTimeout = 1 * time.Minute
 
 // responseHeaderTimeout returns the timeout to wait for a server's response
 // headers, honoring the SRC_RESPONSE_HEADER_TIMEOUT environment variable (a Go
