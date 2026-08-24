@@ -8,14 +8,19 @@ import (
 	"strings"
 
 	jsoniter "github.com/json-iterator/go"
+	"github.com/sourcegraph/src-cli/internal/api"
 	"github.com/sourcegraph/src-cli/internal/lazyregexp"
 
 	"github.com/sourcegraph/sourcegraph/lib/errors"
 )
 
+// httpClient bounds the connection phase (dial, TLS handshake, response
+// headers) so an unresponsive instance cannot stall requests indefinitely.
+var httpClient = &http.Client{Transport: api.BaseTransport()}
+
 // NeedsSiteInit returns true if the instance hasn't done "Site admin init" step.
 func NeedsSiteInit(baseURL string) (bool, string, error) {
-	resp, err := http.Get(baseURL + "/sign-in")
+	resp, err := httpClient.Get(baseURL + "/sign-in")
 	if err != nil {
 		return false, "", errors.Wrap(err, "sign-in page")
 	}
@@ -83,7 +88,7 @@ func NewClient(baseURL string, requestLogger, responseLogger logFunc) (*Client, 
 		responseLogger = noopLog
 	}
 
-	resp, err := http.Get(baseURL)
+	resp, err := httpClient.Get(baseURL)
 	if err != nil {
 		return nil, errors.Wrap(err, "get URL")
 	}
@@ -133,7 +138,7 @@ func (c *Client) authenticate(path string, body any) error {
 		req.AddCookie(c.csrfCookie)
 	}
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return errors.Wrap(err, "do request")
 	}
@@ -269,7 +274,7 @@ func (c *Client) GraphQL(token, query string, variables map[string]any, target a
 
 	c.requestLogger(body)
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return err
 	}

@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"os"
 	"runtime"
+	"time"
 
 	ioaux "github.com/jig/teereadcloser"
 	"github.com/kballard/go-shellquote"
@@ -95,10 +96,36 @@ type ClientOpts struct {
 // ErrCIAccessTokenRequired indicates SRC_ACCESS_TOKEN must be set when CI=true.
 var ErrCIAccessTokenRequired = errors.New("SRC_ACCESS_TOKEN must be set when CI=true")
 
+// defaultResponseHeaderTimeout bounds how long we wait for a server to start
+// responding. It is deliberately generous because some GraphQL queries take a
+// long time server-side before the first response byte is written.
+const defaultResponseHeaderTimeout = 5 * time.Minute
+
+// responseHeaderTimeout returns the timeout to wait for a server's response
+// headers, honoring the SRC_RESPONSE_HEADER_TIMEOUT environment variable (a Go
+// duration string; "0" disables the timeout).
+func responseHeaderTimeout() time.Duration {
+	if v := os.Getenv("SRC_RESPONSE_HEADER_TIMEOUT"); v != "" {
+		if d, err := time.ParseDuration(v); err == nil && d >= 0 {
+			return d
+		}
+	}
+	return defaultResponseHeaderTimeout
+}
+
+// BaseTransport returns a clone of http.DefaultTransport (which carries dial
+// and TLS handshake timeouts) with a response header timeout applied, so that
+// an unresponsive server cannot stall requests indefinitely.
+func BaseTransport() *http.Transport {
+	tp := http.DefaultTransport.(*http.Transport).Clone()
+	tp.ResponseHeaderTimeout = responseHeaderTimeout()
+	return tp
+}
+
 func buildTransport(opts ClientOpts, flags *Flags) http.RoundTripper {
 	var transport http.RoundTripper
 	{
-		tp := http.DefaultTransport.(*http.Transport).Clone()
+		tp := BaseTransport()
 
 		if flags.insecureSkipVerify != nil && *flags.insecureSkipVerify {
 			tp.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
@@ -138,6 +165,10 @@ func NewClient(opts ClientOpts) Client {
 
 	transport := buildTransport(opts, flags)
 
+	// Note: no Client.Timeout is set on purpose. It would cap the entire
+	// request including reading the response body, but downloads (search job
+	// results, batch change archives, ...) may legitimately stream for a very
+	// long time. The transport's connection-phase timeouts bound the rest.
 	httpClient := &http.Client{
 		Transport:     transport,
 		CheckRedirect: checkRedirect,

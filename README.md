@@ -197,6 +197,10 @@ mv /usr/local/bin/src /usr/local/bin/src-cli
 
 You can then invoke it via `src-cli`.
 
+## Timeouts
+
+`src` waits up to 5 minutes for the server to start responding to a request. To change this, set the `SRC_RESPONSE_HEADER_TIMEOUT` environment variable to a duration such as `30s` or `10m`, or to `0` to disable the timeout. This timeout only applies until the server sends its response headers — responses that stream data for a long time, such as large search job results, are not interrupted.
+
 ## Telemetry
 
 `src` includes the operating system and architecture in the `User-Agent` header sent to Sourcegraph. For example, running `src` version 3.21.10 on an x86-64 Linux host will result in this header:
