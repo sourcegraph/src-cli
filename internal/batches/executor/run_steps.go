@@ -9,7 +9,9 @@ import (
 	"maps"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -348,13 +350,21 @@ func executeSingleStep(
 		scriptWorkDir = workDir + "/" + opts.Task.Path
 	}
 
+	if err := validateContainerTempPath(containerTemp); err != nil {
+		return bytes.Buffer{}, bytes.Buffer{}, errors.Wrap(err, "validating run script target")
+	}
+	runScriptMount, err := dockerBindMount(runScriptFile, containerTemp)
+	if err != nil {
+		return bytes.Buffer{}, bytes.Buffer{}, errors.Wrap(err, "creating run script mount")
+	}
+
 	args := append([]string{
 		"run",
 		"--rm",
 		"--init",
 		"--cidfile", cidFile,
 		"--workdir", scriptWorkDir,
-		"--mount", fmt.Sprintf("type=bind,source=%s,target=%s,ro", runScriptFile, containerTemp),
+		"--mount", runScriptMount,
 	}, workspaceOpts...)
 
 	if opts.ForceRoot {
@@ -362,7 +372,11 @@ func executeSingleStep(
 	}
 
 	for target, source := range filesToMount {
-		args = append(args, "--mount", fmt.Sprintf("type=bind,source=%s,target=%s,ro", source.Name(), target))
+		mountArg, err := dockerBindMount(source.Name(), target)
+		if err != nil {
+			return bytes.Buffer{}, bytes.Buffer{}, errors.Wrap(err, "creating files mount")
+		}
+		args = append(args, "--mount", mountArg)
 	}
 
 	// Mount any paths on the local system to the docker container. The paths have already been validated during parsing.
@@ -371,7 +385,11 @@ func executeSingleStep(
 		if err != nil {
 			return bytes.Buffer{}, bytes.Buffer{}, err
 		}
-		args = append(args, "--mount", fmt.Sprintf("type=bind,source=%s,target=%s,ro", workspaceFilePath, mount.Mountpoint))
+		mountArg, err := dockerBindMount(workspaceFilePath, mount.Mountpoint)
+		if err != nil {
+			return bytes.Buffer{}, bytes.Buffer{}, errors.Wrap(err, "creating host mount")
+		}
+		args = append(args, "--mount", mountArg)
 	}
 
 	for k, v := range env {
@@ -479,6 +497,8 @@ func setOutputs(stepOutputs batcheslib.Outputs, global map[string]any, stepCtx *
 	return nil
 }
 
+var containerTempPathPattern = regexp.MustCompile(`^/[A-Za-z0-9_./-]+$`)
+
 func probeImageForShell(ctx context.Context, image string) (shell, tempfile string, err error) {
 	// We need to know two things to be able to run a shell script:
 	//
@@ -508,9 +528,14 @@ func probeImageForShell(ctx context.Context, image string) (shell, tempfile stri
 		if runErr := cmd.Run(); runErr != nil {
 			err = errors.Append(err, errors.Wrapf(runErr, "probing shell %q:\n%s", shell, stderr.String()))
 		} else {
+			tempfile, runErr = parseContainerTempPath(stdout.String())
+			if runErr != nil {
+				err = errors.Append(err, errors.Wrapf(runErr, "probing shell %q", shell))
+				continue
+			}
+
 			// Even if there were previous errors, we can now ignore them.
 			err = nil
-			tempfile = strings.TrimSpace(stdout.String())
 			return
 		}
 	}
@@ -518,6 +543,39 @@ func probeImageForShell(ctx context.Context, image string) (shell, tempfile stri
 	// If we got here, then all the attempts to probe the shell failed. Let's
 	// admit defeat and return. At least err is already in place.
 	return
+}
+
+func parseContainerTempPath(output string) (string, error) {
+	// mktemp writes one path followed by a newline. Remove that one expected
+	// delimiter, then reject any additional output rather than allowing the
+	// image to inject Docker's comma-delimited mount grammar.
+	tempfile := strings.TrimSuffix(output, "\n")
+	if tempfile == "" {
+		return "", errors.New("mktemp returned an empty path")
+	}
+	if strings.ContainsAny(tempfile, "\r\n") {
+		return "", errors.New("mktemp returned more than one line")
+	}
+	if err := validateContainerTempPath(tempfile); err != nil {
+		return "", err
+	}
+	return tempfile, nil
+}
+
+func validateContainerTempPath(tempfile string) error {
+	if !path.IsAbs(tempfile) || !containerTempPathPattern.MatchString(tempfile) {
+		return errors.Newf("mktemp returned invalid path %q", tempfile)
+	}
+	return nil
+}
+
+func dockerBindMount(source, target string) (string, error) {
+	for name, value := range map[string]string{"source": source, "target": target} {
+		if value == "" || strings.ContainsAny(value, ",\r\n\x00") {
+			return "", errors.Newf("invalid Docker mount %s %q", name, value)
+		}
+	}
+	return fmt.Sprintf("type=bind,source=%s,target=%s,ro", source, target), nil
 }
 
 // createFilesToMount creates temporary files with the contents of Step.Files
