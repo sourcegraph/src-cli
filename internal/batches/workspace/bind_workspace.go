@@ -206,6 +206,15 @@ func unzip(ctx context.Context, zipFile, dest string) error {
 			return fmt.Errorf("%s: illegal file path", fpath)
 		}
 
+		relativePath, err := filepath.Rel(dest, fpath)
+		if err != nil {
+			return err
+		}
+		firstPathElement, _, _ := strings.Cut(relativePath, string(os.PathSeparator))
+		if strings.EqualFold(firstPathElement, ".git") {
+			return fmt.Errorf("%s: repository archive contains Git metadata", f.Name)
+		}
+
 		if f.FileInfo().IsDir() {
 			if err := mkdirAll(dest, f.Name, 0777); err != nil {
 				return err

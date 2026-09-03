@@ -143,6 +143,29 @@ func TestDockerBindWorkspaceCreator_Create(t *testing.T) {
 	})
 }
 
+func TestUnzipRejectsGitMetadata(t *testing.T) {
+	for _, name := range []string{
+		".git/config",
+		".git/hooks/pre-commit",
+		"dir/../.git/config",
+		".GIT/config",
+	} {
+		t.Run(name, func(t *testing.T) {
+			archivePath := zipUpFiles(t, t.TempDir(), map[string]string{name: "malicious"})
+			dest := t.TempDir()
+
+			err := unzip(context.Background(), archivePath, dest)
+			if err == nil || !strings.Contains(err.Error(), "repository archive contains Git metadata") {
+				t.Fatalf("expected Git metadata error, got %v", err)
+			}
+
+			if _, err := os.Stat(filepath.Join(dest, ".git")); !os.IsNotExist(err) {
+				t.Fatalf("expected .git not to be extracted, got %v", err)
+			}
+		})
+	}
+}
+
 func TestDockerBindWorkspace_ApplyDiff(t *testing.T) {
 	// Create a zip file for all the other tests to use.
 	fakeFilesTmpDir := t.TempDir()
