@@ -166,6 +166,54 @@ func TestUnzipRejectsGitMetadata(t *testing.T) {
 	}
 }
 
+func TestUnzipRejectsUnsafeArchivePaths(t *testing.T) {
+	tests := []string{
+		`.git\config`,
+		`hooks\pre-commit`,
+	}
+
+	for _, name := range tests {
+		t.Run(name, func(t *testing.T) {
+			archivePath := zipUpFiles(t, t.TempDir(), map[string]string{name: "malicious"})
+			dest := t.TempDir()
+
+			if err := unzip(context.Background(), archivePath, dest); err == nil {
+				t.Fatal("expected unsafe archive path to be rejected")
+			}
+
+			entries, err := os.ReadDir(dest)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(entries) != 0 {
+				t.Fatalf("archive was partially extracted: %v", entries)
+			}
+		})
+	}
+}
+
+func TestUnzipAllowsSafeControlPaths(t *testing.T) {
+	files := map[string]string{
+		".git_config":      "config",
+		"hooks_pre-commit": "hook",
+	}
+	archivePath := zipUpFiles(t, t.TempDir(), files)
+	dest := t.TempDir()
+
+	if err := unzip(context.Background(), archivePath, dest); err != nil {
+		t.Fatal(err)
+	}
+	for name, want := range files {
+		have, err := os.ReadFile(filepath.Join(dest, name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(have) != want {
+			t.Errorf("%s: got %q, want %q", name, have, want)
+		}
+	}
+}
+
 func TestDockerBindWorkspace_ApplyDiff(t *testing.T) {
 	// Create a zip file for all the other tests to use.
 	fakeFilesTmpDir := t.TempDir()

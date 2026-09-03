@@ -9,6 +9,9 @@ import (
 )
 
 func runGitCmd(ctx context.Context, dir string, args ...string) ([]byte, error) {
+	// Repository contents are untrusted. Keep hooks disabled even if a command
+	// encounters an attacker-controlled local Git configuration.
+	args = append([]string{"-c", "core.hooksPath=/dev/null"}, args...)
 	cmd := exec.CommandContext(ctx, "git", args...)
 	cmd.Env = []string{
 		// Don't use the system wide git config.

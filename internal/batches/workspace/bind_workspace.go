@@ -190,6 +190,15 @@ func unzip(ctx context.Context, zipFile, dest string) error {
 	}
 	defer r.Close()
 
+	for _, f := range r.File {
+		// ZIP paths use forward slashes on every platform. Reject backslashes
+		// rather than letting Windows reinterpret a filename from a Unix
+		// repository as a directory hierarchy.
+		if strings.ContainsRune(f.Name, '\\') {
+			return fmt.Errorf("%q: illegal file path", f.Name)
+		}
+	}
+
 	outputBase := filepath.Clean(dest) + string(os.PathSeparator)
 
 	for _, f := range r.File {
