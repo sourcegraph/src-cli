@@ -143,6 +143,55 @@ func TestDockerBindWorkspaceCreator_Create(t *testing.T) {
 	})
 }
 
+func TestDockerBindWorkspace_DiffRestoresTrustedGitConfig(t *testing.T) {
+	archivePath := zipUpFiles(t, t.TempDir(), map[string]string{
+		"tracked.txt": "before\n",
+	})
+	creator := &dockerBindWorkspaceCreator{Dir: t.TempDir()}
+	workspace, err := creator.Create(context.Background(), repo, nil, &fakeRepoArchive{mockPath: archivePath})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	dir := *workspace.WorkDir()
+	configPath := filepath.Join(dir, ".git", "config")
+	trustedConfig, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	config, err := os.OpenFile(configPath, os.O_APPEND|os.O_WRONLY, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := config.WriteString("[diff]\n\texternal = command-that-must-not-run\n[filter \"attack\"]\n\tclean = command-that-must-not-run\n"); err != nil {
+		t.Fatal(err)
+	}
+	if err := config.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, ".gitattributes"), []byte("*.txt filter=attack\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "tracked.txt"), []byte("after\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	diff, err := workspace.Diff(context.Background())
+	if err != nil {
+		t.Fatalf("Diff executed untrusted Git configuration: %s", err)
+	}
+	if !strings.Contains(string(diff), "+after") {
+		t.Fatalf("diff does not contain tracked change:\n%s", diff)
+	}
+	restoredConfig, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cmp.Equal(restoredConfig, trustedConfig) {
+		t.Fatalf("Git config was not restored:\n%s", cmp.Diff(string(trustedConfig), string(restoredConfig)))
+	}
+}
+
 func TestUnzipRejectsGitMetadata(t *testing.T) {
 	for _, name := range []string{
 		".git/config",
