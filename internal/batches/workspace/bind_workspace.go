@@ -43,6 +43,13 @@ func (wc *dockerBindWorkspaceCreator) Create(ctx context.Context, repo *graphql.
 }
 
 func (*dockerBindWorkspaceCreator) prepareGitRepo(ctx context.Context, w *dockerBindWorkspace) error {
+	// Windows can normalize archive entry names such as ".git." to ".git".
+	// Always discard extracted Git metadata before running Git so repository
+	// contents cannot configure commands that execute on the host.
+	if err := os.RemoveAll(filepath.Join(w.dir, ".git")); err != nil {
+		return errors.Wrap(err, "removing extracted git metadata")
+	}
+
 	if _, err := runGitCmd(ctx, w.dir, "init"); err != nil {
 		return errors.Wrap(err, "git init failed")
 	}
