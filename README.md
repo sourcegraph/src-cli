@@ -211,7 +211,7 @@ src-cli/3.21.10 linux amd64
 
 To disable this and _only_ send the version, you can set `-user-agent-telemetry=false` for a single command, or set the `SRC_DISABLE_USER_AGENT_TELEMETRY` environment variable to any non-blank string.
 
-As with [other Sourcegraph telemetry](https://sourcegraph.com/docs/dev/background-information/telemetry), any collected data is only sent to Sourcegraph.com in aggregate form.
+As with other Sourcegraph telemetry, any collected data is only sent to Sourcegraph.com in aggregate form.
 
 ## Development
 
