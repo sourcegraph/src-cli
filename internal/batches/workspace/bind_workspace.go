@@ -34,7 +34,12 @@ func (wc *dockerBindWorkspaceCreator) Create(ctx context.Context, repo *graphql.
 		return nil, errors.Wrap(err, "copying additional files into workspace")
 	}
 
-	return w, errors.Wrap(wc.prepareGitRepo(ctx, w), "preparing local git repo")
+	if err := wc.prepareGitRepo(ctx, w); err != nil {
+		return nil, errors.Wrap(err, "preparing local git repo")
+	}
+
+	w.gitMetadata, err = snapshotGitMetadata(w.dir)
+	return w, errors.Wrap(err, "snapshotting local git metadata")
 }
 
 func (*dockerBindWorkspaceCreator) prepareGitRepo(ctx context.Context, w *dockerBindWorkspace) error {
@@ -111,6 +116,10 @@ type dockerBindWorkspace struct {
 	// This is also the path that is directly mounted into the docker
 	// containers.
 	dir string
+	// gitMetadata contains the trusted Git control files from before repository
+	// code runs. The bind-mounted repository can modify its Git metadata, so the
+	// snapshot must be restored before Git is run on the host.
+	gitMetadata *gitMetadataSnapshot
 }
 
 var _ Workspace = &dockerBindWorkspace{}
@@ -129,6 +138,10 @@ func (w *dockerBindWorkspace) DockerRunOpts(ctx context.Context, target string) 
 func (w *dockerBindWorkspace) WorkDir() *string { return &w.dir }
 
 func (w *dockerBindWorkspace) Diff(ctx context.Context) ([]byte, error) {
+	if err := w.gitMetadata.restore(w.dir); err != nil {
+		return nil, errors.Wrap(err, "restoring trusted git metadata")
+	}
+
 	if _, err := runGitCmd(ctx, w.dir, "add", "--all"); err != nil {
 		return nil, errors.Wrap(err, "git add failed")
 	}
@@ -141,10 +154,14 @@ func (w *dockerBindWorkspace) Diff(ctx context.Context) ([]byte, error) {
 	//
 	// ATTENTION: When you change the options here, be sure to also update the
 	// ApplyDiff method accordingly.
-	return runGitCmd(ctx, w.dir, "diff", "--cached", "--no-prefix", "--binary")
+	return runGitCmd(ctx, w.dir, "diff", "--cached", "--no-ext-diff", "--no-prefix", "--binary")
 }
 
 func (w *dockerBindWorkspace) ApplyDiff(ctx context.Context, diff []byte) error {
+	if err := w.gitMetadata.restore(w.dir); err != nil {
+		return errors.Wrap(err, "restoring trusted git metadata")
+	}
+
 	// Write the diff to a temp file so we can pass it to `git apply`
 	tmp, err := os.CreateTemp(w.tempDir, "bind-workspace-test-*")
 	if err != nil {
@@ -190,6 +207,15 @@ func unzip(ctx context.Context, zipFile, dest string) error {
 	}
 	defer r.Close()
 
+	for _, f := range r.File {
+		// ZIP paths use forward slashes on every platform. Reject backslashes
+		// rather than letting Windows reinterpret a filename from a Unix
+		// repository as a directory hierarchy.
+		if strings.ContainsRune(f.Name, '\\') {
+			return fmt.Errorf("%q: illegal file path", f.Name)
+		}
+	}
+
 	outputBase := filepath.Clean(dest) + string(os.PathSeparator)
 
 	for _, f := range r.File {
@@ -204,6 +230,15 @@ func unzip(ctx context.Context, zipFile, dest string) error {
 		// Check for ZipSlip. More Info: https://snyk.io/research/zip-slip-vulnerability#go
 		if !strings.HasPrefix(fpath, outputBase) {
 			return fmt.Errorf("%s: illegal file path", fpath)
+		}
+
+		relativePath, err := filepath.Rel(dest, fpath)
+		if err != nil {
+			return err
+		}
+		firstPathElement, _, _ := strings.Cut(relativePath, string(os.PathSeparator))
+		if strings.EqualFold(firstPathElement, ".git") {
+			return fmt.Errorf("%s: repository archive contains Git metadata", f.Name)
 		}
 
 		if f.FileInfo().IsDir() {

@@ -143,6 +143,126 @@ func TestDockerBindWorkspaceCreator_Create(t *testing.T) {
 	})
 }
 
+func TestDockerBindWorkspace_DiffRestoresTrustedGitConfig(t *testing.T) {
+	archivePath := zipUpFiles(t, t.TempDir(), map[string]string{
+		"tracked.txt": "before\n",
+	})
+	creator := &dockerBindWorkspaceCreator{Dir: t.TempDir()}
+	workspace, err := creator.Create(context.Background(), repo, nil, &fakeRepoArchive{mockPath: archivePath})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	dir := *workspace.WorkDir()
+	configPath := filepath.Join(dir, ".git", "config")
+	trustedConfig, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	config, err := os.OpenFile(configPath, os.O_APPEND|os.O_WRONLY, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := config.WriteString("[diff]\n\texternal = command-that-must-not-run\n[filter \"attack\"]\n\tclean = command-that-must-not-run\n"); err != nil {
+		t.Fatal(err)
+	}
+	if err := config.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, ".gitattributes"), []byte("*.txt filter=attack\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "tracked.txt"), []byte("after\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	diff, err := workspace.Diff(context.Background())
+	if err != nil {
+		t.Fatalf("Diff executed untrusted Git configuration: %s", err)
+	}
+	if !strings.Contains(string(diff), "+after") {
+		t.Fatalf("diff does not contain tracked change:\n%s", diff)
+	}
+	restoredConfig, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cmp.Equal(restoredConfig, trustedConfig) {
+		t.Fatalf("Git config was not restored:\n%s", cmp.Diff(string(trustedConfig), string(restoredConfig)))
+	}
+}
+
+func TestUnzipRejectsGitMetadata(t *testing.T) {
+	for _, name := range []string{
+		".git/config",
+		".git/hooks/pre-commit",
+		"dir/../.git/config",
+		".GIT/config",
+	} {
+		t.Run(name, func(t *testing.T) {
+			archivePath := zipUpFiles(t, t.TempDir(), map[string]string{name: "malicious"})
+			dest := t.TempDir()
+
+			err := unzip(context.Background(), archivePath, dest)
+			if err == nil || !strings.Contains(err.Error(), "repository archive contains Git metadata") {
+				t.Fatalf("expected Git metadata error, got %v", err)
+			}
+
+			if _, err := os.Stat(filepath.Join(dest, ".git")); !os.IsNotExist(err) {
+				t.Fatalf("expected .git not to be extracted, got %v", err)
+			}
+		})
+	}
+}
+
+func TestUnzipRejectsUnsafeArchivePaths(t *testing.T) {
+	tests := []string{
+		`.git\config`,
+		`hooks\pre-commit`,
+	}
+
+	for _, name := range tests {
+		t.Run(name, func(t *testing.T) {
+			archivePath := zipUpFiles(t, t.TempDir(), map[string]string{name: "malicious"})
+			dest := t.TempDir()
+
+			if err := unzip(context.Background(), archivePath, dest); err == nil {
+				t.Fatal("expected unsafe archive path to be rejected")
+			}
+
+			entries, err := os.ReadDir(dest)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(entries) != 0 {
+				t.Fatalf("archive was partially extracted: %v", entries)
+			}
+		})
+	}
+}
+
+func TestUnzipAllowsSafeControlPaths(t *testing.T) {
+	files := map[string]string{
+		".git_config":      "config",
+		"hooks_pre-commit": "hook",
+	}
+	archivePath := zipUpFiles(t, t.TempDir(), files)
+	dest := t.TempDir()
+
+	if err := unzip(context.Background(), archivePath, dest); err != nil {
+		t.Fatal(err)
+	}
+	for name, want := range files {
+		have, err := os.ReadFile(filepath.Join(dest, name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(have) != want {
+			t.Errorf("%s: got %q, want %q", name, have, want)
+		}
+	}
+}
+
 func TestDockerBindWorkspace_ApplyDiff(t *testing.T) {
 	// Create a zip file for all the other tests to use.
 	fakeFilesTmpDir := t.TempDir()
