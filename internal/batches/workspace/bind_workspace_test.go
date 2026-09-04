@@ -143,6 +143,47 @@ func TestDockerBindWorkspaceCreator_Create(t *testing.T) {
 	})
 }
 
+func TestPrepareGitRepoRemovesUntrustedGitMetadata(t *testing.T) {
+	dir := t.TempDir()
+	dotGit := filepath.Join(dir, ".git")
+	if err := os.Mkdir(dotGit, 0755); err != nil {
+		t.Fatal(err)
+	}
+	maliciousConfig := "[core]\n\trepositoryformatversion = 0\n\tbare = false\n\tfsmonitor = ./fsmonitor\n"
+	if err := os.WriteFile(filepath.Join(dotGit, "config"), []byte(maliciousConfig), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dotGit, "attacker-controlled"), nil, 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "fsmonitor"), []byte("#!/bin/sh\ntouch fsmonitor-ran\n"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "tracked.txt"), []byte("tracked\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	creator := &dockerBindWorkspaceCreator{}
+	workspace := &dockerBindWorkspace{dir: dir}
+	if err := creator.prepareGitRepo(context.Background(), workspace); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := os.Stat(filepath.Join(dir, "fsmonitor-ran")); !os.IsNotExist(err) {
+		t.Fatalf("fsmonitor command ran on the host: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dotGit, "attacker-controlled")); !os.IsNotExist(err) {
+		t.Fatalf("untrusted Git metadata was preserved: %v", err)
+	}
+	config, err := os.ReadFile(filepath.Join(dotGit, "config"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(config), "fsmonitor") {
+		t.Fatalf("untrusted Git config was preserved:\n%s", config)
+	}
+}
+
 func TestDockerBindWorkspace_DiffRestoresTrustedGitConfig(t *testing.T) {
 	archivePath := zipUpFiles(t, t.TempDir(), map[string]string{
 		"tracked.txt": "before\n",

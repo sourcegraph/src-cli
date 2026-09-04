@@ -261,8 +261,9 @@ func (c *Client) GraphQL(token, query string, variables map[string]any, target a
 	if token != "" {
 		req.Header.Set("Authorization", fmt.Sprintf("token %s", token))
 	} else {
-		// NOTE: This header is required to authenticate our session with a session cookie, see:
-		// https://docs.sourcegraph.com/dev/security/csrf_security_model#authentication-in-api-endpoints
+		// NOTE: This header is required to authenticate our session with a session
+		// cookie. Sourcegraph's CSRF protection rejects cookie-authenticated API
+		// requests that do not carry this header.
 		req.Header.Set("X-Requested-With", "Sourcegraph")
 		req.AddCookie(c.sessionCookie)
 
