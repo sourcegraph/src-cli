@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"os"
 	"sort"
-	"strings"
 
 	"github.com/sourcegraph/sourcegraph/lib/errors"
 
@@ -177,6 +176,7 @@ func (wc *dockerVolumeWorkspaceCreator) copyFilesIntoVolumes(ctx context.Context
 	if len(files) == 0 {
 		return nil
 	}
+	const copyScript = `while test "$#" -gt 0; do cp "$1" "$2" || exit; shift 2; done`
 
 	opts := append([]string{
 		"run",
@@ -192,22 +192,27 @@ func (wc *dockerVolumeWorkspaceCreator) copyFilesIntoVolumes(ctx context.Context
 	}
 	sort.Strings(names)
 
-	var copyCmds []string
-	for _, name := range names {
+	var copyArgs []string
+	for i, name := range names {
 		localPath := files[name]
+		// Names originate from the Sourcegraph instance. Keep them out of both
+		// Docker's comma-delimited mount grammar and the shell program.
+		mountTarget := fmt.Sprintf("/tmp/src-additional-file-%d", i)
 		opts = append(opts, []string{
-			"--mount", "type=bind,source=" + localPath + ",target=/tmp/" + name + ",ro",
+			"--mount", "type=bind,source=" + localPath + ",target=" + mountTarget + ",ro",
 		}...)
 
-		copyCmds = append(copyCmds, "cp /tmp/"+name+" /work/"+name)
+		copyArgs = append(copyArgs, mountTarget, "/work/"+name)
 	}
 
 	opts = append(
 		opts,
 		DockerVolumeWorkspaceImage,
 		"sh", "-c",
-		strings.Join(copyCmds, " && ")+";",
+		copyScript,
+		"copy-additional-files",
 	)
+	opts = append(opts, copyArgs...)
 
 	if out, err := exec.CommandContext(ctx, "docker", opts...).CombinedOutput(); err != nil {
 		return errors.Wrapf(err, "unzip output:\n\n%s\n\n", string(out))

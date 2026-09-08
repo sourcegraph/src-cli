@@ -338,10 +338,13 @@ func TestVolumeWorkspaceCreator(t *testing.T) {
 					"--workdir", "/work",
 					"--user", "0:0",
 					"--mount", "type=volume,source="+volumeID+",target=/work",
-					"--mount", "type=bind,source="+archiveWithAdditionalFiles.mockAdditionalFilePaths[".gitignore"]+",target=/tmp/.gitignore,ro",
-					"--mount", "type=bind,source="+archiveWithAdditionalFiles.mockAdditionalFilePaths["another-file"]+",target=/tmp/another-file,ro",
+					"--mount", "type=bind,source="+archiveWithAdditionalFiles.mockAdditionalFilePaths[".gitignore"]+",target=/tmp/src-additional-file-0,ro",
+					"--mount", "type=bind,source="+archiveWithAdditionalFiles.mockAdditionalFilePaths["another-file"]+",target=/tmp/src-additional-file-1,ro",
 					DockerVolumeWorkspaceImage,
-					"sh", "-c", "cp /tmp/.gitignore /work/.gitignore && cp /tmp/another-file /work/another-file;",
+					"sh", "-c", `while test "$#" -gt 0; do cp "$1" "$2" || exit; shift 2; done`,
+					"copy-additional-files",
+					"/tmp/src-additional-file-0", "/work/.gitignore",
+					"/tmp/src-additional-file-1", "/work/another-file",
 				),
 				expect.NewGlob(
 					expect.Success,
@@ -382,6 +385,34 @@ func TestVolumeWorkspaceCreator(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestCopyFilesIntoVolumesDoesNotInterpolateNames(t *testing.T) {
+	const maliciousName = "x,ro,type=bind,source=/var/run/docker.sock,target=/h1sock;touch /work/injected;/.gitignore"
+
+	expect.Commands(
+		t,
+		expect.NewGlob(
+			expect.Success,
+			"docker", "run", "--rm", "--init", "--workdir", "/work",
+			"--user", "0:0",
+			"--mount", "type=volume,source="+volumeID+",target=/work",
+			"--mount", "type=bind,source=/tmp/additional-file,target=/tmp/src-additional-file-0,ro",
+			DockerVolumeWorkspaceImage,
+			"sh", "-c", `while test "$#" -gt 0; do cp "$1" "$2" || exit; shift 2; done`,
+			"copy-additional-files",
+			"/tmp/src-additional-file-0", "/work/"+maliciousName,
+		),
+	)
+
+	wc := &dockerVolumeWorkspaceCreator{}
+	w := &dockerVolumeWorkspace{volume: volumeID}
+	err := wc.copyFilesIntoVolumes(context.Background(), w, map[string]string{
+		maliciousName: "/tmp/additional-file",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
 
