@@ -38,9 +38,11 @@ For version inference:
 
 ## Hard stops
 
-Stop and ask before continuing if:
+Stop before continuing if any condition below applies. Ask for approval or remediation only when that can resolve the condition; the Sourcegraph version guard cannot be overridden.
 
 - The working tree is dirty in a way not caused by this release work.
+- The target of a major or minor release has a greater major/minor version than the latest stable Sourcegraph release. Warn that this is typically an error because only patch releases should advance independently, then refuse to create or push the release tag. Do not allow confirmation to override this guard.
+- The latest stable Sourcegraph release cannot be fetched or its semantic version cannot be determined. Do not infer it from memory, local src-cli tags, or previously fetched output.
 - A release branch or tag would be pushed without explicit approval.
 - A force-push or tag replacement would be needed.
 - Trivy or required tests fail before tagging or pushing.
@@ -55,7 +57,8 @@ Before starting the release work:
 
 1. Make sure the working tree is clean with `git status`.
 2. Fetch current refs and tags with `git fetch --all --tags --prune`.
-3. Run Trivy before creating final release artifacts, and earlier when the release is vulnerability-driven.
+3. Before creating a major or minor release tag, run `gh release list --repo sourcegraph/sourcegraph --exclude-drafts --exclude-pre-releases --limit 1 --json tagName` to fetch the latest stable release directly from `sourcegraph/sourcegraph`. Parse the returned tag as semantic versioning and compare the `<major>.<minor>` components. The src-cli release line must be behind or equal to the Sourcegraph release line. Ignore patch components for this check, because src-cli patch releases may advance independently. Report the Sourcegraph version and its `https://github.com/sourcegraph/sourcegraph/releases/tag/<tag>` URL in the release plan. If the command, lookup, or parsing fails, stop. If the src-cli release line is ahead, report both versions, explain that this usually indicates an erroneous release plan, and stop without creating or pushing the tag.
+4. Run Trivy before creating final release artifacts, and earlier when the release is vulnerability-driven.
    - For this repository, use `mise x trivy -- trivy fs --exit-code 1 --severity HIGH,CRITICAL`.
    - Use a different documented Trivy command only if the repository adds one.
    - If running from a temporary worktree, `mise` may require trusting that worktree's `mise.toml`. Run `mise trust -y <worktree>/mise.toml` when needed, then remove or untrust temporary state during cleanup.
@@ -75,9 +78,10 @@ Use the same workflow for patch, minor, and major releases. The release type mai
 5. Apply the release-type commit selection rules; use `git cherry-pick -x <sha>` for commits ported onto an existing release branch.
 6. Resolve conflicts carefully and keep the release branch limited to selected commits and release-process changes.
 7. Validate every release branch after porting changes.
-8. Before tagging, show the release contents summary and ask `Proceed?`.
-9. Tag locally on the release branch.
-10. Push the release branch and tag only when requested or required by the release process and approved by the user.
+8. For a major or minor release, repeat the live `sourcegraph/sourcegraph` release lookup and compatibility check immediately before presenting the pre-tag summary so a stale earlier result cannot permit an invalid tag. Refuse to tag if the lookup fails.
+9. Before tagging, show the release contents summary and ask `Proceed?`.
+10. Tag locally on the release branch only if the compatibility guard passes.
+11. Push the release branch and tag only when requested or required by the release process and approved by the user.
 
 Use this pre-tag summary format:
 
