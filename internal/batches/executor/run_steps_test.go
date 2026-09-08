@@ -2,6 +2,7 @@ package executor
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -10,8 +11,39 @@ import (
 	"github.com/stretchr/testify/require"
 
 	batcheslib "github.com/sourcegraph/sourcegraph/lib/batches"
+	batchenv "github.com/sourcegraph/sourcegraph/lib/batches/env"
 	"github.com/sourcegraph/sourcegraph/lib/batches/template"
 )
+
+func TestWithoutReservedExecutorEnv(t *testing.T) {
+	env := []string{
+		"ALLOWED=value",
+		"SRC_EXECUTOR_JOB_TOKEN=secret",
+		"SRC_EXECUTOR_FUTURE_SECRET=secret",
+		"VALUE=contains-SRC_EXECUTOR_JOB_TOKEN",
+		"MALFORMED",
+	}
+
+	require.Equal(t, []string{
+		"ALLOWED=value",
+		"VALUE=contains-SRC_EXECUTOR_JOB_TOKEN",
+		"MALFORMED",
+	}, withoutReservedExecutorEnv(env))
+
+	var stepEnv batchenv.Environment
+	require.NoError(t, json.Unmarshal([]byte(`[
+		"ALLOWED",
+		"SRC_EXECUTOR_JOB_TOKEN",
+		"SRC_EXECUTOR_FUTURE_SECRET"
+	]`), &stepEnv))
+	resolved, err := stepEnv.Resolve(withoutReservedExecutorEnv(env[:4]))
+	require.NoError(t, err)
+	require.Equal(t, map[string]string{
+		"ALLOWED":                    "value",
+		"SRC_EXECUTOR_JOB_TOKEN":     "",
+		"SRC_EXECUTOR_FUTURE_SECRET": "",
+	}, resolved)
+}
 
 func TestParseContainerTempPath(t *testing.T) {
 	for _, valid := range []string{"/tmp/tmp.abc-123_456", "/tmp/tmp.abc-123_456\n"} {
