@@ -1,12 +1,15 @@
 package workspace
 
 import (
+	"archive/tar"
 	"bytes"
 	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"io"
 	"os"
+	"path"
 	"sort"
 
 	"github.com/sourcegraph/sourcegraph/lib/errors"
@@ -180,55 +183,105 @@ func (wc *dockerVolumeWorkspaceCreator) copyFilesIntoVolumes(ctx context.Context
 	if len(files) == 0 {
 		return nil
 	}
-	const copyScript = `while test "$#" -gt 0; do cp "$1" "$2" || exit; shift 2; done`
+
+	archive, err := wc.archiveAdditionalFiles(files)
+	if err != nil {
+		return err
+	}
+	defer os.Remove(archive)
+	archiveMount, err := docker.BindMount(archive, "/tmp/additional-files.tar", true)
+	if err != nil {
+		return errors.Wrap(err, "creating additional files archive mount")
+	}
 
 	opts := append([]string{
 		"run",
 		"--rm",
 		"--init",
 		"--workdir", "/work",
+		"--mount", archiveMount,
 	}, w.dockerRunOptsWithUser(w.uidGid, "/work")...)
 
-	// We sort these so our tests don't break. Sorry.
+	opts = append(
+		opts,
+		DockerVolumeWorkspaceImage,
+		"tar", "-xf", "/tmp/additional-files.tar", "-C", "/work",
+	)
+
+	if out, err := exec.CommandContext(ctx, "docker", opts...).CombinedOutput(); err != nil {
+		return errors.Wrapf(err, "additional files output:\n\n%s\n\n", string(out))
+	}
+	return nil
+}
+
+func (wc *dockerVolumeWorkspaceCreator) archiveAdditionalFiles(files map[string]string) (archivePath string, err error) {
+	f, err := os.CreateTemp(wc.tempDir, "src-additional-files-*.tar")
+	if err != nil {
+		return "", errors.Wrap(err, "creating additional files archive")
+	}
+	archivePath = f.Name()
+	defer func() {
+		if err != nil {
+			f.Close()
+			os.Remove(archivePath)
+		}
+	}()
+
+	tw := tar.NewWriter(f)
 	var names []string
 	for name := range files {
 		names = append(names, name)
 	}
 	sort.Strings(names)
 
-	var copyArgs []string
-	for i, name := range names {
+	for _, name := range names {
 		if err := validateWorkspaceFileName(name); err != nil {
-			return err
+			return "", err
 		}
-		localPath := files[name]
-		// Names originate from the Sourcegraph instance. Keep them out of both
-		// Docker's comma-delimited mount grammar and the shell program.
-		mountTarget := fmt.Sprintf("/tmp/src-additional-file-%d", i)
-		mount, err := docker.BindMount(localPath, mountTarget, true)
+		if name == "" || path.Clean(name) != name {
+			return "", errors.Errorf("invalid additional file path %q", name)
+		}
+
+		file, err := os.Open(files[name])
 		if err != nil {
-			return errors.Wrap(err, "creating additional file mount")
+			return "", errors.Wrapf(err, "opening additional file %q", name)
 		}
-		opts = append(opts, []string{
-			"--mount", mount,
-		}...)
+		info, err := file.Stat()
+		if err != nil {
+			file.Close()
+			return "", errors.Wrapf(err, "stating additional file %q", name)
+		}
+		if !info.Mode().IsRegular() {
+			file.Close()
+			return "", errors.Errorf("additional file %q is not a regular file", name)
+		}
 
-		copyArgs = append(copyArgs, mountTarget, "/work/"+name)
+		header, err := tar.FileInfoHeader(info, "")
+		if err != nil {
+			file.Close()
+			return "", errors.Wrapf(err, "creating archive header for additional file %q", name)
+		}
+		header.Name = name
+		if err := tw.WriteHeader(header); err != nil {
+			file.Close()
+			return "", errors.Wrapf(err, "writing archive header for additional file %q", name)
+		}
+		if _, err := io.Copy(tw, file); err != nil {
+			file.Close()
+			return "", errors.Wrapf(err, "archiving additional file %q", name)
+		}
+		if err := file.Close(); err != nil {
+			return "", errors.Wrapf(err, "closing additional file %q", name)
+		}
 	}
 
-	opts = append(
-		opts,
-		DockerVolumeWorkspaceImage,
-		"sh", "-c",
-		copyScript,
-		"copy-additional-files",
-	)
-	opts = append(opts, copyArgs...)
-
-	if out, err := exec.CommandContext(ctx, "docker", opts...).CombinedOutput(); err != nil {
-		return errors.Wrapf(err, "unzip output:\n\n%s\n\n", string(out))
+	if err := tw.Close(); err != nil {
+		return "", errors.Wrap(err, "closing additional files archive")
 	}
-	return nil
+	if err := f.Close(); err != nil {
+		return "", errors.Wrap(err, "closing additional files archive file")
+	}
+	return archivePath, nil
 }
 
 // dockerVolumeWorkspace workspaces are placed on Docker volumes (surprise!),
