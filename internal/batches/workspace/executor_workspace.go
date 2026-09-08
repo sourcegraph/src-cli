@@ -24,10 +24,16 @@ type executorWorkspaceCreator struct {
 var _ Creator = &executorWorkspaceCreator{}
 
 func (wc *executorWorkspaceCreator) Create(ctx context.Context, repo *graphql.Repository, steps []batcheslib.Step, archive repozip.Archive) (Workspace, error) {
+	gitMetadata, err := snapshotGitMetadata(wc.RepoDir)
+	if err != nil {
+		return nil, err
+	}
+
 	return &dockerBindExecutorWorkspace{
 		dockerBindWorkspace: dockerBindWorkspace{
-			tempDir: wc.TempDir,
-			dir:     wc.RepoDir,
+			tempDir:     wc.TempDir,
+			dir:         wc.RepoDir,
+			gitMetadata: gitMetadata,
 		},
 	}, nil
 }

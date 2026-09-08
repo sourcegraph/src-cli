@@ -62,7 +62,7 @@ For quick end-to-end CLI sanity checks against a live Sourcegraph instance, run:
 
 This script intentionally uses your currently exported `SRC_*` environment variables, is not hooked up to CI, and is meant for manual regression checks (for example, to catch issues like `src users list` failing unexpectedly).
 
-We adhere to the [general Sourcegraph principles for testing](https://docs.sourcegraph.com/dev/background-information/testing_principles), as well as [the Go specific directions](https://docs.sourcegraph.com/dev/background-information/languages/testing_go_code), at least to the extent they apply to a standalone tool like `src`.
+We adhere to the general Sourcegraph principles for testing, as well as the Go specific directions used in the main Sourcegraph repository, at least to the extent they apply to a standalone tool like `src`.
 
 ## Releasing
 

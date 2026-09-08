@@ -7,7 +7,7 @@
 - **Search & get results in your terminal**
 - **Search & get JSON** for programmatic consumption
 - Make **GraphQL API requests** with auth easily & get JSON back fast
-- Execute **[batch changes](https://docs.sourcegraph.com/batch_changes)**
+- Execute **[batch changes](https://sourcegraph.com/docs/batch_changes)**
 - **Manage & administrate** repositories, users, and more
 - **Easily convert src-CLI commands to equivalent curl commands**, just add --get-curl!
 
@@ -173,7 +173,7 @@ Is your Sourcegraph instance behind a custom auth proxy? See [auth proxy configu
  - `src auth` - print the active authentication token or authorization header
  - `src search` - perform searches and get results in your terminal or as JSON
  - `src api` - run Sourcegraph GraphQL API requests
- - `src batch` - execute and manage [batch changes](https://docs.sourcegraph.com/batch_changes)
+ - `src batch` - execute and manage [batch changes](https://sourcegraph.com/docs/batch_changes)
  - `src repos` - manage repositories
  - `src users` - manage users
  - `src orgs` - manages organization
@@ -185,7 +185,7 @@ Is your Sourcegraph instance behind a custom auth proxy? See [auth proxy configu
  - `src version` - check version and guaranteed-compatible version for your Sourcegraph instance
 
 Run `src -h` and `src <subcommand> -h` for more detailed usage information.
-You can also read the [usage docs for the latest version of `src-cli`](https://docs.sourcegraph.com/cli/references) online.
+You can also read the [usage docs for the latest version of `src-cli`](https://sourcegraph.com/docs/cli/references) online.
 
 #### Optional: Renaming `src`
 
@@ -211,7 +211,7 @@ src-cli/3.21.10 linux amd64
 
 To disable this and _only_ send the version, you can set `-user-agent-telemetry=false` for a single command, or set the `SRC_DISABLE_USER_AGENT_TELEMETRY` environment variable to any non-blank string.
 
-As with [other Sourcegraph telemetry](https://docs.sourcegraph.com/dev/background-information/telemetry), any collected data is only sent to Sourcegraph.com in aggregate form.
+As with other Sourcegraph telemetry, any collected data is only sent to Sourcegraph.com in aggregate form.
 
 ## Development
 

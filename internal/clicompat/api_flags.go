@@ -16,7 +16,7 @@ func WithAPIFlags(baseFlags ...cli.Flag) []cli.Flag {
 	}{
 		{"dump-requests", false, "Log GraphQL requests and responses to stdout"},
 		{"get-curl", false, "Print the curl command for executing this query and exit (WARNING: includes printing your access token!)"},
-		{"trace", false, "Log the trace ID for requests. See https://docs.sourcegraph.com/admin/observability/tracing"},
+		{"trace", false, "Log the trace ID for requests. See https://sourcegraph.com/docs/admin/observability/tracing"},
 		{"insecure-skip-verify", false, "Skip validation of TLS certificates against trusted chains"},
 		{"user-agent-telemetry", defaultAPIUserAgentTelemetry(), "Include the operating system and architecture in the User-Agent sent with requests to Sourcegraph"},
 	}
