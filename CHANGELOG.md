@@ -18,6 +18,10 @@ All notable changes to `src-cli` are documented in this file.
 - HTTP requests now fail instead of hanging forever if the server does not start responding within 1 minute. Set the `SRC_RESPONSE_HEADER_TIMEOUT` environment variable to change this timeout, or to `0` to disable it. Responses that stream data for a long time (for example, large search job results) are not affected.
 - `src search-jobs logs` and `src search-jobs results` now use the standard API client, gaining proxy support, `-insecure-skip-verify`, and cross-host redirect protection, and now report an error on non-200 responses instead of writing the error page into the output.
 
+### Fixed
+
+- `src doc` now generates reference pages for the `search-jobs`, `debug`, and `snapshot` subcommands, and the root `index.md` again lists legacy commands (`batch`, `repos`, `search`, ...) alongside the `urfave/cli` ones.
+
 ### Removed
 
 - Removed `src sbom` and `src signature` commands. SBOMs and container signatures are no longer published as of Sourcegraph 7.1.0.
