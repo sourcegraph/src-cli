@@ -416,6 +416,37 @@ func TestCopyFilesIntoVolumesDoesNotInterpolateNames(t *testing.T) {
 	}
 }
 
+func TestCopyFilesIntoVolumesRejectsUnsafePaths(t *testing.T) {
+	tests := map[string]map[string]string{
+		"workspace traversal": {
+			"../etc/.gitignore": "/tmp/additional-file",
+		},
+		"mount source injection": {
+			".gitignore": "/tmp/additional-file,source=/etc",
+		},
+	}
+
+	for name, files := range tests {
+		t.Run(name, func(t *testing.T) {
+			expect.Commands(t)
+			wc := &dockerVolumeWorkspaceCreator{}
+			w := &dockerVolumeWorkspace{volume: volumeID}
+			if err := wc.copyFilesIntoVolumes(context.Background(), w, files); err == nil {
+				t.Fatal("expected unsafe path to be rejected")
+			}
+		})
+	}
+}
+
+func TestUnzipRepoIntoVolumeRejectsMountSourceInjection(t *testing.T) {
+	expect.Commands(t)
+	wc := &dockerVolumeWorkspaceCreator{}
+	w := &dockerVolumeWorkspace{volume: volumeID}
+	if err := wc.unzipRepoIntoVolume(context.Background(), w, "/tmp/archive,source=/etc"); err == nil {
+		t.Fatal("expected unsafe mount source to be rejected")
+	}
+}
+
 func TestVolumeWorkspace_Close(t *testing.T) {
 	ctx := context.Background()
 	w := &dockerVolumeWorkspace{volume: volumeID}

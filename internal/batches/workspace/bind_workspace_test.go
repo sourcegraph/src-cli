@@ -143,6 +143,41 @@ func TestDockerBindWorkspaceCreator_Create(t *testing.T) {
 	})
 }
 
+func TestCopyToWorkspaceRejectsPathTraversal(t *testing.T) {
+	root := t.TempDir()
+	workspaceDir := filepath.Join(root, "workspace")
+	if err := os.Mkdir(workspaceDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	victimDir := filepath.Join(root, "victim")
+	if err := os.Mkdir(victimDir, 0700); err != nil {
+		t.Fatal(err)
+	}
+	source := filepath.Join(root, "source")
+	if err := os.WriteFile(source, []byte("attacker content"), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	creator := &dockerBindWorkspaceCreator{}
+	workspace := &dockerBindWorkspace{dir: workspaceDir}
+	err := creator.copyToWorkspace(context.Background(), workspace, map[string]string{
+		"../victim/.gitignore": source,
+	})
+	if err == nil || !strings.Contains(err.Error(), "outside the workspace") {
+		t.Fatalf("expected path traversal error, got %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(victimDir, ".gitignore")); !os.IsNotExist(err) {
+		t.Fatalf("file was written outside the workspace: %v", err)
+	}
+	info, err := os.Stat(victimDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := info.Mode().Perm(); got != 0700 {
+		t.Fatalf("outside directory permissions changed: got %o, want 700", got)
+	}
+}
+
 func TestPrepareGitRepoRemovesUntrustedGitMetadata(t *testing.T) {
 	dir := t.TempDir()
 	dotGit := filepath.Join(dir, ".git")

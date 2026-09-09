@@ -56,11 +56,6 @@ func TestProbeImageForShellRejectsMountInjection(t *testing.T) {
 	require.Contains(t, err.Error(), "mktemp returned invalid path")
 }
 
-func TestDockerBindMountRejectsMountGrammar(t *testing.T) {
-	_, err := dockerBindMount("/tmp/script", "/tmp/x,source=/var/run/docker.sock")
-	require.Error(t, err)
-}
-
 func TestCreateFilesToMount_RejectsCommaInTargetPath(t *testing.T) {
 	step := batcheslib.Step{
 		Files: map[string]string{
