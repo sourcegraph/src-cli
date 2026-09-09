@@ -153,6 +153,10 @@ func TestCopyToWorkspaceRejectsPathTraversal(t *testing.T) {
 	if err := os.Mkdir(victimDir, 0700); err != nil {
 		t.Fatal(err)
 	}
+	before, err := os.Stat(victimDir)
+	if err != nil {
+		t.Fatal(err)
+	}
 	source := filepath.Join(root, "source")
 	if err := os.WriteFile(source, []byte("attacker content"), 0600); err != nil {
 		t.Fatal(err)
@@ -160,7 +164,7 @@ func TestCopyToWorkspaceRejectsPathTraversal(t *testing.T) {
 
 	creator := &dockerBindWorkspaceCreator{}
 	workspace := &dockerBindWorkspace{dir: workspaceDir}
-	err := creator.copyToWorkspace(context.Background(), workspace, map[string]string{
+	err = creator.copyToWorkspace(context.Background(), workspace, map[string]string{
 		"../victim/.gitignore": source,
 	})
 	if err == nil || !strings.Contains(err.Error(), "outside the workspace") {
@@ -173,8 +177,8 @@ func TestCopyToWorkspaceRejectsPathTraversal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := info.Mode().Perm(); got != 0700 {
-		t.Fatalf("outside directory permissions changed: got %o, want 700", got)
+	if got, want := info.Mode().Perm(), before.Mode().Perm(); got != want {
+		t.Fatalf("outside directory permissions changed: got %o, want %o", got, want)
 	}
 }
 
