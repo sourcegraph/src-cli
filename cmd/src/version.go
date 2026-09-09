@@ -29,6 +29,7 @@ $ src version
 
 var versionCommand = clicompat.Wrap(&cli.Command{
 	Name:         "version",
+	Usage:        "display and compare the src-cli version against the recommended version for your instance",
 	UsageText:    "src version [options]",
 	OnUsageError: clicompat.OnUsageError,
 	Description:  versionExamples,

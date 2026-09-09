@@ -21,58 +21,6 @@ import (
 
 const SGDotComEndpoint = "https://sourcegraph.com"
 
-const usageText = `src is a tool that provides access to Sourcegraph instances.
-For more information, see https://github.com/sourcegraph/src-cli
-
-Usage:
-
-	src [options] command [command options]
-
-Environment variables
-	SRC_ACCESS_TOKEN  Sourcegraph access token
-	SRC_ENDPOINT      endpoint to use, if unset will default to "https://sourcegraph.com"
-	SRC_PROXY         A proxy to use for proxying requests to the Sourcegraph endpoint.
-	                  Supports HTTP(S), SOCKS5/5h, and UNIX Domain Socket proxies.
-					  If a UNIX Domain Socket, the path can be either an absolute path,
-					  or can start with ~/ or %USERPROFILE%\ for a path in the user's home directory.
-					  Examples:
-						- https://localhost:3080
-						- https://<user>:<password>localhost:8080
-						- socks5h://localhost:1080
-						- socks5://<username>:<password>@localhost:1080
-						- unix://~/src-proxy.sock
-						- unix://%USERPROFILE%\src-proxy.sock
-						- ~/src-proxy.sock
-						- %USERPROFILE%\src-proxy.sock
-						- C:\some\path\src-proxy.sock
-
-The options are:
-
-	-v                               print verbose output
-
-The commands are:
-
-	abc             manages agentic batch changes
-	auth            authentication helper commands
-	api             interacts with the Sourcegraph GraphQL API
-	batch           manages batch changes
-	code-intel      manages code intelligence data
-	config          manages global, org, and user settings
-	extsvc          manages external services
-	login           authenticate to a Sourcegraph instance with your user credentials
-	orgs,org        manages organizations
-	repos,repo      manages repositories
-	search          search for results on Sourcegraph
-	search-jobs     manages search jobs
-	serve-git       serves your local git repositories over HTTP for Sourcegraph to pull
-	users,user      manages users
-	codeowners      manages code ownership information
-	version         display and compare the src-cli version against the recommended version for your instance
-
-Use "src [command] -h" for more information about a command.
-
-`
-
 var (
 	verbose = flag.Bool("v", false, "print verbose output")
 
@@ -102,7 +50,7 @@ func main() {
 	}
 
 	// if we didn't run a migrated command, then lets try running the legacy version
-	commands.run(flag.CommandLine, "src", usageText, normalizeDashHelp(os.Args[1:]))
+	commands.run(flag.CommandLine, "src", usageText(), normalizeDashHelp(os.Args[1:]))
 }
 
 // normalizeDashHelp converts --help to -help since Go's flag parser only supports single dash.

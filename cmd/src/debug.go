@@ -34,9 +34,9 @@ src debug has access to flags on src -- Ex: src -v kube -o foo.zip
 
 	// Register the command.
 	commands = append(commands, &command{
-		flagSet:   flagSet,
-		aliases:   []string{},
-		handler:   handler,
-		usageFunc: func() { fmt.Println(usage) },
+		flagSet:     flagSet,
+		description: "gathers and bundles debug data from a Sourcegraph deployment for troubleshooting",
+		handler:     handler,
+		usageFunc:   func() { fmt.Println(usage) },
 	})
 }

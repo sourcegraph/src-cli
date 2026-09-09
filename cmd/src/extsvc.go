@@ -36,9 +36,10 @@ Use "src extsvc [command] -h" for more information about a command.
 
 	// Register the command.
 	commands = append(commands, &command{
-		flagSet: flagSet,
-		aliases: []string{"extsvc", "external-service"},
-		handler: handler,
+		flagSet:     flagSet,
+		description: "manages external services",
+		aliases:     []string{"extsvc", "external-service"},
+		handler:     handler,
 		usageFunc: func() {
 			fmt.Println(usage)
 		},
