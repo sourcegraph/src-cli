@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"os"
 	"sort"
-	"strings"
 
 	"github.com/sourcegraph/sourcegraph/lib/errors"
 
@@ -112,6 +111,10 @@ git commit --quiet --all --allow-empty -m src-action-exec
 func (wc *dockerVolumeWorkspaceCreator) unzipRepoIntoVolume(ctx context.Context, w *dockerVolumeWorkspace, zip string) error {
 	// We want to mount that temporary file into a Docker container that has the
 	// workspace volume attached, and unzip it into the volume.
+	zipMount, err := docker.BindMount(zip, "/tmp/zip", true)
+	if err != nil {
+		return errors.Wrap(err, "creating archive mount")
+	}
 
 	// We need to keep a temporary file in the volume before unzipping for the
 	// permissions to persist because... reasons. Rather than reading the
@@ -157,7 +160,7 @@ func (wc *dockerVolumeWorkspaceCreator) unzipRepoIntoVolume(ctx context.Context,
 		"--rm",
 		"--init",
 		"--workdir", "/work",
-		"--mount", "type=bind,source=" + zip + ",target=/tmp/zip,ro",
+		"--mount", zipMount,
 	}, w.dockerRunOptsWithUser(w.uidGid, "/work")...)
 	opts = append(
 		opts,
@@ -177,6 +180,7 @@ func (wc *dockerVolumeWorkspaceCreator) copyFilesIntoVolumes(ctx context.Context
 	if len(files) == 0 {
 		return nil
 	}
+	const copyScript = `while test "$#" -gt 0; do cp "$1" "$2" || exit; shift 2; done`
 
 	opts := append([]string{
 		"run",
@@ -192,22 +196,34 @@ func (wc *dockerVolumeWorkspaceCreator) copyFilesIntoVolumes(ctx context.Context
 	}
 	sort.Strings(names)
 
-	var copyCmds []string
-	for _, name := range names {
+	var copyArgs []string
+	for i, name := range names {
+		if err := validateWorkspaceFileName(name); err != nil {
+			return err
+		}
 		localPath := files[name]
+		// Names originate from the Sourcegraph instance. Keep them out of both
+		// Docker's comma-delimited mount grammar and the shell program.
+		mountTarget := fmt.Sprintf("/tmp/src-additional-file-%d", i)
+		mount, err := docker.BindMount(localPath, mountTarget, true)
+		if err != nil {
+			return errors.Wrap(err, "creating additional file mount")
+		}
 		opts = append(opts, []string{
-			"--mount", "type=bind,source=" + localPath + ",target=/tmp/" + name + ",ro",
+			"--mount", mount,
 		}...)
 
-		copyCmds = append(copyCmds, "cp /tmp/"+name+" /work/"+name)
+		copyArgs = append(copyArgs, mountTarget, "/work/"+name)
 	}
 
 	opts = append(
 		opts,
 		DockerVolumeWorkspaceImage,
 		"sh", "-c",
-		strings.Join(copyCmds, " && ")+";",
+		copyScript,
+		"copy-additional-files",
 	)
+	opts = append(opts, copyArgs...)
 
 	if out, err := exec.CommandContext(ctx, "docker", opts...).CombinedOutput(); err != nil {
 		return errors.Wrapf(err, "unzip output:\n\n%s\n\n", string(out))
@@ -327,12 +343,17 @@ func (w *dockerVolumeWorkspace) runScript(ctx context.Context, target, script st
 		return nil, errors.Wrap(err, "generating run options")
 	}
 
+	scriptMount, err := docker.BindMount(name, "/run.sh", true)
+	if err != nil {
+		return nil, errors.Wrap(err, "creating run script mount")
+	}
+
 	opts := append([]string{
 		"run",
 		"--rm",
 		"--init",
 		"--workdir", target,
-		"--mount", "type=bind,source=" + name + ",target=/run.sh,ro",
+		"--mount", scriptMount,
 	}, common...)
 	opts = append(opts, DockerVolumeWorkspaceImage, "sh", "/run.sh")
 
