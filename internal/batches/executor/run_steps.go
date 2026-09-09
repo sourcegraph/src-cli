@@ -317,8 +317,9 @@ func executeSingleStep(
 	}
 	defer cleanup()
 
-	// Resolve step.Env given the current environment.
-	stepEnv, err := step.Env.Resolve(opts.GlobalEnv)
+	// Resolve step.Env given the current environment. Executor control values
+	// must never be selectable by an author-controlled step.
+	stepEnv, err := step.Env.Resolve(withoutReservedExecutorEnv(opts.GlobalEnv))
 	if err != nil {
 		err = errors.Wrap(err, "resolving step environment")
 		opts.UI.StepPreparingFailed(stepIdx+1, err)
@@ -463,6 +464,17 @@ func executeSingleStep(
 
 	opts.Logger.Logf("[Step %d] complete in %s", stepIdx+1, elapsed)
 	return stdout, stderr, nil
+}
+
+func withoutReservedExecutorEnv(env []string) []string {
+	filtered := make([]string, 0, len(env))
+	for _, variable := range env {
+		name, _, found := strings.Cut(variable, "=")
+		if !found || !strings.HasPrefix(name, "SRC_EXECUTOR_") {
+			filtered = append(filtered, variable)
+		}
+	}
+	return filtered
 }
 
 func setOutputs(stepOutputs batcheslib.Outputs, global map[string]any, stepCtx *template.StepContext) error {

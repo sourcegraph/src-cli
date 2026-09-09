@@ -105,11 +105,16 @@ func (s *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid path specified: "+err.Error(), http.StatusBadRequest)
 		return
 	}
-	if _, err = s.RootFS.Stat(relDir); os.IsNotExist(err) {
+	info, err := s.RootFS.Stat(relDir)
+	if os.IsNotExist(err) {
 		http.Error(w, "repository not found", http.StatusNotFound)
 		return
 	} else if err != nil {
 		http.Error(w, "failed to stat repo: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if !info.IsDir() {
+		http.Error(w, "repository not found", http.StatusNotFound)
 		return
 	}
 
