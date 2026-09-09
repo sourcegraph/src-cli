@@ -82,7 +82,7 @@ Examples:
 					name,
 				}, " "))
 
-				if fqcn == "doc" || fqcn == "publish" {
+				if cmd.hidden {
 					continue
 				}
 
@@ -176,6 +176,7 @@ Examples:
 
 	commands = append(commands, &command{
 		flagSet: flagSet,
+		hidden:  true,
 		handler: handler,
 		usageFunc: func() {
 			fmt.Fprintln(flag.CommandLine.Output(), usage)

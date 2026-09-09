@@ -63,8 +63,9 @@ Example Neovim configuration (0.11+):
 	}
 
 	commands = append(commands, &command{
-		flagSet:   flagSet,
-		handler:   handler,
-		usageFunc: usageFunc,
+		flagSet:     flagSet,
+		description: "runs a Language Server Protocol server that proxies requests to Sourcegraph code intelligence",
+		handler:     handler,
+		usageFunc:   usageFunc,
 	})
 }
