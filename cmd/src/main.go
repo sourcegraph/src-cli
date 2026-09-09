@@ -63,7 +63,6 @@ The commands are:
 	gateway         interacts with Cody Gateway
 	login           authenticate to a Sourcegraph instance with your user credentials
 	orgs,org        manages organizations
-	teams,team      manages teams
 	repos,repo      manages repositories
 	search          search for results on Sourcegraph
 	search-jobs     manages search jobs

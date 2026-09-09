@@ -16,9 +16,7 @@ import (
 // deliberately left out of the commanders map in doc.go, so they render as a
 // single page instead of a directory of subcommand pages. Every entry needs a
 // reason.
-var legacyGroupsWithoutSubcommandPages = map[string]string{
-	"teams.md": "teams were removed in Sourcegraph 7.0 (see checkTeamsAvailability); don't expand docs for a removed feature",
-}
+var legacyGroupsWithoutSubcommandPages = map[string]string{}
 
 // expectedDocFiles is the full set of files 'src doc' is expected to write,
 // relative to the output directory. Update it deliberately when adding or
@@ -94,7 +92,6 @@ var expectedDocFiles = []string{
 	"snapshot/summary.md",
 	"snapshot/test.md",
 	"snapshot/upload.md",
-	"teams.md",
 	"users/create.md",
 	"users/delete.md",
 	"users/get.md",

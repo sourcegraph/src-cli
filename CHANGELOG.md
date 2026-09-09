@@ -25,6 +25,7 @@ All notable changes to `src-cli` are documented in this file.
 ### Removed
 
 - Removed `src sbom` and `src signature` commands. SBOMs and container signatures are no longer published as of Sourcegraph 7.1.0.
+- Removed the `src teams` (`src team`) commands. Teams were removed in Sourcegraph 7.0 and the commands have refused to run against 7.x instances since src-cli 7.0.0.
 
 ## 6.7.1104
 
