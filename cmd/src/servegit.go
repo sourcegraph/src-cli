@@ -88,9 +88,10 @@ Documentation at https://sourcegraph.com/docs/admin/code_hosts/src_serve_git
 
 	// Register the command.
 	commands = append(commands, &command{
-		aliases:   []string{"servegit"},
-		flagSet:   flagSet,
-		handler:   handler,
-		usageFunc: usageFunc,
+		aliases:     []string{"servegit"},
+		flagSet:     flagSet,
+		description: "serves your local git repositories over HTTP for Sourcegraph to pull",
+		handler:     handler,
+		usageFunc:   usageFunc,
 	})
 }

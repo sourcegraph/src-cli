@@ -187,9 +187,10 @@ func TestDocLegacyGroupsHaveSubcommandPages(t *testing.T) {
 	}
 }
 
-// The root index must link every top-level command, both legacy (commander)
-// and migrated (urfave/cli) ones.
-func TestDocRootIndexListsAllCommands(t *testing.T) {
+// The root index.md written by 'src doc' must link exactly the commands that
+// 'src help' lists, which in turn must be exactly the registered commands.
+// A command that is registered but missing from either is a bug.
+func TestDocRootIndexMatchesHelp(t *testing.T) {
 	dir, _ := runDocCommand(t)
 
 	index, err := os.ReadFile(filepath.Join(dir, "index.md"))
@@ -197,18 +198,23 @@ func TestDocRootIndexListsAllCommands(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	var missing []string
-	for _, cmd := range commands {
-		name := cmd.flagSet.Name()
-		if name == "doc" || name == "publish" {
+	var indexed []string
+	for _, line := range strings.Split(string(index), "\n") {
+		// Lines look like: * [`name`](name.md) or * [`name`](name/index.md)
+		rest, ok := strings.CutPrefix(strings.TrimSpace(line), "* [`")
+		if !ok {
 			continue
 		}
-		if !strings.Contains(string(index), "[`"+name+"`](") {
-			missing = append(missing, name)
-		}
+		name, _, _ := strings.Cut(rest, "`")
+		indexed = append(indexed, name)
 	}
-	if len(missing) > 0 {
-		sort.Strings(missing)
-		t.Errorf("root index.md is missing legacy commands: %v", missing)
+	sort.Strings(indexed)
+
+	registered := registeredRootCommandNames()
+	if diff := cmp.Diff(registered, indexed); diff != "" {
+		t.Errorf("'src doc' root index does not match the registered commands (-registered +index):\n%s", diff)
+	}
+	if diff := cmp.Diff(helpCommandNames(t, usageText()), indexed); diff != "" {
+		t.Errorf("'src doc' root index does not match 'src help' (-help +index):\n%s", diff)
 	}
 }

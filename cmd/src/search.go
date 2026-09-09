@@ -291,8 +291,9 @@ Other tips:
 
 	// Register the command.
 	commands = append(commands, &command{
-		flagSet: flagSet,
-		handler: handler,
+		flagSet:     flagSet,
+		description: "search for results on Sourcegraph",
+		handler:     handler,
 		usageFunc: func() {
 			fmt.Fprintf(flag.CommandLine.Output(), "Usage of 'src %s':\n", flagSet.Name())
 			flagSet.PrintDefaults()

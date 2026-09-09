@@ -40,9 +40,10 @@ Use "src repos [command] -h" for more information about a command.
 
 	// Register the command.
 	commands = append(commands, &command{
-		flagSet: flagSet,
-		aliases: []string{"repo"},
-		handler: handler,
+		flagSet:     flagSet,
+		description: "manages repositories",
+		aliases:     []string{"repo"},
+		handler:     handler,
 		usageFunc: func() {
 			fmt.Println(usage)
 		},
