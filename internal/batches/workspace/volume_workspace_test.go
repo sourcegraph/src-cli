@@ -1,7 +1,9 @@
 package workspace
 
 import (
+	"archive/tar"
 	"context"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -39,13 +41,10 @@ func TestVolumeWorkspaceCreator(t *testing.T) {
 		mockAdditionalFilePaths: map[string]string{},
 	}
 	for _, name := range []string{".gitignore", "another-file"} {
-		// Since we don't read the files and mock the Docker commands,
-		// we don't need to create them.
-		path := filepath.Join(os.TempDir(), "additional-file"+name)
-		// Instead we create a real-looking path that we sanitize so
-		// it doesn't trip up the globbing expecations below:
-		path = strings.ReplaceAll(path, string(os.PathSeparator), "-")
-
+		path := filepath.Join(t.TempDir(), "additional-file"+name)
+		if err := os.WriteFile(path, []byte(name), 0600); err != nil {
+			t.Fatal(err)
+		}
 		archiveWithAdditionalFiles.mockAdditionalFilePaths[name] = path
 	}
 
@@ -336,15 +335,11 @@ func TestVolumeWorkspaceCreator(t *testing.T) {
 					expect.Success,
 					"docker", "run", "--rm", "--init",
 					"--workdir", "/work",
+					"--mount", "type=bind,source=*,target=/tmp/additional-files.tar,ro",
 					"--user", "0:0",
 					"--mount", "type=volume,source="+volumeID+",target=/work",
-					"--mount", "type=bind,source="+archiveWithAdditionalFiles.mockAdditionalFilePaths[".gitignore"]+",target=/tmp/src-additional-file-0,ro",
-					"--mount", "type=bind,source="+archiveWithAdditionalFiles.mockAdditionalFilePaths["another-file"]+",target=/tmp/src-additional-file-1,ro",
 					DockerVolumeWorkspaceImage,
-					"sh", "-c", `while test "$#" -gt 0; do cp "$1" "$2" || exit; shift 2; done`,
-					"copy-additional-files",
-					"/tmp/src-additional-file-0", "/work/.gitignore",
-					"/tmp/src-additional-file-1", "/work/another-file",
+					"tar", "-xf", "/tmp/additional-files.tar", "-C", "/work",
 				),
 				expect.NewGlob(
 					expect.Success,
@@ -388,53 +383,54 @@ func TestVolumeWorkspaceCreator(t *testing.T) {
 	}
 }
 
-func TestCopyFilesIntoVolumesDoesNotInterpolateNames(t *testing.T) {
-	const maliciousName = "x,ro,type=bind,source=/var/run/docker.sock,target=/h1sock;touch /work/injected;/.gitignore"
+func TestArchiveAdditionalFilesTreatsRepositoryPathsAsData(t *testing.T) {
+	const maliciousName = "x;touch${IFS}/tmp/pwned,source=.,target=/x/.gitignore"
+	source := filepath.Join(t.TempDir(), "additional-file")
+	if err := os.WriteFile(source, []byte("contents"), 0600); err != nil {
+		t.Fatal(err)
+	}
 
-	expect.Commands(
-		t,
-		expect.NewGlob(
-			expect.Success,
-			"docker", "run", "--rm", "--init", "--workdir", "/work",
-			"--user", "0:0",
-			"--mount", "type=volume,source="+volumeID+",target=/work",
-			"--mount", "type=bind,source=/tmp/additional-file,target=/tmp/src-additional-file-0,ro",
-			DockerVolumeWorkspaceImage,
-			"sh", "-c", `while test "$#" -gt 0; do cp "$1" "$2" || exit; shift 2; done`,
-			"copy-additional-files",
-			"/tmp/src-additional-file-0", "/work/"+maliciousName,
-		),
-	)
-
-	wc := &dockerVolumeWorkspaceCreator{}
-	w := &dockerVolumeWorkspace{volume: volumeID}
-	err := wc.copyFilesIntoVolumes(context.Background(), w, map[string]string{
-		maliciousName: "/tmp/additional-file",
-	})
+	wc := &dockerVolumeWorkspaceCreator{tempDir: t.TempDir()}
+	archive, err := wc.archiveAdditionalFiles(map[string]string{maliciousName: source})
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatal(err)
+	}
+	defer os.Remove(archive)
+
+	f, err := os.Open(archive)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+
+	r := tar.NewReader(f)
+	header, err := r.Next()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if header.Name != maliciousName {
+		t.Fatalf("unexpected archived path: have=%q want=%q", header.Name, maliciousName)
+	}
+	contents, err := io.ReadAll(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(contents) != "contents" {
+		t.Fatalf("unexpected archived contents: %q", contents)
+	}
+	if _, err := r.Next(); err != io.EOF {
+		t.Fatalf("unexpected second archive entry: %v", err)
 	}
 }
 
-func TestCopyFilesIntoVolumesRejectsUnsafePaths(t *testing.T) {
-	tests := map[string]map[string]string{
-		"workspace traversal": {
-			"../etc/.gitignore": "/tmp/additional-file",
-		},
-		"mount source injection": {
-			".gitignore": "/tmp/additional-file,source=/etc",
-		},
-	}
-
-	for name, files := range tests {
-		t.Run(name, func(t *testing.T) {
-			expect.Commands(t)
-			wc := &dockerVolumeWorkspaceCreator{}
-			w := &dockerVolumeWorkspace{volume: volumeID}
-			if err := wc.copyFilesIntoVolumes(context.Background(), w, files); err == nil {
-				t.Fatal("expected unsafe path to be rejected")
-			}
-		})
+func TestCopyFilesIntoVolumesRejectsWorkspaceTraversal(t *testing.T) {
+	expect.Commands(t)
+	wc := &dockerVolumeWorkspaceCreator{}
+	w := &dockerVolumeWorkspace{volume: volumeID}
+	if err := wc.copyFilesIntoVolumes(context.Background(), w, map[string]string{
+		"../etc/.gitignore": "/tmp/additional-file",
+	}); err == nil {
+		t.Fatal("expected workspace traversal to be rejected")
 	}
 }
 
