@@ -38,7 +38,8 @@ func (e TaskExecutionErr) Error() string {
 }
 
 func (e TaskExecutionErr) StatusText() string {
-	if stepErr, ok := e.Err.(stepFailedErr); ok {
+	var stepErr stepFailedErr
+	if errors.As(e.Err, &stepErr) {
 		return stepErr.SingleLineError()
 	}
 	return e.Err.Error()
