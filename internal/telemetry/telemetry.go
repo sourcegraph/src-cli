@@ -112,10 +112,9 @@ func NewRecorder(client api.Client, source Source, opts ...Option) *Recorder {
 }
 
 // Record sends event on a best-effort basis. It never returns an error and
-// never panics: validation, network, GraphQL, timeout, and old-instance
-// failures are all silently dropped (written to the debug writer if one was set
-// via WithDebug). It applies its own timeout, so the caller's context need not
-// carry a deadline.
+// never panics: network, GraphQL, timeout, and old-instance failures are all
+// silently dropped (written to the debug writer if one was set via WithDebug).
+// It applies its own timeout, so the caller's context need not carry a deadline.
 func (r *Recorder) Record(ctx context.Context, event Event) {
 	if err := r.record(ctx, event); err != nil && r.debug != nil {
 		fmt.Fprintf(r.debug, "telemetry: dropping event %q/%q: %v\n", event.Feature, event.Action, err)
@@ -127,9 +126,6 @@ func (r *Recorder) Record(ctx context.Context, event Event) {
 func (r *Recorder) record(ctx context.Context, event Event) error {
 	if r.client == nil {
 		return errors.New("nil api client")
-	}
-	if err := Validate(event.Feature, event.Action); err != nil {
-		return err
 	}
 
 	ctx, cancel := context.WithTimeout(ctx, r.timeout)

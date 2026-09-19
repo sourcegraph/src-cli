@@ -130,17 +130,6 @@ func TestRecord_EmptyMetadataSendsEmptyList(t *testing.T) {
 	assert.Equal(t, []any{}, params["metadata"])
 }
 
-func TestRecord_ValidationFailsBeforeSending(t *testing.T) {
-	client := &apimock.Client{}
-	// No expectations set: NewHTTPRequest must never be called.
-
-	rec := NewRecorder(client, testSource())
-	err := rec.record(context.Background(), Event{Feature: "Bad_Feature", Action: "succeeded"})
-
-	assert.Error(t, err)
-	client.AssertNotCalled(t, "NewHTTPRequest", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
-}
-
 func TestRecord_NetworkErrorSwallowed(t *testing.T) {
 	client := &apimock.Client{}
 	req := httptest.NewRequest(http.MethodPost, "/.api/graphql", nil)
