@@ -23,9 +23,7 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
-func testSource() Source {
-	return Source{Client: ClientName, ClientVersion: "6.1.0"}
-}
+const testClientVersion = "6.1.0"
 
 func response(statusCode int, body string) *http.Response {
 	return &http.Response{
@@ -72,11 +70,10 @@ func TestRecord_SendsWellFormedMutation(t *testing.T) {
 		Return(req, nil)
 	client.On("Do", req).Return(response(http.StatusOK, "{}"), nil)
 
-	rec := NewRecorder(client, testSource())
-	rec.Record(context.Background(), Event{
-		Feature:  "srcCli.search",
-		Action:   "succeeded",
-		Metadata: map[string]float64{"durationMs": 12, "exitCode": 0},
+	rec := NewRecorder(client, testClientVersion)
+	rec.Record(context.Background(), "srcCli.search", "succeeded", map[string]float64{
+		"durationMs": 12,
+		"exitCode":   0,
 	})
 
 	assert.Equal(t, recordEventsMutation, gotPayload.Query)
@@ -90,8 +87,8 @@ func TestRecord_SendsWellFormedMutation(t *testing.T) {
 	assert.Equal(t, "succeeded", event["action"])
 
 	source := event["source"].(map[string]any)
-	assert.Equal(t, ClientName, source["client"])
-	assert.Equal(t, "6.1.0", source["clientVersion"])
+	assert.Equal(t, clientName, source["client"])
+	assert.Equal(t, testClientVersion, source["clientVersion"])
 
 	params := event["parameters"].(map[string]any)
 	assert.Equal(t, float64(eventParametersVersion), params["version"])
@@ -122,8 +119,8 @@ func TestRecord_EmptyMetadataSendsEmptyList(t *testing.T) {
 		Return(req, nil)
 	client.On("Do", req).Return(response(http.StatusOK, "{}"), nil)
 
-	rec := NewRecorder(client, testSource())
-	rec.Record(context.Background(), Event{Feature: "srcCli.version", Action: "succeeded"})
+	rec := NewRecorder(client, testClientVersion)
+	rec.Record(context.Background(), "srcCli.version", "succeeded", nil)
 
 	event := gotPayload.Variables["events"].([]any)[0].(map[string]any)
 	params := event["parameters"].(map[string]any)
@@ -136,17 +133,15 @@ func TestRecord_NetworkErrorSwallowed(t *testing.T) {
 	client.On("NewHTTPRequest", mock.Anything, http.MethodPost, ".api/graphql", mock.Anything).Return(req, nil)
 	client.On("Do", req).Return(nil, errors.New("connection refused"))
 
-	var debug bytes.Buffer
-	rec := NewRecorder(client, testSource(), WithDebug(&debug))
+	rec := NewRecorder(client, testClientVersion)
 
 	// Must not panic and must not surface the error.
 	assert.NotPanics(t, func() {
-		rec.Record(context.Background(), Event{Feature: "srcCli.search", Action: "failed"})
+		rec.Record(context.Background(), "srcCli.search", "failed", nil)
 	})
-	assert.Contains(t, debug.String(), "connection refused")
 
 	// record itself reports the error for callers that want it.
-	err := rec.record(context.Background(), Event{Feature: "srcCli.search", Action: "failed"})
+	err := rec.record(context.Background(), "srcCli.search", "failed", nil)
 	assert.Error(t, err)
 }
 
@@ -158,16 +153,16 @@ func TestRecord_GraphQLErrorSwallowed(t *testing.T) {
 	client.On("NewHTTPRequest", mock.Anything, http.MethodPost, ".api/graphql", mock.Anything).Return(req, nil)
 	client.On("Do", req).Return(response(http.StatusOK, "{\"errors\":[{\"message\":\"unknown field telemetry\"}]}"), nil)
 
-	rec := NewRecorder(client, testSource())
+	rec := NewRecorder(client, testClientVersion)
 	assert.NotPanics(t, func() {
-		rec.Record(context.Background(), Event{Feature: "srcCli.search", Action: "succeeded"})
+		rec.Record(context.Background(), "srcCli.search", "succeeded", nil)
 	})
 }
 
 func TestRecord_NilClientDoesNotPanic(t *testing.T) {
-	rec := NewRecorder(nil, testSource())
+	rec := NewRecorder(nil, testClientVersion)
 	assert.NotPanics(t, func() {
-		rec.Record(context.Background(), Event{Feature: "srcCli.search", Action: "succeeded"})
+		rec.Record(context.Background(), "srcCli.search", "succeeded", nil)
 	})
 }
 
@@ -203,8 +198,8 @@ func TestRecord_OAuthUnauthorizedDoesNotWriteToStdout(t *testing.T) {
 	os.Stdout = stdoutWriter
 	t.Cleanup(func() { os.Stdout = oldStdout })
 
-	rec := NewRecorder(client, testSource())
-	rec.Record(context.Background(), Event{Feature: "srcCli.search", Action: "succeeded"})
+	rec := NewRecorder(client, testClientVersion)
+	rec.Record(context.Background(), "srcCli.search", "succeeded", nil)
 
 	if err := stdoutWriter.Close(); err != nil {
 		t.Fatal(err)
@@ -235,8 +230,9 @@ func TestRecord_AppliesTimeout(t *testing.T) {
 		Return(req, nil)
 	client.On("Do", req).Return(response(http.StatusOK, "{}"), nil)
 
-	rec := NewRecorder(client, testSource(), WithTimeout(50*time.Millisecond))
-	rec.Record(context.Background(), Event{Feature: "srcCli.search", Action: "succeeded"})
+	rec := NewRecorder(client, testClientVersion)
+	rec.timeout = 50 * time.Millisecond
+	rec.Record(context.Background(), "srcCli.search", "succeeded", nil)
 
 	assert.True(t, hadDeadline, "expected Record to apply a context deadline")
 }
@@ -244,13 +240,14 @@ func TestRecord_AppliesTimeout(t *testing.T) {
 func TestRecord_TimeoutCancelsHTTPRequest(t *testing.T) {
 	requestCanceled := make(chan struct{})
 	client := &cancellationClient{canceled: requestCanceled, release: make(chan struct{})}
-	rec := NewRecorder(client, testSource(), WithTimeout(20*time.Millisecond))
+	rec := NewRecorder(client, testClientVersion)
+	rec.timeout = 20 * time.Millisecond
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	done := make(chan struct{})
 	go func() {
-		rec.Record(ctx, Event{Feature: "srcCli.search", Action: "succeeded"})
+		rec.Record(ctx, "srcCli.search", "succeeded", nil)
 		close(done)
 	}()
 

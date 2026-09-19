@@ -12,8 +12,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
-	"io"
 	"net/http"
 	"sort"
 	"time"
@@ -24,8 +22,8 @@ import (
 )
 
 const (
-	// ClientName identifies src-cli as the source of telemetry events.
-	ClientName = "SRC_CLI"
+	// clientName identifies src-cli as the source of telemetry events.
+	clientName = "SRC_CLI"
 
 	// eventParametersVersion is the schema version of the metadata we attach to
 	// each event. Bump it when the shape of the metadata changes.
@@ -48,82 +46,34 @@ const recordEventsMutation = `mutation RecordTelemetryEvents($events: [Telemetry
     }
 }`
 
-// Source identifies the client emitting events. It is constant for the lifetime
-// of a process.
-type Source struct {
-	// Client is the source client name, e.g. ClientName.
-	Client string
-	// ClientVersion is the src-cli version, e.g. "6.1.0" or "dev".
-	ClientVersion string
-}
-
-// Event is a single telemetry event.
-//
-// Feature and Action carry the event's identity and are always exported by
-// Sourcegraph, so command identity lives here (e.g. Feature "srcCli.search",
-// Action "succeeded"). Metadata values are numeric-only and are also always
-// exported; they must never contain user content. See .context/TELEMETRY.md.
-type Event struct {
-	// Feature is a noun describing what the event is about, e.g. "srcCli.search".
-	Feature string
-	// Action is a verb describing what happened, e.g. "succeeded" or "failed".
-	Action string
-	// Metadata holds numeric-only, PII-free facts about the event.
-	Metadata map[string]float64
-}
-
-// Recorder records events for a single Source through an api.Client.
+// Recorder records events through an api.Client.
 type Recorder struct {
-	client  api.Client
-	source  Source
-	timeout time.Duration
-	debug   io.Writer
+	client        api.Client
+	clientVersion string
+	timeout       time.Duration
 }
 
-// Option customizes a Recorder.
-type Option func(*Recorder)
-
-// WithTimeout overrides the default per-Record timeout.
-func WithTimeout(d time.Duration) Option {
-	return func(r *Recorder) {
-		if d > 0 {
-			r.timeout = d
-		}
+// NewRecorder returns a Recorder for the given src-cli version.
+func NewRecorder(client api.Client, clientVersion string) *Recorder {
+	return &Recorder{
+		client:        client,
+		clientVersion: clientVersion,
+		timeout:       defaultTimeout,
 	}
 }
 
-// WithDebug sets a writer that receives a diagnostic line whenever an event is
-// dropped. Intended to be wired to verbose (-v) output; leave unset for silence.
-func WithDebug(w io.Writer) Option {
-	return func(r *Recorder) { r.debug = w }
-}
-
-// NewRecorder returns a Recorder that records events for source through client.
-func NewRecorder(client api.Client, source Source, opts ...Option) *Recorder {
-	r := &Recorder{
-		client:  client,
-		source:  source,
-		timeout: defaultTimeout,
-	}
-	for _, opt := range opts {
-		opt(r)
-	}
-	return r
-}
-
-// Record sends event on a best-effort basis. It never returns an error and
-// never panics: network, GraphQL, timeout, and old-instance failures are all
-// silently dropped (written to the debug writer if one was set via WithDebug).
-// It applies its own timeout, so the caller's context need not carry a deadline.
-func (r *Recorder) Record(ctx context.Context, event Event) {
-	if err := r.record(ctx, event); err != nil && r.debug != nil {
-		fmt.Fprintf(r.debug, "telemetry: dropping event %q/%q: %v\n", event.Feature, event.Action, err)
-	}
+// Record sends an event on a best-effort basis. Feature and action identify the
+// event (for example, "srcCli.search" and "succeeded"). Metadata must contain
+// only numeric, PII-free facts. Record never returns an error or panics: network,
+// GraphQL, timeout, and old-instance failures are silently dropped. It applies
+// its own timeout, so the caller's context need not carry a deadline.
+func (r *Recorder) Record(ctx context.Context, feature, action string, metadata map[string]float64) {
+	_ = r.record(ctx, feature, action, metadata)
 }
 
 // record does the work behind Record and returns any error, so it can be tested
 // directly. Callers outside tests should use Record.
-func (r *Recorder) record(ctx context.Context, event Event) error {
+func (r *Recorder) record(ctx context.Context, feature, action string, metadata map[string]float64) error {
 	if r.client == nil {
 		return errors.New("nil api client")
 	}
@@ -132,7 +82,7 @@ func (r *Recorder) record(ctx context.Context, event Event) error {
 	defer cancel()
 
 	vars := map[string]any{
-		"events": []any{buildEventInput(r.source, event)},
+		"events": []any{buildEventInput(r.clientVersion, feature, action, metadata)},
 	}
 
 	payload, err := json.Marshal(map[string]any{
@@ -170,17 +120,17 @@ func (r *Recorder) record(ctx context.Context, event Event) error {
 }
 
 // buildEventInput builds a single TelemetryEventInput as a JSON-serializable map.
-func buildEventInput(source Source, event Event) map[string]any {
+func buildEventInput(clientVersion, feature, action string, metadata map[string]float64) map[string]any {
 	return map[string]any{
-		"feature": event.Feature,
-		"action":  event.Action,
+		"feature": feature,
+		"action":  action,
 		"source": map[string]any{
-			"client":        source.Client,
-			"clientVersion": source.ClientVersion,
+			"client":        clientName,
+			"clientVersion": clientVersion,
 		},
 		"parameters": map[string]any{
 			"version":  eventParametersVersion,
-			"metadata": buildMetadata(event.Metadata),
+			"metadata": buildMetadata(metadata),
 		},
 	}
 }
