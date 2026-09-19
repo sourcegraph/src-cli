@@ -9,9 +9,12 @@
 package telemetry
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
 	"sort"
 	"time"
 
@@ -136,17 +139,36 @@ func (r *Recorder) record(ctx context.Context, event Event) error {
 		"events": []any{buildEventInput(r.source, event)},
 	}
 
-	// The recordEvents payload has no fields we care about; we only need to
-	// know whether the request succeeded.
-	var result struct {
-		Telemetry struct {
-			RecordEvents struct {
-				AlwaysNil *string
-			}
-		}
-	}
-	if _, err := r.client.NewRequest(recordEventsMutation, vars).Do(ctx, &result); err != nil {
+	payload, err := json.Marshal(map[string]any{
+		"query":     recordEventsMutation,
+		"variables": vars,
+	})
+	if err != nil {
 		return err
+	}
+	// Use the HTTP-level client because GraphQL Request.Do may print interactive
+	// authentication guidance; telemetry must never affect command output.
+	req, err := r.client.NewHTTPRequest(ctx, http.MethodPost, ".api/graphql", bytes.NewReader(payload))
+	if err != nil {
+		return err
+	}
+	resp, err := r.client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return errors.Newf("telemetry request failed: %s", resp.Status)
+	}
+	var result struct {
+		Errors []json.RawMessage `json:"errors"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return err
+	}
+	if len(result.Errors) > 0 {
+		return api.NewGraphQlErrors(result.Errors)
 	}
 	return nil
 }

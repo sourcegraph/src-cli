@@ -3,11 +3,20 @@ package telemetry
 import (
 	"bytes"
 	"context"
+	"encoding/json"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
+	"os"
+	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/sourcegraph/src-cli/internal/api"
 	apimock "github.com/sourcegraph/src-cli/internal/api/mock"
+	"github.com/sourcegraph/src-cli/internal/oauth"
 
 	"github.com/sourcegraph/sourcegraph/lib/errors"
 	"github.com/stretchr/testify/assert"
@@ -18,19 +27,50 @@ func testSource() Source {
 	return Source{Client: ClientName, ClientVersion: "6.1.0"}
 }
 
+func response(statusCode int, body string) *http.Response {
+	return &http.Response{
+		StatusCode: statusCode,
+		Status:     http.StatusText(statusCode),
+		Body:       io.NopCloser(strings.NewReader(body)),
+	}
+}
+
+type cancellationClient struct {
+	api.Client
+	canceled chan struct{}
+	release  chan struct{}
+}
+
+func (c *cancellationClient) NewHTTPRequest(ctx context.Context, method, _ string, body io.Reader) (*http.Request, error) {
+	return http.NewRequestWithContext(ctx, method, "http://example.com/.api/graphql", body)
+}
+
+func (c *cancellationClient) Do(req *http.Request) (*http.Response, error) {
+	select {
+	case <-req.Context().Done():
+		close(c.canceled)
+		return nil, req.Context().Err()
+	case <-c.release:
+		return nil, errors.New("test client released")
+	}
+}
+
 func TestRecord_SendsWellFormedMutation(t *testing.T) {
 	client := &apimock.Client{}
-	req := &apimock.Request{}
+	req := httptest.NewRequest(http.MethodPost, "/.api/graphql", nil)
 
-	var gotQuery string
-	var gotVars map[string]any
-	client.On("NewRequest", mock.Anything, mock.Anything).
+	var gotPayload struct {
+		Query     string         `json:"query"`
+		Variables map[string]any `json:"variables"`
+	}
+	client.On("NewHTTPRequest", mock.Anything, http.MethodPost, ".api/graphql", mock.Anything).
 		Run(func(args mock.Arguments) {
-			gotQuery = args.Get(0).(string)
-			gotVars = args.Get(1).(map[string]any)
+			if err := json.NewDecoder(args.Get(3).(io.Reader)).Decode(&gotPayload); err != nil {
+				t.Fatal(err)
+			}
 		}).
-		Return(req)
-	req.On("Do", mock.Anything, mock.Anything).Return(true, nil)
+		Return(req, nil)
+	client.On("Do", req).Return(response(http.StatusOK, "{}"), nil)
 
 	rec := NewRecorder(client, testSource())
 	rec.Record(context.Background(), Event{
@@ -39,11 +79,11 @@ func TestRecord_SendsWellFormedMutation(t *testing.T) {
 		Metadata: map[string]float64{"durationMs": 12, "exitCode": 0},
 	})
 
-	assert.Equal(t, recordEventsMutation, gotQuery)
+	assert.Equal(t, recordEventsMutation, gotPayload.Query)
 
-	events, ok := gotVars["events"].([]any)
+	events, ok := gotPayload.Variables["events"].([]any)
 	if !ok || len(events) != 1 {
-		t.Fatalf("expected 1 event, got %#v", gotVars["events"])
+		t.Fatalf("expected 1 event, got %#v", gotPayload.Variables["events"])
 	}
 	event := events[0].(map[string]any)
 	assert.Equal(t, "srcCli.search", event["feature"])
@@ -54,7 +94,7 @@ func TestRecord_SendsWellFormedMutation(t *testing.T) {
 	assert.Equal(t, "6.1.0", source["clientVersion"])
 
 	params := event["parameters"].(map[string]any)
-	assert.Equal(t, eventParametersVersion, params["version"])
+	assert.Equal(t, float64(eventParametersVersion), params["version"])
 
 	metadata := params["metadata"].([]any)
 	// sorted by key: durationMs, exitCode
@@ -64,43 +104,48 @@ func TestRecord_SendsWellFormedMutation(t *testing.T) {
 	}, metadata)
 
 	client.AssertExpectations(t)
-	req.AssertExpectations(t)
 }
 
 func TestRecord_EmptyMetadataSendsEmptyList(t *testing.T) {
 	client := &apimock.Client{}
-	req := &apimock.Request{}
+	req := httptest.NewRequest(http.MethodPost, "/.api/graphql", nil)
 
-	var gotVars map[string]any
-	client.On("NewRequest", mock.Anything, mock.Anything).
-		Run(func(args mock.Arguments) { gotVars = args.Get(1).(map[string]any) }).
-		Return(req)
-	req.On("Do", mock.Anything, mock.Anything).Return(true, nil)
+	var gotPayload struct {
+		Variables map[string]any `json:"variables"`
+	}
+	client.On("NewHTTPRequest", mock.Anything, http.MethodPost, ".api/graphql", mock.Anything).
+		Run(func(args mock.Arguments) {
+			if err := json.NewDecoder(args.Get(3).(io.Reader)).Decode(&gotPayload); err != nil {
+				t.Fatal(err)
+			}
+		}).
+		Return(req, nil)
+	client.On("Do", req).Return(response(http.StatusOK, "{}"), nil)
 
 	rec := NewRecorder(client, testSource())
 	rec.Record(context.Background(), Event{Feature: "srcCli.version", Action: "succeeded"})
 
-	event := gotVars["events"].([]any)[0].(map[string]any)
+	event := gotPayload.Variables["events"].([]any)[0].(map[string]any)
 	params := event["parameters"].(map[string]any)
 	assert.Equal(t, []any{}, params["metadata"])
 }
 
 func TestRecord_ValidationFailsBeforeSending(t *testing.T) {
 	client := &apimock.Client{}
-	// No expectations set: NewRequest must never be called.
+	// No expectations set: NewHTTPRequest must never be called.
 
 	rec := NewRecorder(client, testSource())
 	err := rec.record(context.Background(), Event{Feature: "Bad_Feature", Action: "succeeded"})
 
 	assert.Error(t, err)
-	client.AssertNotCalled(t, "NewRequest", mock.Anything, mock.Anything)
+	client.AssertNotCalled(t, "NewHTTPRequest", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 }
 
 func TestRecord_NetworkErrorSwallowed(t *testing.T) {
 	client := &apimock.Client{}
-	req := &apimock.Request{}
-	client.On("NewRequest", mock.Anything, mock.Anything).Return(req)
-	req.On("Do", mock.Anything, mock.Anything).Return(false, errors.New("connection refused"))
+	req := httptest.NewRequest(http.MethodPost, "/.api/graphql", nil)
+	client.On("NewHTTPRequest", mock.Anything, http.MethodPost, ".api/graphql", mock.Anything).Return(req, nil)
+	client.On("Do", req).Return(nil, errors.New("connection refused"))
 
 	var debug bytes.Buffer
 	rec := NewRecorder(client, testSource(), WithDebug(&debug))
@@ -120,10 +165,9 @@ func TestRecord_GraphQLErrorSwallowed(t *testing.T) {
 	// Simulates an instance too old to have the telemetry mutation: the server
 	// returns GraphQL errors, which must be dropped silently.
 	client := &apimock.Client{}
-	req := &apimock.Request{}
-	client.On("NewRequest", mock.Anything, mock.Anything).Return(req)
-	req.On("Do", mock.Anything, mock.Anything).
-		Return(false, api.GraphQlErrors{})
+	req := httptest.NewRequest(http.MethodPost, "/.api/graphql", nil)
+	client.On("NewHTTPRequest", mock.Anything, http.MethodPost, ".api/graphql", mock.Anything).Return(req, nil)
+	client.On("Do", req).Return(response(http.StatusOK, "{\"errors\":[{\"message\":\"unknown field telemetry\"}]}"), nil)
 
 	rec := NewRecorder(client, testSource())
 	assert.NotPanics(t, func() {
@@ -138,21 +182,101 @@ func TestRecord_NilClientDoesNotPanic(t *testing.T) {
 	})
 }
 
+func TestRecord_OAuthUnauthorizedDoesNotWriteToStdout(t *testing.T) {
+	var requests atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests.Add(1)
+		assert.Equal(t, "Bearer oauth-token", r.Header.Get("Authorization"))
+		w.WriteHeader(http.StatusUnauthorized)
+	}))
+	defer server.Close()
+
+	endpointURL, err := url.Parse(server.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var clientOutput bytes.Buffer
+	client := api.NewClient(api.ClientOpts{
+		EndpointURL: endpointURL,
+		Out:         &clientOutput,
+		OAuthToken: &oauth.Token{
+			Endpoint:    server.URL,
+			AccessToken: "oauth-token",
+			ExpiresAt:   time.Now().Add(time.Hour),
+		},
+	})
+
+	oldStdout := os.Stdout
+	stdoutReader, stdoutWriter, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.Stdout = stdoutWriter
+	t.Cleanup(func() { os.Stdout = oldStdout })
+
+	rec := NewRecorder(client, testSource())
+	rec.Record(context.Background(), Event{Feature: "srcCli.search", Action: "succeeded"})
+
+	if err := stdoutWriter.Close(); err != nil {
+		t.Fatal(err)
+	}
+	os.Stdout = oldStdout
+	stdout, err := io.ReadAll(stdoutReader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := stdoutReader.Close(); err != nil {
+		t.Fatal(err)
+	}
+	assert.Empty(t, stdout)
+	assert.Empty(t, clientOutput.String())
+	assert.Equal(t, int32(1), requests.Load())
+}
+
 func TestRecord_AppliesTimeout(t *testing.T) {
 	client := &apimock.Client{}
-	req := &apimock.Request{}
+	req := httptest.NewRequest(http.MethodPost, "/.api/graphql", nil)
 
 	var hadDeadline bool
-	client.On("NewRequest", mock.Anything, mock.Anything).Return(req)
-	req.On("Do", mock.Anything, mock.Anything).
+	client.On("NewHTTPRequest", mock.Anything, http.MethodPost, ".api/graphql", mock.Anything).
 		Run(func(args mock.Arguments) {
 			ctx := args.Get(0).(context.Context)
 			_, hadDeadline = ctx.Deadline()
 		}).
-		Return(true, nil)
+		Return(req, nil)
+	client.On("Do", req).Return(response(http.StatusOK, "{}"), nil)
 
 	rec := NewRecorder(client, testSource(), WithTimeout(50*time.Millisecond))
 	rec.Record(context.Background(), Event{Feature: "srcCli.search", Action: "succeeded"})
 
 	assert.True(t, hadDeadline, "expected Record to apply a context deadline")
+}
+
+func TestRecord_TimeoutCancelsHTTPRequest(t *testing.T) {
+	requestCanceled := make(chan struct{})
+	client := &cancellationClient{canceled: requestCanceled, release: make(chan struct{})}
+	rec := NewRecorder(client, testSource(), WithTimeout(20*time.Millisecond))
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	done := make(chan struct{})
+	go func() {
+		rec.Record(ctx, Event{Feature: "srcCli.search", Action: "succeeded"})
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		cancel()
+		close(client.release)
+		<-done
+		t.Fatal("Record did not return after telemetry timeout")
+	}
+
+	select {
+	case <-requestCanceled:
+	default:
+		t.Fatal("HTTP request was not canceled after telemetry timeout")
+	}
 }
