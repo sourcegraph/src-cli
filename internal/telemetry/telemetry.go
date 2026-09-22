@@ -18,12 +18,13 @@ import (
 
 	"github.com/sourcegraph/src-cli/internal/api"
 
+	"github.com/sourcegraph/log"
 	"github.com/sourcegraph/sourcegraph/lib/errors"
 )
 
 const (
 	// clientName identifies src-cli as the source of telemetry events.
-	clientName = "SRC_CLI"
+	clientName = "src.cli"
 
 	// eventParametersVersion is the schema version of the metadata we attach to
 	// each event. Bump it when the shape of the metadata changes.
@@ -47,37 +48,37 @@ const recordEventsMutation = `mutation RecordTelemetryEvents($events: [Telemetry
 }`
 
 // Recorder records events through an api.Client.
-type Recorder struct {
+type recorder struct {
 	client        api.Client
 	clientVersion string
 	timeout       time.Duration
+	logger        log.Logger
 }
 
 // NewRecorder returns a Recorder for the given src-cli version.
-func NewRecorder(client api.Client, clientVersion string) *Recorder {
-	return &Recorder{
+func NewRecorder(client api.Client, logger log.Logger, clientVersion string) *recorder {
+	return &recorder{
 		client:        client,
 		clientVersion: clientVersion,
 		timeout:       defaultTimeout,
+		logger:        logger,
 	}
 }
 
 // Record sends an event on a best-effort basis. Feature and action identify the
 // event (for example, "srcCli.search" and "succeeded"). Metadata must contain
-// only numeric, PII-free facts. Record never returns an error or panics: network,
-// GraphQL, timeout, and old-instance failures are silently dropped. It applies
-// its own timeout, so the caller's context need not carry a deadline.
-func (r *Recorder) Record(ctx context.Context, feature, action string, metadata map[string]float64) {
-	_ = r.record(ctx, feature, action, metadata)
+// only numeric, PII-free facts. Network, GraphQL, timeout, and old-instance
+// failures are logged at debug level. Record applies its own timeout, so the
+// caller's context need not carry a deadline.
+func (r *recorder) Record(ctx context.Context, feature, action string, metadata map[string]float64) {
+	if err := r.record(ctx, feature, action, metadata); err != nil {
+		r.logger.Debug("recording telemetry event", log.String("feature", feature), log.String("action", action), log.Error(err))
+	}
 }
 
 // record does the work behind Record and returns any error, so it can be tested
 // directly. Callers outside tests should use Record.
-func (r *Recorder) record(ctx context.Context, feature, action string, metadata map[string]float64) error {
-	if r.client == nil {
-		return errors.New("nil api client")
-	}
-
+func (r *recorder) record(ctx context.Context, feature, action string, metadata map[string]float64) error {
 	ctx, cancel := context.WithTimeout(ctx, r.timeout)
 	defer cancel()
 
@@ -124,7 +125,7 @@ func buildEventInput(clientVersion, feature, action string, metadata map[string]
 	return map[string]any{
 		"feature": feature,
 		"action":  action,
-		"source": map[string]any{
+		"source": map[string]string{
 			"client":        clientName,
 			"clientVersion": clientVersion,
 		},
@@ -139,16 +140,13 @@ func buildEventInput(clientVersion, feature, action string, metadata map[string]
 // the API expects, sorted by key for deterministic output.
 func buildMetadata(metadata map[string]float64) []any {
 	out := make([]any, 0, len(metadata))
-	if len(metadata) == 0 {
-		return out
-	}
 	keys := make([]string, 0, len(metadata))
-	for k := range metadata {
-		keys = append(keys, k)
+	for key := range metadata {
+		keys = append(keys, key)
 	}
 	sort.Strings(keys)
-	for _, k := range keys {
-		out = append(out, map[string]any{"key": k, "value": metadata[k]})
+	for _, key := range keys {
+		out = append(out, map[string]any{"key": key, "value": metadata[key]})
 	}
 	return out
 }
