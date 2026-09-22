@@ -67,23 +67,24 @@ func NewRecorder(client api.Client, logger log.Logger, clientVersion string) *re
 
 // Record sends an event on a best-effort basis. Feature and action identify the
 // event (for example, "srcCli.search" and "succeeded"). Metadata must contain
-// only numeric, PII-free facts. Network, GraphQL, timeout, and old-instance
-// failures are logged at debug level. Record applies its own timeout, so the
-// caller's context need not carry a deadline.
-func (r *recorder) Record(ctx context.Context, feature, action string, metadata map[string]float64) {
-	if err := r.record(ctx, feature, action, metadata); err != nil {
+// only numeric, PII-free facts. Private metadata may contain arbitrary JSON and
+// is not exported from Sourcegraph instances by default. Network, GraphQL,
+// timeout, and old-instance failures are logged at debug level. Record applies
+// its own timeout, so the caller's context need not carry a deadline.
+func (r *recorder) Record(ctx context.Context, feature, action string, metadata map[string]float64, privateMetadata map[string]any) {
+	if err := r.record(ctx, feature, action, metadata, privateMetadata); err != nil {
 		r.logger.Debug("recording telemetry event", log.String("feature", feature), log.String("action", action), log.Error(err))
 	}
 }
 
 // record does the work behind Record and returns any error, so it can be tested
 // directly. Callers outside tests should use Record.
-func (r *recorder) record(ctx context.Context, feature, action string, metadata map[string]float64) error {
+func (r *recorder) record(ctx context.Context, feature, action string, metadata map[string]float64, privateMetadata map[string]any) error {
 	ctx, cancel := context.WithTimeout(ctx, r.timeout)
 	defer cancel()
 
 	vars := map[string]any{
-		"events": []any{buildEventInput(r.clientVersion, feature, action, metadata)},
+		"events": []any{buildEventInput(r.clientVersion, feature, action, metadata, privateMetadata)},
 	}
 
 	payload, err := json.Marshal(map[string]any{
@@ -121,7 +122,14 @@ func (r *recorder) record(ctx context.Context, feature, action string, metadata 
 }
 
 // buildEventInput builds a single TelemetryEventInput as a JSON-serializable map.
-func buildEventInput(clientVersion, feature, action string, metadata map[string]float64) map[string]any {
+func buildEventInput(clientVersion, feature, action string, metadata map[string]float64, privateMetadata map[string]any) map[string]any {
+	parameters := map[string]any{
+		"version":  eventParametersVersion,
+		"metadata": buildMetadata(metadata),
+	}
+	if privateMetadata != nil {
+		parameters["privateMetadata"] = privateMetadata
+	}
 	return map[string]any{
 		"feature": feature,
 		"action":  action,
@@ -129,10 +137,7 @@ func buildEventInput(clientVersion, feature, action string, metadata map[string]
 			"client":        clientName,
 			"clientVersion": clientVersion,
 		},
-		"parameters": map[string]any{
-			"version":  eventParametersVersion,
-			"metadata": buildMetadata(metadata),
-		},
+		"parameters": parameters,
 	}
 }
 

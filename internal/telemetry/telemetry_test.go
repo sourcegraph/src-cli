@@ -77,6 +77,9 @@ func TestRecord_SendsWellFormedMutation(t *testing.T) {
 	rec.Record(context.Background(), "srcCli.search", "succeeded", map[string]float64{
 		"durationMs": 12,
 		"exitCode":   0,
+	}, map[string]any{
+		"queryType": "literal",
+		"streamed":  true,
 	})
 
 	assert.Equal(t, recordEventsMutation, gotPayload.Query)
@@ -99,6 +102,10 @@ func TestRecord_SendsWellFormedMutation(t *testing.T) {
 		map[string]any{"key": "durationMs", "value": float64(12)},
 		map[string]any{"key": "exitCode", "value": float64(0)},
 	}, parameters["metadata"])
+	assert.Equal(t, map[string]any{
+		"queryType": "literal",
+		"streamed":  true,
+	}, parameters["privateMetadata"])
 
 	client.AssertExpectations(t)
 }
@@ -121,12 +128,13 @@ func TestRecord_NilMetadataSendsEmptyList(t *testing.T) {
 
 	logger := log.NoOp()
 	rec := NewRecorder(client, logger, testClientVersion)
-	rec.Record(context.Background(), "srcCli.version", "succeeded", nil)
+	rec.Record(context.Background(), "srcCli.version", "succeeded", nil, nil)
 
 	event := gotPayload.Variables["events"].([]any)[0].(map[string]any)
 	parameters := event["parameters"].(map[string]any)
 	assert.Equal(t, float64(eventParametersVersion), parameters["version"])
 	assert.Equal(t, []any{}, parameters["metadata"])
+	assert.NotContains(t, parameters, "privateMetadata")
 }
 
 func TestRecord_NetworkErrorSwallowed(t *testing.T) {
@@ -140,7 +148,7 @@ func TestRecord_NetworkErrorSwallowed(t *testing.T) {
 
 	// Must not panic and must not surface the error.
 	assert.NotPanics(t, func() {
-		rec.Record(context.Background(), "srcCli.search", "failed", nil)
+		rec.Record(context.Background(), "srcCli.search", "failed", nil, nil)
 	})
 	logs := exportLogs()
 	if assert.Len(t, logs, 1) {
@@ -150,7 +158,7 @@ func TestRecord_NetworkErrorSwallowed(t *testing.T) {
 	}
 
 	// record itself reports the error for callers that want it.
-	err := rec.record(context.Background(), "srcCli.search", "failed", nil)
+	err := rec.record(context.Background(), "srcCli.search", "failed", nil, nil)
 	assert.Error(t, err)
 }
 
@@ -165,7 +173,7 @@ func TestRecord_GraphQLErrorSwallowed(t *testing.T) {
 	logger := log.NoOp()
 	rec := NewRecorder(client, logger, testClientVersion)
 	assert.NotPanics(t, func() {
-		rec.Record(context.Background(), "srcCli.search", "succeeded", nil)
+		rec.Record(context.Background(), "srcCli.search", "succeeded", nil, nil)
 	})
 }
 
@@ -203,7 +211,7 @@ func TestRecord_OAuthUnauthorizedDoesNotWriteToStdout(t *testing.T) {
 
 	logger := log.NoOp()
 	rec := NewRecorder(client, logger, testClientVersion)
-	rec.Record(context.Background(), "srcCli.search", "succeeded", nil)
+	rec.Record(context.Background(), "srcCli.search", "succeeded", nil, nil)
 
 	if err := stdoutWriter.Close(); err != nil {
 		t.Fatal(err)
@@ -237,7 +245,7 @@ func TestRecord_AppliesTimeout(t *testing.T) {
 	logger := log.NoOp()
 	rec := NewRecorder(client, logger, testClientVersion)
 	rec.timeout = 50 * time.Millisecond
-	rec.Record(context.Background(), "srcCli.search", "succeeded", nil)
+	rec.Record(context.Background(), "srcCli.search", "succeeded", nil, nil)
 
 	assert.True(t, hadDeadline, "expected Record to apply a context deadline")
 }
@@ -253,7 +261,7 @@ func TestRecord_TimeoutCancelsHTTPRequest(t *testing.T) {
 	defer cancel()
 	done := make(chan struct{})
 	go func() {
-		rec.Record(ctx, "srcCli.search", "succeeded", nil)
+		rec.Record(ctx, "srcCli.search", "succeeded", nil, nil)
 		close(done)
 	}()
 
