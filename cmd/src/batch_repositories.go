@@ -108,9 +108,13 @@ Examples:
 
 		_, repos, err := svc.ResolveWorkspacesForBatchSpec(ctx, spec, allowUnsupported, allowIgnored)
 		if err != nil {
-			if _, ok := err.(batches.UnsupportedRepoSet); ok {
+			var (
+				unsupportedRepoSet batches.UnsupportedRepoSet
+				ignoredRepoSet     batches.IgnoredRepoSet
+			)
+			if errors.As(err, &unsupportedRepoSet) {
 				// This is fine, we just ignore those in the output.
-			} else if _, ok := err.(batches.IgnoredRepoSet); ok {
+			} else if errors.As(err, &ignoredRepoSet) {
 				// This is fine, we just ignore those in the output.
 			} else {
 				return errors.Wrap(err, "resolving repositories")

@@ -67,7 +67,7 @@ func (k *keyringStore) Get(key string) ([]byte, error) {
 	return withContext(k.ctx, func() ([]byte, error) {
 		secret, err := keyring.Get(k.serviceName, key)
 		if err != nil {
-			if err == keyring.ErrNotFound {
+			if errors.Is(err, keyring.ErrNotFound) {
 				return nil, ErrSecretNotFound
 			}
 			return nil, errors.Wrap(err, "getting item from keyring")
