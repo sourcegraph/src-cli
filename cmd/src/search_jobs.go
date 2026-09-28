@@ -309,9 +309,10 @@ func init() {
 	}
 
 	commands = append(commands, &command{
-		flagSet: flagSet,
-		aliases: []string{"search-job"},
-		handler: handler,
+		flagSet:     flagSet,
+		description: "manages search jobs",
+		aliases:     []string{"search-job"},
+		handler:     handler,
 		usageFunc: func() {
 			fmt.Println(usage)
 		},

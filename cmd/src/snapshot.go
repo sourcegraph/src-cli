@@ -29,7 +29,8 @@ Use "src snapshot [command] -h" for more information about a command.
 	flagSet := flag.NewFlagSet("snapshot", flag.ExitOnError)
 
 	commands = append(commands, &command{
-		flagSet: flagSet,
+		flagSet:     flagSet,
+		description: "manages snapshots of Sourcegraph instance databases (EXPERIMENTAL)",
 		handler: func(args []string) error {
 			snapshotCommands.run(flagSet, "src snapshot", usage, args)
 			return nil

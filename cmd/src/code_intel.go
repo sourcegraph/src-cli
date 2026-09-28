@@ -28,9 +28,10 @@ Use "src code-intel [command] -h" for more information about a command.
 
 	// Register the command.
 	commands = append(commands, &command{
-		flagSet: flagSet,
-		aliases: []string{"code-intel"},
-		handler: handler,
+		flagSet:     flagSet,
+		description: "manages code intelligence data",
+		aliases:     []string{"code-intel"},
+		handler:     handler,
 		usageFunc: func() {
 			fmt.Println(usage)
 		},
