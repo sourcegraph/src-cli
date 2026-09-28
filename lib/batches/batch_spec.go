@@ -45,8 +45,8 @@ type BatchSpec struct {
 // Hooks declares side-effect actions to run at well-defined changeset
 // lifecycle events. Only allowed when Version is 3.
 type ChangesetHooks struct {
-	OnCIFailure     ChangesetHookAction `json:"onCIFailure,omitempty" yaml:"onCIFailure,omitempty"`
-	OnMergeConflict ChangesetHookAction `json:"onMergeConflict,omitempty" yaml:"onMergeConflict,omitempty"`
+	OnCIFailure     ChangesetHookAction `json:"onCIFailure" yaml:"onCIFailure,omitempty"`
+	OnMergeConflict ChangesetHookAction `json:"onMergeConflict" yaml:"onMergeConflict,omitempty"`
 }
 
 // HookAction is a single action attached to a changeset lifecycle event.
