@@ -33,7 +33,6 @@ var expectedDocFiles = []string{
 	"auth/index.md",
 	"auth/token.md",
 	"batch/apply.md",
-	"batch/exec.md",
 	"batch/index.md",
 	"batch/new.md",
 	"batch/preview.md",

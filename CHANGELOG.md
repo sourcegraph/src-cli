@@ -25,6 +25,7 @@ All notable changes to `src-cli` are documented in this file.
 ### Removed
 
 - Removed `src sbom` and `src signature` commands. SBOMs and container signatures are no longer published as of Sourcegraph 7.1.0.
+- Removed the internal `src batch exec` command. Server-side Batch Changes execution now uses the `batch-exec` binary in the Sourcegraph repository.
 
 ## 6.7.1104
 
