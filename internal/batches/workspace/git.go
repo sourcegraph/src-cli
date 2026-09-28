@@ -13,6 +13,7 @@ import (
 
 type gitMetadataSnapshot struct {
 	dotGit         *gitControlFile
+	commonDir      *gitControlFile
 	config         *gitControlFile
 	configWorktree *gitControlFile
 }
@@ -34,7 +35,10 @@ func snapshotGitMetadata(dir string) (*gitMetadataSnapshot, error) {
 	case info.Mode().IsRegular():
 		snapshot.dotGit, err = snapshotGitControlFile(dotGit)
 	case info.IsDir():
-		snapshot.config, err = snapshotGitControlFile(filepath.Join(dotGit, "config"))
+		snapshot.commonDir, err = snapshotOptionalGitControlFile(filepath.Join(dotGit, "commondir"))
+		if err == nil {
+			snapshot.config, err = snapshotGitControlFile(filepath.Join(dotGit, "config"))
+		}
 		if err == nil {
 			snapshot.configWorktree, err = snapshotOptionalGitControlFile(filepath.Join(dotGit, "config.worktree"))
 		}
@@ -86,6 +90,11 @@ func (s *gitMetadataSnapshot) restore(dir string) error {
 	}
 	if !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
 		return fmt.Errorf("%s is no longer a directory", dotGit)
+	}
+	// commondir changes which repository config Git reads. Restore it before
+	// any host-side Git command can follow an attacker-controlled redirect.
+	if err := restoreGitControlFile(filepath.Join(dotGit, "commondir"), s.commonDir); err != nil {
+		return err
 	}
 	if err := restoreGitControlFile(filepath.Join(dotGit, "config"), s.config); err != nil {
 		return err

@@ -21,6 +21,7 @@ import (
 	"github.com/sourcegraph/sourcegraph/lib/batches/template"
 	"github.com/sourcegraph/sourcegraph/lib/errors"
 
+	"github.com/sourcegraph/src-cli/internal/batches/docker"
 	"github.com/sourcegraph/src-cli/internal/batches/log"
 	"github.com/sourcegraph/src-cli/internal/batches/repozip"
 	"github.com/sourcegraph/src-cli/internal/batches/util"
@@ -316,8 +317,9 @@ func executeSingleStep(
 	}
 	defer cleanup()
 
-	// Resolve step.Env given the current environment.
-	stepEnv, err := step.Env.Resolve(opts.GlobalEnv)
+	// Resolve step.Env given the current environment. Executor control values
+	// must never be selectable by an author-controlled step.
+	stepEnv, err := step.Env.Resolve(withoutReservedExecutorEnv(opts.GlobalEnv))
 	if err != nil {
 		err = errors.Wrap(err, "resolving step environment")
 		opts.UI.StepPreparingFailed(stepIdx+1, err)
@@ -353,7 +355,7 @@ func executeSingleStep(
 	if err := validateContainerTempPath(containerTemp); err != nil {
 		return bytes.Buffer{}, bytes.Buffer{}, errors.Wrap(err, "validating run script target")
 	}
-	runScriptMount, err := dockerBindMount(runScriptFile, containerTemp)
+	runScriptMount, err := docker.BindMount(runScriptFile, containerTemp, true)
 	if err != nil {
 		return bytes.Buffer{}, bytes.Buffer{}, errors.Wrap(err, "creating run script mount")
 	}
@@ -372,7 +374,7 @@ func executeSingleStep(
 	}
 
 	for target, source := range filesToMount {
-		mountArg, err := dockerBindMount(source.Name(), target)
+		mountArg, err := docker.BindMount(source.Name(), target, true)
 		if err != nil {
 			return bytes.Buffer{}, bytes.Buffer{}, errors.Wrap(err, "creating files mount")
 		}
@@ -385,7 +387,7 @@ func executeSingleStep(
 		if err != nil {
 			return bytes.Buffer{}, bytes.Buffer{}, err
 		}
-		mountArg, err := dockerBindMount(workspaceFilePath, mount.Mountpoint)
+		mountArg, err := docker.BindMount(workspaceFilePath, mount.Mountpoint, true)
 		if err != nil {
 			return bytes.Buffer{}, bytes.Buffer{}, errors.Wrap(err, "creating host mount")
 		}
@@ -462,6 +464,17 @@ func executeSingleStep(
 
 	opts.Logger.Logf("[Step %d] complete in %s", stepIdx+1, elapsed)
 	return stdout, stderr, nil
+}
+
+func withoutReservedExecutorEnv(env []string) []string {
+	filtered := make([]string, 0, len(env))
+	for _, variable := range env {
+		name, _, found := strings.Cut(variable, "=")
+		if !found || !strings.HasPrefix(name, "SRC_EXECUTOR_") {
+			filtered = append(filtered, variable)
+		}
+	}
+	return filtered
 }
 
 func setOutputs(stepOutputs batcheslib.Outputs, global map[string]any, stepCtx *template.StepContext) error {
@@ -567,15 +580,6 @@ func validateContainerTempPath(tempfile string) error {
 		return errors.Newf("mktemp returned invalid path %q", tempfile)
 	}
 	return nil
-}
-
-func dockerBindMount(source, target string) (string, error) {
-	for name, value := range map[string]string{"source": source, "target": target} {
-		if value == "" || strings.ContainsAny(value, ",\r\n\x00") {
-			return "", errors.Newf("invalid Docker mount %s %q", name, value)
-		}
-	}
-	return fmt.Sprintf("type=bind,source=%s,target=%s,ro", source, target), nil
 }
 
 // createFilesToMount creates temporary files with the contents of Step.Files

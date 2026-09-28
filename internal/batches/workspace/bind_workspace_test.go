@@ -143,6 +143,45 @@ func TestDockerBindWorkspaceCreator_Create(t *testing.T) {
 	})
 }
 
+func TestCopyToWorkspaceRejectsPathTraversal(t *testing.T) {
+	root := t.TempDir()
+	workspaceDir := filepath.Join(root, "workspace")
+	if err := os.Mkdir(workspaceDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	victimDir := filepath.Join(root, "victim")
+	if err := os.Mkdir(victimDir, 0700); err != nil {
+		t.Fatal(err)
+	}
+	before, err := os.Stat(victimDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	source := filepath.Join(root, "source")
+	if err := os.WriteFile(source, []byte("attacker content"), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	creator := &dockerBindWorkspaceCreator{}
+	workspace := &dockerBindWorkspace{dir: workspaceDir}
+	err = creator.copyToWorkspace(context.Background(), workspace, map[string]string{
+		"../victim/.gitignore": source,
+	})
+	if err == nil || !strings.Contains(err.Error(), "outside the workspace") {
+		t.Fatalf("expected path traversal error, got %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(victimDir, ".gitignore")); !os.IsNotExist(err) {
+		t.Fatalf("file was written outside the workspace: %v", err)
+	}
+	info, err := os.Stat(victimDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := info.Mode().Perm(), before.Mode().Perm(); got != want {
+		t.Fatalf("outside directory permissions changed: got %o, want %o", got, want)
+	}
+}
+
 func TestPrepareGitRepoRemovesUntrustedGitMetadata(t *testing.T) {
 	dir := t.TempDir()
 	dotGit := filepath.Join(dir, ".git")
@@ -195,7 +234,8 @@ func TestDockerBindWorkspace_DiffRestoresTrustedGitConfig(t *testing.T) {
 	}
 
 	dir := *workspace.WorkDir()
-	configPath := filepath.Join(dir, ".git", "config")
+	dotGit := filepath.Join(dir, ".git")
+	configPath := filepath.Join(dotGit, "config")
 	trustedConfig, err := os.ReadFile(configPath)
 	if err != nil {
 		t.Fatal(err)
@@ -208,6 +248,26 @@ func TestDockerBindWorkspace_DiffRestoresTrustedGitConfig(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := config.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	// A commondir file redirects Git to the config in another directory. That
+	// config must not survive metadata restoration and reach host-side Git.
+	attackerCommon := filepath.Join(dir, "attacker-common")
+	if err := os.CopyFS(attackerCommon, os.DirFS(dotGit)); err != nil {
+		t.Fatal(err)
+	}
+	attackerConfig, err := os.OpenFile(filepath.Join(attackerCommon, "config"), os.O_APPEND|os.O_WRONLY, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := attackerConfig.WriteString("[filter \"attack\"]\n\tclean = command-that-must-not-run\n\trequired = true\n"); err != nil {
+		t.Fatal(err)
+	}
+	if err := attackerConfig.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dotGit, "commondir"), []byte("../attacker-common\n"), 0644); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(dir, ".gitattributes"), []byte("*.txt filter=attack\n"), 0644); err != nil {
@@ -230,6 +290,9 @@ func TestDockerBindWorkspace_DiffRestoresTrustedGitConfig(t *testing.T) {
 	}
 	if !cmp.Equal(restoredConfig, trustedConfig) {
 		t.Fatalf("Git config was not restored:\n%s", cmp.Diff(string(trustedConfig), string(restoredConfig)))
+	}
+	if _, err := os.Stat(filepath.Join(dotGit, "commondir")); !os.IsNotExist(err) {
+		t.Fatalf("untrusted commondir was not removed: %v", err)
 	}
 }
 

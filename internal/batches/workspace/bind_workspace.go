@@ -13,6 +13,7 @@ import (
 	batcheslib "github.com/sourcegraph/sourcegraph/lib/batches"
 	"github.com/sourcegraph/sourcegraph/lib/errors"
 
+	"github.com/sourcegraph/src-cli/internal/batches/docker"
 	"github.com/sourcegraph/src-cli/internal/batches/graphql"
 	"github.com/sourcegraph/src-cli/internal/batches/repozip"
 	"github.com/sourcegraph/src-cli/internal/batches/util"
@@ -77,6 +78,10 @@ func (wc *dockerBindWorkspaceCreator) unzipToWorkspace(ctx context.Context, repo
 
 func (wc *dockerBindWorkspaceCreator) copyToWorkspace(ctx context.Context, w *dockerBindWorkspace, files map[string]string) error {
 	for name, src := range files {
+		if err := validateWorkspaceFileName(name); err != nil {
+			return err
+		}
+
 		srcStat, err := os.Stat(src)
 		if err != nil {
 			return err
@@ -91,7 +96,7 @@ func (wc *dockerBindWorkspaceCreator) copyToWorkspace(ctx context.Context, w *do
 			return err
 		}
 
-		destPath := path.Join(w.dir, name)
+		destPath := filepath.Join(w.dir, filepath.FromSlash(name))
 
 		destFile, err := prepareCopyDestinationFile(srcStat, destPath)
 		if err != nil {
@@ -136,10 +141,27 @@ func (w *dockerBindWorkspace) Close(ctx context.Context) error {
 }
 
 func (w *dockerBindWorkspace) DockerRunOpts(ctx context.Context, target string) ([]string, error) {
+	mount, err := docker.BindMount(w.dir, target, false)
+	if err != nil {
+		return nil, err
+	}
 	return []string{
 		"--mount",
-		fmt.Sprintf("type=bind,source=%s,target=%s", w.dir, target),
+		mount,
 	}, nil
+}
+
+func validateWorkspaceFileName(name string) error {
+	clean := path.Clean(name)
+	if path.IsAbs(name) || clean == ".." || strings.HasPrefix(clean, "../") {
+		return errors.Newf("workspace file path %q is outside the workspace", name)
+	}
+
+	native := filepath.Clean(filepath.FromSlash(name))
+	if filepath.IsAbs(native) || filepath.VolumeName(native) != "" || native == ".." || strings.HasPrefix(native, ".."+string(os.PathSeparator)) {
+		return errors.Newf("workspace file path %q is outside the workspace", name)
+	}
+	return nil
 }
 
 func (w *dockerBindWorkspace) WorkDir() *string { return &w.dir }
