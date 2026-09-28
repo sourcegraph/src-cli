@@ -13,7 +13,6 @@ import (
 type FeatureFlags struct {
 	Sourcegraph40 bool
 	BinaryDiffs   bool
-	Sourcegraph70 bool
 }
 
 func (ff *FeatureFlags) SetFromVersion(version string, skipErrors bool) error {
@@ -33,7 +32,6 @@ func (ff *FeatureFlags) SetFromVersion(version string, skipErrors bool) error {
 		// {&ff.FlagName, ">= 3.23.0-0", "2020-11-24"},
 		{&ff.Sourcegraph40, ">= 4.0.0-0", "2022-08-24"},
 		{&ff.BinaryDiffs, ">= 4.3.0-0", "2022-11-29"},
-		{&ff.Sourcegraph70, ">= 7.0.0-0", "2026-02-25"},
 	} {
 		value, err := api.CheckSourcegraphVersion(version, feature.constraint, feature.minDate)
 		if err != nil {
