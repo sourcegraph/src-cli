@@ -231,7 +231,8 @@ func handleUploadError(accessToken string, err error) error {
 // for a 401 or 403 ErrUnexpectedStatusCode. Returns nil if none is found.
 func findAuthError(err error) *ErrUnexpectedStatusCode {
 	// Check if it's a multi-error and scan all children.
-	if multi, ok := err.(errors.MultiError); ok {
+	var multi errors.MultiError
+	if errors.As(err, &multi) {
 		for _, e := range multi.Errors() {
 			if found := findAuthError(e); found != nil {
 				return found

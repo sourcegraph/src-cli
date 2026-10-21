@@ -416,10 +416,14 @@ func executeBatchSpec(ctx context.Context, opts executeBatchSpecOpts) (err error
 	execUI.DeterminingWorkspaces()
 	workspaces, repos, err := svc.ResolveWorkspacesForBatchSpec(ctx, batchSpec, opts.flags.allowUnsupported, opts.flags.allowIgnored)
 	if err != nil {
-		if repoSet, ok := err.(batches.UnsupportedRepoSet); ok {
-			execUI.DeterminingWorkspacesSuccess(len(workspaces), len(repos), repoSet, nil)
-		} else if repoSet, ok := err.(batches.IgnoredRepoSet); ok {
-			execUI.DeterminingWorkspacesSuccess(len(workspaces), len(repos), nil, repoSet)
+		var (
+			unsupportedRepoSet batches.UnsupportedRepoSet
+			ignoredRepoSet     batches.IgnoredRepoSet
+		)
+		if errors.As(err, &unsupportedRepoSet) {
+			execUI.DeterminingWorkspacesSuccess(len(workspaces), len(repos), unsupportedRepoSet, nil)
+		} else if errors.As(err, &ignoredRepoSet) {
+			execUI.DeterminingWorkspacesSuccess(len(workspaces), len(repos), nil, ignoredRepoSet)
 		} else {
 			return errors.Wrap(err, "resolving repositories")
 		}
