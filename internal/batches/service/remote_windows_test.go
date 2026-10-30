@@ -47,7 +47,7 @@ func TestService_UploadBatchSpecWorkspaceFiles_Windows_Path(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "http://fake.com/.api/files/batch-changes/123", nil)
 	client.On("NewHTTPRequest", mock.Anything, http.MethodPost, ".api/files/batch-changes/123", mock.Anything).
 		Run(func(args mock.Arguments) {
-			req.Body = args[3].(*io.PipeReader)
+			req.Body = io.NopCloser(args[3].(mockclient.RequestBody))
 		}).
 		Return(req, nil).
 		Once()

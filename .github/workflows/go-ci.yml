@@ -17,12 +17,34 @@ jobs:
         run: echo "go-version=$(grep 'golang' mise.toml | cut -d'"' -f2)" >> $GITHUB_OUTPUT
         shell: bash
       - name: Set up Go
-        uses: sourcegraph/actions/go-setup@main
+        uses: actions/setup-go@v7
         with:
           go-version: ${{ steps.mise.outputs.go-version }}
-      - run: |
-          go test -race -v ./...
-          go test -v ./...
+          # setup-go's built-in cache keys on go.sum alone, has no fallback
+          # when go.sum changes, and shares one key across every job on the
+          # same OS, so the first job to finish (even one that compiled
+          # nothing) decides what everyone else restores. See the explicit
+          # cache step below instead.
+          cache: false
+      - name: Find Go cache directories
+        id: go-cache
+        shell: bash
+        run: |
+          echo "build=$(go env GOCACHE)" >> "$GITHUB_OUTPUT"
+          echo "modules=$(go env GOMODCACHE)" >> "$GITHUB_OUTPUT"
+      - name: Cache Go modules and build output
+        uses: actions/cache@v6
+        with:
+          path: |
+            ${{ steps.go-cache.outputs.modules }}
+            ${{ steps.go-cache.outputs.build }}
+          key: ${{ github.job }}-${{ runner.os }}-${{ runner.arch }}-go${{ steps.mise.outputs.go-version }}-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ github.job }}-${{ runner.os }}-${{ runner.arch }}-go${{ steps.mise.outputs.go-version }}-
+      # bash on every OS: the default pwsh on Windows does not fail the step
+      # when a command in a multi-line script exits non-zero.
+      - run: go test -race -v ./...
+        shell: bash
 
   # This job provides a stable name for branch protection rules
   # It will only pass if all Go CI matrix tests above pass
