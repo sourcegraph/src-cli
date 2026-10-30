@@ -176,7 +176,6 @@ func uploadMultipartIndexParts(ctx context.Context, httpClient upload.Client, op
 	}
 
 	for i, reader := range readers {
-		i, reader := i, reader
 
 		pool.Go(func(ctx context.Context) error {
 			// Determine size of this reader. If we're not the last reader in the slice,

@@ -2,7 +2,7 @@
 # suitable for testing, since it depends on a src binary being at the project
 # root _and_ that src binary being runnable on Alpine. To test this, refer to
 # the main Dockerfile, which should have an identical second stage.
-FROM alpine:3.22@sha256:5291449c3df73caf6ed85e649dec1b9e818b39a5d8c871e97afc13e9cd5e8fa8
+FROM alpine:3.24@sha256:ff7f0c727dd796aa36787bfcd9a64bf35a6ce72a73451b3359fde849b6703d63
 
 # needed for `src code-intel upload` and `src actions exec`
 # ca-certificates-bundle >= 20261020-r0 drops the eMudhra roots (CVE-2026-111943).
