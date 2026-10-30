@@ -205,7 +205,7 @@ func createGcsClient(flagSet *flag.FlagSet, credentialsPath string) (*gcsClient,
 	out := output.NewOutput(flagSet.Output(), output.OutputOpts{Verbose: *verbose})
 
 	// https://pkg.go.dev/cloud.google.com/go/storage#section-readme
-	client, err := storage.NewClient(ctx, option.WithCredentialsFile(credentialsPath))
+	client, err := storage.NewClient(ctx, option.WithAuthCredentialsFile(option.ServiceAccount, credentialsPath))
 
 	if err != nil {
 		return nil, errors.Wrap(err, "create Google Cloud Storage client")
