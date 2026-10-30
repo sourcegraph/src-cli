@@ -41,9 +41,10 @@ jobs:
           key: ${{ github.job }}-${{ runner.os }}-${{ runner.arch }}-go${{ steps.mise.outputs.go-version }}-${{ hashFiles('**/go.sum') }}
           restore-keys: |
             ${{ github.job }}-${{ runner.os }}-${{ runner.arch }}-go${{ steps.mise.outputs.go-version }}-
-      # -race already runs every test; a second plain pass only recompiles
-      # everything without race instrumentation and reruns the same tests.
+      # bash on every OS: the default pwsh on Windows does not fail the step
+      # when a command in a multi-line script exits non-zero.
       - run: go test -race -v ./...
+        shell: bash
 
   # This job provides a stable name for branch protection rules
   # It will only pass if all Go CI matrix tests above pass

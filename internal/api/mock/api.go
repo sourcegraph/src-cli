@@ -34,8 +34,14 @@ func (m *Client) NewGzippedQuery(query string) api.Request {
 	return args.Get(0).(api.Request)
 }
 
+// RequestBody wraps the body handed to NewHTTPRequest. testify fmt-prints every
+// recorded argument, and printing a bare *io.PipeReader reflects into the
+// pipe's internals, racing with the goroutine writing to it. Behind a struct
+// field, fmt prints the pointer's address instead.
+type RequestBody struct{ io.Reader }
+
 func (m *Client) NewHTTPRequest(ctx context.Context, method, path string, body io.Reader) (*http.Request, error) {
-	args := m.Called(ctx, method, path, body)
+	args := m.Called(ctx, method, path, RequestBody{body})
 	var obj *http.Request
 	if args.Get(0) != nil {
 		obj = args.Get(0).(*http.Request)
