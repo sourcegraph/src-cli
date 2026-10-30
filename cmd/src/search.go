@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"html"
@@ -131,7 +132,79 @@ Other tips:
 
 		client := cfg.apiClient(apiFlags, flagSet.Output())
 
-		query := `fragment FileMatchFields on FileMatch {
+		// Errors returned alongside results (for example, a single repository
+		// that no longer exists) are treated as warnings, and the data as
+		// partially complete.
+		result, warnings, err := runSearch(context.Background(), client, queryString)
+		if err != nil {
+			return err
+		}
+
+		improved := searchResultsImproved{
+			SourcegraphEndpoint: cfg.endpointURL.String(),
+			Query:               queryString,
+			Site:                result.Site,
+			searchResults:       result.Search.Results,
+		}
+
+		if len(warnings) > 0 {
+			if *verbose {
+				fmt.Fprint(flagSet.Output(), formatGraphQLWarnings("search", warnings))
+			} else {
+				fmt.Fprintf(flagSet.Output(), "warning: %d errors during search; rerun with -v to inspect them\n", len(warnings))
+			}
+		}
+
+		if *jsonFlag {
+			// Print the formatted JSON.
+			f, err := marshalIndent(improved)
+			if err != nil {
+				return err
+			}
+			fmt.Println(string(f))
+			return nil
+		}
+
+		tmpl, err := parseTemplate(searchResultsTemplate)
+		if err != nil {
+			return err
+		}
+		return execTemplate(tmpl, improved)
+	}
+
+	// Register the command.
+	commands = append(commands, &command{
+		flagSet:     flagSet,
+		description: "search for results on Sourcegraph",
+		handler:     handler,
+		usageFunc: func() {
+			fmt.Fprintf(flag.CommandLine.Output(), "Usage of 'src %s':\n", flagSet.Name())
+			flagSet.PrintDefaults()
+			fmt.Println(usage)
+		},
+	})
+}
+
+// searchQueryData is the data portion of the GraphQL search response.
+type searchQueryData struct {
+	Site   struct{ BuildVersion string }
+	Search struct {
+		Results searchResults
+	}
+}
+
+// searchQueryResult is the raw GraphQL search response, including any errors
+// returned alongside the data.
+type searchQueryResult struct {
+	Data   searchQueryData   `json:"data"`
+	Errors []json.RawMessage `json:"errors,omitempty"`
+}
+
+// runSearch returns the search results, any GraphQL errors returned alongside
+// results (should be treated as warnings), and a hard error when the query
+// fails without usable results.
+func runSearch(ctx context.Context, client api.Client, queryString string) (searchQueryData, api.GraphQlErrors, error) {
+	query := `fragment FileMatchFields on FileMatch {
 				repository {
 					name
 					url
@@ -250,56 +323,22 @@ Other tips:
 		  }
 		` + searchResultsAlertFragment
 
-		var result struct {
-			Site struct {
-				BuildVersion string
-			}
-			Search struct {
-				Results searchResults
-			}
-		}
-
-		if ok, err := client.NewRequest(query, map[string]any{
-			"query": api.NullString(queryString),
-		}).Do(context.Background(), &result); err != nil || !ok {
-			return err
-		}
-
-		improved := searchResultsImproved{
-			SourcegraphEndpoint: cfg.endpointURL.String(),
-			Query:               queryString,
-			Site:                result.Site,
-			searchResults:       result.Search.Results,
-		}
-
-		if *jsonFlag {
-			// Print the formatted JSON.
-			f, err := marshalIndent(improved)
-			if err != nil {
-				return err
-			}
-			fmt.Println(string(f))
-			return nil
-		}
-
-		tmpl, err := parseTemplate(searchResultsTemplate)
-		if err != nil {
-			return err
-		}
-		return execTemplate(tmpl, improved)
+	var result searchQueryResult
+	ok, err := client.NewRequest(query, map[string]any{
+		"query": api.NullString(queryString),
+	}).DoRaw(ctx, &result)
+	if err != nil || !ok {
+		return searchQueryData{}, nil, err
+	}
+	if len(result.Errors) == 0 {
+		return result.Data, nil, nil
 	}
 
-	// Register the command.
-	commands = append(commands, &command{
-		flagSet:     flagSet,
-		description: "search for results on Sourcegraph",
-		handler:     handler,
-		usageFunc: func() {
-			fmt.Fprintf(flag.CommandLine.Output(), "Usage of 'src %s':\n", flagSet.Name())
-			flagSet.PrintDefaults()
-			fmt.Println(usage)
-		},
-	})
+	graphQLErrors := api.NewGraphQlErrors(result.Errors)
+	if len(result.Data.Search.Results.Results) > 0 {
+		return result.Data, graphQLErrors, nil
+	}
+	return searchQueryData{}, nil, graphQLErrors
 }
 
 // searchResults represents the data we get back from the GraphQL search request.

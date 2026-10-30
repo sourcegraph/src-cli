@@ -137,9 +137,11 @@ func gqlWarningMessage(graphQLError *api.GraphQlError) string {
 	return message
 }
 
-func formatRepositoryListWarnings(warnings api.GraphQlErrors) string {
+// formatGraphQLWarnings renders GraphQL errors that came back alongside
+// data. activity names the operation, e.g. "listing" or "search".
+func formatGraphQLWarnings(activity string, warnings api.GraphQlErrors) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "warnings: %d errors during listing\n", len(warnings))
+	fmt.Fprintf(&b, "warnings: %d errors during %s\n", len(warnings), activity)
 	for _, warning := range warnings {
 		path := gqlWarningPath(warning)
 		message := gqlWarningMessage(warning)
@@ -242,7 +244,7 @@ Examples:
 		}
 		if len(warnings) > 0 {
 			if *verbose {
-				fmt.Fprint(flagSet.Output(), formatRepositoryListWarnings(warnings))
+				fmt.Fprint(flagSet.Output(), formatGraphQLWarnings("listing", warnings))
 			} else {
 				fmt.Fprintf(flagSet.Output(), "warning: %d errors during listing; rerun with -v to inspect them\n", len(warnings))
 			}
