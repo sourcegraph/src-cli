@@ -5,7 +5,10 @@ on:
 jobs:
   scip-go:
     runs-on: ubuntu-latest
-    container: sourcegraph/scip-go
+    # Docker Hub's sourcegraph/scip-go stopped at v0.1.26 (Go 1.26), which
+    # does not know Go 1.27's new stdlib uuid package. Releases now publish
+    # to ghcr.io/scip-code/scip-go.
+    container: ghcr.io/scip-code/scip-go:v0.2.9
     steps:
       - uses: actions/checkout@v7
       - name: Get Go version from mise
