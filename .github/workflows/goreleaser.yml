@@ -47,7 +47,7 @@ jobs:
       second_latest_tag: ${{ env.second_latest_tag }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - name: Set current tag, latest (highest version) tag, and second latest tag
@@ -103,7 +103,7 @@ jobs:
           echo "latest_tag=${{ needs.release_type.outputs.latest_tag }}" >> $GITHUB_ENV
           echo "second_latest_tag=${{ needs.release_type.outputs.second_latest_tag }}" >> $GITHUB_ENV
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - name: Set versioning variables
@@ -116,7 +116,7 @@ jobs:
           echo "Versioned formula file: ${{ env.versioned_formula_file }}"
           echo "Versioned classname: ${{ env.versioned_classname }}"
       - name: Checkout Homebrew tap
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: sourcegraph/homebrew-src-cli
           fetch-depth: 0
@@ -171,7 +171,7 @@ jobs:
         run: |
           echo "Goreleaser config file: ${{ env.config_file }}"
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - name: Get Go version from mise
@@ -223,7 +223,7 @@ jobs:
           echo "Old symlink: ${{ env.old_symlink_name }}"
           echo "New symlink: ${{ env.new_symlink_name }}"
       - name: Checkout Homebrew tap
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: sourcegraph/homebrew-src-cli
           fetch-depth: 0
@@ -244,12 +244,12 @@ jobs:
     needs: goreleaser
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
-          node-version: 24.16.0
+          node-version: 26.13.0
           registry-url: 'https://registry.npmjs.org'
       - run: echo "VERSION=${GITHUB_REF/refs\/tags\//}" >> $GITHUB_ENV
       - run: echo "Releasing version ${{ env.version }}"

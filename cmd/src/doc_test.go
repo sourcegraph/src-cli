@@ -198,7 +198,7 @@ func TestDocRootIndexMatchesHelp(t *testing.T) {
 	}
 
 	var indexed []string
-	for _, line := range strings.Split(string(index), "\n") {
+	for line := range strings.SplitSeq(string(index), "\n") {
 		// Lines look like: * [`name`](name.md) or * [`name`](name/index.md)
 		rest, ok := strings.CutPrefix(strings.TrimSpace(line), "* [`")
 		if !ok {

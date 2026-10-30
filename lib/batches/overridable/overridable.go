@@ -4,6 +4,7 @@ package overridable
 
 import (
 	"encoding/json"
+	"slices"
 	"strings"
 
 	"github.com/gobwas/glob"
@@ -70,9 +71,9 @@ type rules []*rule
 // Match matches the given repository name against all rules, returning the rule value that matches at last, or nil if none match.
 func (r rules) Match(name string) any {
 	// We want the last match to win, so we'll iterate in reverse order.
-	for i := len(r) - 1; i >= 0; i-- {
-		if r[i].compiled.Match(name) {
-			return r[i].value
+	for _, v := range slices.Backward(r) {
+		if v.compiled.Match(name) {
+			return v.value
 		}
 	}
 	return nil
@@ -83,9 +84,9 @@ func (r rules) Match(name string) any {
 // at last, or nil if none match.
 func (r rules) MatchWithSuffix(name, suffix string) any {
 	// We want the last match to win, so we'll iterate in reverse order.
-	for i := len(r) - 1; i >= 0; i-- {
-		if r[i].compiled.Match(name) && (r[i].patternSuffix == "" || r[i].patternSuffix == suffix) {
-			return r[i].value
+	for _, v := range slices.Backward(r) {
+		if v.compiled.Match(name) && (v.patternSuffix == "" || v.patternSuffix == suffix) {
+			return v.value
 		}
 	}
 	return nil

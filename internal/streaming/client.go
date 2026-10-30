@@ -137,11 +137,11 @@ func (rr Decoder) ReadAll(r io.Reader) error {
 }
 
 func splitColon(data []byte) ([]byte, []byte) {
-	i := bytes.Index(data, []byte(":"))
-	if i < 0 {
+	before, after, ok := bytes.Cut(data, []byte(":"))
+	if !ok {
 		return bytes.TrimSpace(data), nil
 	}
-	return bytes.TrimSpace(data[:i]), bytes.TrimSpace(data[i+1:])
+	return bytes.TrimSpace(before), bytes.TrimSpace(after)
 }
 
 type eventMatchUnmarshaller struct {
