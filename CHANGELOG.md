@@ -22,6 +22,7 @@ All notable changes to `src-cli` are documented in this file.
 
 ### Fixed
 
+- `src search` no longer discards all results when the GraphQL response contains errors for some of them (for example, `repository does not exist` for a repository deleted mid-search). The results are printed, and the errors are reported as warnings; rerun with `-v` to inspect them. [#1150](https://github.com/sourcegraph/src-cli/issues/1150)
 - `src doc` now generates reference pages for the `search-jobs`, `debug`, and `snapshot` subcommands, and the root `index.md` again lists legacy commands (`batch`, `repos`, `search`, ...) alongside the `urfave/cli` ones.
 
 ### Removed
