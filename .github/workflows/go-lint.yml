@@ -14,7 +14,24 @@ jobs:
         id: mise
         run: echo "go-version=$(grep 'golang' mise.toml | cut -d'"' -f2)" >> $GITHUB_OUTPUT
       - name: Set up Go
-        uses: sourcegraph/actions/go-setup@main
+        uses: actions/setup-go@v7
         with:
           go-version: ${{ steps.mise.outputs.go-version }}
+          # See go-ci.yml for why the built-in cache is off.
+          cache: false
+      - name: Find Go cache directories
+        id: go-cache
+        run: |
+          echo "build=$(go env GOCACHE)" >> "$GITHUB_OUTPUT"
+          echo "modules=$(go env GOMODCACHE)" >> "$GITHUB_OUTPUT"
+      - name: Cache Go modules, build output, and golangci-lint analysis
+        uses: actions/cache@v6
+        with:
+          path: |
+            ${{ steps.go-cache.outputs.modules }}
+            ${{ steps.go-cache.outputs.build }}
+            ~/.cache/golangci-lint
+          key: ${{ github.job }}-${{ runner.os }}-${{ runner.arch }}-go${{ steps.mise.outputs.go-version }}-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ github.job }}-${{ runner.os }}-${{ runner.arch }}-go${{ steps.mise.outputs.go-version }}-
       - run: ./dev/go-lint.sh
