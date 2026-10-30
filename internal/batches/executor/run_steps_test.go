@@ -1,13 +1,92 @@
 package executor
 
 import (
+	"context"
+	"encoding/json"
+	"os"
+	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
 	batcheslib "github.com/sourcegraph/sourcegraph/lib/batches"
+	batchenv "github.com/sourcegraph/sourcegraph/lib/batches/env"
 	"github.com/sourcegraph/sourcegraph/lib/batches/template"
 )
+
+func TestWithoutReservedExecutorEnv(t *testing.T) {
+	env := []string{
+		"ALLOWED=value",
+		"SRC_EXECUTOR_JOB_TOKEN=secret",
+		"SRC_EXECUTOR_FUTURE_SECRET=secret",
+		"VALUE=contains-SRC_EXECUTOR_JOB_TOKEN",
+		"MALFORMED",
+	}
+
+	require.Equal(t, []string{
+		"ALLOWED=value",
+		"VALUE=contains-SRC_EXECUTOR_JOB_TOKEN",
+		"MALFORMED",
+	}, withoutReservedExecutorEnv(env))
+
+	var stepEnv batchenv.Environment
+	require.NoError(t, json.Unmarshal([]byte(`[
+		"ALLOWED",
+		"SRC_EXECUTOR_JOB_TOKEN",
+		"SRC_EXECUTOR_FUTURE_SECRET"
+	]`), &stepEnv))
+	resolved, err := stepEnv.Resolve(withoutReservedExecutorEnv(env[:4]))
+	require.NoError(t, err)
+	require.Equal(t, map[string]string{
+		"ALLOWED":                    "value",
+		"SRC_EXECUTOR_JOB_TOKEN":     "",
+		"SRC_EXECUTOR_FUTURE_SECRET": "",
+	}, resolved)
+}
+
+func TestParseContainerTempPath(t *testing.T) {
+	for _, valid := range []string{"/tmp/tmp.abc-123_456", "/tmp/tmp.abc-123_456\n"} {
+		t.Run("valid_"+valid, func(t *testing.T) {
+			got, err := parseContainerTempPath(valid)
+			require.NoError(t, err)
+			require.Equal(t, "/tmp/tmp.abc-123_456", got)
+		})
+	}
+
+	for _, invalid := range []string{
+		"",
+		"\n",
+		"relative/path\n",
+		"/tmp/first\n/tmp/second\n",
+		"/tmp/path\r\n",
+		"/tmp/x,source=/var/run/docker.sock,target=/var/run/docker.sock\n",
+		"/tmp/path with spaces\n",
+		`/tmp/path"quoted`,
+		`/tmp/path\backslash`,
+	} {
+		t.Run("invalid_"+invalid, func(t *testing.T) {
+			_, err := parseContainerTempPath(invalid)
+			require.Error(t, err)
+		})
+	}
+}
+
+func TestProbeImageForShellRejectsMountInjection(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("test uses a shell script as a fake docker executable")
+	}
+
+	dir := t.TempDir()
+	docker := filepath.Join(dir, "docker")
+	err := os.WriteFile(docker, []byte("#!/bin/sh\nprintf '%s\\n' '/tmp/x,source=/var/run/docker.sock,target=/var/run/docker.sock'\n"), 0o755)
+	require.NoError(t, err)
+	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	_, _, err = probeImageForShell(context.Background(), "malicious-image")
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "mktemp returned invalid path")
+}
 
 func TestCreateFilesToMount_RejectsCommaInTargetPath(t *testing.T) {
 	step := batcheslib.Step{

@@ -1,14 +1,16 @@
 package workspace
 
 import (
+	"archive/tar"
 	"bytes"
 	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"io"
 	"os"
+	"path"
 	"sort"
-	"strings"
 
 	"github.com/sourcegraph/sourcegraph/lib/errors"
 
@@ -112,6 +114,10 @@ git commit --quiet --all --allow-empty -m src-action-exec
 func (wc *dockerVolumeWorkspaceCreator) unzipRepoIntoVolume(ctx context.Context, w *dockerVolumeWorkspace, zip string) error {
 	// We want to mount that temporary file into a Docker container that has the
 	// workspace volume attached, and unzip it into the volume.
+	zipMount, err := docker.BindMount(zip, "/tmp/zip", true)
+	if err != nil {
+		return errors.Wrap(err, "creating archive mount")
+	}
 
 	// We need to keep a temporary file in the volume before unzipping for the
 	// permissions to persist because... reasons. Rather than reading the
@@ -157,7 +163,7 @@ func (wc *dockerVolumeWorkspaceCreator) unzipRepoIntoVolume(ctx context.Context,
 		"--rm",
 		"--init",
 		"--workdir", "/work",
-		"--mount", "type=bind,source=" + zip + ",target=/tmp/zip,ro",
+		"--mount", zipMount,
 	}, w.dockerRunOptsWithUser(w.uidGid, "/work")...)
 	opts = append(
 		opts,
@@ -178,41 +184,104 @@ func (wc *dockerVolumeWorkspaceCreator) copyFilesIntoVolumes(ctx context.Context
 		return nil
 	}
 
+	archive, err := wc.archiveAdditionalFiles(files)
+	if err != nil {
+		return err
+	}
+	defer os.Remove(archive)
+	archiveMount, err := docker.BindMount(archive, "/tmp/additional-files.tar", true)
+	if err != nil {
+		return errors.Wrap(err, "creating additional files archive mount")
+	}
+
 	opts := append([]string{
 		"run",
 		"--rm",
 		"--init",
 		"--workdir", "/work",
+		"--mount", archiveMount,
 	}, w.dockerRunOptsWithUser(w.uidGid, "/work")...)
 
-	// We sort these so our tests don't break. Sorry.
+	opts = append(
+		opts,
+		DockerVolumeWorkspaceImage,
+		"tar", "-xf", "/tmp/additional-files.tar", "-C", "/work",
+	)
+
+	if out, err := exec.CommandContext(ctx, "docker", opts...).CombinedOutput(); err != nil {
+		return errors.Wrapf(err, "additional files output:\n\n%s\n\n", string(out))
+	}
+	return nil
+}
+
+func (wc *dockerVolumeWorkspaceCreator) archiveAdditionalFiles(files map[string]string) (archivePath string, err error) {
+	f, err := os.CreateTemp(wc.tempDir, "src-additional-files-*.tar")
+	if err != nil {
+		return "", errors.Wrap(err, "creating additional files archive")
+	}
+	archivePath = f.Name()
+	defer func() {
+		if err != nil {
+			f.Close()
+			os.Remove(archivePath)
+		}
+	}()
+
+	tw := tar.NewWriter(f)
 	var names []string
 	for name := range files {
 		names = append(names, name)
 	}
 	sort.Strings(names)
 
-	var copyCmds []string
 	for _, name := range names {
-		localPath := files[name]
-		opts = append(opts, []string{
-			"--mount", "type=bind,source=" + localPath + ",target=/tmp/" + name + ",ro",
-		}...)
+		if err := validateWorkspaceFileName(name); err != nil {
+			return "", err
+		}
+		if name == "" || path.Clean(name) != name {
+			return "", errors.Errorf("invalid additional file path %q", name)
+		}
 
-		copyCmds = append(copyCmds, "cp /tmp/"+name+" /work/"+name)
+		file, err := os.Open(files[name])
+		if err != nil {
+			return "", errors.Wrapf(err, "opening additional file %q", name)
+		}
+		info, err := file.Stat()
+		if err != nil {
+			file.Close()
+			return "", errors.Wrapf(err, "stating additional file %q", name)
+		}
+		if !info.Mode().IsRegular() {
+			file.Close()
+			return "", errors.Errorf("additional file %q is not a regular file", name)
+		}
+
+		header, err := tar.FileInfoHeader(info, "")
+		if err != nil {
+			file.Close()
+			return "", errors.Wrapf(err, "creating archive header for additional file %q", name)
+		}
+		header.Name = name
+		if err := tw.WriteHeader(header); err != nil {
+			file.Close()
+			return "", errors.Wrapf(err, "writing archive header for additional file %q", name)
+		}
+		if _, err := io.Copy(tw, file); err != nil {
+			file.Close()
+			return "", errors.Wrapf(err, "archiving additional file %q", name)
+		}
+		if err := file.Close(); err != nil {
+			return "", errors.Wrapf(err, "closing additional file %q", name)
+		}
 	}
 
-	opts = append(
-		opts,
-		DockerVolumeWorkspaceImage,
-		"sh", "-c",
-		strings.Join(copyCmds, " && ")+";",
-	)
-
-	if out, err := exec.CommandContext(ctx, "docker", opts...).CombinedOutput(); err != nil {
-		return errors.Wrapf(err, "unzip output:\n\n%s\n\n", string(out))
+	if err := tw.Close(); err != nil {
+		return "", errors.Wrap(err, "closing additional files archive")
 	}
-	return nil
+	if err := f.Close(); err != nil {
+		return "", errors.Wrap(err, "closing additional files archive file")
+	}
+	return archivePath, nil
 }
 
 // dockerVolumeWorkspace workspaces are placed on Docker volumes (surprise!),
@@ -327,12 +396,17 @@ func (w *dockerVolumeWorkspace) runScript(ctx context.Context, target, script st
 		return nil, errors.Wrap(err, "generating run options")
 	}
 
+	scriptMount, err := docker.BindMount(name, "/run.sh", true)
+	if err != nil {
+		return nil, errors.Wrap(err, "creating run script mount")
+	}
+
 	opts := append([]string{
 		"run",
 		"--rm",
 		"--init",
 		"--workdir", target,
-		"--mount", "type=bind,source=" + name + ",target=/run.sh,ro",
+		"--mount", scriptMount,
 	}, common...)
 	opts = append(opts, DockerVolumeWorkspaceImage, "sh", "/run.sh")
 

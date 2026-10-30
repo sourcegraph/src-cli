@@ -7,7 +7,7 @@
 # created a tempfile, or it executes the script supplied as the last arg to
 # "run".
 
-dummy_temp_file="DUMMYDOCKER-TEMP-FILE"
+dummy_temp_file="/tmp/DUMMYDOCKER-TEMP-FILE"
 
 workdir_prefix="/work/"
 

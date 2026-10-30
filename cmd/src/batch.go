@@ -37,7 +37,8 @@ Use "src batch [command] -h" for more information about a command.
 
 	// Register the command.
 	commands = append(commands, &command{
-		flagSet: flagSet,
+		flagSet:     flagSet,
+		description: "manages batch changes",
 		aliases: []string{
 			"batchchange",
 			"batch-change",

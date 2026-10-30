@@ -69,6 +69,52 @@ func TestReposHandler(t *testing.T) {
 	}
 }
 
+func TestHandlerRejectsGitdirFile(t *testing.T) {
+	root := t.TempDir()
+	servedRoot := filepath.Join(root, "served")
+	publicRepo := filepath.Join(servedRoot, "public")
+	privateRepo := filepath.Join(root, "private")
+	for _, repo := range []string{publicRepo, privateRepo} {
+		if err := os.MkdirAll(repo, 0755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	gitInit(t, publicRepo)
+	gitInit(t, privateRepo)
+
+	pointer := filepath.Join(publicRepo, "gitdir-pointer")
+	if err := os.WriteFile(pointer, []byte("gitdir: ../../private/.git\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	runCmd(t, publicRepo, "git", "add", "gitdir-pointer")
+	runCmd(t, publicRepo, "git", "commit", "-m", "add gitdir pointer")
+	runCmd(t, privateRepo, "git", "commit", "--allow-empty", "-m", "private commit")
+	// Git accepts this ordinary tracked file as a repository and follows its
+	// gitdir pointer outside servedRoot.
+	runCmd(t, publicRepo, "git", "upload-pack", "--strict", "--advertise-refs", pointer)
+
+	rootFS, err := os.OpenRoot(servedRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { rootFS.Close() })
+
+	h := (&Serve{
+		Info:   testLogger(t),
+		Debug:  discardLogger,
+		Addr:   testAddress,
+		Root:   servedRoot,
+		RootFS: rootFS,
+	}).handler()
+	req := httptest.NewRequest(http.MethodGet, "/repos/public/gitdir-pointer/info/refs?service=git-upload-pack", nil)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("gitdir file status = %d, want %d; body: %s", rec.Code, http.StatusNotFound, rec.Body.String())
+	}
+}
+
 func testReposHandler(t *testing.T, h http.Handler, repos []Repo) {
 	ts := httptest.NewServer(h)
 	t.Cleanup(ts.Close)

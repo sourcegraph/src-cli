@@ -15,9 +15,20 @@ All notable changes to `src-cli` are documented in this file.
 
 ### Changed
 
+- Updated Go to 1.26.10 and the Alpine `ca-certificates-bundle` in Docker images to 20261020-r0 to stop trusting the compromised eMudhra CAs ([CVE-2026-111943](https://emudhra.we-have-a-problem.com/)).
+- HTTP requests now fail instead of hanging forever if the server does not start responding within 1 minute. Set the `SRC_RESPONSE_HEADER_TIMEOUT` environment variable to change this timeout, or to `0` to disable it. Responses that stream data for a long time (for example, large search job results) are not affected.
+- `src search-jobs logs` and `src search-jobs results` now use the standard API client, gaining proxy support, `-insecure-skip-verify`, and cross-host redirect protection, and now report an error on non-200 responses instead of writing the error page into the output.
+- The command list in `src help` is now generated from the registered commands instead of being maintained by hand. `src debug`, `src snapshot`, and `src lsp` now appear in it; aliases are shown after each description.
+
+### Fixed
+
+- `src doc` now generates reference pages for the `search-jobs`, `debug`, and `snapshot` subcommands, and the root `index.md` again lists legacy commands (`batch`, `repos`, `search`, ...) alongside the `urfave/cli` ones.
+
 ### Removed
 
 - Removed `src sbom` and `src signature` commands. SBOMs and container signatures are no longer published as of Sourcegraph 7.1.0.
+- Removed the internal `src batch exec` command. Server-side Batch Changes execution now uses the `batch-exec` binary in the Sourcegraph repository.
+- Removed the `src teams` (`src team`) commands. Teams were removed in Sourcegraph 7.0 and the commands have refused to run against 7.x instances since src-cli 7.0.0.
 
 ## 6.7.1104
 
@@ -43,7 +54,7 @@ All notable changes to `src-cli` are documented in this file.
 
 ### Added
 
-- SBOM support: Added `--image` and `--exclude-image` flags to `src sbom fetch` for filtering which docker images SBOMs are fetched for. Both flags support glob patterns (e.g., `frontend`, `*api*`) and comma-separated lists. The `sourcegraph/` image name prefix is optional.
+- SBOM support: Added `--image` and `--exclude-image` flags to `src sbom fetch` for filtering which Docker images SBOMs are fetched for. Both flags support glob patterns (e.g., `frontend`, `*api*`) and comma-separated lists. The `sourcegraph/` image name prefix is optional.
 
 ### Changed
 
@@ -85,7 +96,7 @@ All notable changes to `src-cli` are documented in this file.
 ## 5.10.0
 
 - cody gateway benchmark changes
-- fix local builds for non sourcegraph team [1121](https://github.com/sourcegraph/src-cli/pull/1121)
+- fix local builds for non Sourcegraph team [1121](https://github.com/sourcegraph/src-cli/pull/1121)
 
 ## 5.9.1
 
@@ -163,7 +174,7 @@ All notable changes to `src-cli` are documented in this file.
 
 ### Fixed
 
-- The fork attribute in changesetTemplate is now acknowleged when creating a batch change via `src-cli`. [#58156](https://github.com/sourcegraph/sourcegraph/pull/58156)
+- The fork attribute in changesetTemplate is now acknowledged when creating a batch change via `src-cli`. [#58156](https://github.com/sourcegraph/sourcegraph/pull/58156)
 
 ## 5.2.0
 
@@ -179,7 +190,7 @@ All notable changes to `src-cli` are documented in this file.
 
 ### Fixed
 
-- The temporary docker volume created during workspace preparation is now cleaned up when failure occurs. [#1021](https://github.com/sourcegraph/src-cli/pull/1021).
+- The temporary Docker volume created during workspace preparation is now cleaned up when failure occurs. [#1021](https://github.com/sourcegraph/src-cli/pull/1021).
 
 ## 5.1.1
 
@@ -265,7 +276,7 @@ No noteworthy changes, mechanical release to match Sourcegraph release.
 
 ### Fixed
 
-- Fix network timeout in `src users clean` occuring in instances with many users [#901](https://github.com/sourcegraph/src-cli/pull/901)
+- Fix network timeout in `src users clean` occurring in instances with many users [#901](https://github.com/sourcegraph/src-cli/pull/901)
 - Aligned parsing of spec file parameter of `src batch repos` with other commands. [#919](https://github.com/sourcegraph/src-cli/pull/919)
 - Remove empty log outputs during batch spec execution. [#923](https://github.com/sourcegraph/src-cli/pull/923)
 
@@ -277,7 +288,7 @@ No noteworthy changes, mechanical release to match Sourcegraph release.
 
 ### Added
 
-- Batch Changes: Watchdog that checks for docker responsiveness while running commands has been added. [#898](https://github.com/sourcegraph/src-cli/pull/898)
+- Batch Changes: Watchdog that checks for Docker responsiveness while running commands has been added. [#898](https://github.com/sourcegraph/src-cli/pull/898)
 
 ## 4.2.1
 
@@ -306,7 +317,7 @@ No noteworthy changes, mechanical release to match Sourcegraph release.
 
 ### Changed
 
-- Improved output for failing docker pulls in batch change execution. [#880](https://github.com/sourcegraph/src-cli/pull/880)
+- Improved output for failing Docker pulls in batch change execution. [#880](https://github.com/sourcegraph/src-cli/pull/880)
 
 ## 4.1.0
 
@@ -793,7 +804,7 @@ Re-release of 3.29.3 for Sourcegraph 3.30.
 
 ### Fixed
 
-- When specifying `-skip-errors`, the batch spec would always be empty. This ix fixed and the intended behavior has been restored. [#539](https://github.com/sourcegraph/src-cli/pull/539)
+- When specifying `-skip-errors`, the batch spec would always be empty. This is fixed and the intended behavior has been restored. [#539](https://github.com/sourcegraph/src-cli/pull/539)
 
 ## 3.27.0
 
@@ -868,13 +879,13 @@ Re-release of 3.29.3 for Sourcegraph 3.30.
 
 ### Fixed
 
-- The homebrew recipe for `src-cli` contained the wrong binary name.
+- The Homebrew recipe for `src-cli` contained the wrong binary name.
 
 ## 3.24.6
 
 ### Fixed
 
-- Workspaces could sometimes fail with docker bind mount errors, due to a race condition of multiple workspaces accessing the same auxilliary files. [#468](https://github.com/sourcegraph/src-cli/pull/468)
+- Workspaces could sometimes fail with Docker bind mount errors, due to a race condition of multiple workspaces accessing the same auxiliary files. [#468](https://github.com/sourcegraph/src-cli/pull/468)
 
 ## 3.24.5
 
@@ -1150,7 +1161,7 @@ Re-release of 3.29.3 for Sourcegraph 3.30.
 
 - Add `--no-progress` flag to the `lsif upload` command to disable verbose output in non-TTY environments.
 - `SRC_HEADER_AUTHORIZATION="Bearer $(...)"` is now supported for authenticating `src` with custom auth proxies. See [auth proxy configuration docs](AUTH_PROXY.md) for more information. [#239](https://github.com/sourcegraph/src-cli/pull/239)
-- Pull missing docker images automatically. [#191](https://github.com/sourcegraph/src-cli/pull/191)
+- Pull missing Docker images automatically. [#191](https://github.com/sourcegraph/src-cli/pull/191)
 - Searches that result in errors will now display any alerts returned by Sourcegraph, including suggestions for how the search could be corrected. [#221](https://github.com/sourcegraph/src-cli/pull/221)
 
 ### Changed

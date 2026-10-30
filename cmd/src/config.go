@@ -45,8 +45,9 @@ Use "src config [command] -h" for more information about a command.
 
 	// Register the command.
 	commands = append(commands, &command{
-		flagSet: flagSet,
-		handler: handler,
+		flagSet:     flagSet,
+		description: "manages global, org, and user settings",
+		handler:     handler,
 		usageFunc: func() {
 			fmt.Println(usage)
 		},

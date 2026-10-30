@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
+	"net/http"
 	"strings"
 
 	"github.com/sourcegraph/src-cli/internal/api"
@@ -167,6 +169,31 @@ func parseSearchJobsArgs(flagSet *flag.FlagSet, args []string) error {
 	return nil
 }
 
+// fetchSearchJobFile downloads a file (logs or results) belonging to a search
+// job. The request goes through the API client so that it picks up the
+// configured transport (timeouts, proxy, TLS and redirect handling).
+func fetchSearchJobFile(client api.Client, fileURL string) (io.ReadCloser, error) {
+	req, err := http.NewRequest("GET", fileURL, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Authorization", "token "+cfg.accessToken)
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
+		resp.Body.Close()
+		return nil, fmt.Errorf("error: %s\n\n%s", resp.Status, body)
+	}
+
+	return resp.Body, nil
+}
+
 // validateJobID validates that a job ID was provided
 func validateJobID(args []string) (string, error) {
 	if len(args) != 1 {
@@ -282,9 +309,10 @@ func init() {
 	}
 
 	commands = append(commands, &command{
-		flagSet: flagSet,
-		aliases: []string{"search-job"},
-		handler: handler,
+		flagSet:     flagSet,
+		description: "manages search jobs",
+		aliases:     []string{"search-job"},
+		handler:     handler,
 		usageFunc: func() {
 			fmt.Println(usage)
 		},

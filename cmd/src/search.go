@@ -48,7 +48,7 @@ Other tips:
 
   Force color output on (not on by default when piped to other programs) by setting COLOR=t
 
-  Query syntax: https://docs.sourcegraph.com/code_search/reference/queries
+  Query syntax: https://sourcegraph.com/docs/code_search/reference/queries
 
   Be careful with search strings including negation: a search with an initial
   negated term may be parsed as a flag rather than as a search string. You can
@@ -291,8 +291,9 @@ Other tips:
 
 	// Register the command.
 	commands = append(commands, &command{
-		flagSet: flagSet,
-		handler: handler,
+		flagSet:     flagSet,
+		description: "search for results on Sourcegraph",
+		handler:     handler,
 		usageFunc: func() {
 			fmt.Fprintf(flag.CommandLine.Output(), "Usage of 'src %s':\n", flagSet.Name())
 			flagSet.PrintDefaults()

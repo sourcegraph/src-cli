@@ -4,7 +4,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"net/http"
 	"os"
 
 	"github.com/sourcegraph/src-cli/internal/api"
@@ -12,24 +11,12 @@ import (
 )
 
 // fetchJobResults retrieves results for a search job from its results URL
-func fetchJobResults(jobID string, resultsURL string) (io.ReadCloser, error) {
+func fetchJobResults(client api.Client, jobID string, resultsURL string) (io.ReadCloser, error) {
 	if resultsURL == "" {
 		return nil, fmt.Errorf("no results URL found for search job %s", jobID)
 	}
 
-	req, err := http.NewRequest("GET", resultsURL, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Authorization", "token "+cfg.accessToken)
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-
-	return resp.Body, nil
+	return fetchSearchJobFile(client, resultsURL)
 }
 
 // outputResults writes results to either a file or stdout
@@ -90,7 +77,7 @@ func init() {
 			return fmt.Errorf("no job found with ID %s", jobID)
 		}
 
-		resultsData, err := fetchJobResults(jobID, job.URL)
+		resultsData, err := fetchJobResults(client, jobID, job.URL)
 		if err != nil {
 			return err
 		}

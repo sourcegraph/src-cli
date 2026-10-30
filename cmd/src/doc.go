@@ -57,12 +57,15 @@ Examples:
 		}
 
 		commanders := map[string]*commander{
-			"":           &commands,
-			"batch":      &batchCommands,
-			"config":     &configCommands,
-			"extsvc":     &extsvcCommands,
-			"code-intel": &codeintelCommands,
-			"repos":      &reposCommands,
+			"":            &commands,
+			"batch":       &batchCommands,
+			"config":      &configCommands,
+			"extsvc":      &extsvcCommands,
+			"code-intel":  &codeintelCommands,
+			"repos":       &reposCommands,
+			"search-jobs": &searchJobsCommands,
+			"debug":       &debugCommands,
+			"snapshot":    &snapshotCommands,
 		}
 
 		rootSubcommands := map[string]string{}
@@ -79,7 +82,7 @@ Examples:
 					name,
 				}, " "))
 
-				if fqcn == "doc" || fqcn == "publish" {
+				if cmd.hidden {
 					continue
 				}
 
@@ -108,7 +111,7 @@ Examples:
 			}
 
 			if groupName == "" {
-				maps.Copy(subcommands, rootSubcommands)
+				maps.Copy(rootSubcommands, subcommands)
 				continue
 			}
 
@@ -173,6 +176,7 @@ Examples:
 
 	commands = append(commands, &command{
 		flagSet: flagSet,
+		hidden:  true,
 		handler: handler,
 		usageFunc: func() {
 			fmt.Fprintln(flag.CommandLine.Output(), usage)

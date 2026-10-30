@@ -358,6 +358,63 @@ func TestReadConfig(t *testing.T) {
 				inCI:              true,
 			},
 		},
+		{
+			name: "config file additional headers preserved when endpoint/token from environment",
+			fileContents: &configFromFile{
+				Endpoint:          "https://example.com/",
+				AccessToken:       "deadbeef",
+				AdditionalHeaders: map[string]string{"x-proxy-token": "secret"},
+			},
+			envToken:    "abc",
+			envEndpoint: "https://override.com",
+			want: &config{
+				endpointURL:       &url.URL{Scheme: "https", Host: "override.com"},
+				accessToken:       "abc",
+				additionalHeaders: map[string]string{"x-proxy-token": "secret"},
+			},
+		},
+		{
+			name: "config file additional headers merged with environment headers",
+			fileContents: &configFromFile{
+				Endpoint:          "https://example.com/",
+				AccessToken:       "deadbeef",
+				AdditionalHeaders: map[string]string{"x-proxy-token": "secret"},
+			},
+			envFooHeader: "bar",
+			want: &config{
+				endpointURL:       &url.URL{Scheme: "https", Host: "example.com"},
+				accessToken:       "deadbeef",
+				additionalHeaders: map[string]string{"x-proxy-token": "secret", "foo": "bar"},
+			},
+		},
+		{
+			name: "environment headers override config file headers",
+			fileContents: &configFromFile{
+				Endpoint:          "https://example.com/",
+				AccessToken:       "deadbeef",
+				AdditionalHeaders: map[string]string{"foo": "from-config"},
+			},
+			envFooHeader: "from-env",
+			want: &config{
+				endpointURL:       &url.URL{Scheme: "https", Host: "example.com"},
+				accessToken:       "deadbeef",
+				additionalHeaders: map[string]string{"foo": "from-env"},
+			},
+		},
+		{
+			name: "environment headers override differently-cased config file headers",
+			fileContents: &configFromFile{
+				Endpoint:          "https://example.com/",
+				AccessToken:       "deadbeef",
+				AdditionalHeaders: map[string]string{"Foo": "from-config"},
+			},
+			envFooHeader: "from-env",
+			want: &config{
+				endpointURL:       &url.URL{Scheme: "https", Host: "example.com"},
+				accessToken:       "deadbeef",
+				additionalHeaders: map[string]string{"foo": "from-env"},
+			},
+		},
 	}
 
 	for _, test := range tests {
