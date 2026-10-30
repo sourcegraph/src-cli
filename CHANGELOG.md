@@ -15,6 +15,16 @@ All notable changes to `src-cli` are documented in this file.
 
 ### Changed
 
+### Fixed
+
+### Removed
+
+## 8.1.2687
+
+### Added
+
+### Changed
+
 - Updated Go to 1.26.10 and the Alpine `ca-certificates-bundle` in Docker images to 20261020-r0 to stop trusting the compromised eMudhra CAs ([CVE-2026-111943](https://emudhra.we-have-a-problem.com/)).
 - Updated Go dependencies to patch all open Trivy and Dependabot findings: `golang.org/x/crypto`, `golang.org/x/net`, `golang.org/x/text`, `golang.org/x/mod`, `github.com/klauspost/compress`, `github.com/go-jose/go-jose/v4`, `google.golang.org/grpc`, and `go.opentelemetry.io/otel/sdk`.
 - Updated Go to 1.27.3, Alpine base images to 3.24, GitHub Actions to current major versions, and all Go dependencies to their latest versions. `src snapshot upload` now loads the `-credentials-file` strictly as a service account key.
