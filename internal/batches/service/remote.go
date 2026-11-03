@@ -175,8 +175,15 @@ func (svc *Service) uploadFile(ctx context.Context, workingDir, filePath, batchS
 	pipeReader, pipeWriter := io.Pipe()
 	multipartWriter := multipart.NewWriter(pipeWriter)
 
+	request, err := svc.client.NewHTTPRequest(ctx, http.MethodPost, fmt.Sprintf(".api/files/batch-changes/%s", batchSpecID), pipeReader)
+	if err != nil {
+		return err
+	}
+	request.Header.Set("Content-Type", multipartWriter.FormDataContentType())
+
 	// Write in a separate goroutine to properly chunk the file content. Writing to the pipe lets us not have
-	// to put the whole file in memory.
+	// to put the whole file in memory. Started only once the request exists, so a NewHTTPRequest error
+	// doesn't leak a goroutine blocked on a pipe nobody reads.
 	go func() {
 		defer pipeWriter.Close()
 		defer multipartWriter.Close()
@@ -185,12 +192,6 @@ func (svc *Service) uploadFile(ctx context.Context, workingDir, filePath, batchS
 			pipeWriter.CloseWithError(err)
 		}
 	}()
-
-	request, err := svc.client.NewHTTPRequest(ctx, http.MethodPost, fmt.Sprintf(".api/files/batch-changes/%s", batchSpecID), pipeReader)
-	if err != nil {
-		return err
-	}
-	request.Header.Set("Content-Type", multipartWriter.FormDataContentType())
 
 	resp, err := svc.client.Do(request)
 	if err != nil {

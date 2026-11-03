@@ -1,5 +1,3 @@
-//go:build !race
-
 package service_test
 
 import (
@@ -48,7 +46,7 @@ func TestService_UploadBatchSpecWorkspaceFiles(t *testing.T) {
 				req := httptest.NewRequest(http.MethodPost, "http://fake.com/.api/files/batch-changes/123", nil)
 				client.On("NewHTTPRequest", mock.Anything, http.MethodPost, ".api/files/batch-changes/123", mock.Anything).
 					Run(func(args mock.Arguments) {
-						req.Body = args[3].(*io.PipeReader)
+						req.Body = io.NopCloser(args[3].(mockclient.RequestBody))
 					}).
 					Return(req, nil).
 					Once()
@@ -90,7 +88,7 @@ func TestService_UploadBatchSpecWorkspaceFiles(t *testing.T) {
 				req := httptest.NewRequest(http.MethodPost, "http://fake.com/.api/files/batch-changes/123", nil)
 				client.On("NewHTTPRequest", mock.Anything, http.MethodPost, ".api/files/batch-changes/123", mock.Anything).
 					Run(func(args mock.Arguments) {
-						req.Body = args[3].(*io.PipeReader)
+						req.Body = io.NopCloser(args[3].(mockclient.RequestBody))
 					}).
 					Return(req, nil).
 					Once()
@@ -132,7 +130,7 @@ func TestService_UploadBatchSpecWorkspaceFiles(t *testing.T) {
 				req := httptest.NewRequest(http.MethodPost, "http://fake.com/.api/files/batch-changes/123", nil)
 				client.On("NewHTTPRequest", mock.Anything, http.MethodPost, ".api/files/batch-changes/123", mock.Anything).
 					Run(func(args mock.Arguments) {
-						req.Body = args[3].(*io.PipeReader)
+						req.Body = io.NopCloser(args[3].(mockclient.RequestBody))
 					}).
 					Return(req, nil).
 					Twice()
@@ -180,7 +178,7 @@ func TestService_UploadBatchSpecWorkspaceFiles(t *testing.T) {
 				req := httptest.NewRequest(http.MethodPost, "http://fake.com/.api/files/batch-changes/123", nil)
 				client.On("NewHTTPRequest", mock.Anything, http.MethodPost, ".api/files/batch-changes/123", mock.Anything).
 					Run(func(args mock.Arguments) {
-						req.Body = args[3].(*io.PipeReader)
+						req.Body = io.NopCloser(args[3].(mockclient.RequestBody))
 					}).
 					Return(req, nil).
 					Twice()
@@ -229,7 +227,7 @@ func TestService_UploadBatchSpecWorkspaceFiles(t *testing.T) {
 				req := httptest.NewRequest(http.MethodPost, "http://fake.com/.api/files/batch-changes/123", nil)
 				client.On("NewHTTPRequest", mock.Anything, http.MethodPost, ".api/files/batch-changes/123", mock.Anything).
 					Run(func(args mock.Arguments) {
-						req.Body = args[3].(*io.PipeReader)
+						req.Body = io.NopCloser(args[3].(mockclient.RequestBody))
 					}).
 					Return(req, nil).
 					Once()
@@ -281,7 +279,7 @@ func TestService_UploadBatchSpecWorkspaceFiles(t *testing.T) {
 				req := httptest.NewRequest(http.MethodPost, "http://fake.com/.api/files/batch-changes/123", nil)
 				client.On("NewHTTPRequest", mock.Anything, http.MethodPost, ".api/files/batch-changes/123", mock.Anything).
 					Run(func(args mock.Arguments) {
-						req.Body = args[3].(*io.PipeReader)
+						req.Body = io.NopCloser(args[3].(mockclient.RequestBody))
 					}).
 					Return(req, nil).
 					Times(3)
@@ -362,7 +360,7 @@ func TestService_UploadBatchSpecWorkspaceFiles(t *testing.T) {
 				req := httptest.NewRequest(http.MethodPost, "http://fake.com/.api/files/batch-changes/123", nil)
 				client.On("NewHTTPRequest", mock.Anything, http.MethodPost, ".api/files/batch-changes/123", mock.Anything).
 					Run(func(args mock.Arguments) {
-						req.Body = args[3].(*io.PipeReader)
+						req.Body = io.NopCloser(args[3].(mockclient.RequestBody))
 					}).
 					Return(req, nil).
 					Once()
@@ -400,7 +398,7 @@ func TestService_UploadBatchSpecWorkspaceFiles(t *testing.T) {
 				req := httptest.NewRequest(http.MethodPost, "http://fake.com/.api/files/batch-changes/123", nil)
 				client.On("NewHTTPRequest", mock.Anything, http.MethodPost, ".api/files/batch-changes/123", mock.Anything).
 					Run(func(args mock.Arguments) {
-						req.Body = args[3].(*io.PipeReader)
+						req.Body = io.NopCloser(args[3].(mockclient.RequestBody))
 					}).
 					Return(req, nil).
 					Once()
