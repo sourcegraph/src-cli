@@ -25,7 +25,7 @@
     "brace-expansion": "^2.0.2"
   },
   "devDependencies": {
-    "@types/tar": "6.1.13"
+    "@types/tar": "7.0.87"
   },
   "private": false
 }
