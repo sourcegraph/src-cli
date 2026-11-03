@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/sourcegraph/src-cli/internal/validate"
 )
@@ -306,15 +305,13 @@ func TestValidatePVC(t *testing.T) {
 // helper test function to return a valid pod
 func testPod() *corev1.Pod {
 	return &corev1.Pod{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: "default",
-			Name:      "sourcegraph-frontend-",
-			Labels: map[string]string{
-				"deploy": "sourcegraph",
-			},
-			Annotations: map[string]string{
-				"kubectl.kubernetes.io/default-container": "frontend",
-			},
+		Namespace: "default",
+		Name:      "sourcegraph-frontend-",
+		Labels: map[string]string{
+			"deploy": "sourcegraph",
+		},
+		Annotations: map[string]string{
+			"kubectl.kubernetes.io/default-container": "frontend",
 		},
 		Spec: corev1.PodSpec{
 			Containers: []corev1.Container{
@@ -354,12 +351,10 @@ func testPod() *corev1.Pod {
 // helper test function to return a valid service
 func testService() *corev1.Service {
 	return &corev1.Service{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: "default",
-			Name:      "symbols",
-			Labels: map[string]string{
-				"deploy": "sourcegraph",
-			},
+		Namespace: "default",
+		Name:      "symbols",
+		Labels: map[string]string{
+			"deploy": "sourcegraph",
 		},
 		Spec: corev1.ServiceSpec{
 			Type: corev1.ServiceTypeClusterIP,
@@ -378,12 +373,10 @@ func testService() *corev1.Service {
 // helper test function to return a valid PVC
 func testPVC() *corev1.PersistentVolumeClaim {
 	return &corev1.PersistentVolumeClaim{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: "default",
-			Name:      "pgsql",
-			Labels: map[string]string{
-				"deploy": "sourcegraph",
-			},
+		Namespace: "default",
+		Name:      "pgsql",
+		Labels: map[string]string{
+			"deploy": "sourcegraph",
 		},
 		Status: corev1.PersistentVolumeClaimStatus{
 			Phase: "Bound",

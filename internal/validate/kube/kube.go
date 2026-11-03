@@ -381,7 +381,7 @@ func CurrentContextSetTo(clusterService string) error {
 
 	switch clusterService {
 	case "gke":
-		got := strings.Split(currentContext, "_")[0]
+		got, _, _ := strings.Cut(currentContext, "_")
 		want := clusterService
 		if got != want {
 			return errors.New("no gke cluster configured")

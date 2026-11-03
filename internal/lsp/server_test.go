@@ -264,10 +264,8 @@ func TestHandleTextDocumentDocumentHighlight(t *testing.T) {
 
 			uri := pathToFileURI(filepath.Join(gitRoot, tt.path))
 			params := &protocol.DocumentHighlightParams{
-				TextDocumentPositionParams: protocol.TextDocumentPositionParams{
-					TextDocument: protocol.TextDocumentIdentifier{URI: uri},
-					Position:     protocol.Position{Line: 10, Character: 5},
-				},
+				TextDocument: protocol.TextDocumentIdentifier{URI: uri},
+				Position:     protocol.Position{Line: 10, Character: 5},
 			}
 
 			result, err := s.handleTextDocumentDocumentHighlight(nil, params)

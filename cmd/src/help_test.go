@@ -44,7 +44,7 @@ func helpCommandNames(t *testing.T, help string) []string {
 	block, _, _ = strings.Cut(block, "\nUse \"src [command] -h\"")
 
 	var names []string
-	for _, line := range strings.Split(block, "\n") {
+	for line := range strings.SplitSeq(block, "\n") {
 		line = strings.TrimSpace(line)
 		if line == "" {
 			continue

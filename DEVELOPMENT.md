@@ -102,6 +102,8 @@ If a backwards-compatible change, such as a bug fix, is made _after_ a backwards
 
 A Sourcegraph instance returns the highest patch version with the same major and minor version as `MinimumVersion` as defined in the instance. Patch versions are reserved solely for non-breaking changes and minor bug fixes. This allows us to dynamically release fixes for older versions of `src-cli` without having to update the instance.
 
+Patch numbers must only increase within a minor line. Since 8.1.2687, releases carry the Sourcegraph build number as the patch component, so a later 8.1.x must use a number above 2687 (for example the current Sourcegraph 8.1 build number). A lower number such as 8.1.1 would be treated as a patch of an older version by the Build and Release action (no `latest` tag or main Homebrew formula) while sourcegraph.com would still recommend it as the newest 8.1 release.
+
 To release a bug fix or a new feature that is backwards compatible with one of the previous two minor version of Sourcegraph, cherry-pick the changes into a patch branch, then follow the steps above to release the patch, specifying the appropriate patch `VERSION`. The Build and Release action will automatically create the appropriate versioned release, without overwriting the latest one.
 
 ## Docker

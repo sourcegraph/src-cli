@@ -5,9 +5,8 @@ on:
 jobs:
   scip-go:
     runs-on: ubuntu-latest
-    container: sourcegraph/scip-go
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Get Go version from mise
         id: mise
         run: echo "go-version=$(grep 'golang' mise.toml | cut -d'"' -f2)" >> $GITHUB_OUTPUT
@@ -16,8 +15,11 @@ jobs:
         with:
           go-version: ${{ steps.mise.outputs.go-version }}
 
-      - name: Set directory to safe for git
-        run: git config --global --add safe.directory $GITHUB_WORKSPACE
+      # Built with the same Go toolchain as src-cli, so scip-go recognizes
+      # every stdlib package of that Go version. The sourcegraph/scip-go
+      # Docker image stopped at v0.1.26 (Go 1.26) and fails on Go 1.27.
+      - name: Install scip-go
+        run: go install github.com/scip-code/scip-go/cmd/scip-go@v0.2.9
 
       - name: Build src-cli
         run: go build -o ./src-cli ./cmd/src

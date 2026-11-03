@@ -140,30 +140,24 @@ func codeintelUploadOptions(out *output.Output) upload.UploadOptions {
 	)
 
 	return upload.UploadOptions{
-		UploadRecordOptions: upload.UploadRecordOptions{
-			Repo:              codeintelUploadFlags.repo,
-			Commit:            codeintelUploadFlags.commit,
-			Root:              codeintelUploadFlags.root,
-			Indexer:           codeintelUploadFlags.indexer,
-			IndexerVersion:    codeintelUploadFlags.indexerVersion,
-			AssociatedIndexID: associatedIndexID,
-		},
-		SourcegraphInstanceOptions: upload.SourcegraphInstanceOptions{
-			SourcegraphURL:      cfg.endpointURL.String(),
-			AccessToken:         cfg.accessToken,
-			AdditionalHeaders:   cfg.additionalHeaders,
-			MaxRetries:          5,
-			RetryInterval:       time.Second,
-			Path:                codeintelUploadFlags.uploadRoute,
-			MaxPayloadSizeBytes: codeintelUploadFlags.maxPayloadSizeMb * 1000 * 1000,
-			MaxConcurrency:      codeintelUploadFlags.maxConcurrency,
-			GitHubToken:         codeintelUploadFlags.gitHubToken,
-			GitLabToken:         codeintelUploadFlags.gitLabToken,
-		},
-		OutputOptions: upload.OutputOptions{
-			Output: out,
-			Logger: logger,
-		},
+		Repo:                codeintelUploadFlags.repo,
+		Commit:              codeintelUploadFlags.commit,
+		Root:                codeintelUploadFlags.root,
+		Indexer:             codeintelUploadFlags.indexer,
+		IndexerVersion:      codeintelUploadFlags.indexerVersion,
+		AssociatedIndexID:   associatedIndexID,
+		SourcegraphURL:      cfg.endpointURL.String(),
+		AccessToken:         cfg.accessToken,
+		AdditionalHeaders:   cfg.additionalHeaders,
+		MaxRetries:          5,
+		RetryInterval:       time.Second,
+		Path:                codeintelUploadFlags.uploadRoute,
+		MaxPayloadSizeBytes: codeintelUploadFlags.maxPayloadSizeMb * 1000 * 1000,
+		MaxConcurrency:      codeintelUploadFlags.maxConcurrency,
+		GitHubToken:         codeintelUploadFlags.gitHubToken,
+		GitLabToken:         codeintelUploadFlags.gitLabToken,
+		Output:              out,
+		Logger:              logger,
 	}
 }
 
