@@ -205,7 +205,10 @@ func createGcsClient(flagSet *flag.FlagSet, credentialsPath string) (*gcsClient,
 	out := output.NewOutput(flagSet.Output(), output.OutputOpts{Verbose: *verbose})
 
 	// https://pkg.go.dev/cloud.google.com/go/storage#section-readme
-	client, err := storage.NewClient(ctx, option.WithCredentialsFile(credentialsPath))
+	// The credentials file Sourcegraph provides is a service account key, so
+	// only accept that type; option.WithCredentialsFile is deprecated because
+	// it loads any credential type without validation.
+	client, err := storage.NewClient(ctx, option.WithAuthCredentialsFile(option.ServiceAccount, credentialsPath))
 
 	if err != nil {
 		return nil, errors.Wrap(err, "create Google Cloud Storage client")
