@@ -317,7 +317,8 @@ func prettyPrintBatchUnlicensedError(out *output.Output, maxUnlicensedCS int, er
 	// Pull apart the error to see if it's a licensing error: if so, we should
 	// display a friendlier and more actionable message than the usual GraphQL
 	// error output.
-	if gerrs, ok := err.(api.GraphQlErrors); ok {
+	var gerrs api.GraphQlErrors
+	if errors.As(err, &gerrs) {
 		// A licensing error should be the sole error returned, so we'll only
 		// pretty print if there's one error.
 		if len(gerrs) == 1 {
@@ -357,7 +358,8 @@ func prettyPrintBatchUnlicensedError(out *output.Output, maxUnlicensedCS int, er
 func printExecutionError(out *output.Output, err error) {
 	// exitCodeError shouldn't generate any specific output, since it indicates
 	// that this was done deeper in the call stack.
-	if _, ok := err.(*cmderrors.ExitCodeError); ok {
+	var exitCodeErr *cmderrors.ExitCodeError
+	if errors.As(err, &exitCodeErr) {
 		return
 	}
 
@@ -373,10 +375,11 @@ func printExecutionError(out *output.Output, err error) {
 		}
 
 		for _, e := range errs {
-			if taskErr, ok := e.(executor.TaskExecutionErr); ok {
+			var taskErr executor.TaskExecutionErr
+			if errors.As(e, &taskErr) {
 				block.Write(formatTaskExecutionErr(taskErr))
 			} else {
-				if err == context.Canceled {
+				if errors.Is(err, context.Canceled) {
 					block.Writef("%sAborting", output.StyleBold)
 				} else {
 					block.Writef("%s%s", output.StyleBold, e.Error())
@@ -389,8 +392,13 @@ func printExecutionError(out *output.Output, err error) {
 		}
 	}
 
-	switch err := err.(type) {
-	case parallel.Errors, errors.MultiError, api.GraphQlErrors:
+	var (
+		parErrs  parallel.Errors
+		multiErr errors.MultiError
+		gqlErrs  api.GraphQlErrors
+	)
+	switch {
+	case errors.As(err, &parErrs), errors.As(err, &multiErr), errors.As(err, &gqlErrs):
 		writeErrs(flattenErrs(err))
 
 	default:
@@ -405,31 +413,37 @@ func printExecutionError(out *output.Output, err error) {
 }
 
 func flattenErrs(err error) (result []error) {
-	switch errs := err.(type) {
-	case parallel.Errors:
-		for _, e := range errs {
+	var (
+		parErrs  parallel.Errors
+		multiErr errors.MultiError
+		gqlErrs  api.GraphQlErrors
+	)
+	switch {
+	case errors.As(err, &parErrs):
+		for _, e := range parErrs {
 			result = append(result, flattenErrs(e)...)
 		}
 
-	case errors.MultiError:
-		for _, e := range errs.Errors() {
+	case errors.As(err, &multiErr):
+		for _, e := range multiErr.Errors() {
 			result = append(result, flattenErrs(e)...)
 		}
 
-	case api.GraphQlErrors:
-		for _, e := range errs {
+	case errors.As(err, &gqlErrs):
+		for _, e := range gqlErrs {
 			result = append(result, flattenErrs(e)...)
 		}
 
 	default:
-		result = append(result, errs)
+		result = append(result, err)
 	}
 
 	return result
 }
 
 func formatTaskExecutionErr(err executor.TaskExecutionErr) string {
-	if ee, ok := errors.Cause(err).(*exec.ExitError); ok && ee.String() == "signal: killed" {
+	var ee *exec.ExitError
+	if errors.As(err, &ee) && ee.String() == "signal: killed" {
 		return fmt.Sprintf(
 			"%s%s%s: killed by interrupt signal",
 			output.StyleBold,
