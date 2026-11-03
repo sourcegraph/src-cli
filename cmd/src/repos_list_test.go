@@ -90,7 +90,7 @@ func TestListRepositoriesHandlesGraphQLErrors(t *testing.T) {
 	}
 }
 
-func TestFormatRepositoryListWarnings(t *testing.T) {
+func TestFormatGraphQLWarnings(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -133,7 +133,7 @@ listing timed out
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
-			require.Equal(t, test.want, formatRepositoryListWarnings(test.warnings))
+			require.Equal(t, test.want, formatGraphQLWarnings("listing", test.warnings))
 		})
 	}
 }

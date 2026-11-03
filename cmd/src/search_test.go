@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"os"
 	"os/exec"
@@ -10,6 +11,10 @@ import (
 	"testing"
 
 	"github.com/grafana/regexp"
+	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
+
+	mockapi "github.com/sourcegraph/src-cli/internal/api/mock"
 )
 
 var _ = func() bool {
@@ -129,5 +134,94 @@ func TestBuildVersionHasNewSearchInterface(t *testing.T) {
 	}
 	if !buildVersionHasNewSearchInterface(buildWithSearchInterface) {
 		t.Errorf("Build version is after the new generic search interface was merged. Expected true, but got false.")
+	}
+}
+
+func TestRunSearchHandlesGraphQLErrors(t *testing.T) {
+	t.Parallel()
+
+	fileMatch := func(repoName string) map[string]any {
+		return map[string]any{
+			"__typename": "FileMatch",
+			"repository": map[string]any{"name": repoName},
+			"file":       map[string]any{"path": "package.json"},
+		}
+	}
+	searchResponse := func(results []map[string]any, graphqlErrors ...map[string]any) map[string]any {
+		response := map[string]any{
+			"data": map[string]any{
+				"site": map[string]any{"buildVersion": "6.0.0"},
+				"search": map[string]any{
+					"results": map[string]any{
+						"results":     results,
+						"resultCount": len(results),
+					},
+				},
+			},
+		}
+		if len(graphqlErrors) > 0 {
+			response["errors"] = graphqlErrors
+		}
+		return response
+	}
+
+	tests := []struct {
+		name         string
+		response     map[string]any
+		wantRepos    []string
+		wantWarnings []string
+		wantErr      string
+	}{
+		{
+			name: "missing repository content keeps the other results",
+			response: searchResponse(
+				[]map[string]any{fileMatch("github.com/sourcegraph/ok"), fileMatch("github.com/sourcegraph/deleted")},
+				graphqlError("repository does not exist: github.com/sourcegraph/deleted", "search", "results", "results", 1, "file", "content"),
+			),
+			wantRepos:    []string{"github.com/sourcegraph/ok", "github.com/sourcegraph/deleted"},
+			wantWarnings: []string{"repository does not exist: github.com/sourcegraph/deleted"},
+		},
+		{
+			name: "errors without results are hard errors",
+			response: searchResponse(
+				nil,
+				graphqlError("search timed out", "search"),
+			),
+			wantErr: "search timed out",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			client := new(mockapi.Client)
+			request := &mockapi.Request{Response: mustJSON(t, test.response)}
+			client.On("NewRequest", mock.Anything, mock.Anything).Return(request).Once()
+			request.On("DoRaw", context.Background(), mock.Anything).Return(true, nil).Once()
+
+			result, warnings, err := runSearch(context.Background(), client, "package.json")
+			client.AssertExpectations(t)
+			request.AssertExpectations(t)
+
+			if test.wantErr != "" {
+				require.ErrorContains(t, err, test.wantErr)
+				require.Empty(t, result.Search.Results.Results)
+				require.Nil(t, warnings)
+				return
+			}
+
+			require.NoError(t, err)
+			require.Equal(t, "6.0.0", result.Site.BuildVersion)
+			require.Len(t, result.Search.Results.Results, len(test.wantRepos))
+			for i, want := range test.wantRepos {
+				repository := result.Search.Results.Results[i]["repository"].(map[string]any)
+				require.Equal(t, want, repository["name"])
+			}
+			require.Len(t, warnings, len(test.wantWarnings))
+			for i, want := range test.wantWarnings {
+				require.ErrorContains(t, warnings[i], want)
+			}
+		})
 	}
 }
