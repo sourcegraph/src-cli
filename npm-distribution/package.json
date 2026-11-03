@@ -22,7 +22,7 @@
   "overrides": {
     "cross-spawn": "^7.0.5",
     "glob": "^10.5.0",
-    "brace-expansion": "^2.0.2"
+    "brace-expansion": "^5.0.12"
   },
   "devDependencies": {
     "@types/tar": "6.1.13"
