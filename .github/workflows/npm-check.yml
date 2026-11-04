@@ -1,0 +1,25 @@
+# Checks the npm package that goreleaser.yml publishes on release tags.
+name: npm check
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - npm-distribution/**
+      - .github/workflows/npm-check.yml
+
+jobs:
+  npm-check:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: npm-distribution
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      # The install script downloads the release binary for package.json's
+      # version, which does not exist until the tag is published.
+      - run: npm ci --ignore-scripts
+      - run: node -e 'require("tar")'
+      # Runs the prepack script and lists what would ship.
+      - run: npm pack --dry-run
