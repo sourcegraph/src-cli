@@ -1,0 +1,47 @@
+# Builds every Docker image this repo ships. Nothing else tests them before a
+# tag: .goreleaser.yml and docker.yml only run on release tags.
+name: Docker check
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - Dockerfile
+      - Dockerfile.release
+      - .dockerignore
+      - docker/**
+      - .github/workflows/docker-check.yml
+
+jobs:
+  src-cli-image:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Get Go version from mise
+        id: mise
+        run: echo "go-version=$(grep 'golang' mise.toml | cut -d'"' -f2)" >> "$GITHUB_OUTPUT"
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version: ${{ steps.mise.outputs.go-version }}
+          cache: false
+      # Dockerfile.release expects the static linux binary goreleaser builds
+      # into the project root.
+      - name: Build src like goreleaser does
+        run: CGO_ENABLED=0 GOOS=linux go build -o src ./cmd/src
+      - name: Build Dockerfile.release
+        run: docker build --file Dockerfile.release --tag src-cli:release .
+      - run: docker run --rm src-cli:release version --client-only
+      - name: Build Dockerfile
+        run: docker build --tag src-cli:dev .
+      - run: docker run --rm src-cli:dev version --client-only
+
+  batch-change-volume-workspace-image:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Build docker/batch-change-volume-workspace
+        run: docker build --tag volume-workspace docker/batch-change-volume-workspace
+      - run: docker run --rm volume-workspace sh -c 'git --version && unzip -v'
