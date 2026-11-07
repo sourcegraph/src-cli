@@ -11,7 +11,7 @@ WORKDIR /src
 RUN go build ./cmd/src
 
 # This stage should be kept in sync with Dockerfile.release.
-FROM alpine:3.24@sha256:be2656061b536c1883c4034790e21d0a09c5aaaf51968b89368a3c0371ea2c9a
+FROM alpine:3.24@sha256:3f4d6b32e26703c6082839234f43769d5046b3ac7c910033911d1e71d8cd630a
 
 # needed for `src code-intel upload` and `src actions exec`
 # ca-certificates-bundle >= 20261020-r0 drops the eMudhra roots (CVE-2026-111943).
