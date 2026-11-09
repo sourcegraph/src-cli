@@ -190,7 +190,8 @@ jobs:
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v7
         with:
-          version: latest
+          # Keep in sync with the version in goreleaser-check.yml.
+          version: v2.9.0
           # We use a different goreleaser config for releasing a new latest version vs.
           # releasing a patch on an older version. For releasing the new latest version,
           # we want to update the main (unversioned) Homebrew formula. For releasing a

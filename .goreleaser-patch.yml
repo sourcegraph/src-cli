@@ -3,6 +3,7 @@
 # the Homebrew tap and does not publish a "latest" image to Docker Hub. It should match
 # .goreleaser.yml in every way except for the brews.name template and the
 # dockers.image_templates list.
+version: 2
 dist: release
 env:
   - GO111MODULE=on
@@ -27,9 +28,9 @@ builds:
     - arm64
 archives:
 - id: tarball
-  format: tar.gz
+  formats: tar.gz
 - id: bin
-  format: binary
+  formats: binary
   wrap_in_directory: false
   name_template: "src_{{ .Os }}_{{ .Arch }}"
 brews:
@@ -37,12 +38,12 @@ brews:
     name: src-cli@{{ .Major }}.{{ .Minor }}.{{ .Patch }}
     homepage: "https://sourcegraph.com/"
     description: "Sourcegraph CLI"
-    tap:
+    repository:
       owner: sourcegraph
       name: homebrew-src-cli
     # Folder inside the repository to put the formula.
     # Default is the root folder.
-    folder: Formula
+    directory: Formula
     # We need to set this so that goreleaser doesn't think the binary is called
     # `src-cli`
     install: |
