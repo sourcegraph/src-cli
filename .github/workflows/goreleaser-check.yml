@@ -13,7 +13,7 @@ jobs:
       # `goreleaser check` only parses the config; it needs neither Go nor
       # git history.
       - name: Check GoReleaser config
-        uses: goreleaser/goreleaser-action@v5
+        uses: goreleaser/goreleaser-action@v7
         with:
           version: latest
           args: check
