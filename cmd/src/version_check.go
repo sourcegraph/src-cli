@@ -3,14 +3,15 @@ package main
 import (
 	"context"
 	"fmt"
-	"io"
 	"net/url"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/Masterminds/semver"
 
+	"github.com/sourcegraph/src-cli/internal/api"
 	"github.com/sourcegraph/src-cli/internal/version"
 )
 
@@ -24,12 +25,17 @@ const (
 	versionCheckInterval = 24 * time.Hour
 )
 
+// warnOutdatedVersionOnce limits the check to once per run of src-cli, however
+// many API clients the command creates.
+var warnOutdatedVersionOnce sync.Once
+
 // maybeWarnOutdatedVersion prints a warning to stderr when src-cli is older
-// than the version recommended by the configured Sourcegraph instance.
+// than the version recommended by the Sourcegraph instance at endpointURL,
+// which it asks using client.
 //
 // It never fails the command: an unreachable instance, an unparseable version,
 // or an unwritable cache all result in no warning.
-func maybeWarnOutdatedVersion(cfg *config, subcommand string) {
+func maybeWarnOutdatedVersion(client api.Client, endpointURL *url.URL, subcommand string) {
 	if skipVersionCheck(subcommand) {
 		return
 	}
@@ -37,8 +43,8 @@ func maybeWarnOutdatedVersion(cfg *config, subcommand string) {
 	if err != nil {
 		return
 	}
-	cachePath := filepath.Join(cacheDir, "sourcegraph", "src-cli", "recommended-version-"+url.QueryEscape(cfg.endpointURL.String()))
-	if warning := outdatedVersionWarning(cfg, cachePath); warning != "" {
+	cachePath := filepath.Join(cacheDir, "sourcegraph", "src-cli", "recommended-version-"+url.QueryEscape(endpointURL.String()))
+	if warning := outdatedVersionWarning(client, endpointURL, cachePath); warning != "" {
 		fmt.Fprintln(os.Stderr, warning)
 	}
 }
@@ -53,12 +59,12 @@ func skipVersionCheck(subcommand string) bool {
 
 // outdatedVersionWarning returns the warning to print, or "" when src-cli is
 // not known to be older than the version the instance recommends.
-func outdatedVersionWarning(cfg *config, cachePath string) string {
+func outdatedVersionWarning(client api.Client, endpointURL *url.URL, cachePath string) string {
 	current, err := semver.NewVersion(version.BuildTag)
 	if err != nil {
 		return ""
 	}
-	recommended, err := semver.NewVersion(recommendedVersion(cfg, cachePath))
+	recommended, err := semver.NewVersion(recommendedVersion(client, cachePath))
 	if err != nil {
 		return ""
 	}
@@ -68,13 +74,14 @@ func outdatedVersionWarning(cfg *config, cachePath string) string {
 	return fmt.Sprintf("⚠️  Warning: src-cli %s is older than %s, the version recommended by %s. "+
 		"To upgrade, see https://github.com/sourcegraph/src-cli#installation. "+
 		"To silence this warning, set SRC_SKIP_VERSION_CHECK=1.",
-		current, recommended, cfg.endpointURL)
+		current, recommended, endpointURL)
 }
 
-// recommendedVersion returns the src-cli version recommended by the configured
-// instance, or "" when it is unknown. The answer is cached in the file at
-// cachePath for versionCheckInterval, so most commands make no extra request.
-func recommendedVersion(cfg *config, cachePath string) string {
+// recommendedVersion returns the src-cli version recommended by the instance
+// that client talks to, or "" when it is unknown. The answer is cached in the
+// file at cachePath for versionCheckInterval, so most commands make no extra
+// request.
+func recommendedVersion(client api.Client, cachePath string) string {
 	if info, err := os.Stat(cachePath); err == nil && time.Since(info.ModTime()) < versionCheckInterval {
 		cached, _ := os.ReadFile(cachePath)
 		return string(cached)
@@ -89,7 +96,7 @@ func recommendedVersion(cfg *config, cachePath string) string {
 
 	ctx, cancel := context.WithTimeout(context.Background(), versionCheckTimeout)
 	defer cancel()
-	recommended, err := getRecommendedVersion(ctx, cfg.apiClient(nil, io.Discard))
+	recommended, err := getRecommendedVersion(ctx, client)
 	if err != nil {
 		return ""
 	}

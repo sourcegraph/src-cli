@@ -86,7 +86,6 @@ func (c commander) run(flagSet *flag.FlagSet, cmdName, usageText string, args []
 		if err != nil {
 			log.Fatal("reading config: ", err)
 		}
-		maybeWarnOutdatedVersion(cfg, name)
 
 		exitCode, err := runLegacy(cmd, flagSet)
 		if err != nil {

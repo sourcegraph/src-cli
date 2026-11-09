@@ -44,7 +44,6 @@ func maybeRunMigratedCommand() (isMigrated bool, exitCode int, err error) {
 	if err != nil {
 		log.Fatal("reading config: ", err)
 	}
-	maybeWarnOutdatedVersion(cfg, subCommand)
 
 	exitCode, err = runMigrated()
 	return
