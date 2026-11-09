@@ -201,6 +201,10 @@ You can then invoke it via `src-cli`.
 
 `src` waits up to 1 minute for the server to start responding to a request. To change this, set the `SRC_RESPONSE_HEADER_TIMEOUT` environment variable to a duration such as `30s` or `10m`, or to `0` to disable the timeout. This timeout only applies until the server sends its response headers — responses that stream data for a long time, such as large search job results, are not interrupted.
 
+## Version check
+
+`src` prints a warning to stderr when it is older than the version recommended by your Sourcegraph instance. It asks the instance at most once every 24 hours, and the check never fails a command. To upgrade, see [Installation](#installation). To disable the check, set the `SRC_SKIP_VERSION_CHECK` environment variable to any non-blank string.
+
 ## Telemetry
 
 `src` includes the operating system and architecture in the `User-Agent` header sent to Sourcegraph. For example, running `src` version 3.21.10 on an x86-64 Linux host will result in this header:
