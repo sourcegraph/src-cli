@@ -1,28 +1,26 @@
-# [Sourcegraph](https://sourcegraph.com) CLI [![Build Status](https://github.com/sourcegraph/src-cli/workflows/Go%20CI/badge.svg)](https://github.com/sourcegraph/src-cli/actions?query=workflow%3A%22Go+CI%22) [![Go Report Card](https://goreportcard.com/badge/sourcegraph/src-cli)](https://goreportcard.com/report/sourcegraph/src-cli)
+# [Sourcegraph](https://sourcegraph.com) CLI [![Build Status](https://github.com/sourcegraph/src-cli/workflows/Go%20CI/badge.svg)](https://github.com/sourcegraph/src-cli/actions?query=workflow%3A%22Go+CI%22)
 
-<img src="https://user-images.githubusercontent.com/3173176/43567326-3db5f31c-95e6-11e8-9e74-4c04079c01b0.png" width=500 align=right>
+<img src="https://user-images.githubusercontent.com/3173176/43567326-3db5f31c-95e6-11e8-9e74-4c04079c01b0.png" alt="src search results in a terminal" width=500 align=right>
 
 `src` is a command line interface to Sourcegraph:
 
 - **Search & get results in your terminal**
 - **Search & get JSON** for programmatic consumption
 - Make **GraphQL API requests** with auth easily & get JSON back fast
-- Execute **[batch changes](https://sourcegraph.com/docs/batch_changes)**
+- Execute **[batch changes](https://sourcegraph.com/docs/batch-changes)**
 - **Manage & administrate** repositories, users, and more
 - **Easily convert src-CLI commands to equivalent curl commands**, just add --get-curl!
 
-**Note:** Using Sourcegraph 3.12 or earlier? [See the older README](https://github.com/sourcegraph/src-cli/tree/3.11.2).
-
 ## Installation
 
-Binary downloads are available on the [releases tab](https://github.com/sourcegraph/src-cli/releases), and through Sourcegraph.com. _If the latest version does not work for you,_ consider using the version compatible with your Sourcegraph instance instead.
+Download the latest version from the [releases page](https://github.com/sourcegraph/src-cli/releases), or from Sourcegraph.com using the commands below. If the latest version does not work with your Sourcegraph instance, download the version compatible with your Sourcegraph instance, as shown below.
 
-### Installation: Mac OS
+### Installation: macOS
 
 #### Latest version
 
 ```bash
-curl -L https://sourcegraph.com/.api/src-cli/src_darwin_amd64 -o /usr/local/bin/src
+curl -L https://sourcegraph.com/.api/src-cli/src_darwin_arm64 -o /usr/local/bin/src
 chmod +x /usr/local/bin/src
 ```
 
@@ -43,23 +41,21 @@ npm install -g @sourcegraph/src
 Replace `sourcegraph.example.com` with your Sourcegraph instance URL:
 
 ```bash
-curl -L https://sourcegraph.example.com/.api/src-cli/src_darwin_amd64 -o /usr/local/bin/src
+curl -L https://sourcegraph.example.com/.api/src-cli/src_darwin_arm64 -o /usr/local/bin/src
 chmod +x /usr/local/bin/src
 ```
 
-or, if you know the specific version to target, for example 3.43.2:
+or, if you know the specific version to target:
 
 ```bash
-brew install sourcegraph/src-cli/src-cli@3.43.2
+brew install sourcegraph/src-cli/src-cli@8.1.2687
 ```
 
 or with npm/npx:
 
 ```bash
-npx @sourcegraph/src@3.43.2 version
+npx @sourcegraph/src@8.1.2687 version
 ```
-
-> Note: Versioned formulas are available on Homebrew for Sourcegraph versions 3.43.2 and later.
 
 ### Installation: Linux
 
@@ -69,6 +65,8 @@ npx @sourcegraph/src@3.43.2 version
 curl -L https://sourcegraph.com/.api/src-cli/src_linux_amd64 -o /usr/local/bin/src
 chmod +x /usr/local/bin/src
 ```
+
+On an ARM host, replace `src_linux_amd64` with `src_linux_arm64`.
 
 or with npm:
 
@@ -85,10 +83,10 @@ curl -L https://sourcegraph.example.com/.api/src-cli/src_linux_amd64 -o /usr/loc
 chmod +x /usr/local/bin/src
 ```
 
-or, with npm/npx, if you know the specific version to target, for example 3.43.2:
+or, with npm/npx, if you know the specific version to target:
 
 ```bash
-npx @sourcegraph/src@3.43.2 version
+npx @sourcegraph/src@8.1.2687 version
 ```
 
 ### Installation: Windows
@@ -97,7 +95,7 @@ See [Sourcegraph CLI for Windows](WINDOWS.md).
 
 ### Installation: Docker
 
-`sourcegraph/src-cli` is published to Docker Hub. You can use the `latest` tag or a specific version such as `3.43`. To see all versions view [sourcegraph/src-cli tags](https://hub.docker.com/r/sourcegraph/src-cli/tags).
+The [`sourcegraph/src-cli`](https://hub.docker.com/r/sourcegraph/src-cli/tags) image on Docker Hub is tagged with `latest` and with each release version.
 
 ```bash
 docker run --rm=true sourcegraph/src-cli:latest search 'hello world'
@@ -119,7 +117,7 @@ For PowerShell on Windows:
 $env:SRC_ENDPOINT = 'https://sourcegraph.example.com'
 ```
 
-For convenience, add this environment variable to your terminal profile or system environment variables. On Mac OS and Linux, the terminal profile is typically `~/.bash_profile` for Bash or `~/.zprofile` for Zsh. On Windows, you can add it through the *System Properties* window. See [these instructions](https://www.computerhope.com/issues/ch000549.htm) for details.
+For convenience, add this environment variable to your terminal profile or system environment variables. On macOS and Linux, the terminal profile is typically `~/.zprofile` for Zsh or `~/.bash_profile` for Bash. On Windows, you can add it through the *System Properties* window.
 
 If `SRC_ENDPOINT` is not set, `src` defaults to `https://sourcegraph.com`.
 
@@ -169,27 +167,32 @@ Is your Sourcegraph instance behind a custom auth proxy? See [auth proxy configu
 
 `src` provides different subcommands to interact with different parts of Sourcegraph:
 
- - `src login` - authenticate to a Sourcegraph instance with your user credentials
- - `src auth` - print the active authentication token or authorization header
- - `src search` - perform searches and get results in your terminal or as JSON
- - `src api` - run Sourcegraph GraphQL API requests
- - `src batch` - execute and manage [batch changes](https://sourcegraph.com/docs/batch_changes)
- - `src repos` - manage repositories
- - `src users` - manage users
- - `src orgs` - manages organization
- - `src config` - manage global, org, and user settings
- - `src extsvc` - manage external services (repository configuration)
- - `src extensions` - manage extensions
- - `src code-intel` - manages Code Intelligence data
- - `src serve-git` - serves your local git repositories over HTTP for Sourcegraph to pull
- - `src version` - check version and guaranteed-compatible version for your Sourcegraph instance
+- `src abc` - manage agentic batch changes
+- `src api` - run Sourcegraph GraphQL API requests
+- `src auth` - print the active authentication token or authorization header
+- `src batch` - execute and manage [batch changes](https://sourcegraph.com/docs/batch-changes)
+- `src code-intel` - manage code intelligence data
+- `src codeowners` - manage ingested code ownership data
+- `src config` - manage global, org, and user settings
+- `src debug` - gather and bundle debug data from a Sourcegraph deployment for troubleshooting
+- `src extsvc` - manage external services (repository configuration)
+- `src login` - authenticate to a Sourcegraph instance with your user credentials
+- `src lsp` - run a Language Server Protocol server that proxies requests to Sourcegraph code intelligence
+- `src orgs` - manage organizations
+- `src repos` - manage repositories
+- `src search` - perform searches and get results in your terminal or as JSON
+- `src search-jobs` - manage search jobs
+- `src serve-git` - serve your local git repositories over HTTP for Sourcegraph to pull
+- `src snapshot` - manage snapshots of Sourcegraph instance databases (experimental)
+- `src users` - manage users
+- `src version` - display and compare the `src` version against the recommended version for your Sourcegraph instance
 
 Run `src -h` and `src <subcommand> -h` for more detailed usage information.
 You can also read the [usage docs for the latest version of `src-cli`](https://sourcegraph.com/docs/cli/references) online.
 
-#### Optional: Renaming `src`
+### Optional: Renaming `src`
 
-If you have a naming conflict with the `src` command, such as a Bash alias, you can rename the static binary. For example, on Linux / Mac OS:
+If you have a naming conflict with the `src` command, such as a Bash alias, you can rename the static binary. For example, on Linux / macOS:
 
 ```sh
 mv /usr/local/bin/src /usr/local/bin/src-cli
@@ -203,13 +206,13 @@ You can then invoke it via `src-cli`.
 
 ## Telemetry
 
-`src` includes the operating system and architecture in the `User-Agent` header sent to Sourcegraph. For example, running `src` version 3.21.10 on an x86-64 Linux host will result in this header:
+`src` includes the operating system and architecture in the `User-Agent` header sent to Sourcegraph. For example, running `src` on an x86-64 Linux host will result in this header:
 
-```
-src-cli/3.21.10 linux amd64
+```text
+src-cli/8.1.2687 linux amd64
 ```
 
-To disable this and _only_ send the version, you can set `-user-agent-telemetry=false` for a single command, or set the `SRC_DISABLE_USER_AGENT_TELEMETRY` environment variable to any non-blank string.
+To disable this and *only* send the version, you can set `-user-agent-telemetry=false` for a single command, or set the `SRC_DISABLE_USER_AGENT_TELEMETRY` environment variable to any non-blank string.
 
 As with other Sourcegraph telemetry, any collected data is only sent to Sourcegraph.com in aggregate form.
 

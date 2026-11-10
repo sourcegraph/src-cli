@@ -136,7 +136,7 @@ query ViewerUserID {
 	}
 
 	if result.CurrentUser == nil || result.CurrentUser.ID == "" {
-		return "", errors.New("unable to determine current user ID (see https://github.com/sourcegraph/src-cli#authentication)")
+		return "", errors.New("unable to determine current user ID (see https://github.com/sourcegraph/src-cli#connect-to-your-sourcegraph-instance)")
 	}
 	return result.CurrentUser.ID, nil
 }
