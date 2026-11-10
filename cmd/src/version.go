@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 
 	"github.com/sourcegraph/sourcegraph/lib/errors"
@@ -42,17 +43,19 @@ var versionCommand = clicompat.Wrap(&cli.Command{
 	HideVersion: true,
 	Action: func(ctx context.Context, c *cli.Command) error {
 		args := VersionArgs{
-			Client:     cfg.apiClient(clicompat.APIFlagsFromCmd(c), os.Stdout),
-			ClientOnly: c.Bool("client-only"),
+			Client:      cfg.apiClient(clicompat.APIFlagsFromCmd(c), os.Stdout),
+			EndpointURL: cfg.endpointURL,
+			ClientOnly:  c.Bool("client-only"),
 		}
 		return versionHandler(args)
 	},
 })
 
 type VersionArgs struct {
-	ClientOnly bool
-	Client     api.Client
-	Output     io.Writer
+	ClientOnly  bool
+	Client      api.Client
+	EndpointURL *url.URL
+	Output      io.Writer
 }
 
 func versionHandler(args VersionArgs) error {
@@ -68,9 +71,10 @@ func versionHandler(args VersionArgs) error {
 	if recommendedVersion == "" {
 		fmt.Println("Recommended version: <unknown>")
 		fmt.Println("This Sourcegraph instance does not support this feature.")
-		return nil
+	} else {
+		fmt.Printf("Recommended version: %s or later\n", recommendedVersion)
 	}
-	fmt.Printf("Recommended version: %s or later\n", recommendedVersion)
+	warnOutdatedVersionFromLookup(recommendedVersion, args.EndpointURL)
 	return nil
 }
 
