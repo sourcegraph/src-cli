@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -215,5 +216,50 @@ func TestDocRootIndexMatchesHelp(t *testing.T) {
 	}
 	if diff := cmp.Diff(helpCommandNames(t, usageText()), indexed); diff != "" {
 		t.Errorf("'src doc' root index does not match 'src help' (-help +index):\n%s", diff)
+	}
+}
+
+// 'src doc -json' must write exactly the commands that have Markdown pages.
+func TestDocJSONMatchesMarkdown(t *testing.T) {
+	var want []string
+	for _, rel := range expectedDocFiles {
+		name := strings.TrimSuffix(strings.TrimSuffix(rel, ".md"), "index")
+		want = append(want, strings.TrimSpace("src "+strings.ReplaceAll(name, "/", " ")))
+	}
+	sort.Strings(want)
+	setBuildTag(t, "6.4.1")
+
+	file := filepath.Join(t.TempDir(), "reference.json")
+	for _, cmd := range commands {
+		if cmd.flagSet.Name() == "doc" {
+			if err := cmd.handler([]string{"-json", "-o", file}); err != nil {
+				t.Fatalf("src doc -json: %v", err)
+			}
+		}
+	}
+	data, err := os.ReadFile(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var root docCommand
+	if err := json.Unmarshal(data, &root); err != nil {
+		t.Fatal(err)
+	}
+	if root.Version != "6.4.1" {
+		t.Errorf("'src doc -json' version is %q, want %q", root.Version, "6.4.1")
+	}
+	var got []string
+	var walk func(*docCommand)
+	walk = func(c *docCommand) {
+		got = append(got, c.Name)
+		for _, sub := range c.Commands {
+			walk(sub)
+		}
+	}
+	walk(&root)
+	sort.Strings(got)
+
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("'src doc -json' commands do not match the Markdown pages (-markdown +json):\n%s", diff)
 	}
 }

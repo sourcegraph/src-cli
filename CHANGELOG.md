@@ -13,6 +13,8 @@ All notable changes to `src-cli` are documented in this file.
 
 ### Added
 
+- `src doc -json -o FILE` writes the command reference as one JSON file: a tree of all commands with their help text and flags.
+
 - `src` now prints a warning to stderr when it is older than the version recommended by your Sourcegraph instance. The recommended version is looked up at most once every 24 hours per instance. To disable the check, set the `SRC_SKIP_VERSION_CHECK` environment variable to any non-blank string. [#930](https://github.com/sourcegraph/src-cli/issues/930)
 
 ### Changed
