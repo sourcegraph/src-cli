@@ -156,7 +156,13 @@ func (c *config) apiClient(flags *api.Flags, out io.Writer) api.Client {
 		}
 	}
 
-	return api.NewClient(opts)
+	client := api.NewClient(opts)
+	// Checked here rather than before the command is dispatched, so that the
+	// lookup uses the command's own flags, such as -insecure-skip-verify.
+	warnOutdatedVersionOnce.Do(func() {
+		maybeWarnOutdatedVersion(client, c.endpointURL, flag.CommandLine.Arg(0))
+	})
+	return client
 }
 
 // readConfig reads the config file from the given path.
