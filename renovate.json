@@ -5,5 +5,14 @@
   "extends": [
     "github>sourcegraph/renovate-config"
   ],
+  "packageRules": [
+    {
+      "description": "GoReleaser v2.10+ deprecates brews, which fails goreleaser check. Remove after moving to homebrew_casks.",
+      "matchPackageNames": [
+        "goreleaser/goreleaser"
+      ],
+      "allowedVersions": "<2.10.0"
+    }
+  ],
   "semanticCommits": false
 }

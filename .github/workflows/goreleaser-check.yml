@@ -13,7 +13,9 @@ jobs:
       # `goreleaser check` only parses the config; it needs neither Go nor
       # git history.
       - name: Check GoReleaser config
-        uses: goreleaser/goreleaser-action@v5
+        uses: goreleaser/goreleaser-action@v7
         with:
-          version: latest
+          # Pinned: GoReleaser v2.10+ deprecates `brews`, which fails
+          # `goreleaser check`. Unpin after moving to `homebrew_casks`.
+          version: v2.9.0
           args: check
