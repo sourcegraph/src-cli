@@ -51,7 +51,6 @@ var expectedDocFiles = []string{
 	"debug/compose.md",
 	"debug/index.md",
 	"debug/kube.md",
-	"debug/server.md",
 	"extsvc/create.md",
 	"extsvc/edit.md",
 	"extsvc/index.md",

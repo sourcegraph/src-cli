@@ -18,7 +18,6 @@ The commands are:
 
 	kube                 dumps context from k8s deployments
 	compose              dumps context from docker-compose deployments
-	server               dumps context from single-container deployments
 	
 
 Use "src debug command -h" for more information about a subcommands.

@@ -21,6 +21,8 @@ All notable changes to `src-cli` are documented in this file.
 
 ### Removed
 
+- Removed the `src debug server` command. It collected debug data from the single-container `sourcegraph/server` deployment, which was removed in Sourcegraph 7.0. Use `src debug compose` or `src debug kube` instead.
+
 ## 8.1.2687
 
 ### Added
