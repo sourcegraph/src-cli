@@ -9,11 +9,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       # `goreleaser check` only parses the config; it needs neither Go nor
       # git history.
       - name: Check GoReleaser config
-        uses: goreleaser/goreleaser-action@v7
+        uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7.3.0
         with:
           # Pinned: GoReleaser v2.10+ deprecates `brews`, which fails
           # `goreleaser check`. Unpin after moving to `homebrew_casks`.

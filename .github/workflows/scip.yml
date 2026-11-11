@@ -6,12 +6,12 @@ jobs:
   scip-go:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Get Go version from mise
         id: mise
         run: echo "go-version=$(grep 'golang' mise.toml | cut -d'"' -f2)" >> $GITHUB_OUTPUT
       - name: Set up Go
-        uses: sourcegraph/actions/go-setup@main
+        uses: sourcegraph/actions/go-setup@4430dc1e4dde002387a4b655b41f6431ca75b1c1 # main
         with:
           go-version: ${{ steps.mise.outputs.go-version }}
 

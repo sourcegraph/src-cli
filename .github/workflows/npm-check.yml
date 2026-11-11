@@ -16,7 +16,7 @@ jobs:
         working-directory: npm-distribution
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       # The install script downloads the release binary for package.json's
       # version, which does not exist until the tag is published.
       - run: npm ci --ignore-scripts

@@ -17,12 +17,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Get Go version from mise
         id: mise
         run: echo "go-version=$(grep 'golang' mise.toml | cut -d'"' -f2)" >> "$GITHUB_OUTPUT"
       - name: Set up Go
-        uses: actions/setup-go@v7
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: ${{ steps.mise.outputs.go-version }}
           cache: false
@@ -41,7 +41,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Build docker/batch-change-volume-workspace
         run: docker build --tag volume-workspace docker/batch-change-volume-workspace
       - run: docker run --rm volume-workspace sh -c 'git --version && unzip -v'
