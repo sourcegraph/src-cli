@@ -47,7 +47,7 @@ jobs:
       second_latest_tag: ${{ env.second_latest_tag }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
       - name: Set current tag, latest (highest version) tag, and second latest tag
@@ -103,7 +103,7 @@ jobs:
           echo "latest_tag=${{ needs.release_type.outputs.latest_tag }}" >> $GITHUB_ENV
           echo "second_latest_tag=${{ needs.release_type.outputs.second_latest_tag }}" >> $GITHUB_ENV
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
       - name: Set versioning variables
@@ -116,7 +116,7 @@ jobs:
           echo "Versioned formula file: ${{ env.versioned_formula_file }}"
           echo "Versioned classname: ${{ env.versioned_classname }}"
       - name: Checkout Homebrew tap
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: sourcegraph/homebrew-src-cli
           fetch-depth: 0
@@ -171,14 +171,14 @@ jobs:
         run: |
           echo "Goreleaser config file: ${{ env.config_file }}"
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
       - name: Get Go version from mise
         id: mise
         run: echo "go-version=$(grep 'golang' mise.toml | cut -d'"' -f2)" >> $GITHUB_OUTPUT
       - name: Set up Go
-        uses: sourcegraph/actions/go-setup@main
+        uses: sourcegraph/actions/go-setup@4430dc1e4dde002387a4b655b41f6431ca75b1c1 # main
         with:
           go-version: ${{ steps.mise.outputs.go-version }}
       - run: go test ./...
@@ -188,7 +188,7 @@ jobs:
           DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
           DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
       - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@v7
+        uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7.3.0
         with:
           # Keep in sync with the version in goreleaser-check.yml.
           version: v2.9.0
@@ -224,7 +224,7 @@ jobs:
           echo "Old symlink: ${{ env.old_symlink_name }}"
           echo "New symlink: ${{ env.new_symlink_name }}"
       - name: Checkout Homebrew tap
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: sourcegraph/homebrew-src-cli
           fetch-depth: 0
@@ -245,10 +245,10 @@ jobs:
     needs: goreleaser
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26.13.0
           registry-url: 'https://registry.npmjs.org'
