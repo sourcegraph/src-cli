@@ -24,4 +24,4 @@ jobs:
     # Diff Tour resolves branch names against the base repo, so skip fork PRs
     if: github.event.pull_request.head.repo.full_name == github.repository
     steps:
-      - uses: sourcegraph/actions/diff-tour@4430dc1e4dde002387a4b655b41f6431ca75b1c1 # main
+      - uses: sourcegraph/actions/diff-tour@4c889fc8e48c06d4bbcb42a4b3a4965c2a83dccb # main
