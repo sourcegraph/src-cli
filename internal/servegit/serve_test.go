@@ -115,6 +115,98 @@ func TestHandlerRejectsGitdirFile(t *testing.T) {
 	}
 }
 
+func TestHandlerServesOnlyListedRepositories(t *testing.T) {
+	root := t.TempDir()
+	privateRepo := filepath.Join(root, "private")
+	if err := os.MkdirAll(privateRepo, 0755); err != nil {
+		t.Fatal(err)
+	}
+	runCmd(t, privateRepo, "git", "init", "-b", "main")
+	runCmd(t, privateRepo, "git", "commit", "--allow-empty", "-m", "private commit")
+	out, err := exec.Command("git", "-C", privateRepo, "rev-parse", "HEAD").Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	privateHead := strings.TrimSpace(string(out))
+
+	// A repository whose working tree has a directory that Git accepts as a
+	// repository, made of a tracked HEAD and symlinks to the objects and refs
+	// of the private repository outside the served root.
+	attacker := filepath.Join(root, "attacker")
+	if err := os.MkdirAll(filepath.Join(attacker, "evil"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	runCmd(t, attacker, "git", "init", "-b", "main")
+	if err := os.WriteFile(filepath.Join(attacker, "evil", "HEAD"), []byte("ref: refs/heads/main\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"objects", "refs"} {
+		if err := os.Symlink("../../../private/.git/"+name, filepath.Join(attacker, "evil", name)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	runCmd(t, attacker, "git", "add", "evil")
+	runCmd(t, attacker, "git", "commit", "-m", "evil")
+
+	served := filepath.Join(root, "served")
+	runCmd(t, root, "git", "clone", attacker, filepath.Join(served, "public"))
+	runCmd(t, root, "git", "init", "--bare", filepath.Join(served, "dir", "project.bare"))
+	// Git serves the private repository's refs from the embedded directory.
+	runCmd(t, served, "git", "upload-pack", "--strict", "--advertise-refs", filepath.Join(served, "public", "evil"))
+
+	newHandler := func(t *testing.T, root string) http.Handler {
+		rootFS, err := os.OpenRoot(root)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { rootFS.Close() })
+		return (&Serve{
+			Info:   testLogger(t),
+			Debug:  discardLogger,
+			Addr:   testAddress,
+			Root:   root,
+			RootFS: rootFS,
+		}).handler()
+	}
+	get := func(h http.Handler, target string) *httptest.ResponseRecorder {
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, target, nil))
+		return rec
+	}
+
+	h := newHandler(t, served)
+	for _, tc := range []struct {
+		path string
+		want int
+	}{
+		{path: "/repos/public/.git/info/refs?service=git-upload-pack", want: http.StatusOK},
+		{path: "/repos/dir/project.bare/info/refs?service=git-upload-pack", want: http.StatusOK},
+		{path: "/repos/public/evil/info/refs?service=git-upload-pack", want: http.StatusNotFound},
+		{path: "/repos/public/evil/git-upload-pack", want: http.StatusNotFound},
+		{path: "/repos/dir/project.bare/objects/info/refs?service=git-upload-pack", want: http.StatusNotFound},
+	} {
+		t.Run(tc.path, func(t *testing.T) {
+			rec := get(h, tc.path)
+			if rec.Code != tc.want {
+				t.Errorf("status = %d, want %d; body: %s", rec.Code, tc.want, rec.Body.String())
+			}
+			if strings.Contains(rec.Body.String(), privateHead) {
+				t.Error("the response has the private repository's HEAD")
+			}
+		})
+	}
+
+	t.Run("a root that is a repository serves only itself", func(t *testing.T) {
+		h := newHandler(t, filepath.Join(served, "public"))
+		if rec := get(h, "/repos/.git/info/refs?service=git-upload-pack"); rec.Code != http.StatusOK {
+			t.Errorf("root repository status = %d, want %d", rec.Code, http.StatusOK)
+		}
+		if rec := get(h, "/repos/evil/info/refs?service=git-upload-pack"); rec.Code != http.StatusNotFound {
+			t.Errorf("nested repository status = %d, want %d", rec.Code, http.StatusNotFound)
+		}
+	})
+}
+
 func testReposHandler(t *testing.T, h http.Handler, repos []Repo) {
 	ts := httptest.NewServer(h)
 	t.Cleanup(ts.Close)
@@ -209,6 +301,35 @@ func gitInitRepos(t *testing.T, names ...string) string {
 	}
 
 	return root
+}
+
+func TestReposRelativeRoot(t *testing.T) {
+	root := gitInitRepos(t, "project1", "dir/project2.bare")
+	t.Chdir(filepath.Dir(root))
+	rel := filepath.Base(root)
+
+	rootFS, err := os.OpenRoot(rel)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { rootFS.Close() })
+
+	repos, err := (&Serve{
+		Info:   testLogger(t),
+		Debug:  discardLogger,
+		Root:   rel,
+		RootFS: rootFS,
+	}).Repos()
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []Repo{
+		{Name: "dir/project2.bare", URI: "/repos/dir/project2.bare", ClonePath: "/repos/dir/project2.bare"},
+		{Name: "project1", URI: "/repos/project1", ClonePath: "/repos/project1/.git"},
+	}
+	if diff := cmp.Diff(want, repos); diff != "" {
+		t.Errorf("mismatch (-want +got):\n%s", diff)
+	}
 }
 
 func TestIgnoreGitSubmodules(t *testing.T) {

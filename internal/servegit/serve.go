@@ -13,6 +13,7 @@ import (
 	"os/exec"
 	pathpkg "path"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -104,6 +105,9 @@ func (s *Serve) handler() http.Handler {
 
 	svc := &Handler{
 		Dir: func(_ context.Context, name string) (string, error) {
+			if err := s.checkListed(name); err != nil {
+				return "", err
+			}
 			return filepath.Join(s.Root, filepath.FromSlash(name)), nil
 		},
 		ErrorHook: func(err error, stderr string) {
@@ -139,8 +143,52 @@ func (s *Serve) handler() http.Handler {
 	})
 }
 
+// errNotListed is returned for a repository that Repos does not list.
+var errNotListed = errors.New("repository not found")
+
+// checkListed returns errNotListed unless the repository at the clone path
+// name, relative to /repos/, is one that Repos lists: a repository that is not
+// in a .git directory and not nested in another repository, which Repos does
+// not descend into. A repository's working tree can contain tracked files that
+// Git accepts as a repository, including symlinks to the objects and refs of a
+// repository outside the root, so serving any repository below the root could
+// serve repositories outside it.
+func (s *Serve) checkListed(name string) error {
+	// Repos lists a working tree's repository as <dir>/.git, and the root's
+	// as .git.
+	dir := name
+	if dir == ".git" {
+		dir = ""
+	} else {
+		dir = strings.TrimSuffix(dir, "/.git")
+	}
+	if dir == "" {
+		return nil
+	}
+	if !fs.ValidPath(dir) || dir == "." || slices.Contains(strings.Split(dir, "/"), ".git") {
+		s.Debug.Printf("not serving %q: invalid path or in a .git directory", name)
+		return errNotListed
+	}
+	for parent := pathpkg.Dir(dir); ; parent = pathpkg.Dir(parent) {
+		abs := filepath.Join(s.Root, filepath.FromSlash(parent))
+		if isGitRepo(abs) || isBareRepo(abs) {
+			s.Debug.Printf("not serving %q: nested in repository %q", name, parent)
+			return errNotListed
+		}
+		if parent == "." {
+			return nil
+		}
+	}
+}
+
 // Checks if git thinks the given path is a valid .git folder for a repository
 func isBareRepo(path string) bool {
+	// Git resolves a relative --git-dir against the directory it runs in,
+	// which is path itself.
+	path, err := filepath.Abs(path)
+	if err != nil {
+		return false
+	}
 	c := exec.Command("git", "--git-dir", path, "rev-parse", "--is-bare-repository")
 	c.Dir = path
 	out, err := c.CombinedOutput()

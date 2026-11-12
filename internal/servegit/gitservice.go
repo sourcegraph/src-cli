@@ -93,7 +93,10 @@ func (s *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	dir, err := s.Dir(ctx, repo)
-	if err != nil {
+	if errors.Is(err, errNotListed) {
+		http.Error(w, "repository not found", http.StatusNotFound)
+		return
+	} else if err != nil {
 		http.Error(w, "failed to determine repository path: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
