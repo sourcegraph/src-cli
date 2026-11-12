@@ -76,7 +76,8 @@ func runMigrated() (int, error) {
 		if errors.HasType[*cmderrors.UsageError](err) {
 			return 2, nil
 		}
-		if e, ok := err.(*cmderrors.ExitCodeError); ok {
+		var e *cmderrors.ExitCodeError
+		if errors.As(err, &e) {
 			if e.HasError() {
 				return e.Code(), e
 			}
@@ -104,14 +105,16 @@ func runLegacy(cmd *command, flagSet *flag.FlagSet) (int, error) {
 
 	// Execute the subcommand.
 	if err := cmd.handler(flagSet.Args()[1:]); err != nil {
-		if _, ok := err.(*cmderrors.UsageError); ok {
+		var usageErr *cmderrors.UsageError
+		if errors.As(err, &usageErr) {
 			log.Printf("error: %s\n\n", err)
 			cmd.flagSet.SetOutput(os.Stderr)
 			flag.CommandLine.SetOutput(os.Stderr)
 			cmd.flagSet.Usage()
 			return 2, nil
 		}
-		if e, ok := err.(*cmderrors.ExitCodeError); ok {
+		var e *cmderrors.ExitCodeError
+		if errors.As(err, &e) {
 			if e.HasError() {
 				log.Println(e)
 			}
