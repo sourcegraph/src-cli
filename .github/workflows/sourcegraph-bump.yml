@@ -1,0 +1,46 @@
+name: Open sourcegraph/sourcegraph version bump PR
+
+# Opens the sourcegraph/sourcegraph PR that pins a published src-cli release
+# (MinimumVersion, Bazel tool_deps, MODULE.bazel.lock) and asks the platform
+# team to review it. See dev/open-sourcegraph-bump-pr.sh.
+#
+# Called by goreleaser.yml after a new latest release, or run by hand for a
+# release whose bump PR was never opened:
+#   gh workflow run sourcegraph-bump.yml -R sourcegraph/src-cli -f version=8.0.0
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Published src-cli release tag, for example 8.0.0
+        required: true
+        type: string
+  workflow_call:
+    inputs:
+      version:
+        required: true
+        type: string
+
+jobs:
+  sourcegraph_bump:
+    name: Open sourcegraph/sourcegraph PR
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout src-cli
+        uses: actions/checkout@v7
+      - name: Checkout sourcegraph/sourcegraph
+        uses: actions/checkout@v7
+        with:
+          repository: sourcegraph/sourcegraph
+          path: sourcegraph
+          token: ${{ secrets.BOT_CROSS_REPO_PAT }}
+      - name: Configure git
+        run: |
+          git config user.name sourcegraph-bot
+          git config user.email sourcegraph-bot-github@sourcegraph.com
+        working-directory: sourcegraph
+      - name: Bump src-cli and open the PR
+        run: dev/open-sourcegraph-bump-pr.sh
+        env:
+          VERSION: ${{ inputs.version }}
+          SOURCEGRAPH_DIR: ${{ github.workspace }}/sourcegraph
+          GH_TOKEN: ${{ secrets.BOT_CROSS_REPO_PAT }}

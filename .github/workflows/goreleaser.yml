@@ -27,13 +27,14 @@ on:
 #
 # 1. Build and publish the new release to a versioned Homebrew formula
 #
-# This action contains 5 jobs to accommodate both cases:
+# This action contains 6 jobs to accommodate both cases:
 #
-# release_type    [always]      - checks tags, determines if we're case 1. or case 2.
-# goreleaser_pre  [if case 1.]  - copies the main formula to a versioned formula
-# goreleaser      [always]      - runs tests, builds + publishes with goreleaser
-# goreleaser_post [if case 1.]  - updates symlink to latest version
-# npm             [always]      - publishes to npm
+# release_type     [always]      - checks tags, determines if we're case 1. or case 2.
+# goreleaser_pre   [if case 1.]  - copies the main formula to a versioned formula
+# goreleaser       [always]      - runs tests, builds + publishes with goreleaser
+# goreleaser_post  [if case 1.]  - updates symlink to latest version
+# npm              [always]      - publishes to npm
+# sourcegraph_bump [if case 1.]  - opens the sourcegraph/sourcegraph PR that pins the new version
 jobs:
   # release_type compares the current tag to the highest versioned tag available on the
   # repo to determine if this release is for a new latest version or a patch of an older
@@ -260,3 +261,14 @@ jobs:
         working-directory: npm-distribution
         env:
           NODE_AUTH_TOKEN: ${{secrets.NPM_TOKEN}}
+
+  # sourcegraph_bump opens the sourcegraph/sourcegraph PR that raises MinimumVersion and
+  # the Bazel src-cli pins to this release, so instances start serving it from
+  # /.api/src-cli/. A patch of an older version does not change what instances serve.
+  sourcegraph_bump:
+    needs: goreleaser
+    if: needs.goreleaser.outputs.is_latest_version == 1
+    uses: ./.github/workflows/sourcegraph-bump.yml
+    with:
+      version: ${{ github.ref_name }}
+    secrets: inherit
