@@ -174,6 +174,7 @@ Is your Sourcegraph instance behind a custom auth proxy? See [auth proxy configu
 - `src code-intel` - manage code intelligence data
 - `src codeowners` - manage ingested code ownership data
 - `src config` - manage global, org, and user settings
+- `src context` - manage search contexts, such as creating one from an SBOM
 - `src debug` - gather and bundle debug data from a Sourcegraph deployment for troubleshooting
 - `src extsvc` - manage external services (repository configuration)
 - `src login` - authenticate to a Sourcegraph instance with your user credentials

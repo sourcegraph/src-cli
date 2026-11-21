@@ -14,6 +14,7 @@ All notable changes to `src-cli` are documented in this file.
 ### Added
 
 - `src` now prints a warning to stderr when it is older than the version recommended by your Sourcegraph instance. The recommended version is looked up at most once every 24 hours per instance. To disable the check, set the `SRC_SKIP_VERSION_CHECK` environment variable to any non-blank string. [#930](https://github.com/sourcegraph/src-cli/issues/930)
+- `src context import` creates a search context from an SPDX 3.0 or CycloneDX SBOM, pinning each package's repository to the revision the SBOM references. Requires a Sourcegraph instance with the `searchcontexts.v1.Service/ImportSbom` API.
 
 ### Changed
 

@@ -48,6 +48,8 @@ var expectedDocFiles = []string{
 	"config/get.md",
 	"config/index.md",
 	"config/list.md",
+	"context/import.md",
+	"context/index.md",
 	"debug/compose.md",
 	"debug/index.md",
 	"debug/kube.md",
