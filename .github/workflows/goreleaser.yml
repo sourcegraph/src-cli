@@ -142,6 +142,9 @@ jobs:
     name: Run goreleaser
     runs-on: ubuntu-latest
     needs: [release_type, goreleaser_pre]
+    permissions:
+      contents: read
+      id-token: write
     # By default, this job will be skipped if either "needs" job is skipped. This tells
     # GitHub actions to always run it, so long as the previous jobs that ran didn't fail.
     if: |
@@ -183,10 +186,12 @@ jobs:
           go-version: ${{ steps.mise.outputs.go-version }}
       - run: go test ./...
       - run: go test -race -v ./...
-      - run: echo "${DOCKER_PASSWORD}" | docker login -u=$DOCKER_USERNAME --password-stdin
+      - name: Login to Docker Hub
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
+        with:
+          username: sourcegraph
         env:
-          DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
-          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+          DOCKERHUB_OIDC_CONNECTIONID: 9f14c248-6ae5-4c2a-ad0c-3af4ca55a16e
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7.3.0
         with:

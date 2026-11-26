@@ -14,6 +14,9 @@ on:
 jobs:
   publish:
     runs-on: ubuntu-26.04
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -29,7 +32,11 @@ jobs:
         with:
           platforms: arm64
 
-      - run: ./docker/batch-change-volume-workspace/push.py -d ./docker/batch-change-volume-workspace/Dockerfile -i sourcegraph/src-batch-change-volume-workspace -p linux/amd64,linux/arm64,linux/386 --readme ./docker/batch-change-volume-workspace/README.md
+      - name: Login to Docker Hub
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
+        with:
+          username: sourcegraph
         env:
-          DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
-          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+          DOCKERHUB_OIDC_CONNECTIONID: 9f14c248-6ae5-4c2a-ad0c-3af4ca55a16e
+
+      - run: ./docker/batch-change-volume-workspace/push.py -d ./docker/batch-change-volume-workspace/Dockerfile -i sourcegraph/src-batch-change-volume-workspace -p linux/amd64,linux/arm64,linux/386 --readme ./docker/batch-change-volume-workspace/README.md
