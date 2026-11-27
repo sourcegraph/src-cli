@@ -36,6 +36,7 @@ jobs:
         uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
         with:
           username: sourcegraph
+          scope: sourcegraph/src-batch-change-volume-workspace
         env:
           DOCKERHUB_OIDC_CONNECTIONID: 9f14c248-6ae5-4c2a-ad0c-3af4ca55a16e
 
