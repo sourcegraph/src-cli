@@ -3,6 +3,8 @@
 # This is a very simple script to build and push the Docker image used by the
 # Docker volume workspace driver. It's normally run from the "Publish Docker
 # image dependencies" GitHub Action, but can be run locally if necessary.
+# It reuses Docker's existing authentication, set up by the workflow's OIDC
+# login or by running docker login locally.
 #
 # This script requires Python 3.8 or later, and Docker 19.03 (for buildx). You
 # are strongly encouraged to use Black to format this file after modifying it.
@@ -87,14 +89,6 @@ def docker_cli_build(
     run(args, stdin=dockerfile)
 
 
-def docker_cli_login(username: str, password: str):
-    run(
-        ["docker", "login", f"-u={username}", "--password-stdin"],
-        input=password,
-        text=True,
-    )
-
-
 def run(args: Sequence[str], /, **kwargs) -> subprocess.CompletedProcess:
     print(f"+ {' '.join(args)}")
     return subprocess.run(args, check=True, **kwargs)
@@ -126,13 +120,6 @@ def main():
 
     tags = calculate_tags(args.ref)
     print(f"will push tags: {', '.join(tags)}")
-
-    print("logging into Docker Hub")
-    try:
-        docker_cli_login(os.environ["DOCKER_USERNAME"], os.environ["DOCKER_PASSWORD"])
-    except KeyError as e:
-        print(f"error retrieving environment variables: {e}")
-        raise
 
     print("building and pushing image")
     docker_cli_build(open(args.dockerfile, "rb"), args.platform, args.image, tags)
